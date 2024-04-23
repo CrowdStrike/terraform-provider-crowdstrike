@@ -5,80 +5,207 @@ package provider
 
 import (
 	"context"
-	"net/http"
+	"fmt"
+	"os"
 
+	"github.com/crowdstrike/gofalcon/falcon"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/function"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // Ensure ScaffoldingProvider satisfies various provider interfaces.
-var _ provider.Provider = &ScaffoldingProvider{}
-var _ provider.ProviderWithFunctions = &ScaffoldingProvider{}
+var _ provider.Provider = &CrowdStrikeProvider{}
+var _ provider.ProviderWithFunctions = &CrowdStrikeProvider{}
 
-// ScaffoldingProvider defines the provider implementation.
-type ScaffoldingProvider struct {
+// CrowdStrikeProvider defines the provider implementation.
+type CrowdStrikeProvider struct {
 	// version is set to the provider version on release, "dev" when the
 	// provider is built and ran locally, and "test" when running acceptance
 	// testing.
 	version string
 }
 
-// ScaffoldingProviderModel describes the provider data model.
-type ScaffoldingProviderModel struct {
-	Endpoint types.String `tfsdk:"endpoint"`
+// CrowdStrikeProviderModel describes the provider data model.
+type CrowdStrikeProviderModel struct {
+	Cloud        types.String `tfsdk:"cloud"`
+	ClientSecret types.String `tfsdk:"client_id"`
+	ClientId     types.String `tfsdk:"client_secret"`
 }
 
-func (p *ScaffoldingProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
+func (p *CrowdStrikeProvider) Metadata(
+	ctx context.Context,
+	req provider.MetadataRequest,
+	resp *provider.MetadataResponse,
+) {
 	resp.TypeName = "scaffolding"
 	resp.Version = p.version
 }
 
-func (p *ScaffoldingProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
+func (p *CrowdStrikeProvider) Schema(
+	ctx context.Context,
+	req provider.SchemaRequest,
+	resp *provider.SchemaResponse,
+) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"endpoint": schema.StringAttribute{
-				MarkdownDescription: "Example provider attribute",
+			"client_id": schema.StringAttribute{
+				MarkdownDescription: "Falcon Client Id for authenticating to the CrowdStrike APIs.",
+				Required:            true,
+				Sensitive:           true,
+			},
+			"client_secret": schema.StringAttribute{
+				MarkdownDescription: "Falcon Client Secret used for authenticating to the CrowdStrike APIs.",
+				Required:            true,
+				Sensitive:           true,
+			},
+			"cloud": schema.StringAttribute{
+				MarkdownDescription: "Falcon Cloud to authenticate to. Valid values are autodiscover, us-1, us-2, eu-1, us-gov-1",
 				Optional:            true,
+				Validators: []validator.String{
+					stringvalidator.OneOfCaseInsensitive(
+						"autodiscover",
+						"us-1",
+						"us-2",
+						"eu-1",
+						"us-gov-1",
+					),
+				},
 			},
 		},
 	}
 }
 
-func (p *ScaffoldingProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
-	var data ScaffoldingProviderModel
+func (p *CrowdStrikeProvider) Configure(
+	ctx context.Context,
+	req provider.ConfigureRequest,
+	resp *provider.ConfigureResponse,
+) {
+	var config CrowdStrikeProviderModel
 
-	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Configuration values are now available.
-	// if data.Endpoint.IsNull() { /* ... */ }
+	if config.Cloud.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("cloud"),
+			"Unknown CrowdStrike API Cloud",
+			"The provider cannot create the CrowdStrike API client as there is an unknown configuration value for the CrowdStrike API cloud. "+
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the FALCON_CLOUD environment variable.",
+		)
+	}
 
-	// Example client configuration for data sources and resources
-	client := http.DefaultClient
+	if config.ClientId.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("client_id"),
+			"Unknown CrowdStrike API Client ID",
+			"The provider cannot create the CrowdStrike API client as there is an unknown configuration value for the CrowdStrike API Client ID. "+
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the FALCON_CLIENT_ID environment variable.",
+		)
+	}
+
+	if config.ClientSecret.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("client_secret"),
+			"Unknown CrowdStrike API Client Secret",
+			"The provider cannot create the CrowdStrike API client as there is an unknown configuration value for the CrowdStrike API Client Secret. "+
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the FALCON_CLIENT_SECRET environment variable.",
+		)
+	}
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Default to env variables, but override
+	// with Terraform configuration if set.
+	cloud := os.Getenv("FALCON_CLOUD")
+	clientId := os.Getenv("FALCON_CLIENT_ID")
+	clientSecret := os.Getenv("FALCON_CLIENT_SECRET")
+
+	if !config.Cloud.IsNull() {
+		cloud = config.Cloud.ValueString()
+	}
+
+	if cloud == "" {
+		cloud = "autodiscover"
+	}
+
+	if !config.ClientId.IsNull() {
+		clientId = config.ClientSecret.ValueString()
+	}
+
+	if !config.ClientSecret.IsNull() {
+		clientSecret = config.ClientSecret.ValueString()
+	}
+
+	if clientId == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("client_id"),
+			"Missing CrowdStrike API Client ID",
+			"The provider cannot create the CrowdStrike API client as there is a missing or empty value for the CrowdStrike API Client ID. "+
+				"Set the client_id value in the configuration or use the FALCON_CLIENT_ID environment variable. "+
+				"If either is already set, ensure the value is not empty.",
+		)
+	}
+
+	if clientSecret == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("client_secret"),
+			"Missing CrowdStrike API Client Secret",
+			"The provider cannot create the CrowdStrike API client as there is a missing or empty value for the CrowdStrike API Client Secret. "+
+				"Set the client_secret value in the configuration or use the FALCON_CLIENT_SECRET environment variable. "+
+				"If either is already set, ensure the value is not empty.",
+		)
+	}
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	client, err := falcon.NewClient(&falcon.ApiConfig{
+		Cloud:             falcon.Cloud(cloud),
+		ClientId:          clientId,
+		ClientSecret:      clientSecret,
+		UserAgentOverride: fmt.Sprintf("terraform-provider-crowdstrike/%s", p.version),
+		Context:           ctx,
+	})
+
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to Create CrowdStrike API Client",
+			"An unexpected error occurred when creating the CrowdStrike API client. "+
+				"If the error is not clear, please open a issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike\n\n"+
+				"CrowdStrike Client Error: "+err.Error(),
+		)
+	}
+
 	resp.DataSourceData = client
 	resp.ResourceData = client
 }
 
-func (p *ScaffoldingProvider) Resources(ctx context.Context) []func() resource.Resource {
+func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewExampleResource,
 	}
 }
 
-func (p *ScaffoldingProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
+func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewExampleDataSource,
 	}
 }
 
-func (p *ScaffoldingProvider) Functions(ctx context.Context) []func() function.Function {
+func (p *CrowdStrikeProvider) Functions(ctx context.Context) []func() function.Function {
 	return []func() function.Function{
 		NewExampleFunction,
 	}
@@ -86,7 +213,7 @@ func (p *ScaffoldingProvider) Functions(ctx context.Context) []func() function.F
 
 func New(version string) func() provider.Provider {
 	return func() provider.Provider {
-		return &ScaffoldingProvider{
+		return &CrowdStrikeProvider{
 			version: version,
 		}
 	}
