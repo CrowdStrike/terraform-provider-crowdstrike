@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // Ensure ScaffoldingProvider satisfies various provider interfaces.
@@ -44,7 +45,7 @@ func (p *CrowdStrikeProvider) Metadata(
 	req provider.MetadataRequest,
 	resp *provider.MetadataResponse,
 ) {
-	resp.TypeName = "scaffolding"
+	resp.TypeName = "crowdstrike"
 	resp.Version = p.version
 }
 
@@ -57,12 +58,12 @@ func (p *CrowdStrikeProvider) Schema(
 		Attributes: map[string]schema.Attribute{
 			"client_id": schema.StringAttribute{
 				MarkdownDescription: "Falcon Client Id for authenticating to the CrowdStrike APIs.",
-				Required:            true,
+				Optional:            true,
 				Sensitive:           true,
 			},
 			"client_secret": schema.StringAttribute{
 				MarkdownDescription: "Falcon Client Secret used for authenticating to the CrowdStrike APIs.",
-				Required:            true,
+				Optional:            true,
 				Sensitive:           true,
 			},
 			"cloud": schema.StringAttribute{
@@ -172,12 +173,20 @@ func (p *CrowdStrikeProvider) Configure(
 		return
 	}
 
+	ctx = tflog.SetField(ctx, "crowdstrike_cloud", cloud)
+	ctx = tflog.SetField(ctx, "crowdstrike_client_id", clientId)
+	ctx = tflog.SetField(ctx, "crowdstrike_client_secret", clientSecret)
+	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "crowdstrike_client_id")
+	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "crowdstrike_client_secret")
+
+	tflog.Debug(ctx, "Creating CrowdStrike client")
+
 	client, err := falcon.NewClient(&falcon.ApiConfig{
 		Cloud:             falcon.Cloud(cloud),
 		ClientId:          clientId,
 		ClientSecret:      clientSecret,
 		UserAgentOverride: fmt.Sprintf("terraform-provider-crowdstrike/%s", p.version),
-		Context:           ctx,
+		Context:           context.Background(),
 	})
 
 	if err != nil {
@@ -191,6 +200,8 @@ func (p *CrowdStrikeProvider) Configure(
 
 	resp.DataSourceData = client
 	resp.ResourceData = client
+
+	tflog.Info(ctx, "Configured CrowdStrike client", map[string]any{"success": true})
 }
 
 func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.Resource {
@@ -201,7 +212,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 
 func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		NewExampleDataSource,
+		NewSensorUpdateBuildsDataSource,
 	}
 }
 
