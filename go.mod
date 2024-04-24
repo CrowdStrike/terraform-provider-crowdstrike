@@ -1,4 +1,4 @@
-module github.com/hashicorp/terraform-provider-scaffolding-framework
+module github.com/crowdstrike/terraform-provider-crowdstrike
 
 go 1.21
 
