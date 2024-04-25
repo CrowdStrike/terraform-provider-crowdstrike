@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
@@ -20,8 +21,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &sensorUpdatePolicyResource{}
-	_ resource.ResourceWithConfigure = &sensorUpdatePolicyResource{}
+	_ resource.Resource                = &sensorUpdatePolicyResource{}
+	_ resource.ResourceWithConfigure   = &sensorUpdatePolicyResource{}
+	_ resource.ResourceWithImportState = &sensorUpdatePolicyResource{}
 )
 
 // NewSensorUpdatePolicyResource is a helper function to simplify the provider implementation.
@@ -232,7 +234,7 @@ func (r *sensorUpdatePolicyResource) Read(
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error ",
-			"Could not read CrowdStrike Sensor Update Policy: "+state.ID.ValueString()+": "+err.Error(),
+			"Could not read CrowdStrike sensor update policy: "+state.ID.ValueString()+": "+err.Error(),
 		)
 		return
 	}
@@ -242,6 +244,7 @@ func (r *sensorUpdatePolicyResource) Read(
 	state.ID = types.StringValue(*policyResource.ID)
 	state.Name = types.StringValue(*policyResource.Name)
 	state.Description = types.StringValue(*policyResource.Description)
+	state.Build = types.StringValue(*policyResource.Settings.Build)
 	state.PlatformName = types.StringValue(*policyResource.PlatformName)
 	state.Enabled = types.BoolValue(*policyResource.Enabled)
 	if *policyResource.Settings.UninstallProtection == "ENABLED" {
@@ -298,8 +301,8 @@ func (r *sensorUpdatePolicyResource) Update(
 
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error Reading CrowdStrike Sensor Update Policy",
-			"Could not update Sensor Update Policy with ID: "+plan.ID.ValueString()+": "+err.Error(),
+			"Error Reading CrowdStrike sensor update policy",
+			"Could not update sensor update policy with ID: "+plan.ID.ValueString()+": "+err.Error(),
 		)
 		return
 	}
@@ -310,6 +313,7 @@ func (r *sensorUpdatePolicyResource) Update(
 	plan.Name = types.StringValue(*policyResource.Name)
 	plan.Description = types.StringValue(*policyResource.Description)
 	plan.PlatformName = types.StringValue(*policyResource.PlatformName)
+	plan.Build = types.StringValue(*policyResource.Settings.Build)
 	if *policyResource.Settings.UninstallProtection == "ENABLED" {
 		plan.UninstallProtection = types.BoolValue(true)
 	} else {
@@ -347,6 +351,53 @@ func (r *sensorUpdatePolicyResource) Delete(
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
+	var state sensorUpdatePolicyResourceModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// need to make sure the policy is disabled before delete
+	_, err := r.updatePolicyEnabledState(
+		ctx,
+		state.ID.ValueString(),
+		false,
+	)
+
+	// todo: if we should handle scope and timeout errors instead of giving a vague error
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error disabling sensor update policy for delete",
+			"Could not disable sensor update policy, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
+	_, err = r.client.SensorUpdatePolicies.DeleteSensorUpdatePolicies(
+		&sensor_update_policies.DeleteSensorUpdatePoliciesParams{
+			Context: ctx,
+			Ids:     []string{state.ID.ValueString()},
+		},
+	)
+
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error Deleting CrowdStrike sensor update policy",
+			"Could not delete sensor update policy, unexpected error: "+err.Error(),
+		)
+		return
+	}
+}
+
+// ImportState implements the logic to support resource imports
+func (r *sensorUpdatePolicyResource) ImportState(
+	ctx context.Context,
+	req resource.ImportStateRequest,
+	resp *resource.ImportStateResponse,
+) {
+	// Retrieve import ID and save to id attribute
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 // updatePolicyEnabledState enables or disables a policy

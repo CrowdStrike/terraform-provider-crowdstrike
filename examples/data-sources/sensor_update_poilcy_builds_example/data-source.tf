@@ -10,8 +10,8 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
-data "crowdstrike_sensor_update_policy_builds" "test" {}
+data "crowdstrike_sensor_update_policy_builds" "all" {}
 
-output "test_sensor_update_policy_builds" {
-  value = data.crowdstrike_sensor_update_policy_builds.test
+output "all_sensor_update_policy_builds" {
+  value = data.crowdstrike_sensor_update_policy_builds.all
 }

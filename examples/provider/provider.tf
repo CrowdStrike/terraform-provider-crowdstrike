@@ -1,3 +1,3 @@
-provider "scaffolding" {
-  # example configuration here
+provider "crowdstrike" {
+  cloud = "us-2"
 }
