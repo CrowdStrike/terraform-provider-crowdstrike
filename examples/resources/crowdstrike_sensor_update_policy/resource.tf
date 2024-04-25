@@ -17,7 +17,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   description          = "made with terraform"
   platform_name        = "Windows"
   build                = "18110"
-  uninstall_protection = true
+  uninstall_protection = false
 }
 
 output "sensor_policy" {
