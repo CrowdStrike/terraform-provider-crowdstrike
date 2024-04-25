@@ -1,32 +1,35 @@
 package provider
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
 func TestAccSensorUpdatePolicyResource(t *testing.T) {
+	rName := acctest.RandomWithPrefix("tf-acceptance-test")
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: providerConfig + `
+				Config: providerConfig + fmt.Sprintf(`
 resource "crowdstrike_sensor_update_policy" "test" {
-  name                 = "tf-test"
+  name                 = "%s"
   enabled              = true
   description          = "made with terraform"
   platform_name        = "Windows"
   build                = "18110"
   uninstall_protection = false 
 }
-`,
+`, rName),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
 						"name",
-						"tf-test",
+						rName,
 					),
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
@@ -73,21 +76,21 @@ resource "crowdstrike_sensor_update_policy" "test" {
 			},
 			// Update and Read testing
 			{
-				Config: providerConfig + `
+				Config: providerConfig + fmt.Sprintf(`
 resource "crowdstrike_sensor_update_policy" "test" {
-  name                 = "tf-test-updated"
+  name                 = "%s-updated"
   enabled              = false
   description          = "made with terraform updated"
   platform_name        = "Windows"
   build                = "18110"
   uninstall_protection = true 
 }
-`,
+`, rName),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
 						"name",
-						"tf-test-updated",
+						rName+"-updated",
 					),
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
