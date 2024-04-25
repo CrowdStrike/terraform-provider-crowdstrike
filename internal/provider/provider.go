@@ -57,12 +57,12 @@ func (p *CrowdStrikeProvider) Schema(
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"client_id": schema.StringAttribute{
-				MarkdownDescription: "Falcon Client Id for authenticating to the CrowdStrike APIs.",
+				MarkdownDescription: "Falcon Client Id for authenticating to the CrowdStrike APIs. Will use FALCON_CLIENT_ID environment variable when left blank.",
 				Optional:            true,
 				Sensitive:           true,
 			},
 			"client_secret": schema.StringAttribute{
-				MarkdownDescription: "Falcon Client Secret used for authenticating to the CrowdStrike APIs.",
+				MarkdownDescription: "Falcon Client Secret used for authenticating to the CrowdStrike APIs. Will use FALCON_CLIENT_SECRET environment variable when left blank.",
 				Optional:            true,
 				Sensitive:           true,
 			},
@@ -217,9 +217,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 }
 
 func (p *CrowdStrikeProvider) Functions(ctx context.Context) []func() function.Function {
-	return []func() function.Function{
-		NewExampleFunction,
-	}
+	return []func() function.Function{}
 }
 
 func New(version string) func() provider.Provider {

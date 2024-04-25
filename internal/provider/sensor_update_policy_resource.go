@@ -111,7 +111,7 @@ func (r *sensorUpdatePolicyResource) Schema(
 			},
 			"platform_name": schema.StringAttribute{
 				Required:    true,
-				Description: "Sensor Update Policy platform_name",
+				Description: "Sensor Update Policy platform. (Windows, Mac, Linux)",
 				Validators: []validator.String{
 					stringvalidator.OneOf("Windows", "Linux", "Mac"),
 				},
@@ -169,9 +169,14 @@ func (r *sensorUpdatePolicyResource) Create(
 		},
 	}
 
+	var uninstallProtection string
 	if plan.UninstallProtection.ValueBool() {
-		policyParams.Body.Resources[0].Settings.UninstallProtection = "ENABLED"
+		uninstallProtection = "ENABLED"
+	} else {
+		uninstallProtection = "DISABLED"
 	}
+
+	policyParams.Body.Resources[0].Settings.UninstallProtection = uninstallProtection
 
 	policy, err := r.client.SensorUpdatePolicies.CreateSensorUpdatePoliciesV2(&policyParams)
 
