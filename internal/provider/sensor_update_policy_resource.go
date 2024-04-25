@@ -395,7 +395,7 @@ func (r *sensorUpdatePolicyResource) Delete(
 	}
 }
 
-// ImportState implements the logic to support resource imports
+// ImportState implements the logic to support resource imports.
 func (r *sensorUpdatePolicyResource) ImportState(
 	ctx context.Context,
 	req resource.ImportStateRequest,
@@ -405,7 +405,7 @@ func (r *sensorUpdatePolicyResource) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-// updatePolicyEnabledState enables or disables a policy
+// updatePolicyEnabledState enables or disables a policy.
 func (r *sensorUpdatePolicyResource) updatePolicyEnabledState(
 	ctx context.Context,
 	policyID string,
