@@ -1,9 +1,10 @@
-# Terraform Provider testing workflow.
-name: Tests
+name: ci 
 
-# This GitHub action runs your tests for each pull request and push.
-# Optionally, you can turn it on using a schedule for regular testing.
 on:
+  pull_request_target:
+    types: [ labeled ]
+    paths-ignore:
+      - 'README.md'
   pull_request:
     paths-ignore:
       - 'README.md'
@@ -11,12 +12,10 @@ on:
     paths-ignore:
       - 'README.md'
 
-# Testing only needs permissions to read the repository contents.
 permissions:
   contents: read
 
 jobs:
-  # Ensure project builds before running testing matrix
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -42,8 +41,6 @@ jobs:
         with:
           go-version-file: 'go.mod'
           cache: true
-      # Temporarily download Terraform 1.8 prerelease for function documentation support.
-      # When Terraform 1.8.0 final is released, this can be removed.
       - uses: hashicorp/setup-terraform@97f030cf6dc0b4f5e0da352c7bca9cca34579800 # v3.1.0
         with:
           terraform_version: '1.8.0-alpha20240216'
@@ -53,9 +50,12 @@ jobs:
         run: |
           git diff --compact-summary --exit-code || \
             (echo; echo "Unexpected difference in directories after code generation. Run 'go generate ./...' command and commit."; exit 1)
-
   # Run acceptance tests in a matrix with Terraform CLI versions
   test:
+    if: |
+      (github.event_name == 'pull_request_target' &&
+      github.event.label.name == 'ok-to-test') ||
+      contains(fromJson('["push", "workflow_dispatch", "schedule"]'), github.event_name)
     name: Terraform Provider Acceptance Tests
     needs: build
     runs-on: ubuntu-latest
@@ -72,6 +72,9 @@ jobs:
           - '1.4.*'
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          ref: ${{github.event.pull_request.head.sha}}
+          repository: ${{github.event.pull_request.head.repo.full_name}}
       - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version-file: 'go.mod'
@@ -83,5 +86,7 @@ jobs:
       - run: go mod download
       - env:
           TF_ACC: "1"
+          FALCON_CLIENT_ID: ${{ secrets.FALCON_CLIENT_ID }}
+          FALCON_CLIENT_SECRET: ${{ secrets.FALCON_CLIENT_SECRET }}
         run: go test -v -cover ./internal/provider/
-        timeout-minutes: 10
+ 
