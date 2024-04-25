@@ -24,6 +24,7 @@ func NewSensorUpdateBuildsDataSource() datasource.DataSource {
 
 // sensorUpdatePolicyBuildsDataSourceModel maps the data source schema data.
 type sensorUpdatePolicyBuildsDataSourceModel struct {
+	ID     types.String                    `tfsdk:"id"`
 	Builds []sensorUpdatePolicyBuildsModel `tfsdk:"sensor_update_policy_builds"`
 }
 
@@ -57,6 +58,9 @@ func (d *sensorUpdatePolicyBuildsDataSource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed: true,
+			},
 			"sensor_update_policy_builds": schema.ListNestedAttribute{
 				Computed: true,
 				NestedObject: schema.NestedAttributeObject{
@@ -110,6 +114,8 @@ func (d *sensorUpdatePolicyBuildsDataSource) Read(
 		state.Builds = append(state.Builds, buildState)
 	}
 
+	state.ID = types.StringValue("all")
+
 	diags := resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -136,7 +142,6 @@ func (d *sensorUpdatePolicyBuildsDataSource) Configure(
 				req.ProviderData,
 			),
 		)
-
 		return
 	}
 
