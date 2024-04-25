@@ -23,6 +23,6 @@ provider "crowdstrike" {
 
 ### Optional
 
-- `client_id` (String, Sensitive) Falcon Client Id for authenticating to the CrowdStrike APIs.
-- `client_secret` (String, Sensitive) Falcon Client Secret used for authenticating to the CrowdStrike APIs.
+- `client_id` (String, Sensitive) Falcon Client Id for authenticating to the CrowdStrike APIs. Will use FALCON_CLIENT_ID environment variable when left blank.
+- `client_secret` (String, Sensitive) Falcon Client Secret used for authenticating to the CrowdStrike APIs. Will use FALCON_CLIENT_SECRET environment variable when left blank.
 - `cloud` (String) Falcon Cloud to authenticate to. Valid values are autodiscover, us-1, us-2, eu-1, us-gov-1
