@@ -12,12 +12,12 @@ provider "crowdstrike" {
 
 
 resource "crowdstrike_sensor_update_policy" "test" {
-  name = "tf-test-update"
-  enabled = true 
-  description = "made with terraform"
-  platform_name = "Windows"
-  build = "18110|n-2|tagged|2"
-  uninstall_protection = false
+  name                 = "tf-test-update"
+  enabled              = true
+  description          = "made with terraform"
+  platform_name        = "Windows"
+  build                = "18110"
+  uninstall_protection = true
 }
 
 output "sensor_policy" {
