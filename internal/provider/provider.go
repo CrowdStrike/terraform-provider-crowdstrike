@@ -207,6 +207,7 @@ func (p *CrowdStrikeProvider) Configure(
 func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewSensorUpdatePolicyResource,
+		NewHostGroupResource,
 	}
 }
 
