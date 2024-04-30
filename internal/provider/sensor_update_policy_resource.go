@@ -3,12 +3,14 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -25,6 +27,17 @@ var (
 	_ resource.ResourceWithConfigure   = &sensorUpdatePolicyResource{}
 	_ resource.ResourceWithImportState = &sensorUpdatePolicyResource{}
 )
+
+type hostGroupAction int
+
+const (
+	removeHostGroup hostGroupAction = iota
+	addHostGroup
+)
+
+func (h hostGroupAction) String() string {
+	return [...]string{"remove-host-group", "add-host-group"}[h]
+}
 
 // NewSensorUpdatePolicyResource is a helper function to simplify the provider implementation.
 func NewSensorUpdatePolicyResource() resource.Resource {
@@ -46,6 +59,7 @@ type sensorUpdatePolicyResourceModel struct {
 	PlatformName        types.String `tfsdk:"platform_name"`
 	UninstallProtection types.Bool   `tfsdk:"uninstall_protection"`
 	LastUpdated         types.String `tfsdk:"last_updated"`
+	HostGroups          types.List   `tfsdk:"host_groups"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -133,6 +147,11 @@ func (r *sensorUpdatePolicyResource) Schema(
 				Description: "Enable uninstall protection",
 				Default:     booldefault.StaticBool(false),
 			},
+			"host_groups": schema.ListAttribute{
+				Optional:    true,
+				ElementType: types.StringType,
+				Description: "Host Group ids to attach to the policy",
+			},
 		},
 	}
 }
@@ -151,16 +170,13 @@ func (r *sensorUpdatePolicyResource) Create(
 		return
 	}
 
-	policyName := plan.Name.ValueString()
-	platformName := plan.PlatformName.ValueString()
-
 	policyParams := sensor_update_policies.CreateSensorUpdatePoliciesV2Params{
 		Context: ctx,
 		Body: &models.SensorUpdateCreatePoliciesReqV2{
 			Resources: []*models.SensorUpdateCreatePolicyReqV2{
 				{
-					Name:         &policyName,
-					PlatformName: &platformName,
+					Name:         plan.Name.ValueStringPointer(),
+					PlatformName: plan.PlatformName.ValueStringPointer(),
 					Description:  plan.Description.ValueString(),
 					Settings: &models.SensorUpdateSettingsReqV2{
 						Build: plan.Build.ValueString(),
@@ -176,7 +192,6 @@ func (r *sensorUpdatePolicyResource) Create(
 	} else {
 		uninstallProtection = "DISABLED"
 	}
-
 	policyParams.Body.Resources[0].Settings.UninstallProtection = uninstallProtection
 
 	policy, err := r.client.SensorUpdatePolicies.CreateSensorUpdatePoliciesV2(&policyParams)
@@ -209,6 +224,24 @@ func (r *sensorUpdatePolicyResource) Create(
 		}
 
 		plan.Enabled = types.BoolValue(*actionResp.Payload.Resources[0].Enabled)
+	}
+
+	if len(plan.HostGroups.Elements()) != 0 {
+		var hostGroupIDs []string
+		resp.Diagnostics.Append(plan.HostGroups.ElementsAs(ctx, &hostGroupIDs, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		err = r.updateHostGroups(ctx, addHostGroup, hostGroupIDs, plan.ID.ValueString())
+
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error assinging host group to policy",
+				"Could not assign host group to policy, unexpected error: "+err.Error(),
+			)
+			return
+		}
 	}
 
 	diags = resp.State.Set(ctx, plan)
@@ -254,11 +287,25 @@ func (r *sensorUpdatePolicyResource) Read(
 	state.Build = types.StringValue(*policyResource.Settings.Build)
 	state.PlatformName = types.StringValue(*policyResource.PlatformName)
 	state.Enabled = types.BoolValue(*policyResource.Enabled)
+
 	if *policyResource.Settings.UninstallProtection == "ENABLED" {
 		state.UninstallProtection = types.BoolValue(true)
 	} else {
 		state.UninstallProtection = types.BoolValue(false)
 	}
+
+	var hostGroups []string
+	for _, hostGroup := range policyResource.Groups {
+		hostGroups = append(hostGroups, *hostGroup.ID)
+	}
+
+	hostGroupIDs, diags := types.ListValueFrom(ctx, types.StringType, hostGroups)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	state.HostGroups = hostGroupIDs
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, &state)
@@ -280,6 +327,51 @@ func (r *sensorUpdatePolicyResource) Update(
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+	// Retrieve values from state
+	var state sensorUpdatePolicyResourceModel
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	hostGroupsToAdd, hostGroupsToRemove, diags := r.getHostGroupsToModify(ctx, plan, state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if len(hostGroupsToAdd) != 0 {
+		err := r.updateHostGroups(ctx, addHostGroup, hostGroupsToAdd, plan.ID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error updating CrowdStrike sensor update policy",
+				fmt.Sprintf(
+					"Could not add host groups: (%s) to policy with id: %s \n\n %s",
+					strings.Join(hostGroupsToAdd, ", "),
+					plan.ID.ValueString(),
+					err.Error(),
+				),
+			)
+			return
+		}
+	}
+
+	if len(hostGroupsToRemove) != 0 {
+		err := r.updateHostGroups(ctx, removeHostGroup, hostGroupsToRemove, plan.ID.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error updating CrowdStrike sensor update policy",
+				fmt.Sprintf(
+					"Could not remove host groups: (%s) to policy with id: %s \n\n %s",
+					strings.Join(hostGroupsToAdd, ", "),
+					plan.ID.ValueString(),
+					err.Error(),
+				),
+			)
+			return
+		}
 	}
 
 	policyParams := sensor_update_policies.UpdateSensorUpdatePoliciesV2Params{
@@ -344,6 +436,19 @@ func (r *sensorUpdatePolicyResource) Update(
 	}
 
 	plan.Enabled = types.BoolValue(*actionResp.Payload.Resources[0].Enabled)
+
+	var hostGroups []string
+	for _, hostGroup := range policyResource.Groups {
+		hostGroups = append(hostGroups, *hostGroup.ID)
+	}
+
+	hostGroupIDs, diags := types.ListValueFrom(ctx, types.StringType, hostGroups)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	plan.HostGroups = hostGroupIDs
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -429,4 +534,82 @@ func (r *sensorUpdatePolicyResource) updatePolicyEnabledState(
 	)
 
 	return *res, err
+}
+
+// updateHostGroups will remove or add a slice of host groups
+// to a slice of sensor update policies.
+func (r *sensorUpdatePolicyResource) updateHostGroups(
+	ctx context.Context,
+	action hostGroupAction,
+	hostGroupIDs []string,
+	policyID string,
+) error {
+	var actionParams []*models.MsaspecActionParameter
+	name := "group_id"
+
+	for _, hostGroup := range hostGroupIDs {
+		actionParam := &models.MsaspecActionParameter{
+			Name:  &name,
+			Value: &hostGroup,
+		}
+
+		actionParams = append(actionParams, actionParam)
+	}
+
+	_, err := r.client.SensorUpdatePolicies.PerformSensorUpdatePoliciesAction(
+		&sensor_update_policies.PerformSensorUpdatePoliciesActionParams{
+			Context:    ctx,
+			ActionName: action.String(),
+			Body: &models.MsaEntityActionRequestV2{
+				ActionParameters: actionParams,
+				Ids:              []string{policyID},
+			},
+		},
+	)
+
+	return err
+}
+
+// getHostGroupsToModify takes in the planned state and current state and returns
+// a list of host group ids to remove and add.
+func (r *sensorUpdatePolicyResource) getHostGroupsToModify(
+	ctx context.Context,
+	plan, state sensorUpdatePolicyResourceModel,
+) (hostGroupsToAdd []string, hostGroupsToRemove []string, diags diag.Diagnostics) {
+	var planHostGroupIDs, stateHostGroupIds []string
+	planMap := make(map[string]bool)
+	stateMap := make(map[string]bool)
+
+	d := plan.HostGroups.ElementsAs(ctx, &planHostGroupIDs, false)
+	diags.Append(d...)
+	if diags.HasError() {
+		return
+	}
+	d = state.HostGroups.ElementsAs(ctx, &stateHostGroupIds, false)
+	diags.Append(d...)
+	if diags.HasError() {
+		return
+	}
+
+	for _, id := range planHostGroupIDs {
+		planMap[id] = true
+	}
+
+	for _, id := range stateHostGroupIds {
+		stateMap[id] = true
+	}
+
+	for _, id := range planHostGroupIDs {
+		if !stateMap[id] {
+			hostGroupsToAdd = append(hostGroupsToAdd, id)
+		}
+	}
+
+	for _, id := range stateHostGroupIds {
+		if !planMap[id] {
+			hostGroupsToRemove = append(hostGroupsToRemove, id)
+		}
+	}
+
+	return
 }
