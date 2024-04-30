@@ -18,6 +18,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   platform_name        = "Windows"
   build                = "18110"
   uninstall_protection = false
+  # host_groups        = ["host_group_id"]
 }
 
 output "sensor_policy" {

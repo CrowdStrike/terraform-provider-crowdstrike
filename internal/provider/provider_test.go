@@ -1,6 +1,9 @@
 package provider
 
 import (
+	"os"
+	"testing"
+
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 )
@@ -17,4 +20,13 @@ provider "crowdstrike" {}
 // reattach.
 var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
 	"crowdstrike": providerserver.NewProtocol6WithError(New("test")()),
+}
+
+func testAccPreCheck(t *testing.T) {
+	requiredEnvVars := []string{"FALCON_CLIENT_ID", "FALCON_CLIENT_SECRET", "HOST_GROUP_ID"}
+	for _, envVar := range requiredEnvVars {
+		if v := os.Getenv(envVar); v == "" {
+			t.Fatalf("%s must be set for acceptance tests", envVar)
+		}
+	}
 }

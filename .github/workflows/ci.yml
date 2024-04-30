@@ -90,5 +90,6 @@ jobs:
           TF_ACC: "1"
           FALCON_CLIENT_ID: ${{ secrets.FALCON_CLIENT_ID }}
           FALCON_CLIENT_SECRET: ${{ secrets.FALCON_CLIENT_SECRET }}
+          HOST_GROUP_ID: ${{ secrets.HOST_GROUP_ID }}
         run: go test -v -cover ./internal/provider/
  
