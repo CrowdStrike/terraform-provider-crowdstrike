@@ -9,6 +9,7 @@ import (
 func TestAccSensorUpdatePolicyBuildsDataSource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		PreCheck:                 func() { testAccPreCheck(t) },
 		Steps: []resource.TestStep{
 			// Read testing
 			{

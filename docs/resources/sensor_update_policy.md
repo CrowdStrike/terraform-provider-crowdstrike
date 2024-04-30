@@ -33,6 +33,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   platform_name        = "Windows"
   build                = "18110"
   uninstall_protection = false
+  # host_groups        = ["host_group_id"]
 }
 
 output "sensor_policy" {
@@ -53,6 +54,7 @@ output "sensor_policy" {
 
 - `description` (String) Sensor Update Policy description
 - `enabled` (Boolean) Enable the Sensor Update Policy
+- `host_groups` (List of String) Host Group ids to attach to the policy
 - `uninstall_protection` (Boolean) Enable uninstall protection
 
 ### Read-Only
