@@ -109,6 +109,7 @@ func (r *sensorUpdatePolicyResource) Schema(
 				Required:    true,
 				Description: "The Sensor build to target",
 			},
+			// todo: make this case insensitive
 			"platform_name": schema.StringAttribute{
 				Required:    true,
 				Description: "Sensor Update Policy platform. (Windows, Mac, Linux)",
@@ -232,13 +233,14 @@ func (r *sensorUpdatePolicyResource) Read(
 
 	policy, err := r.client.SensorUpdatePolicies.GetSensorUpdatePoliciesV2(
 		&sensor_update_policies.GetSensorUpdatePoliciesV2Params{
-			Ids: []string{state.ID.ValueString()},
+			Context: ctx,
+			Ids:     []string{state.ID.ValueString()},
 		},
 	)
 
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error ",
+			"Error reading CrowdStrike sensor update policy",
 			"Could not read CrowdStrike sensor update policy: "+state.ID.ValueString()+": "+err.Error(),
 		)
 		return
@@ -306,7 +308,7 @@ func (r *sensorUpdatePolicyResource) Update(
 
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error Reading CrowdStrike sensor update policy",
+			"Error updating CrowdStrike sensor update policy",
 			"Could not update sensor update policy with ID: "+plan.ID.ValueString()+": "+err.Error(),
 		)
 		return
@@ -388,7 +390,7 @@ func (r *sensorUpdatePolicyResource) Delete(
 
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error Deleting CrowdStrike sensor update policy",
+			"Error deleting CrowdStrike sensor update policy",
 			"Could not delete sensor update policy, unexpected error: "+err.Error(),
 		)
 		return
