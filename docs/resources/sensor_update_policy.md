@@ -54,7 +54,7 @@ output "sensor_policy" {
 
 - `description` (String) Sensor Update Policy description
 - `enabled` (Boolean) Enable the Sensor Update Policy
-- `host_groups` (List of String) Host Group ids to attach to the policy
+- `host_groups` (Set of String) Host Group ids to attach to the policy
 - `uninstall_protection` (Boolean) Enable uninstall protection
 
 ### Read-Only
