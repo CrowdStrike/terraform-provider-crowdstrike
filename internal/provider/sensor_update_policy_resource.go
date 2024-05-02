@@ -59,7 +59,7 @@ type sensorUpdatePolicyResourceModel struct {
 	PlatformName        types.String `tfsdk:"platform_name"`
 	UninstallProtection types.Bool   `tfsdk:"uninstall_protection"`
 	LastUpdated         types.String `tfsdk:"last_updated"`
-	HostGroups          types.List   `tfsdk:"host_groups"`
+	HostGroups          types.Set    `tfsdk:"host_groups"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -147,7 +147,7 @@ func (r *sensorUpdatePolicyResource) Schema(
 				Description: "Enable uninstall protection",
 				Default:     booldefault.StaticBool(false),
 			},
-			"host_groups": schema.ListAttribute{
+			"host_groups": schema.SetAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
 				Description: "Host Group ids to attach to the policy",
@@ -299,7 +299,7 @@ func (r *sensorUpdatePolicyResource) Read(
 		hostGroups = append(hostGroups, *hostGroup.ID)
 	}
 
-	hostGroupIDs, diags := types.ListValueFrom(ctx, types.StringType, hostGroups)
+	hostGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, hostGroups)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -442,7 +442,7 @@ func (r *sensorUpdatePolicyResource) Update(
 		hostGroups = append(hostGroups, *hostGroup.ID)
 	}
 
-	hostGroupIDs, diags := types.ListValueFrom(ctx, types.StringType, hostGroups)
+	hostGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, hostGroups)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -547,10 +547,11 @@ func (r *sensorUpdatePolicyResource) updateHostGroups(
 	var actionParams []*models.MsaspecActionParameter
 	name := "group_id"
 
-	for _, hostGroup := range hostGroupIDs {
+	for _, g := range hostGroupIDs {
+		gCopy := g
 		actionParam := &models.MsaspecActionParameter{
 			Name:  &name,
-			Value: &hostGroup,
+			Value: &gCopy,
 		}
 
 		actionParams = append(actionParams, actionParam)
