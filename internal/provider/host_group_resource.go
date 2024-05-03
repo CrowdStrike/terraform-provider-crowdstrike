@@ -92,18 +92,20 @@ func (r *hostGroupResource) Schema(
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed: true,
+				Computed:    true,
+				Description: "Identifier for host group.",
+
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
-				Description: "Host Group id",
 			},
 			"last_updated": schema.StringAttribute{
-				Computed: true,
+				Computed:    true,
+				Description: "Timestamp of the last Terraform update of the resource.",
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
-				Description: "Host Group name",
+				Description: "Name of the host group.",
 			},
 			"assignment_rule": schema.StringAttribute{
 				Optional:    true,
@@ -114,14 +116,14 @@ func (r *hostGroupResource) Schema(
 			"type": schema.StringAttribute{
 				Required: true,
 				// todo: make this case insensitive
-				Description: "The Host Group type, case sensitive (dynamic, static, staticByID)",
+				Description: "The host group type, case sensitive (dynamic, static, staticByID)",
 				Validators: []validator.String{
 					stringvalidator.OneOf("dynamic", "static", "staticByID"),
 				},
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
-				Description: "Host Group description",
+				Description: "Description of the host group.",
 			},
 		},
 	}

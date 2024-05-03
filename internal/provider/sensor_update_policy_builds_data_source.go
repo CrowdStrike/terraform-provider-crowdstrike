@@ -28,7 +28,7 @@ type sensorUpdatePolicyBuildsDataSourceModel struct {
 	Builds []sensorUpdatePolicyBuildsModel `tfsdk:"sensor_update_policy_builds"`
 }
 
-// sensorUpdatePolicyBuildsModel maps coffees schema data.
+// sensorUpdatePolicyBuildsModel maps sensor update policy builds schema data.
 type sensorUpdatePolicyBuildsModel struct {
 	Build         types.String `tfsdk:"build"`
 	Stage         types.String `tfsdk:"stage"`
@@ -59,23 +59,28 @@ func (d *sensorUpdatePolicyBuildsDataSource) Schema(
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed: true,
+				Computed:    true,
+				Description: "Placehodler identifier.",
 			},
 			"sensor_update_policy_builds": schema.ListNestedAttribute{
 				Computed: true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"build": schema.StringAttribute{
-							Computed: true,
+							Computed:    true,
+							Description: "The build number for a specific sensor version.",
 						},
 						"stage": schema.StringAttribute{
-							Computed: true,
+							Computed:    true,
+							Description: "The stage for the build.",
 						},
 						"platform": schema.StringAttribute{
-							Computed: true,
+							Computed:    true,
+							Description: "The target platform for a the build.",
 						},
 						"sensor_version": schema.StringAttribute{
-							Computed: true,
+							Computed:    true,
+							Description: "CrowdStrike Falcon Sensor version.",
 						},
 					},
 				},

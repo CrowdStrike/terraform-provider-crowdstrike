@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -16,17 +17,40 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"golang.org/x/exp/maps"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &sensorUpdatePolicyResource{}
-	_ resource.ResourceWithConfigure   = &sensorUpdatePolicyResource{}
-	_ resource.ResourceWithImportState = &sensorUpdatePolicyResource{}
+	_ resource.Resource                   = &sensorUpdatePolicyResource{}
+	_ resource.ResourceWithConfigure      = &sensorUpdatePolicyResource{}
+	_ resource.ResourceWithImportState    = &sensorUpdatePolicyResource{}
+	_ resource.ResourceWithValidateConfig = &sensorUpdatePolicyResource{}
 )
+
+var int64ToDay = map[int64]string{
+	0: "sunday",
+	1: "monday",
+	2: "tuesday",
+	3: "wednesday",
+	4: "thursday",
+	5: "friday",
+	6: "saturday",
+}
+
+var dayToInt64 = map[string]int64{
+	"sunday":    0,
+	"monday":    1,
+	"tuesday":   2,
+	"wednesday": 3,
+	"thursday":  4,
+	"friday":    5,
+	"saturday":  6,
+}
 
 type hostGroupAction int
 
@@ -49,17 +73,31 @@ type sensorUpdatePolicyResource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-// sensorUpdatePolicyResourceModel maps the resource schema data.
 type sensorUpdatePolicyResourceModel struct {
-	ID                  types.String `tfsdk:"id"`
-	Enabled             types.Bool   `tfsdk:"enabled"`
-	Name                types.String `tfsdk:"name"`
-	Build               types.String `tfsdk:"build"`
-	Description         types.String `tfsdk:"description"`
-	PlatformName        types.String `tfsdk:"platform_name"`
-	UninstallProtection types.Bool   `tfsdk:"uninstall_protection"`
-	LastUpdated         types.String `tfsdk:"last_updated"`
-	HostGroups          types.Set    `tfsdk:"host_groups"`
+	ID                  types.String   `tfsdk:"id"`
+	Enabled             types.Bool     `tfsdk:"enabled"`
+	Name                types.String   `tfsdk:"name"`
+	Build               types.String   `tfsdk:"build"`
+	Description         types.String   `tfsdk:"description"`
+	PlatformName        types.String   `tfsdk:"platform_name"`
+	UninstallProtection types.Bool     `tfsdk:"uninstall_protection"`
+	LastUpdated         types.String   `tfsdk:"last_updated"`
+	HostGroups          types.Set      `tfsdk:"host_groups"`
+	Schedule            policySchedule `tfsdk:"schedule"`
+}
+
+// policySchedule the schedule for a sensor update policy.
+type policySchedule struct {
+	Enabled    types.Bool   `tfsdk:"enabled"`
+	Timezone   types.String `tfsdk:"timezone"`
+	TimeBlocks []timeBlock  `tfsdk:"time_blocks"`
+}
+
+// timeBlock a time block for a sensor update policy schedule.
+type timeBlock struct {
+	Days      types.Set    `tfsdk:"days"`
+	StartTime types.String `tfsdk:"start_time"`
+	EndTime   types.String `tfsdk:"end_time"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -107,26 +145,28 @@ func (r *sensorUpdatePolicyResource) Schema(
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed: true,
+				Computed:    true,
+				Description: "Identifier for sensor update policy.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"last_updated": schema.StringAttribute{
-				Computed: true,
+				Computed:    true,
+				Description: "Timestamp of the last Terraform update of the resource.",
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
-				Description: "Sensor Update Policy name",
+				Description: "Name of the sensor update policy.",
 			},
 			"build": schema.StringAttribute{
 				Required:    true,
-				Description: "The Sensor build to target",
+				Description: "Sensor build to use for the sensor update policy.",
 			},
 			// todo: make this case insensitive
 			"platform_name": schema.StringAttribute{
 				Required:    true,
-				Description: "Sensor Update Policy platform. (Windows, Mac, Linux)",
+				Description: "Platform for the sensor update policy to manage. (Windows, Mac, Linux)",
 				Validators: []validator.String{
 					stringvalidator.OneOf("Windows", "Linux", "Mac"),
 				},
@@ -134,23 +174,67 @@ func (r *sensorUpdatePolicyResource) Schema(
 			"enabled": schema.BoolAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "Enable the Sensor Update Policy",
+				Description: "Enable the sensor update policy.",
 				Default:     booldefault.StaticBool(true),
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
-				Description: "Sensor Update Policy description",
+				Description: "Description of the sensor update policy.",
 			},
 			"uninstall_protection": schema.BoolAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "Enable uninstall protection",
+				Description: "Enable uninstall protection.",
 				Default:     booldefault.StaticBool(false),
 			},
 			"host_groups": schema.SetAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
-				Description: "Host Group ids to attach to the policy",
+				Description: "Host Group ids to attach to the sensor update policy.",
+			},
+			"schedule": schema.SingleNestedAttribute{
+				Required:    true,
+				Description: "Prohibit sensor updates during a set of time blocks.",
+				Attributes: map[string]schema.Attribute{
+					"enabled": schema.BoolAttribute{
+						Required:    true,
+						Description: "Enable the scheduler for sensor update policy.",
+					},
+					"timezone": schema.StringAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "The time zones that will be used for the time blocks. Only set when enabled is true.",
+						Default:     stringdefault.StaticString("Etc/UTC"),
+					},
+					"time_blocks": schema.SetNestedAttribute{
+						Optional:    true,
+						Description: "The time block to prevent sensor updates. Only set when enabled is true.",
+						NestedObject: schema.NestedAttributeObject{
+							Attributes: map[string]schema.Attribute{
+								"days": schema.SetAttribute{
+									Required:    true,
+									ElementType: types.StringType,
+									Description: "The days of the week the time block should be active.",
+									Validators: []validator.Set{
+										setvalidator.ValueStringsAre(
+											stringvalidator.OneOfCaseInsensitive(
+												maps.Keys(dayToInt64)...,
+											),
+										),
+									},
+								},
+								"start_time": schema.StringAttribute{
+									Required:    true,
+									Description: "The start time for the time block in 24HR format. Must be atleast 1 hour before end_time.",
+								},
+								"end_time": schema.StringAttribute{
+									Required:    true,
+									Description: "The end time for the time block in 24HR format. Must be atleast 1 hour more than start_time.",
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	}
@@ -193,6 +277,21 @@ func (r *sensorUpdatePolicyResource) Create(
 		uninstallProtection = "DISABLED"
 	}
 	policyParams.Body.Resources[0].Settings.UninstallProtection = uninstallProtection
+
+	updateSchedular := models.PolicySensorUpdateScheduler{}
+	updateSchedular.Enabled = plan.Schedule.Enabled.ValueBoolPointer()
+	updateSchedular.Timezone = plan.Schedule.Timezone.ValueStringPointer()
+
+	if len(plan.Schedule.TimeBlocks) > 0 {
+		updateSchedules, diags := createUpdateSchedules(ctx, plan.Schedule.TimeBlocks)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		updateSchedular.Schedules = updateSchedules
+	}
+	policyParams.Body.Resources[0].Settings.Scheduler = &updateSchedular
 
 	policy, err := r.client.SensorUpdatePolicies.CreateSensorUpdatePoliciesV2(&policyParams)
 
@@ -307,6 +406,39 @@ func (r *sensorUpdatePolicyResource) Read(
 
 	state.HostGroups = hostGroupIDs
 
+	if policyResource.Settings.Scheduler != nil {
+		state.Schedule = policySchedule{}
+		state.Schedule.Enabled = types.BoolValue(*policyResource.Settings.Scheduler.Enabled)
+		state.Schedule.Timezone = types.StringValue(*policyResource.Settings.Scheduler.Timezone)
+
+		if policyResource.Settings.Scheduler.Schedules != nil {
+			if len(policyResource.Settings.Scheduler.Schedules) > 0 {
+				state.Schedule.TimeBlocks = []timeBlock{}
+
+				for _, s := range policyResource.Settings.Scheduler.Schedules {
+					sCopy := s
+					daysStr := []string{}
+
+					for _, d := range sCopy.Days {
+						dCopy := d
+						daysStr = append(daysStr, int64ToDay[dCopy])
+					}
+
+					days, diags := types.SetValueFrom(ctx, types.StringType, daysStr)
+					resp.Diagnostics.Append(diags...)
+					if resp.Diagnostics.HasError() {
+						return
+					}
+					state.Schedule.TimeBlocks = append(state.Schedule.TimeBlocks, timeBlock{
+						Days:      days,
+						StartTime: types.StringValue(*sCopy.Start),
+						EndTime:   types.StringValue(*sCopy.End),
+					})
+				}
+			}
+		}
+	}
+
 	// Set refreshed state
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -394,7 +526,23 @@ func (r *sensorUpdatePolicyResource) Update(
 		policyParams.Body.Resources[0].Settings.UninstallProtection = "ENABLED"
 	} else {
 		policyParams.Body.Resources[0].Settings.UninstallProtection = "DISABLED"
+
 	}
+
+	updateSchedular := models.PolicySensorUpdateScheduler{}
+	updateSchedular.Timezone = plan.Schedule.Timezone.ValueStringPointer()
+	updateSchedular.Enabled = plan.Schedule.Enabled.ValueBoolPointer()
+
+	if len(plan.Schedule.TimeBlocks) > 0 {
+		updateSchedules, diags := createUpdateSchedules(ctx, plan.Schedule.TimeBlocks)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		updateSchedular.Schedules = updateSchedules
+	}
+	policyParams.Body.Resources[0].Settings.Scheduler = &updateSchedular
 
 	policy, err := r.client.SensorUpdatePolicies.UpdateSensorUpdatePoliciesV2(&policyParams)
 
@@ -510,6 +658,122 @@ func (r *sensorUpdatePolicyResource) ImportState(
 ) {
 	// Retrieve import ID and save to id attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resp.Diagnostics.Append(
+		resp.State.SetAttribute(ctx, path.Root("schedule").AtName("enabled"), false)...)
+}
+
+// ValidateConfig runs during validate, plan, and apply
+// validate resource is configured as expected.
+func (r *sensorUpdatePolicyResource) ValidateConfig(
+	ctx context.Context,
+	req resource.ValidateConfigRequest,
+	resp *resource.ValidateConfigResponse,
+) {
+
+	var config sensorUpdatePolicyResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	scheduleEnabled := config.Schedule.Enabled.ValueBool()
+
+	if !scheduleEnabled && !config.Schedule.Timezone.IsNull() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("schedule"),
+			"Invalid schedule block: timezone provided",
+			"To implement idempotency timezone and time_blocks should not be provided when enabled is false.",
+		)
+
+		return
+	}
+
+	if !scheduleEnabled && len(config.Schedule.TimeBlocks) > 0 {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("schedule"),
+			"Invalid schedule block: time_blocks provided",
+			"To implement idempotency timezone and time_blocks should not be provided when enabled is false.",
+		)
+
+		return
+	}
+
+	if scheduleEnabled {
+		if config.Schedule.Timezone.IsUnknown() || config.Schedule.Timezone.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("schedule"),
+				"missing required attribute",
+				"timezone is required when the schedule is set to enabled true.",
+			)
+			return
+		}
+
+		if len(config.Schedule.TimeBlocks) == 0 {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("schedule"),
+				"missing required attribute",
+				"time_blocks is required when the schedule is set to enabled true.",
+			)
+			return
+		}
+		usedDays := make(map[string]interface{})
+
+		for _, b := range config.Schedule.TimeBlocks {
+			ok, err := validTime(b.StartTime.ValueString(), b.EndTime.ValueString())
+
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Unable to validate config",
+					"Error while validating start and end times for time_block: "+err.Error(),
+				)
+				return
+			}
+
+			if !ok {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("schedule"),
+					"Invalid start_time or end_time",
+					"start_time and end_time should be at least 1 hour apart.",
+				)
+				return
+			}
+
+			days := []string{}
+			resp.Diagnostics.Append(b.Days.ElementsAs(ctx, &days, false)...)
+
+			for _, day := range days {
+				_, ok := usedDays[day]
+				if ok {
+					resp.Diagnostics.AddAttributeError(
+						path.Root("schedule"),
+						"Duplicate days in schedule",
+						fmt.Sprintf(
+							"Day %s declared in multiple time_blocks. Multiple time_blocks can't reference the same day.",
+							day,
+						),
+					)
+				}
+
+				usedDays[day] = nil
+			}
+		}
+	}
+}
+
+// validTime checks if the start and end time are atleast 1 hour apart
+func validTime(startTimeStr string, endTimeStr string) (bool, error) {
+	startTime, err := time.Parse("15:04", startTimeStr)
+	if err != nil {
+		return false, err
+	}
+	endTime, err := time.Parse("15:04", endTimeStr)
+	if err != nil {
+		return false, err
+	}
+
+	duration := endTime.Sub(startTime)
+
+	return duration >= time.Hour, nil
 }
 
 // updatePolicyEnabledState enables or disables a policy.
@@ -581,13 +845,11 @@ func (r *sensorUpdatePolicyResource) getHostGroupsToModify(
 	planMap := make(map[string]bool)
 	stateMap := make(map[string]bool)
 
-	d := plan.HostGroups.ElementsAs(ctx, &planHostGroupIDs, false)
-	diags.Append(d...)
+	diags.Append(plan.HostGroups.ElementsAs(ctx, &planHostGroupIDs, false)...)
 	if diags.HasError() {
 		return
 	}
-	d = state.HostGroups.ElementsAs(ctx, &stateHostGroupIds, false)
-	diags.Append(d...)
+	diags.Append(state.HostGroups.ElementsAs(ctx, &stateHostGroupIds, false)...)
 	if diags.HasError() {
 		return
 	}
@@ -613,4 +875,38 @@ func (r *sensorUpdatePolicyResource) getHostGroupsToModify(
 	}
 
 	return
+}
+
+// createUpdateSchedules handles the logic to create a models.PolicySensorUpdateSchedule
+func createUpdateSchedules(
+	ctx context.Context,
+	timeBlocks []timeBlock,
+) ([]*models.PolicySensorUpdateSchedule, diag.Diagnostics) {
+	updateSchedules := []*models.PolicySensorUpdateSchedule{}
+	diags := diag.Diagnostics{}
+
+	for _, b := range timeBlocks {
+		bCopy := b
+		days := []string{}
+		daysInt64 := []int64{}
+
+		diags = bCopy.Days.ElementsAs(ctx, &days, false)
+
+		if diags.HasError() {
+			return updateSchedules, diags
+		}
+
+		for _, d := range days {
+			dCopy := d
+			daysInt64 = append(daysInt64, dayToInt64[strings.ToLower(dCopy)])
+		}
+
+		updateSchedules = append(updateSchedules, &models.PolicySensorUpdateSchedule{
+			Start: bCopy.StartTime.ValueStringPointer(),
+			End:   bCopy.EndTime.ValueStringPointer(),
+			Days:  daysInt64,
+		})
+	}
+
+	return updateSchedules, diags
 }
