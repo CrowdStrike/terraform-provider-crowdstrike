@@ -43,18 +43,18 @@ output "host_group" {
 
 ### Required
 
-- `name` (String) Host Group name
-- `type` (String) The Host Group type, case sensitive (dynamic, static, staticByID)
+- `name` (String) Name of the host group.
+- `type` (String) The host group type, case sensitive (dynamic, static, staticByID)
 
 ### Optional
 
 - `assignment_rule` (String) The assignment rule for dynamic host groups
-- `description` (String) Host Group description
+- `description` (String) Description of the host group.
 
 ### Read-Only
 
-- `id` (String) Host Group id
-- `last_updated` (String)
+- `id` (String) Identifier for host group.
+- `last_updated` (String) Timestamp of the last Terraform update of the resource.
 
 ## Import
 

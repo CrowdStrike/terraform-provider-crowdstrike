@@ -34,6 +34,17 @@ resource "crowdstrike_sensor_update_policy" "test" {
   build                = "18110"
   uninstall_protection = false
   # host_groups        = ["host_group_id"]
+  schedule = {
+    enabled = false
+    # timezone = "Etc/UTC"
+    # time_blocks = [
+    #   {
+    #     days       = ["sunday", "wednesday"]
+    #     start_time = "12:40"
+    #     end_time   = "16:40"
+    #   }
+    # ]
+  }
 }
 
 output "sensor_policy" {
@@ -46,21 +57,43 @@ output "sensor_policy" {
 
 ### Required
 
-- `build` (String) The Sensor build to target
-- `name` (String) Sensor Update Policy name
-- `platform_name` (String) Sensor Update Policy platform. (Windows, Mac, Linux)
+- `build` (String) Sensor build to use for the sensor update policy.
+- `name` (String) Name of the sensor update policy.
+- `platform_name` (String) Platform for the sensor update policy to manage. (Windows, Mac, Linux)
+- `schedule` (Attributes) Prohibit sensor updates during a set of time blocks. (see [below for nested schema](#nestedatt--schedule))
 
 ### Optional
 
-- `description` (String) Sensor Update Policy description
-- `enabled` (Boolean) Enable the Sensor Update Policy
-- `host_groups` (Set of String) Host Group ids to attach to the policy
-- `uninstall_protection` (Boolean) Enable uninstall protection
+- `description` (String) Description of the sensor update policy.
+- `enabled` (Boolean) Enable the sensor update policy.
+- `host_groups` (Set of String) Host Group ids to attach to the sensor update policy.
+- `uninstall_protection` (Boolean) Enable uninstall protection.
 
 ### Read-Only
 
-- `id` (String) The ID of this resource.
-- `last_updated` (String)
+- `id` (String) Identifier for sensor update policy.
+- `last_updated` (String) Timestamp of the last Terraform update of the resource.
+
+<a id="nestedatt--schedule"></a>
+### Nested Schema for `schedule`
+
+Required:
+
+- `enabled` (Boolean) Enable the scheduler for sensor update policy.
+
+Optional:
+
+- `time_blocks` (Attributes Set) The time block to prevent sensor updates. Only set when enabled is true. (see [below for nested schema](#nestedatt--schedule--time_blocks))
+- `timezone` (String) The time zones that will be used for the time blocks. Only set when enabled is true.
+
+<a id="nestedatt--schedule--time_blocks"></a>
+### Nested Schema for `schedule.time_blocks`
+
+Required:
+
+- `days` (Set of String) The days of the week the time block should be active.
+- `end_time` (String) The end time for the time block in 24HR format. Must be atleast 1 hour more than start_time.
+- `start_time` (String) The start time for the time block in 24HR format. Must be atleast 1 hour before end_time.
 
 ## Import
 
