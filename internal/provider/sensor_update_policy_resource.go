@@ -840,7 +840,7 @@ func (r *sensorUpdatePolicyResource) ValidateConfig(
 	}
 }
 
-// validTime checks if the start and end time are atleast 1 hour apart
+// validTime checks if the start and end time are atleast 1 hour apart.
 func validTime(startTimeStr string, endTimeStr string) (bool, error) {
 	startTime, err := time.Parse("15:04", startTimeStr)
 	if err != nil {
@@ -957,7 +957,7 @@ func (r *sensorUpdatePolicyResource) getHostGroupsToModify(
 	return
 }
 
-// createUpdateSchedules handles the logic to create a models.PolicySensorUpdateSchedule
+// createUpdateSchedules handles the logic to create a models.PolicySensorUpdateSchedule.
 func createUpdateSchedules(
 	ctx context.Context,
 	timeBlocks []timeBlock,
