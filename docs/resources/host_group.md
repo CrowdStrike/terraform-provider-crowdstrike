@@ -44,11 +44,11 @@ output "host_group" {
 ### Required
 
 - `name` (String) Name of the host group.
-- `type` (String) The host group type, case sensitive (dynamic, static, staticByID)
+- `type` (String) The host group type, case sensitive. (dynamic, static, staticByID)
 
 ### Optional
 
-- `assignment_rule` (String) The assignment rule for dynamic host groups
+- `assignment_rule` (String) The assignment rule for dynamic host groups.
 - `description` (String) Description of the host group.
 
 ### Read-Only
