@@ -7,10 +7,15 @@ import (
 	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
+	"github.com/crowdstrike/gofalcon/falcon/client/device_control_policies"
+	"github.com/crowdstrike/gofalcon/falcon/client/firewall_policies"
 	"github.com/crowdstrike/gofalcon/falcon/client/host_group"
+	"github.com/crowdstrike/gofalcon/falcon/client/prevention_policies"
+	"github.com/crowdstrike/gofalcon/falcon/client/response_policies"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -110,13 +115,13 @@ func (r *hostGroupResource) Schema(
 			"assignment_rule": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "The assignment rule for dynamic host groups",
+				Description: "The assignment rule for dynamic host groups.",
 				Default:     nil,
 			},
 			"type": schema.StringAttribute{
 				Required: true,
 				// todo: make this case insensitive
-				Description: "The host group type, case sensitive (dynamic, static, staticByID)",
+				Description: "The host group type, case sensitive. (dynamic, static, staticByID)",
 				Validators: []validator.String{
 					stringvalidator.OneOf("dynamic", "static", "staticByID"),
 				},
@@ -315,22 +320,35 @@ func (r *hostGroupResource) Delete(
 		return
 	}
 
-	policies, _ := r.assignedSensorUpdatePolicies(ctx, state.ID.ValueString())
-
-	if len(policies) != 0 {
-		err := r.removeSensorUpdatePolicy(
-			ctx,
-			state.ID.ValueString(),
-			policies,
-		)
-
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error deleting CrowdStrike host group",
-				"Unable to remove assigned sensor update policies "+err.Error(),
-			)
-		}
+	// all assinged policies must be removed before we are able to delete the host group
+	resp.Diagnostics.Append(r.purgeSensorUpdatePolicies(ctx, state.ID.ValueString())...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
+
+	resp.Diagnostics.Append(r.purgeUSBDeviceControlPolicies(ctx, state.ID.ValueString())...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(r.purgeFirewallPolicies(ctx, state.ID.ValueString())...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(r.purgePreventionPolicies(ctx, state.ID.ValueString())...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(r.purgeResponsePolicies(ctx, state.ID.ValueString())...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// removal of assigned policies return before the host group is ready to be deleted
+	// adding a simple sleep.
+	time.Sleep(10 * time.Second)
 
 	_, err := r.client.HostGroup.DeleteHostGroups(
 		&host_group.DeleteHostGroupsParams{
@@ -343,7 +361,7 @@ func (r *hostGroupResource) Delete(
 		if strings.Contains(err.Error(), "409") {
 			resp.Diagnostics.AddError(
 				"Error deleting CrowdStrike host group",
-				"Please remove all assigned policies (firewall policies, prevention policies, etc) and try again.",
+				"Please remove all assigned policies (firewall policies, prevention policies, etc) and try again. "+err.Error(),
 			)
 		} else {
 			resp.Diagnostics.AddError(
@@ -365,10 +383,12 @@ func (r *hostGroupResource) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r *hostGroupResource) assignedSensorUpdatePolicies(
+// purgeSensorUpdatePolicies removes all sensor update policies from a host group.
+func (r *hostGroupResource) purgeSensorUpdatePolicies(
 	ctx context.Context,
 	hostGroupID string,
-) ([]string, error) {
+) diag.Diagnostics {
+	var diag diag.Diagnostics
 
 	filter := fmt.Sprintf("groups:'%s'", hostGroupID)
 	res, err := r.client.SensorUpdatePolicies.QuerySensorUpdatePolicies(
@@ -379,21 +399,21 @@ func (r *hostGroupResource) assignedSensorUpdatePolicies(
 	)
 
 	if err != nil {
-		return []string{}, err
+		diag.AddError(
+			"Error deleting CrowdStrike host group",
+			"Unable to read assigned sensor update policies "+err.Error(),
+		)
+		return diag
 	}
 
-	return res.Payload.Resources, nil
-}
+	policies := res.Payload.Resources
 
-func (r *hostGroupResource) removeSensorUpdatePolicy(
-	ctx context.Context,
-	hostGroupID string,
-	policies []string,
-) error {
+	if len(policies) == 0 {
+		return diag
+	}
 
 	name := "group_id"
-
-	_, err := r.client.SensorUpdatePolicies.PerformSensorUpdatePoliciesAction(
+	_, err = r.client.SensorUpdatePolicies.PerformSensorUpdatePoliciesAction(
 		&sensor_update_policies.PerformSensorUpdatePoliciesActionParams{
 			Context:    ctx,
 			ActionName: "remove-host-group",
@@ -409,9 +429,241 @@ func (r *hostGroupResource) removeSensorUpdatePolicy(
 		},
 	)
 
-	// api returns before the policy is actually removed...
-	// wait to hopefully prevent calling delete on host group before we are ready.
-	time.Sleep(10 * time.Second)
+	if err != nil {
+		diag.AddError(
+			"Error deleting CrowdStrike host group",
+			"Unable to remove assigned sensor update policies "+err.Error(),
+		)
+		return diag
+	}
 
-	return err
+	return diag
+}
+
+// purgeUSBDeviceControlPolicies removes all usb device control policies from a host group.
+func (r *hostGroupResource) purgeUSBDeviceControlPolicies(
+	ctx context.Context,
+	hostGroupID string,
+) diag.Diagnostics {
+	var diag diag.Diagnostics
+
+	filter := fmt.Sprintf("groups:'%s'", hostGroupID)
+	res, err := r.client.DeviceControlPolicies.QueryDeviceControlPolicies(
+		&device_control_policies.QueryDeviceControlPoliciesParams{
+			Context: ctx,
+			Filter:  &filter,
+		},
+	)
+
+	if err != nil {
+		diag.AddError(
+			"Error deleting CrowdStrike host group",
+			"Unable to read assigned usb device control policies "+err.Error(),
+		)
+		return diag
+	}
+
+	policies := res.Payload.Resources
+
+	if len(policies) == 0 {
+		return diag
+	}
+
+	name := "group_id"
+	_, err = r.client.DeviceControlPolicies.PerformDeviceControlPoliciesAction(
+		&device_control_policies.PerformDeviceControlPoliciesActionParams{
+			Context:    ctx,
+			ActionName: "remove-host-group",
+			Body: &models.MsaEntityActionRequestV2{
+				ActionParameters: []*models.MsaspecActionParameter{
+					{
+						Name:  &name,
+						Value: &hostGroupID,
+					},
+				},
+				Ids: policies,
+			},
+		},
+	)
+
+	if err != nil {
+		diag.AddError(
+			"Error deleting CrowdStrike host group",
+			"Unable to remove assigned usb device control policies "+err.Error(),
+		)
+		return diag
+	}
+
+	return diag
+}
+
+// purgePreventionPolicies removes all prevention policies from a host group.
+func (r *hostGroupResource) purgePreventionPolicies(
+	ctx context.Context,
+	hostGroupID string,
+) diag.Diagnostics {
+	var diag diag.Diagnostics
+
+	filter := fmt.Sprintf("groups:'%s'", hostGroupID)
+	res, err := r.client.PreventionPolicies.QueryPreventionPolicies(
+		&prevention_policies.QueryPreventionPoliciesParams{
+			Context: ctx,
+			Filter:  &filter,
+		},
+	)
+
+	if err != nil {
+		diag.AddError(
+			"Error deleting CrowdStrike host group",
+			"Unable to read assigned prevention policies "+err.Error(),
+		)
+		return diag
+	}
+
+	policies := res.Payload.Resources
+
+	if len(policies) == 0 {
+		return diag
+	}
+
+	name := "group_id"
+	_, err = r.client.PreventionPolicies.PerformPreventionPoliciesAction(
+		&prevention_policies.PerformPreventionPoliciesActionParams{
+			Context:    ctx,
+			ActionName: "remove-host-group",
+			Body: &models.MsaEntityActionRequestV2{
+				ActionParameters: []*models.MsaspecActionParameter{
+					{
+						Name:  &name,
+						Value: &hostGroupID,
+					},
+				},
+				Ids: policies,
+			},
+		},
+	)
+
+	if err != nil {
+		diag.AddError(
+			"Error deleting CrowdStrike host group",
+			"Unable to remove assigned prevention policies "+err.Error(),
+		)
+		return diag
+	}
+
+	return diag
+}
+
+// purgeFirewallPolicies removes all firewall policies from a host group.
+func (r *hostGroupResource) purgeFirewallPolicies(
+	ctx context.Context,
+	hostGroupID string,
+) diag.Diagnostics {
+	var diag diag.Diagnostics
+
+	filter := fmt.Sprintf("groups:'%s'", hostGroupID)
+	res, err := r.client.FirewallPolicies.QueryFirewallPolicies(
+		&firewall_policies.QueryFirewallPoliciesParams{
+			Context: ctx,
+			Filter:  &filter,
+		},
+	)
+
+	if err != nil {
+		diag.AddError(
+			"Error deleting CrowdStrike host group",
+			"Unable to read assigned firewall prevention policies "+err.Error(),
+		)
+		return diag
+	}
+
+	policies := res.Payload.Resources
+
+	if len(policies) == 0 {
+		return diag
+	}
+
+	name := "group_id"
+	_, err = r.client.FirewallPolicies.PerformFirewallPoliciesAction(
+		&firewall_policies.PerformFirewallPoliciesActionParams{
+			Context:    ctx,
+			ActionName: "remove-host-group",
+			Body: &models.MsaEntityActionRequestV2{
+				ActionParameters: []*models.MsaspecActionParameter{
+					{
+						Name:  &name,
+						Value: &hostGroupID,
+					},
+				},
+				Ids: policies,
+			},
+		},
+	)
+
+	if err != nil {
+		diag.AddError(
+			"Error deleting CrowdStrike host group",
+			"Unable to remove assigned firewall prevention policies "+err.Error(),
+		)
+		return diag
+	}
+
+	return diag
+}
+
+// purgeResponsePolicies removes all response policies from a host group.
+func (r *hostGroupResource) purgeResponsePolicies(
+	ctx context.Context,
+	hostGroupID string,
+) diag.Diagnostics {
+	var diag diag.Diagnostics
+
+	filter := fmt.Sprintf("groups:'%s'", hostGroupID)
+	res, err := r.client.ResponsePolicies.QueryRTResponsePolicies(
+		&response_policies.QueryRTResponsePoliciesParams{
+			Context: ctx,
+			Filter:  &filter,
+		},
+	)
+
+	if err != nil {
+		diag.AddError(
+			"Error deleting CrowdStrike host group",
+			"Unable to read assigned response policies "+err.Error(),
+		)
+		return diag
+	}
+
+	policies := res.Payload.Resources
+
+	if len(policies) == 0 {
+		return diag
+	}
+
+	name := "group_id"
+	_, err = r.client.ResponsePolicies.PerformRTResponsePoliciesAction(
+		&response_policies.PerformRTResponsePoliciesActionParams{
+			Context:    ctx,
+			ActionName: "remove-host-group",
+			Body: &models.MsaEntityActionRequestV2{
+				ActionParameters: []*models.MsaspecActionParameter{
+					{
+						Name:  &name,
+						Value: &hostGroupID,
+					},
+				},
+				Ids: policies,
+			},
+		},
+	)
+
+	if err != nil {
+		diag.AddError(
+			"Error deleting CrowdStrike host group",
+			"Unable to remove assigned response policies "+err.Error(),
+		)
+		return diag
+	}
+
+	return diag
 }
