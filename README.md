@@ -1,4 +1,14 @@
+| Scope                   | Permission      | Required to manage these resources |
+|-------------------------|-----------------|------------------------------------|
+| Device Control Policies | *READ*, *WRITE* | `crowdstrike_host_group`           |
+| Prevention Policies     | *READ*, *WRITE* | `crowdstrike_host_group`           |
+| Response Policies       | *READ*, *WRITE* | `crowdstrike_host_group`           |
+| Firewall Management     | *READ*, *WRITE* | `crowdstrike_host_group`           |
+| Host Groups             | *READ*, *WRITE* | `crowdstrike_host_group`           |
+| Sensor Update Policies  | *READ*, *WRITE* | `crowdstrike_sensor_update_policy` |
+
 # Terraform Provider Scaffolding (Terraform Plugin Framework)
+
 
 _This template repository is built on the [Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework). The template repository built on the [Terraform Plugin SDK](https://github.com/hashicorp/terraform-plugin-sdk) can be found at [terraform-provider-scaffolding](https://github.com/hashicorp/terraform-provider-scaffolding). See [Which SDK Should I Use?](https://developer.hashicorp.com/terraform/plugin/framework-benefits) in the Terraform documentation for additional information._
 
