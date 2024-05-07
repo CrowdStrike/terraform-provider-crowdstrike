@@ -37,7 +37,7 @@ output "all_sensor_update_policy_builds" {
 
 ### Read-Only
 
-- `id` (String) The ID of this resource.
+- `id` (String) Placehodler identifier.
 - `sensor_update_policy_builds` (Attributes List) (see [below for nested schema](#nestedatt--sensor_update_policy_builds))
 
 <a id="nestedatt--sensor_update_policy_builds"></a>
@@ -45,7 +45,7 @@ output "all_sensor_update_policy_builds" {
 
 Read-Only:
 
-- `build` (String)
-- `platform` (String)
-- `sensor_version` (String)
-- `stage` (String)
+- `build` (String) The build number for a specific sensor version.
+- `platform` (String) The target platform for a the build.
+- `sensor_version` (String) CrowdStrike Falcon Sensor version.
+- `stage` (String) The stage for the build.
