@@ -25,10 +25,19 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
-data "crowdstrike_sensor_update_policy_builds" "all" {}
+data "crowdstrike_sensor_update_policy_builds" "builds" {}
 
-output "all_sensor_update_policy_builds" {
-  value = data.crowdstrike_sensor_update_policy_builds.all
+
+output "latest_windows_build" {
+  value = data.crowdstrike_sensor_update_policy_builds.builds.windows.latest
+}
+
+output "n1_linux_build" {
+  value = data.crowdstrike_sensor_update_policy_builds.builds.linux.n1
+}
+
+output "n2_mac_build" {
+  value = data.crowdstrike_sensor_update_policy_builds.builds.mac.n2
 }
 ```
 
@@ -38,10 +47,165 @@ output "all_sensor_update_policy_builds" {
 ### Read-Only
 
 - `id` (String) Placehodler identifier.
-- `sensor_update_policy_builds` (Attributes List) (see [below for nested schema](#nestedatt--sensor_update_policy_builds))
+- `linux` (Attributes) Builds for the Linux platform. (see [below for nested schema](#nestedatt--linux))
+- `mac` (Attributes) Builds for the Mac platform. (see [below for nested schema](#nestedatt--mac))
+- `windows` (Attributes) Builds for the Windows platform. (see [below for nested schema](#nestedatt--windows))
 
-<a id="nestedatt--sensor_update_policy_builds"></a>
-### Nested Schema for `sensor_update_policy_builds`
+<a id="nestedatt--linux"></a>
+### Nested Schema for `linux`
+
+Read-Only:
+
+- `all` (Attributes List) All sensor builds for the specific platform. (see [below for nested schema](#nestedatt--linux--all))
+- `latest` (Attributes) The latest sensor build. (see [below for nested schema](#nestedatt--linux--latest))
+- `n1` (Attributes) The n-1 sensor build. (see [below for nested schema](#nestedatt--linux--n1))
+- `n2` (Attributes) The n-2 sensor build. (see [below for nested schema](#nestedatt--linux--n2))
+
+<a id="nestedatt--linux--all"></a>
+### Nested Schema for `linux.all`
+
+Read-Only:
+
+- `build` (String) The build number for a specific sensor version.
+- `platform` (String) The target platform for a the build.
+- `sensor_version` (String) CrowdStrike Falcon Sensor version.
+- `stage` (String) The stage for the build.
+
+
+<a id="nestedatt--linux--latest"></a>
+### Nested Schema for `linux.latest`
+
+Read-Only:
+
+- `build` (String) The build number for a specific sensor version.
+- `platform` (String) The target platform for a the build.
+- `sensor_version` (String) CrowdStrike Falcon Sensor version.
+- `stage` (String) The stage for the build.
+
+
+<a id="nestedatt--linux--n1"></a>
+### Nested Schema for `linux.n1`
+
+Read-Only:
+
+- `build` (String) The build number for a specific sensor version.
+- `platform` (String) The target platform for a the build.
+- `sensor_version` (String) CrowdStrike Falcon Sensor version.
+- `stage` (String) The stage for the build.
+
+
+<a id="nestedatt--linux--n2"></a>
+### Nested Schema for `linux.n2`
+
+Read-Only:
+
+- `build` (String) The build number for a specific sensor version.
+- `platform` (String) The target platform for a the build.
+- `sensor_version` (String) CrowdStrike Falcon Sensor version.
+- `stage` (String) The stage for the build.
+
+
+
+<a id="nestedatt--mac"></a>
+### Nested Schema for `mac`
+
+Read-Only:
+
+- `all` (Attributes List) All sensor builds for the specific platform. (see [below for nested schema](#nestedatt--mac--all))
+- `latest` (Attributes) The latest sensor build. (see [below for nested schema](#nestedatt--mac--latest))
+- `n1` (Attributes) The n-1 sensor build. (see [below for nested schema](#nestedatt--mac--n1))
+- `n2` (Attributes) The n-2 sensor build. (see [below for nested schema](#nestedatt--mac--n2))
+
+<a id="nestedatt--mac--all"></a>
+### Nested Schema for `mac.all`
+
+Read-Only:
+
+- `build` (String) The build number for a specific sensor version.
+- `platform` (String) The target platform for a the build.
+- `sensor_version` (String) CrowdStrike Falcon Sensor version.
+- `stage` (String) The stage for the build.
+
+
+<a id="nestedatt--mac--latest"></a>
+### Nested Schema for `mac.latest`
+
+Read-Only:
+
+- `build` (String) The build number for a specific sensor version.
+- `platform` (String) The target platform for a the build.
+- `sensor_version` (String) CrowdStrike Falcon Sensor version.
+- `stage` (String) The stage for the build.
+
+
+<a id="nestedatt--mac--n1"></a>
+### Nested Schema for `mac.n1`
+
+Read-Only:
+
+- `build` (String) The build number for a specific sensor version.
+- `platform` (String) The target platform for a the build.
+- `sensor_version` (String) CrowdStrike Falcon Sensor version.
+- `stage` (String) The stage for the build.
+
+
+<a id="nestedatt--mac--n2"></a>
+### Nested Schema for `mac.n2`
+
+Read-Only:
+
+- `build` (String) The build number for a specific sensor version.
+- `platform` (String) The target platform for a the build.
+- `sensor_version` (String) CrowdStrike Falcon Sensor version.
+- `stage` (String) The stage for the build.
+
+
+
+<a id="nestedatt--windows"></a>
+### Nested Schema for `windows`
+
+Read-Only:
+
+- `all` (Attributes List) All sensor builds for the specific platform. (see [below for nested schema](#nestedatt--windows--all))
+- `latest` (Attributes) The latest sensor build. (see [below for nested schema](#nestedatt--windows--latest))
+- `n1` (Attributes) The n-1 sensor build. (see [below for nested schema](#nestedatt--windows--n1))
+- `n2` (Attributes) The n-2 sensor build. (see [below for nested schema](#nestedatt--windows--n2))
+
+<a id="nestedatt--windows--all"></a>
+### Nested Schema for `windows.all`
+
+Read-Only:
+
+- `build` (String) The build number for a specific sensor version.
+- `platform` (String) The target platform for a the build.
+- `sensor_version` (String) CrowdStrike Falcon Sensor version.
+- `stage` (String) The stage for the build.
+
+
+<a id="nestedatt--windows--latest"></a>
+### Nested Schema for `windows.latest`
+
+Read-Only:
+
+- `build` (String) The build number for a specific sensor version.
+- `platform` (String) The target platform for a the build.
+- `sensor_version` (String) CrowdStrike Falcon Sensor version.
+- `stage` (String) The stage for the build.
+
+
+<a id="nestedatt--windows--n1"></a>
+### Nested Schema for `windows.n1`
+
+Read-Only:
+
+- `build` (String) The build number for a specific sensor version.
+- `platform` (String) The target platform for a the build.
+- `sensor_version` (String) CrowdStrike Falcon Sensor version.
+- `stage` (String) The stage for the build.
+
+
+<a id="nestedatt--windows--n2"></a>
+### Nested Schema for `windows.n2`
 
 Read-Only:
 

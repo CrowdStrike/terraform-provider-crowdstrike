@@ -17,19 +17,55 @@ func TestAccSensorUpdatePolicyBuildsDataSource(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(
 						"data.crowdstrike_sensor_update_policy_builds.test",
-						"sensor_update_policy_builds.0.build",
+						"windows.latest.build",
 					),
 					resource.TestCheckResourceAttrSet(
 						"data.crowdstrike_sensor_update_policy_builds.test",
-						"sensor_update_policy_builds.0.stage",
+						"windows.n1.build",
 					),
 					resource.TestCheckResourceAttrSet(
 						"data.crowdstrike_sensor_update_policy_builds.test",
-						"sensor_update_policy_builds.0.platform",
+						"windows.n2.build",
 					),
 					resource.TestCheckResourceAttrSet(
 						"data.crowdstrike_sensor_update_policy_builds.test",
-						"sensor_update_policy_builds.0.sensor_version",
+						"linux.latest.build",
+					),
+					resource.TestCheckResourceAttrSet(
+						"data.crowdstrike_sensor_update_policy_builds.test",
+						"linux.n1.build",
+					),
+					resource.TestCheckResourceAttrSet(
+						"data.crowdstrike_sensor_update_policy_builds.test",
+						"linux.n2.build",
+					),
+					resource.TestCheckResourceAttrSet(
+						"data.crowdstrike_sensor_update_policy_builds.test",
+						"mac.latest.build",
+					),
+					resource.TestCheckResourceAttrSet(
+						"data.crowdstrike_sensor_update_policy_builds.test",
+						"mac.n1.build",
+					),
+					resource.TestCheckResourceAttrSet(
+						"data.crowdstrike_sensor_update_policy_builds.test",
+						"mac.n2.build",
+					),
+					resource.TestCheckResourceAttrSet(
+						"data.crowdstrike_sensor_update_policy_builds.test",
+						"windows.all.0.stage",
+					),
+					resource.TestCheckResourceAttrSet(
+						"data.crowdstrike_sensor_update_policy_builds.test",
+						"windows.all.0.platform",
+					),
+					resource.TestCheckResourceAttrSet(
+						"data.crowdstrike_sensor_update_policy_builds.test",
+						"windows.all.0.sensor_version",
+					),
+					resource.TestCheckResourceAttrSet(
+						"data.crowdstrike_sensor_update_policy_builds.test",
+						"windows.all.0.build",
 					),
 					resource.TestCheckResourceAttr(
 						"data.crowdstrike_sensor_update_policy_builds.test",

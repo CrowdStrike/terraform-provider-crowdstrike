@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
@@ -17,6 +18,50 @@ var (
 	_ datasource.DataSourceWithConfigure = &sensorUpdatePolicyBuildsDataSource{}
 )
 
+var buildSchema = map[string]schema.Attribute{
+	"build": schema.StringAttribute{
+		Computed:    true,
+		Description: "The build number for a specific sensor version.",
+	},
+	"stage": schema.StringAttribute{
+		Computed:    true,
+		Description: "The stage for the build.",
+	},
+	"platform": schema.StringAttribute{
+		Computed:    true,
+		Description: "The target platform for a the build.",
+	},
+	"sensor_version": schema.StringAttribute{
+		Computed:    true,
+		Description: "CrowdStrike Falcon Sensor version.",
+	},
+}
+
+var platformSchema = map[string]schema.Attribute{
+	"latest": schema.SingleNestedAttribute{
+		Computed:    true,
+		Description: "The latest sensor build.",
+		Attributes:  buildSchema,
+	},
+	"n1": schema.SingleNestedAttribute{
+		Computed:    true,
+		Description: "The n-1 sensor build.",
+		Attributes:  buildSchema,
+	},
+	"n2": schema.SingleNestedAttribute{
+		Computed:    true,
+		Description: "The n-2 sensor build.",
+		Attributes:  buildSchema,
+	},
+	"all": schema.ListNestedAttribute{
+		Computed:    true,
+		Description: "All sensor builds for the specific platform.",
+		NestedObject: schema.NestedAttributeObject{
+			Attributes: buildSchema,
+		},
+	},
+}
+
 // NewSensorUpdateBuildsDataSource is a helper function to simplify the provider implementation.
 func NewSensorUpdateBuildsDataSource() datasource.DataSource {
 	return &sensorUpdatePolicyBuildsDataSource{}
@@ -24,12 +69,22 @@ func NewSensorUpdateBuildsDataSource() datasource.DataSource {
 
 // sensorUpdatePolicyBuildsDataSourceModel maps the data source schema data.
 type sensorUpdatePolicyBuildsDataSourceModel struct {
-	ID     types.String                    `tfsdk:"id"`
-	Builds []sensorUpdatePolicyBuildsModel `tfsdk:"sensor_update_policy_builds"`
+	ID      types.String   `tfsdk:"id"`
+	Windows platformBuilds `tfsdk:"windows"`
+	Linux   platformBuilds `tfsdk:"linux"`
+	Mac     platformBuilds `tfsdk:"mac"`
 }
 
-// sensorUpdatePolicyBuildsModel maps sensor update policy builds schema data.
-type sensorUpdatePolicyBuildsModel struct {
+// sensorUpdatePolicyPlatformModel contains the build information for each platform.
+type platformBuilds struct {
+	Latest sensorBuild   `tfsdk:"latest"`
+	N1     sensorBuild   `tfsdk:"n1"`
+	N2     sensorBuild   `tfsdk:"n2"`
+	All    []sensorBuild `tfsdk:"all"`
+}
+
+// sensorBuild maps sensor update policy builds schema data.
+type sensorBuild struct {
 	Build         types.String `tfsdk:"build"`
 	Stage         types.String `tfsdk:"stage"`
 	Platform      types.String `tfsdk:"platform"`
@@ -62,28 +117,20 @@ func (d *sensorUpdatePolicyBuildsDataSource) Schema(
 				Computed:    true,
 				Description: "Placehodler identifier.",
 			},
-			"sensor_update_policy_builds": schema.ListNestedAttribute{
-				Computed: true,
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"build": schema.StringAttribute{
-							Computed:    true,
-							Description: "The build number for a specific sensor version.",
-						},
-						"stage": schema.StringAttribute{
-							Computed:    true,
-							Description: "The stage for the build.",
-						},
-						"platform": schema.StringAttribute{
-							Computed:    true,
-							Description: "The target platform for a the build.",
-						},
-						"sensor_version": schema.StringAttribute{
-							Computed:    true,
-							Description: "CrowdStrike Falcon Sensor version.",
-						},
-					},
-				},
+			"windows": schema.SingleNestedAttribute{
+				Computed:    true,
+				Description: "Builds for the Windows platform.",
+				Attributes:  platformSchema,
+			},
+			"linux": schema.SingleNestedAttribute{
+				Computed:    true,
+				Description: "Builds for the Linux platform.",
+				Attributes:  platformSchema,
+			},
+			"mac": schema.SingleNestedAttribute{
+				Computed:    true,
+				Description: "Builds for the Mac platform.",
+				Attributes:  platformSchema,
 			},
 		},
 	}
@@ -108,18 +155,47 @@ func (d *sensorUpdatePolicyBuildsDataSource) Read(
 		return
 	}
 
-	for _, build := range builds.Payload.Resources {
-		buildState := sensorUpdatePolicyBuildsModel{
-			Build:         types.StringValue(*build.Build),
-			Stage:         types.StringValue(*build.Stage),
-			Platform:      types.StringValue(*build.Platform),
-			SensorVersion: types.StringValue(*build.SensorVersion),
+	var windowsPlatformBuilds platformBuilds
+	var linuxPlatformBuilds platformBuilds
+	var macPlatformBuilds platformBuilds
+	var windowsBuilds []sensorBuild
+	var linuxBuilds []sensorBuild
+	var macBuilds []sensorBuild
+
+	for _, b := range builds.Payload.Resources {
+		bCopy := b
+
+		build := sensorBuild{
+			Build:         types.StringValue(*b.Build),
+			Platform:      types.StringValue(*b.Platform),
+			SensorVersion: types.StringValue(*b.Platform),
+			Stage:         types.StringValue(*b.Stage),
 		}
 
-		state.Builds = append(state.Builds, buildState)
+		switch strings.ToLower(*b.Platform) {
+		case "windows":
+			mapBuild(&windowsPlatformBuilds, build)
+			windowsBuilds = append(windowsBuilds, build)
+		case "mac":
+			mapBuild(&macPlatformBuilds, build)
+			macBuilds = append(macBuilds, build)
+		default:
+			// only use "Linux" for the latest, n-1, n-2 to prevent confusion.
+			if *bCopy.Platform == "Linux" {
+				mapBuild(&linuxPlatformBuilds, build)
+			}
+			linuxBuilds = append(linuxBuilds, build)
+		}
 	}
 
+	windowsPlatformBuilds.All = windowsBuilds
+	linuxPlatformBuilds.All = linuxBuilds
+	macPlatformBuilds.All = macBuilds
+
 	state.ID = types.StringValue("all")
+	state.Windows = windowsPlatformBuilds
+	state.Linux = linuxPlatformBuilds
+	state.Mac = macPlatformBuilds
 
 	diags := resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
@@ -151,4 +227,17 @@ func (d *sensorUpdatePolicyBuildsDataSource) Configure(
 	}
 
 	d.client = client
+}
+
+// mapBuild checks if a build is latest, n-1, or n-2 and adds the build to the appropiate attribute.
+func mapBuild(platformBuilds *platformBuilds, build sensorBuild) {
+	if strings.Contains(build.Build.ValueString(), "|n|") {
+		platformBuilds.Latest = build
+	}
+	if strings.Contains(build.Build.ValueString(), "|n-1|") {
+		platformBuilds.N1 = build
+	}
+	if strings.Contains(build.Build.ValueString(), "|n-2|") {
+		platformBuilds.N2 = build
+	}
 }

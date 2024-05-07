@@ -10,8 +10,17 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
-data "crowdstrike_sensor_update_policy_builds" "all" {}
+data "crowdstrike_sensor_update_policy_builds" "builds" {}
 
-output "all_sensor_update_policy_builds" {
-  value = data.crowdstrike_sensor_update_policy_builds.all
+
+output "latest_windows_build" {
+  value = data.crowdstrike_sensor_update_policy_builds.builds.windows.latest
+}
+
+output "n1_linux_build" {
+  value = data.crowdstrike_sensor_update_policy_builds.builds.linux.n1
+}
+
+output "n2_mac_build" {
+  value = data.crowdstrike_sensor_update_policy_builds.builds.mac.n2
 }
