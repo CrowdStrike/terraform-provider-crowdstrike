@@ -11,7 +11,7 @@ import (
 
 func TestAccSensorUpdatePolicyResource(t *testing.T) {
 	rName := acctest.RandomWithPrefix("tf-acceptance-test")
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		PreCheck:                 func() { testAccPreCheck(t) },
 		Steps: []resource.TestStep{
@@ -154,7 +154,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 func TestAccSensorUpdatePolicyResourceWithHostGroup(t *testing.T) {
 	rName := acctest.RandomWithPrefix("tf-acceptance-test")
 	hostGroupID, _ := os.LookupEnv("HOST_GROUP_ID")
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		PreCheck:                 func() { testAccPreCheck(t) },
 		Steps: []resource.TestStep{
@@ -309,7 +309,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 
 func TestAccSensorUpdatePolicyResourceWithSchedule(t *testing.T) {
 	rName := acctest.RandomWithPrefix("tf-acceptance-test")
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		PreCheck:                 func() { testAccPreCheck(t) },
 		Steps: []resource.TestStep{

@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -32,6 +33,7 @@ var (
 	_ resource.ResourceWithValidateConfig = &sensorUpdatePolicyResource{}
 )
 
+// int64ToDay maps numbers used by api to a string representation of the day.
 var int64ToDay = map[int64]string{
 	0: "sunday",
 	1: "monday",
@@ -42,6 +44,7 @@ var int64ToDay = map[int64]string{
 	6: "saturday",
 }
 
+// dayToInt64 maps a string representation of the day to the numbers used by the api.
 var dayToInt64 = map[string]int64{
 	"sunday":    0,
 	"monday":    1,
@@ -52,6 +55,7 @@ var dayToInt64 = map[string]int64{
 	"saturday":  6,
 }
 
+// timezones a slice of supported timezones for sensor update policy.
 var timezones = []string{
 	"Etc/GMT-2",
 	"Etc/UTC",
@@ -129,17 +133,6 @@ var timezones = []string{
 	"MET",
 }
 
-type hostGroupAction int
-
-const (
-	removeHostGroup hostGroupAction = iota
-	addHostGroup
-)
-
-func (h hostGroupAction) String() string {
-	return [...]string{"remove-host-group", "add-host-group"}[h]
-}
-
 // NewSensorUpdatePolicyResource is a helper function to simplify the provider implementation.
 func NewSensorUpdatePolicyResource() resource.Resource {
 	return &sensorUpdatePolicyResource{}
@@ -150,6 +143,7 @@ type sensorUpdatePolicyResource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
+// sensorUpdatePolicyResourceModel is the resource model.
 type sensorUpdatePolicyResourceModel struct {
 	ID                  types.String   `tfsdk:"id"`
 	Enabled             types.Bool     `tfsdk:"enabled"`
@@ -191,7 +185,7 @@ func (r *sensorUpdatePolicyResource) Configure(
 
 	if !ok {
 		resp.Diagnostics.AddError(
-			"Unexpected Data Source Configure Type",
+			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
 				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
@@ -223,7 +217,7 @@ func (r *sensorUpdatePolicyResource) Schema(
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Identifier for sensor update policy.",
+				Description: "Identifier for the sensor update policy.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -405,14 +399,14 @@ func (r *sensorUpdatePolicyResource) Create(
 		plan.Enabled = types.BoolValue(*actionResp.Payload.Resources[0].Enabled)
 	}
 
-	if len(plan.HostGroups.Elements()) != 0 {
+	if len(plan.HostGroups.Elements()) > 0 {
 		var hostGroupIDs []string
 		resp.Diagnostics.Append(plan.HostGroups.ElementsAs(ctx, &hostGroupIDs, false)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 
-		err = r.updateHostGroups(ctx, addHostGroup, hostGroupIDs, plan.ID.ValueString())
+		err = r.updateHostGroups(ctx, hostgroups.AddHostGroup, hostGroupIDs, plan.ID.ValueString())
 
 		if err != nil {
 			resp.Diagnostics.AddError(
@@ -473,18 +467,10 @@ func (r *sensorUpdatePolicyResource) Read(
 		state.UninstallProtection = types.BoolValue(false)
 	}
 
-	var hostGroups []string
-	for _, hostGroup := range policyResource.Groups {
-		hostGroups = append(hostGroups, *hostGroup.ID)
-	}
-
-	hostGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, hostGroups)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(r.assignHostGroups(ctx, &state, policyResource.Groups)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	state.HostGroups = hostGroupIDs
 
 	if policyResource.Settings.Scheduler != nil {
 		state.Schedule = policySchedule{}
@@ -548,14 +534,23 @@ func (r *sensorUpdatePolicyResource) Update(
 		return
 	}
 
-	hostGroupsToAdd, hostGroupsToRemove, diags := r.getHostGroupsToModify(ctx, plan, state)
+	hostGroupsToAdd, hostGroupsToRemove, diags := hostgroups.GetHostGroupsToModify(
+		ctx,
+		plan.HostGroups,
+		state.HostGroups,
+	)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	if len(hostGroupsToAdd) != 0 {
-		err := r.updateHostGroups(ctx, addHostGroup, hostGroupsToAdd, plan.ID.ValueString())
+		err := r.updateHostGroups(
+			ctx,
+			hostgroups.AddHostGroup,
+			hostGroupsToAdd,
+			plan.ID.ValueString(),
+		)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error updating CrowdStrike sensor update policy",
@@ -571,12 +566,17 @@ func (r *sensorUpdatePolicyResource) Update(
 	}
 
 	if len(hostGroupsToRemove) != 0 {
-		err := r.updateHostGroups(ctx, removeHostGroup, hostGroupsToRemove, plan.ID.ValueString())
+		err := r.updateHostGroups(
+			ctx,
+			hostgroups.RemoveHostGroup,
+			hostGroupsToRemove,
+			plan.ID.ValueString(),
+		)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error updating CrowdStrike sensor update policy",
 				fmt.Sprintf(
-					"Could not remove host groups: (%s) to policy with id: %s \n\n %s",
+					"Could not remove host groups: (%s) from policy with id: %s \n\n %s",
 					strings.Join(hostGroupsToAdd, ", "),
 					plan.ID.ValueString(),
 					err.Error(),
@@ -648,35 +648,31 @@ func (r *sensorUpdatePolicyResource) Update(
 	}
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
-	actionResp, err := r.updatePolicyEnabledState(
-		ctx,
-		plan.ID.ValueString(),
-		plan.Enabled.ValueBool(),
-	)
-
-	// todo: if we should handle scope and timeout errors instead of giving a vague error
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error enabling sensor update policy",
-			"Could not enable sensor update policy, unexpected error: "+err.Error(),
+	if plan.Enabled.ValueBool() != state.Enabled.ValueBool() {
+		actionResp, err := r.updatePolicyEnabledState(
+			ctx,
+			plan.ID.ValueString(),
+			plan.Enabled.ValueBool(),
 		)
-		return
+
+		// todo: if we should handle scope and timeout errors instead of giving a vague error
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error changing sensor update policy enabled state",
+				"Could not change sensor update policy enabled state, unexpected error: "+err.Error(),
+			)
+			return
+		}
+
+		plan.Enabled = types.BoolValue(*actionResp.Payload.Resources[0].Enabled)
+	} else {
+		plan.Enabled = types.BoolValue(*policyResource.Enabled)
 	}
 
-	plan.Enabled = types.BoolValue(*actionResp.Payload.Resources[0].Enabled)
-
-	var hostGroups []string
-	for _, hostGroup := range policyResource.Groups {
-		hostGroups = append(hostGroups, *hostGroup.ID)
-	}
-
-	hostGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, hostGroups)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(r.assignHostGroups(ctx, &state, policyResource.Groups)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	plan.HostGroups = hostGroupIDs
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -856,7 +852,7 @@ func validTime(startTimeStr string, endTimeStr string) (bool, error) {
 	return duration >= time.Hour, nil
 }
 
-// updatePolicyEnabledState enables or disables a policy.
+// updatePolicyEnabledState enables or disables a sensor update policy.
 func (r *sensorUpdatePolicyResource) updatePolicyEnabledState(
 	ctx context.Context,
 	policyID string,
@@ -884,7 +880,7 @@ func (r *sensorUpdatePolicyResource) updatePolicyEnabledState(
 // to a slice of sensor update policies.
 func (r *sensorUpdatePolicyResource) updateHostGroups(
 	ctx context.Context,
-	action hostGroupAction,
+	action hostgroups.HostGroupAction,
 	hostGroupIDs []string,
 	policyID string,
 ) error {
@@ -913,48 +909,6 @@ func (r *sensorUpdatePolicyResource) updateHostGroups(
 	)
 
 	return err
-}
-
-// getHostGroupsToModify takes in the planned state and current state and returns
-// a list of host group ids to remove and add.
-func (r *sensorUpdatePolicyResource) getHostGroupsToModify(
-	ctx context.Context,
-	plan, state sensorUpdatePolicyResourceModel,
-) (hostGroupsToAdd []string, hostGroupsToRemove []string, diags diag.Diagnostics) {
-	var planHostGroupIDs, stateHostGroupIds []string
-	planMap := make(map[string]bool)
-	stateMap := make(map[string]bool)
-
-	diags.Append(plan.HostGroups.ElementsAs(ctx, &planHostGroupIDs, false)...)
-	if diags.HasError() {
-		return
-	}
-	diags.Append(state.HostGroups.ElementsAs(ctx, &stateHostGroupIds, false)...)
-	if diags.HasError() {
-		return
-	}
-
-	for _, id := range planHostGroupIDs {
-		planMap[id] = true
-	}
-
-	for _, id := range stateHostGroupIds {
-		stateMap[id] = true
-	}
-
-	for _, id := range planHostGroupIDs {
-		if !stateMap[id] {
-			hostGroupsToAdd = append(hostGroupsToAdd, id)
-		}
-	}
-
-	for _, id := range stateHostGroupIds {
-		if !planMap[id] {
-			hostGroupsToRemove = append(hostGroupsToRemove, id)
-		}
-	}
-
-	return
 }
 
 // createUpdateSchedules handles the logic to create a models.PolicySensorUpdateSchedule.
@@ -989,4 +943,22 @@ func createUpdateSchedules(
 	}
 
 	return updateSchedules, diags
+}
+
+// assignHostGroups assigns the host groups returned from the api into the resource model.
+func (r *sensorUpdatePolicyResource) assignHostGroups(
+	ctx context.Context,
+	config *sensorUpdatePolicyResourceModel,
+	groups []*models.HostGroupsHostGroupV1,
+) diag.Diagnostics {
+
+	var hostGroups []string
+	for _, hostGroup := range groups {
+		hostGroups = append(hostGroups, *hostGroup.ID)
+	}
+
+	hostGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, hostGroups)
+	config.HostGroups = hostGroupIDs
+
+	return diags
 }

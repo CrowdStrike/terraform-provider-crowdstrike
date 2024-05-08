@@ -26,9 +26,9 @@ provider "crowdstrike" {
 }
 
 
-resource "crowdstrike_sensor_update_policy" "test" {
-  name                 = "tf-test-update"
-  enabled              = true
+resource "crowdstrike_sensor_update_policy" "example" {
+  name                 = "example_prevention_policy"
+  enabled              = false
   description          = "made with terraform"
   platform_name        = "Windows"
   build                = "18110"
@@ -48,7 +48,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 }
 
 output "sensor_policy" {
-  value = crowdstrike_sensor_update_policy.test
+  value = crowdstrike_sensor_update_policy.example
 }
 ```
 
@@ -71,7 +71,7 @@ output "sensor_policy" {
 
 ### Read-Only
 
-- `id` (String) Identifier for sensor update policy.
+- `id` (String) Identifier for the sensor update policy.
 - `last_updated` (String) Timestamp of the last Terraform update of the resource.
 
 <a id="nestedatt--schedule"></a>

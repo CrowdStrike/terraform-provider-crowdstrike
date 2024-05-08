@@ -229,7 +229,7 @@ func (d *sensorUpdatePolicyBuildsDataSource) Configure(
 	d.client = client
 }
 
-// mapBuild checks if a build is latest, n-1, or n-2 and adds the build to the appropiate attribute.
+// mapBuild checks if a build is latest, n-1, or n-2 and adds the build to the appropriate attribute.
 func mapBuild(platformBuilds *platformBuilds, build sensorBuild) {
 	if strings.Contains(build.Build.ValueString(), "|n|") {
 		platformBuilds.Latest = build

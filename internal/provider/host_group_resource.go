@@ -66,7 +66,7 @@ func (r *hostGroupResource) Configure(
 
 	if !ok {
 		resp.Diagnostics.AddError(
-			"Unexpected Data Source Configure Type",
+			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
 				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
@@ -98,7 +98,7 @@ func (r *hostGroupResource) Schema(
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Identifier for host group.",
+				Description: "Identifier for the host group.",
 
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
