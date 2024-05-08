@@ -492,7 +492,7 @@ func (r *sensorUpdatePolicyResource) Read(
 				continue
 			}
 
-			if strings.ToLower(*vCopy.Platform) == strings.ToLower(linuxArm64Varient) {
+			if strings.EqualFold(*vCopy.Platform, linuxArm64Varient) {
 				state.BuildArm64 = types.StringValue(*vCopy.Build)
 			}
 		}
