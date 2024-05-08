@@ -24,3 +24,7 @@ output "n1_linux_build" {
 output "n2_mac_build" {
   value = data.crowdstrike_sensor_update_policy_builds.builds.mac.n2
 }
+
+output "latest_linux_arm64_build" {
+  value = data.crowdstrike_sensor_update_policy_builds.builds.linux_arm64.latest
+}
