@@ -11,7 +11,7 @@ provider "crowdstrike" {
 }
 
 
-resource "crowdstrike_host_group" "test" {
+resource "crowdstrike_host_group" "example" {
   name            = "example_host_group"
   description     = "made with terraform"
   type            = "dynamic"
@@ -19,5 +19,5 @@ resource "crowdstrike_host_group" "test" {
 }
 
 output "host_group" {
-  value = crowdstrike_host_group.test
+  value = crowdstrike_host_group.example
 }

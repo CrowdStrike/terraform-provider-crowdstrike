@@ -26,7 +26,7 @@ provider "crowdstrike" {
 }
 
 
-resource "crowdstrike_host_group" "test" {
+resource "crowdstrike_host_group" "example" {
   name            = "example_host_group"
   description     = "made with terraform"
   type            = "dynamic"
@@ -34,7 +34,7 @@ resource "crowdstrike_host_group" "test" {
 }
 
 output "host_group" {
-  value = crowdstrike_host_group.test
+  value = crowdstrike_host_group.example
 }
 ```
 
@@ -53,7 +53,7 @@ output "host_group" {
 
 ### Read-Only
 
-- `id` (String) Identifier for host group.
+- `id` (String) Identifier for the host group.
 - `last_updated` (String) Timestamp of the last Terraform update of the resource.
 
 ## Import

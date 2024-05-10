@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/crowdstrike/gofalcon/falcon"
+	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/function"
@@ -208,6 +209,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 	return []func() resource.Resource{
 		NewSensorUpdatePolicyResource,
 		NewHostGroupResource,
+		preventionpolicy.NewPreventionPolicyWindowsResource,
 	}
 }
 

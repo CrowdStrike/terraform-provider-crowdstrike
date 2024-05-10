@@ -10,7 +10,7 @@ import (
 
 func TestAccHostGroupResource(t *testing.T) {
 	rName := acctest.RandomWithPrefix("tf-acceptance-test")
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		PreCheck:                 func() { testAccPreCheck(t) },
 		Steps: []resource.TestStep{
