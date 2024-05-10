@@ -133,6 +133,8 @@ var timezones = []string{
 	"MET",
 }
 
+var linuxArm64Varient = "LinuxArm64"
+
 // NewSensorUpdatePolicyResource is a helper function to simplify the provider implementation.
 func NewSensorUpdatePolicyResource() resource.Resource {
 	return &sensorUpdatePolicyResource{}
@@ -149,6 +151,7 @@ type sensorUpdatePolicyResourceModel struct {
 	Enabled             types.Bool     `tfsdk:"enabled"`
 	Name                types.String   `tfsdk:"name"`
 	Build               types.String   `tfsdk:"build"`
+	BuildArm64          types.String   `tfsdk:"build_arm64"`
 	Description         types.String   `tfsdk:"description"`
 	PlatformName        types.String   `tfsdk:"platform_name"`
 	UninstallProtection types.Bool     `tfsdk:"uninstall_protection"`
@@ -234,6 +237,10 @@ func (r *sensorUpdatePolicyResource) Schema(
 				Required:    true,
 				Description: "Sensor build to use for the sensor update policy.",
 			},
+			"build_arm64": schema.StringAttribute{
+				Optional:    true,
+				Description: "Sensor arm64 build to use for the sensor update policy (Linux only). Required if platform_name is Linux.",
+			},
 			// todo: make this case insensitive
 			"platform_name": schema.StringAttribute{
 				Required:    true,
@@ -255,7 +262,7 @@ func (r *sensorUpdatePolicyResource) Schema(
 			"uninstall_protection": schema.BoolAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "Enable uninstall protection.",
+				Description: "Enable uninstall protection. Windows and Mac only.",
 				Default:     booldefault.StaticBool(false),
 			},
 			"host_groups": schema.SetAttribute{
@@ -342,6 +349,16 @@ func (r *sensorUpdatePolicyResource) Create(
 				},
 			},
 		},
+	}
+
+	if strings.ToLower(plan.PlatformName.ValueString()) == "linux" {
+		variants := []*models.SensorUpdateBuildReqV1{
+			{
+				Build:    plan.BuildArm64.ValueStringPointer(),
+				Platform: &linuxArm64Varient,
+			},
+		}
+		policyParams.Body.Resources[0].Settings.Variants = variants
 	}
 
 	var uninstallProtection string
@@ -460,6 +477,21 @@ func (r *sensorUpdatePolicyResource) Read(
 	state.Build = types.StringValue(*policyResource.Settings.Build)
 	state.PlatformName = types.StringValue(*policyResource.PlatformName)
 	state.Enabled = types.BoolValue(*policyResource.Enabled)
+
+	if strings.ToLower(state.PlatformName.ValueString()) == "linux" &&
+		policyResource.Settings.Variants != nil {
+		for _, v := range policyResource.Settings.Variants {
+			vCopy := *v
+			if vCopy.Platform == nil {
+				continue
+			}
+
+			if strings.EqualFold(*vCopy.Platform, linuxArm64Varient) {
+				state.BuildArm64 = types.StringValue(*vCopy.Build)
+			}
+		}
+
+	}
 
 	if *policyResource.Settings.UninstallProtection == "ENABLED" {
 		state.UninstallProtection = types.BoolValue(true)
@@ -600,6 +632,16 @@ func (r *sensorUpdatePolicyResource) Update(
 				},
 			},
 		},
+	}
+
+	if strings.ToLower(plan.PlatformName.ValueString()) == "linux" {
+		variants := []*models.SensorUpdateBuildReqV1{
+			{
+				Build:    plan.BuildArm64.ValueStringPointer(),
+				Platform: &linuxArm64Varient,
+			},
+		}
+		policyParams.Body.Resources[0].Settings.Variants = variants
 	}
 
 	if plan.UninstallProtection.ValueBool() {
@@ -749,6 +791,28 @@ func (r *sensorUpdatePolicyResource) ValidateConfig(
 	var config sensorUpdatePolicyResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	platform := strings.ToLower(config.PlatformName.ValueString())
+
+	if platform == "linux" && (config.BuildArm64.IsNull() || config.BuildArm64.IsUnknown()) {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("build_arm64"),
+			"Attribute build_arm64 missing",
+			"Attribute build_arm64 is required when platform_name is linux.",
+		)
+
+		return
+	}
+
+	if config.UninstallProtection.ValueBool() && platform == "linux" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("uninstall_protection"),
+			"Linux doesn't support uninstall protection",
+			"Uninstall protection is not supported by linux sensor update policies. Set to false or remove attribute.",
+		)
+
 		return
 	}
 

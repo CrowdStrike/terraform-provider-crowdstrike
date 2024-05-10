@@ -69,10 +69,11 @@ func NewSensorUpdateBuildsDataSource() datasource.DataSource {
 
 // sensorUpdatePolicyBuildsDataSourceModel maps the data source schema data.
 type sensorUpdatePolicyBuildsDataSourceModel struct {
-	ID      types.String   `tfsdk:"id"`
-	Windows platformBuilds `tfsdk:"windows"`
-	Linux   platformBuilds `tfsdk:"linux"`
-	Mac     platformBuilds `tfsdk:"mac"`
+	ID         types.String   `tfsdk:"id"`
+	Windows    platformBuilds `tfsdk:"windows"`
+	Linux      platformBuilds `tfsdk:"linux"`
+	LinuxArm64 platformBuilds `tfsdk:"linux_arm64"`
+	Mac        platformBuilds `tfsdk:"mac"`
 }
 
 // sensorUpdatePolicyPlatformModel contains the build information for each platform.
@@ -127,6 +128,11 @@ func (d *sensorUpdatePolicyBuildsDataSource) Schema(
 				Description: "Builds for the Linux platform.",
 				Attributes:  platformSchema,
 			},
+			"linux_arm64": schema.SingleNestedAttribute{
+				Computed:    true,
+				Description: "Builds for the Linux platform (arm64).",
+				Attributes:  platformSchema,
+			},
 			"mac": schema.SingleNestedAttribute{
 				Computed:    true,
 				Description: "Builds for the Mac platform.",
@@ -157,9 +163,11 @@ func (d *sensorUpdatePolicyBuildsDataSource) Read(
 
 	var windowsPlatformBuilds platformBuilds
 	var linuxPlatformBuilds platformBuilds
+	var linuxArm64PlatformBuilds platformBuilds
 	var macPlatformBuilds platformBuilds
 	var windowsBuilds []sensorBuild
 	var linuxBuilds []sensorBuild
+	var linuxArm64Builds []sensorBuild
 	var macBuilds []sensorBuild
 
 	for _, b := range builds.Payload.Resources {
@@ -172,29 +180,31 @@ func (d *sensorUpdatePolicyBuildsDataSource) Read(
 			Stage:         types.StringValue(*b.Stage),
 		}
 
-		switch strings.ToLower(*b.Platform) {
+		switch strings.ToLower(*bCopy.Platform) {
 		case "windows":
 			mapBuild(&windowsPlatformBuilds, build)
 			windowsBuilds = append(windowsBuilds, build)
 		case "mac":
 			mapBuild(&macPlatformBuilds, build)
 			macBuilds = append(macBuilds, build)
-		default:
-			// only use "Linux" for the latest, n-1, n-2 to prevent confusion.
-			if *bCopy.Platform == "Linux" {
-				mapBuild(&linuxPlatformBuilds, build)
-			}
+		case "linux":
+			mapBuild(&linuxPlatformBuilds, build)
 			linuxBuilds = append(linuxBuilds, build)
+		default:
+			mapBuild(&linuxArm64PlatformBuilds, build)
+			linuxArm64Builds = append(linuxArm64Builds, build)
 		}
 	}
 
 	windowsPlatformBuilds.All = windowsBuilds
 	linuxPlatformBuilds.All = linuxBuilds
+	linuxArm64PlatformBuilds.All = linuxArm64Builds
 	macPlatformBuilds.All = macBuilds
 
 	state.ID = types.StringValue("all")
 	state.Windows = windowsPlatformBuilds
 	state.Linux = linuxPlatformBuilds
+	state.LinuxArm64 = linuxArm64PlatformBuilds
 	state.Mac = macPlatformBuilds
 
 	diags := resp.State.Set(ctx, &state)
