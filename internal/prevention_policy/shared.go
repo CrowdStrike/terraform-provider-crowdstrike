@@ -22,8 +22,7 @@ import (
 
 var windowsPlatformName = "Windows"
 var linuxPlatformName = "Linux"
-
-// var macPlatformName = "Mac"
+var macPlatformName = "Mac"
 
 // ruleGroupAction for prevention policy action api.
 type ruleGroupAction int

@@ -27,11 +27,11 @@ provider "crowdstrike" {
 
 
 resource "crowdstrike_prevention_policy_windows" "example" {
-  name            = "example_prevention_policy"
-  enabled         = false
-  description     = "made with terraform"
-  host_groups     = ["d6e3c1e1b3d0467da0fowc96a5e6ecb5"]
-  ioa_rule_groups = ["ed334b3243bc4b6bb8e7d40a2ecd86fa"]
+  name        = "example_prevention_policy"
+  enabled     = false
+  description = "made with terraform"
+  # host_groups     = ["d6e3c1e1b3d0467da0fowc96a5e6ecb5"]
+  # ioa_rule_groups = ["ed334b3243bc4b6bb8e7d40a2ecd86fa"]
   adware_and_pup = {
     "detection"  = "MODERATE"
     "prevention" = "CAUTIOUS"
