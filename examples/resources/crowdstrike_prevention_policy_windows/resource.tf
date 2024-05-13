@@ -12,11 +12,11 @@ provider "crowdstrike" {
 
 
 resource "crowdstrike_prevention_policy_windows" "example" {
-  name            = "example_prevention_policy"
-  enabled         = false
-  description     = "made with terraform"
-  host_groups     = ["d6e3c0e1b3d0467da8cefc96a5e6ecb5"]
-  ioa_rule_groups = ["ed474b8248ac4b6cb8e7d40a2ecd86fa"]
+  name        = "example_prevention_policy"
+  enabled     = false
+  description = "made with terraform"
+  # host_groups     = ["d6e3c1e1b3d0467da0fowc96a5e6ecb5"]
+  # ioa_rule_groups = ["ed334b3243bc4b6bb8e7d40a2ecd86fa"]
   adware_and_pup = {
     "detection"  = "MODERATE"
     "prevention" = "CAUTIOUS"
@@ -88,7 +88,7 @@ resource "crowdstrike_prevention_policy_windows" "example" {
   sensor_tampering_protection                    = false
   suspicious_registry_operations                 = false
   suspicious_scripts_and_commands                = false
-  unknown_executables                            = false
+  upload_unknown_executables                     = false
   upload_unknown_detection_related_executables   = false
   volume_shadow_copy_audit                       = false
   volume_shadow_copy_protect                     = false

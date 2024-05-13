@@ -33,17 +33,17 @@ resource "crowdstrike_sensor_update_policy" "example" {
   platform_name        = "Windows"
   build                = "18110"
   uninstall_protection = false
-  # host_groups        = ["host_group_id"]
+  host_groups          = ["host_group_id"]
   schedule = {
-    enabled = false
-    # timezone = "Etc/UTC"
-    # time_blocks = [
-    #   {
-    #     days       = ["sunday", "wednesday"]
-    #     start_time = "12:40"
-    #     end_time   = "16:40"
-    #   }
-    # ]
+    enabled  = true
+    timezone = "Etc/UTC"
+    time_blocks = [
+      {
+        days       = ["sunday", "wednesday"]
+        start_time = "12:40"
+        end_time   = "16:40"
+      }
+    ]
   }
 }
 

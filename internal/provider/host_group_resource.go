@@ -388,7 +388,7 @@ func (r *hostGroupResource) purgeSensorUpdatePolicies(
 	ctx context.Context,
 	hostGroupID string,
 ) diag.Diagnostics {
-	var diag diag.Diagnostics
+	var diags diag.Diagnostics
 
 	filter := fmt.Sprintf("groups:'%s'", hostGroupID)
 	res, err := r.client.SensorUpdatePolicies.QuerySensorUpdatePolicies(
@@ -399,17 +399,17 @@ func (r *hostGroupResource) purgeSensorUpdatePolicies(
 	)
 
 	if err != nil {
-		diag.AddError(
+		diags.AddError(
 			"Error deleting CrowdStrike host group",
 			"Unable to read assigned sensor update policies "+err.Error(),
 		)
-		return diag
+		return diags
 	}
 
 	policies := res.Payload.Resources
 
 	if len(policies) == 0 {
-		return diag
+		return diags
 	}
 
 	name := "group_id"
@@ -430,14 +430,14 @@ func (r *hostGroupResource) purgeSensorUpdatePolicies(
 	)
 
 	if err != nil {
-		diag.AddError(
+		diags.AddError(
 			"Error deleting CrowdStrike host group",
 			"Unable to remove assigned sensor update policies "+err.Error(),
 		)
-		return diag
+		return diags
 	}
 
-	return diag
+	return diags
 }
 
 // purgeUSBDeviceControlPolicies removes all usb device control policies from a host group.
@@ -445,7 +445,7 @@ func (r *hostGroupResource) purgeUSBDeviceControlPolicies(
 	ctx context.Context,
 	hostGroupID string,
 ) diag.Diagnostics {
-	var diag diag.Diagnostics
+	var diags diag.Diagnostics
 
 	filter := fmt.Sprintf("groups:'%s'", hostGroupID)
 	res, err := r.client.DeviceControlPolicies.QueryDeviceControlPolicies(
@@ -456,17 +456,17 @@ func (r *hostGroupResource) purgeUSBDeviceControlPolicies(
 	)
 
 	if err != nil {
-		diag.AddError(
+		diags.AddError(
 			"Error deleting CrowdStrike host group",
 			"Unable to read assigned usb device control policies "+err.Error(),
 		)
-		return diag
+		return diags
 	}
 
 	policies := res.Payload.Resources
 
 	if len(policies) == 0 {
-		return diag
+		return diags
 	}
 
 	name := "group_id"
@@ -487,14 +487,14 @@ func (r *hostGroupResource) purgeUSBDeviceControlPolicies(
 	)
 
 	if err != nil {
-		diag.AddError(
+		diags.AddError(
 			"Error deleting CrowdStrike host group",
 			"Unable to remove assigned usb device control policies "+err.Error(),
 		)
-		return diag
+		return diags
 	}
 
-	return diag
+	return diags
 }
 
 // purgePreventionPolicies removes all prevention policies from a host group.
@@ -502,7 +502,7 @@ func (r *hostGroupResource) purgePreventionPolicies(
 	ctx context.Context,
 	hostGroupID string,
 ) diag.Diagnostics {
-	var diag diag.Diagnostics
+	var diags diag.Diagnostics
 
 	filter := fmt.Sprintf("groups:'%s'", hostGroupID)
 	res, err := r.client.PreventionPolicies.QueryPreventionPolicies(
@@ -513,17 +513,17 @@ func (r *hostGroupResource) purgePreventionPolicies(
 	)
 
 	if err != nil {
-		diag.AddError(
+		diags.AddError(
 			"Error deleting CrowdStrike host group",
 			"Unable to read assigned prevention policies "+err.Error(),
 		)
-		return diag
+		return diags
 	}
 
 	policies := res.Payload.Resources
 
 	if len(policies) == 0 {
-		return diag
+		return diags
 	}
 
 	name := "group_id"
@@ -544,14 +544,14 @@ func (r *hostGroupResource) purgePreventionPolicies(
 	)
 
 	if err != nil {
-		diag.AddError(
+		diags.AddError(
 			"Error deleting CrowdStrike host group",
 			"Unable to remove assigned prevention policies "+err.Error(),
 		)
-		return diag
+		return diags
 	}
 
-	return diag
+	return diags
 }
 
 // purgeFirewallPolicies removes all firewall policies from a host group.
@@ -559,7 +559,7 @@ func (r *hostGroupResource) purgeFirewallPolicies(
 	ctx context.Context,
 	hostGroupID string,
 ) diag.Diagnostics {
-	var diag diag.Diagnostics
+	var diags diag.Diagnostics
 
 	filter := fmt.Sprintf("groups:'%s'", hostGroupID)
 	res, err := r.client.FirewallPolicies.QueryFirewallPolicies(
@@ -570,17 +570,17 @@ func (r *hostGroupResource) purgeFirewallPolicies(
 	)
 
 	if err != nil {
-		diag.AddError(
+		diags.AddError(
 			"Error deleting CrowdStrike host group",
 			"Unable to read assigned firewall prevention policies "+err.Error(),
 		)
-		return diag
+		return diags
 	}
 
 	policies := res.Payload.Resources
 
 	if len(policies) == 0 {
-		return diag
+		return diags
 	}
 
 	name := "group_id"
@@ -601,14 +601,14 @@ func (r *hostGroupResource) purgeFirewallPolicies(
 	)
 
 	if err != nil {
-		diag.AddError(
+		diags.AddError(
 			"Error deleting CrowdStrike host group",
 			"Unable to remove assigned firewall prevention policies "+err.Error(),
 		)
-		return diag
+		return diags
 	}
 
-	return diag
+	return diags
 }
 
 // purgeResponsePolicies removes all response policies from a host group.
@@ -616,7 +616,7 @@ func (r *hostGroupResource) purgeResponsePolicies(
 	ctx context.Context,
 	hostGroupID string,
 ) diag.Diagnostics {
-	var diag diag.Diagnostics
+	var diags diag.Diagnostics
 
 	filter := fmt.Sprintf("groups:'%s'", hostGroupID)
 	res, err := r.client.ResponsePolicies.QueryRTResponsePolicies(
@@ -627,17 +627,17 @@ func (r *hostGroupResource) purgeResponsePolicies(
 	)
 
 	if err != nil {
-		diag.AddError(
+		diags.AddError(
 			"Error deleting CrowdStrike host group",
 			"Unable to read assigned response policies "+err.Error(),
 		)
-		return diag
+		return diags
 	}
 
 	policies := res.Payload.Resources
 
 	if len(policies) == 0 {
-		return diag
+		return diags
 	}
 
 	name := "group_id"
@@ -658,12 +658,12 @@ func (r *hostGroupResource) purgeResponsePolicies(
 	)
 
 	if err != nil {
-		diag.AddError(
+		diags.AddError(
 			"Error deleting CrowdStrike host group",
 			"Unable to remove assigned response policies "+err.Error(),
 		)
-		return diag
+		return diags
 	}
 
-	return diag
+	return diags
 }

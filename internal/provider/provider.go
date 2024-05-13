@@ -210,6 +210,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		NewSensorUpdatePolicyResource,
 		NewHostGroupResource,
 		preventionpolicy.NewPreventionPolicyWindowsResource,
+		preventionpolicy.NewPreventionPolicyLinuxResource,
 	}
 }
 

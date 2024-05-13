@@ -30,8 +30,8 @@ resource "crowdstrike_prevention_policy_windows" "example" {
   name            = "example_prevention_policy"
   enabled         = false
   description     = "made with terraform"
-  host_groups     = ["d6e3c0e1b3d0467da8cefc96a5e6ecb5"]
-  ioa_rule_groups = ["ed474b8248ac4b6cb8e7d40a2ecd86fa"]
+  host_groups     = ["d6e3c1e1b3d0467da0fowc96a5e6ecb5"]
+  ioa_rule_groups = ["ed334b3243bc4b6bb8e7d40a2ecd86fa"]
   adware_and_pup = {
     "detection"  = "MODERATE"
     "prevention" = "CAUTIOUS"
@@ -103,7 +103,7 @@ resource "crowdstrike_prevention_policy_windows" "example" {
   sensor_tampering_protection                    = false
   suspicious_registry_operations                 = false
   suspicious_scripts_and_commands                = false
-  unknown_executables                            = false
+  upload_unknown_executables                     = false
   upload_unknown_detection_related_executables   = false
   volume_shadow_copy_audit                       = false
   volume_shadow_copy_protect                     = false
@@ -179,8 +179,8 @@ output "sensor_policy" {
 - `sensor_tampering_protection` (Boolean) Whether to enable the setting. Blocks attempts to tamper with the sensor. If disabled, the sensor still creates detections for tampering attempts but doesn’t block them. Disabling not recommended.
 - `suspicious_registry_operations` (Boolean) Whether to enable the setting. Block registry operations that CrowdStrike analysts classify as suspicious. Focuses on dynamic IOAs, such as ASEPs and security config changes. The associated process may be killed.
 - `suspicious_scripts_and_commands` (Boolean) Whether to enable the setting. Block execution of scripts and commands that CrowdStrike analysts classify as suspicious. Requires Interpreter-Only and/or Script-Based Execution Monitoring.
-- `unknown_executables` (Boolean) Whether to enable the setting. Upload all unknown executables for advanced analysis in the cloud.
 - `upload_unknown_detection_related_executables` (Boolean) Whether to enable the setting. Upload all unknown detection-related executables for advanced analysis in the cloud.
+- `upload_unknown_executables` (Boolean) Whether to enable the setting. Upload all unknown executables for advanced analysis in the cloud.
 - `usb_insertion_triggered_scan` (Boolean) Whether to enable the setting. Start an on-demand scan when an end user inserts a USB device. To adjust detection sensitivity, change Anti-malware Detection levels in On-Demand Scans Machine Learning.
 - `volume_shadow_copy_audit` (Boolean) Whether to enable the setting. Create an alert when a suspicious process deletes volume shadow copies. Recommended: Use audit mode with a test group to try allowlisting trusted software before turning on Protect.
 - `volume_shadow_copy_protect` (Boolean) Whether to enable the setting. Prevent suspicious processes from deleting volume shadow copies. Requires volume_shadow_copy_audit.
