@@ -3,13 +3,10 @@ package preventionpolicy
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
-	"github.com/crowdstrike/gofalcon/falcon/client/prevention_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
-	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -57,7 +54,7 @@ type preventionPolicyWindowsResourceModel struct {
 	AdditionalUserModeData                    types.Bool         `tfsdk:"additional_user_mode_data"`
 	EndUserNotifications                      types.Bool         `tfsdk:"notify_end_users"`
 	UnknownDetectionRelatedExecutables        types.Bool         `tfsdk:"upload_unknown_detection_related_executables"`
-	UnknownExecutables                        types.Bool         `tfsdk:"unknown_executables"`
+	UnknownExecutables                        types.Bool         `tfsdk:"upload_unknown_executables"`
 	SensorTamperingProtection                 types.Bool         `tfsdk:"sensor_tampering_protection"`
 	InterpreterProtection                     types.Bool         `tfsdk:"interpreter_only"`
 	EngineProtectionV2                        types.Bool         `tfsdk:"engine_full_visibility"`
@@ -216,7 +213,7 @@ func (r *preventionPolicyWindowsResource) Schema(
 			"upload_unknown_detection_related_executables": toggleAttribute(
 				"Upload all unknown detection-related executables for advanced analysis in the cloud.",
 			),
-			"unknown_executables": toggleAttribute(
+			"upload_unknown_executables": toggleAttribute(
 				"Upload all unknown executables for advanced analysis in the cloud.",
 			),
 			"sensor_tampering_protection": toggleAttribute(
@@ -376,97 +373,40 @@ func (r *preventionPolicyWindowsResource) Create(
 		return
 	}
 
-	createParams := prevention_policies.CreatePreventionPoliciesParams{
-		Context: ctx,
-		Body: &models.PreventionCreatePoliciesReqV1{
-			Resources: []*models.PreventionCreatePolicyReqV1{
-				{
-					Name:         plan.Name.ValueStringPointer(),
-					Description:  plan.Description.ValueString(),
-					PlatformName: &windowsPlatformName,
-				},
-			},
-		},
-	}
-
 	preventionSettings := r.generatePreventionSettings(plan)
-	createParams.Body.Resources[0].Settings = preventionSettings
+	res, diags := createPreventionPolicy(
+		ctx,
+		r.client,
+		plan.Name.ValueString(),
+		plan.Description.ValueString(),
+		windowsPlatformName,
+		preventionSettings,
+	)
 
-	res, err := r.client.PreventionPolicies.CreatePreventionPolicies(&createParams)
-	// todo: if we should handle scope and timeout errors instead of giving a vague error
-	if err != nil {
-		if strings.Contains(err.Error(), "least one ID must be provided") {
-			resp.Diagnostics.AddError(
-				"Error creating prevention policy",
-				"A prevention policy with the same name may already exist.",
-			)
-			return
-		}
-		resp.Diagnostics.AddError(
-			"Error creating prevention policy",
-			"Could not create prevention policy, unexpected error: "+err.Error(),
-		)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// if len(plan.HostGroups.Elements()) > 0 {
-	// 	var hostGroupIDs []string
-	// 	resp.Diagnostics.Append(plan.HostGroups.ElementsAs(ctx, &hostGroupIDs, false)...)
-	// 	if resp.Diagnostics.HasError() {
-	// 		return
-	// 	}
-	//
-	// 	err = r.updateHostGroups(ctx, hostgroups.AddHostGroup, hostGroupIDs, plan.ID.ValueString())
-	//
-	// 	if err != nil {
-	// 		resp.Diagnostics.AddError(
-	// 			"Error assinging host group to policy",
-	// 			"Could not assign host group to policy, unexpected error: "+err.Error(),
-	// 		)
-	// 		return
-	// 	}
-	// }
-	//
-	// if len(plan.RuleGroups.Elements()) > 0 {
-	// 	var ruleGroupIDs []string
-	// 	resp.Diagnostics.Append(plan.RuleGroups.ElementsAs(ctx, &ruleGroupIDs, false)...)
-	// 	if resp.Diagnostics.HasError() {
-	// 		return
-	// 	}
-	//
-	// 	err = r.updateRuleGroups(ctx, addRuleGroup, ruleGroupIDs, plan.ID.ValueString())
-	//
-	// 	if err != nil {
-	// 		resp.Diagnostics.AddError(
-	// 			"Error assinging ioa rule group to policy",
-	// 			"Could not assign ioa rule group to policy, unexpected error: "+err.Error(),
-	// 		)
-	// 		return
-	// 	}
-	// }
-
 	preventionPolicy := res.Payload.Resources[0]
-
 	plan.ID = types.StringValue(*preventionPolicy.ID)
 	plan.Description = types.StringValue(*preventionPolicy.Description)
 	plan.Name = types.StringValue(*preventionPolicy.Name)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
 	if plan.Enabled.ValueBool() {
-		actionResp, err := updatePolicyEnabledState(
+		actionResp, diags := updatePolicyEnabledState(
 			ctx,
 			r.client,
 			plan.ID.ValueString(),
 			plan.Enabled.ValueBool(),
 		)
 
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error enabling prevention policy",
-				"Could not enable prevention policy, unexpected error: "+err.Error(),
-			)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
 			return
 		}
+
 		plan.Enabled = types.BoolValue(*actionResp.Payload.Resources[0].Enabled)
 	} else {
 		plan.Enabled = types.BoolValue(*preventionPolicy.Enabled)
@@ -474,20 +414,20 @@ func (r *preventionPolicyWindowsResource) Create(
 
 	r.assignPreventionSettings(&plan, preventionPolicy.PreventionSettings)
 
-	emptySet, diag := types.SetValueFrom(ctx, types.StringType, []string{})
-	resp.Diagnostics.Append(diag...)
+	emptySet, diags := types.SetValueFrom(ctx, types.StringType, []string{})
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	resp.Diagnostics.Append(
-		r.syncHostGroups(ctx, plan.HostGroups, emptySet, plan.ID.ValueString())...)
+		syncHostGroups(ctx, r.client, plan.HostGroups, emptySet, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	resp.Diagnostics.Append(
-		r.syncRuleGroups(ctx, plan.RuleGroups, emptySet, plan.ID.ValueString())...)
+		syncRuleGroups(ctx, r.client, plan.RuleGroups, emptySet, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -512,22 +452,12 @@ func (r *preventionPolicyWindowsResource) Read(
 		return
 	}
 
-	res, err := r.client.PreventionPolicies.GetPreventionPolicies(
-		&prevention_policies.GetPreventionPoliciesParams{
-			Context: ctx,
-			Ids:     []string{state.ID.ValueString()},
-		},
-	)
+	policy, diags := getPreventionPolicy(ctx, r.client, state.ID.ValueString())
 
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error reading CrowdStrike prevention policy",
-			"Could not read CrowdStrike prevention policy: "+state.ID.ValueString()+": "+err.Error(),
-		)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	policy := res.Payload.Resources[0]
 
 	state.ID = types.StringValue(*policy.ID)
 	state.Name = types.StringValue(*policy.Name)
@@ -576,45 +506,32 @@ func (r *preventionPolicyWindowsResource) Update(
 	}
 
 	resp.Diagnostics.Append(
-		r.syncHostGroups(ctx, plan.HostGroups, state.RuleGroups, plan.ID.ValueString())...)
+		syncHostGroups(ctx, r.client, plan.HostGroups, state.HostGroups, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	resp.Diagnostics.Append(
-		r.syncRuleGroups(ctx, plan.RuleGroups, state.RuleGroups, plan.ID.ValueString())...)
+		syncRuleGroups(ctx, r.client, plan.RuleGroups, state.RuleGroups, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	updateParams := prevention_policies.UpdatePreventionPoliciesParams{
-		Context: ctx,
-		Body: &models.PreventionUpdatePoliciesReqV1{
-			Resources: []*models.PreventionUpdatePolicyReqV1{
-				{
-					ID:          plan.ID.ValueStringPointer(),
-					Name:        plan.Name.ValueString(),
-					Description: plan.Description.ValueString(),
-				},
-			},
-		},
-	}
-
 	preventionSettings := r.generatePreventionSettings(plan)
-	updateParams.Body.Resources[0].Settings = preventionSettings
 
-	res, err := r.client.PreventionPolicies.UpdatePreventionPolicies(&updateParams)
+	preventionPolicy, diags := updatePreventionPolicy(
+		ctx,
+		r.client,
+		plan.Name.ValueString(),
+		plan.Description.ValueString(),
+		preventionSettings,
+		plan.ID.ValueString(),
+	)
 
-	// todo: if we should handle scope and timeout errors instead of giving a vague error
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error updating prevention policy",
-			"Could not update prevention policy, unexpected error: "+err.Error(),
-		)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	preventionPolicy := res.Payload.Resources[0]
 
 	plan.ID = types.StringValue(*preventionPolicy.ID)
 	plan.Description = types.StringValue(*preventionPolicy.Description)
@@ -623,20 +540,17 @@ func (r *preventionPolicyWindowsResource) Update(
 	r.assignPreventionSettings(&plan, preventionPolicy.PreventionSettings)
 
 	if plan.Enabled.ValueBool() != state.Enabled.ValueBool() {
-		actionResp, err := updatePolicyEnabledState(
+		actionResp, diags := updatePolicyEnabledState(
 			ctx,
 			r.client,
 			plan.ID.ValueString(),
 			plan.Enabled.ValueBool(),
 		)
-
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error changing prevention policy enabled state",
-				"Could not change prevention policy enabled state, unexpected error: "+err.Error(),
-			)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
 			return
 		}
+
 		plan.Enabled = types.BoolValue(*actionResp.Payload.Resources[0].Enabled)
 	} else {
 		plan.Enabled = types.BoolValue(*preventionPolicy.Enabled)
@@ -680,30 +594,7 @@ func (r *preventionPolicyWindowsResource) Delete(
 
 	id := state.ID.ValueString()
 
-	_, err := updatePolicyEnabledState(ctx, r.client, id, false)
-
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error disabling prevention policy for delete.",
-			"Could not disable prevention policy, unexpected error: "+err.Error(),
-		)
-		return
-	}
-
-	_, err = r.client.PreventionPolicies.DeletePreventionPolicies(
-		&prevention_policies.DeletePreventionPoliciesParams{
-			Context: ctx,
-			Ids:     []string{state.ID.ValueString()},
-		},
-	)
-
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error deleting prevention policy",
-			"Could not delete prevention policy, unexpected error: "+err.Error(),
-		)
-		return
-	}
+	resp.Diagnostics.Append(deletePreventionPolicy(ctx, r.client, id)...)
 }
 
 // ImportState implements the logic to support resource imports.
@@ -912,76 +803,6 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 	}
 }
 
-// updateRuleGroups will remove or add a slice of rule groups
-// to a slice of prevention policies.
-func (r *preventionPolicyWindowsResource) updateRuleGroups(
-	ctx context.Context,
-	action ruleGroupAction,
-	ruleGroupIDs []string,
-	policyID string,
-) error {
-	var actionParams []*models.MsaspecActionParameter
-	name := "rule_group_id"
-
-	for _, g := range ruleGroupIDs {
-		gCopy := g
-		actionParam := &models.MsaspecActionParameter{
-			Name:  &name,
-			Value: &gCopy,
-		}
-
-		actionParams = append(actionParams, actionParam)
-	}
-
-	_, err := r.client.PreventionPolicies.PerformPreventionPoliciesAction(
-		&prevention_policies.PerformPreventionPoliciesActionParams{
-			Context:    ctx,
-			ActionName: action.String(),
-			Body: &models.MsaEntityActionRequestV2{
-				ActionParameters: actionParams,
-				Ids:              []string{policyID},
-			},
-		},
-	)
-
-	return err
-}
-
-// updateHostGroups will remove or add a slice of host groups
-// to a slice of prevention policies.
-func (r *preventionPolicyWindowsResource) updateHostGroups(
-	ctx context.Context,
-	action hostgroups.HostGroupAction,
-	hostGroupIDs []string,
-	policyID string,
-) error {
-	var actionParams []*models.MsaspecActionParameter
-	name := "group_id"
-
-	for _, g := range hostGroupIDs {
-		gCopy := g
-		actionParam := &models.MsaspecActionParameter{
-			Name:  &name,
-			Value: &gCopy,
-		}
-
-		actionParams = append(actionParams, actionParam)
-	}
-
-	_, err := r.client.PreventionPolicies.PerformPreventionPoliciesAction(
-		&prevention_policies.PerformPreventionPoliciesActionParams{
-			Context:    ctx,
-			ActionName: action.String(),
-			Body: &models.MsaEntityActionRequestV2{
-				ActionParameters: actionParams,
-				Ids:              []string{policyID},
-			},
-		},
-	)
-
-	return err
-}
-
 // assignRuleGroups assigns the rule groups returned from the api into the resource model.
 func (r *preventionPolicyWindowsResource) assignRuleGroups(
 	ctx context.Context,
@@ -996,131 +817,6 @@ func (r *preventionPolicyWindowsResource) assignRuleGroups(
 
 	hostGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, ruleGroups)
 	config.RuleGroups = hostGroupIDs
-
-	return diags
-}
-
-// syncRuleGroups will sync the rule groups from the resource model to the api.
-func (r *preventionPolicyWindowsResource) syncRuleGroups(
-	ctx context.Context,
-	planGroups, stateGroups types.Set,
-	policyID string,
-) diag.Diagnostics {
-	var diags diag.Diagnostics
-	groupsToAdd, groupsToRemove, diags := getRuleGroupsToModify(
-		ctx,
-		planGroups,
-		stateGroups,
-	)
-
-	diags.Append(diags...)
-	if diags.HasError() {
-		return diags
-	}
-
-	if len(groupsToAdd) != 0 {
-		err := r.updateRuleGroups(
-			ctx,
-			addRuleGroup,
-			groupsToAdd,
-			policyID,
-		)
-		if err != nil {
-			diags.AddError(
-				"Error assinging ioa rule groups to CrowdStrike prevention policy",
-				fmt.Sprintf(
-					"Could not add ioa rule groups: (%s) to policy with id: %s \n\n %s",
-					strings.Join(groupsToAdd, ", "),
-					policyID,
-					err.Error(),
-				),
-			)
-			return diags
-		}
-	}
-
-	if len(groupsToRemove) != 0 {
-		err := r.updateRuleGroups(
-			ctx,
-			removeRuleGroup,
-			groupsToRemove,
-			policyID,
-		)
-		if err != nil {
-			diags.AddError(
-				"Error removing ioa rule groups from CrowdStrike prevention policy",
-				fmt.Sprintf(
-					"Could not remove ioa rule groups: (%s) from policy with id: %s \n\n %s",
-					strings.Join(groupsToAdd, ", "),
-					policyID,
-					err.Error(),
-				),
-			)
-			return diags
-		}
-	}
-
-	return diags
-}
-
-// syncHostGroups will sync the host groups from the resource model to the api.
-func (r *preventionPolicyWindowsResource) syncHostGroups(
-	ctx context.Context,
-	planGroups, stateGroups types.Set,
-	policyID string,
-) diag.Diagnostics {
-	var diags diag.Diagnostics
-	groupsToAdd, groupsToRemove, diags := hostgroups.GetHostGroupsToModify(
-		ctx,
-		planGroups,
-		stateGroups,
-	)
-	diags.Append(diags...)
-	if diags.HasError() {
-		return diags
-	}
-
-	if len(groupsToAdd) != 0 {
-		err := r.updateHostGroups(
-			ctx,
-			hostgroups.AddHostGroup,
-			groupsToAdd,
-			policyID,
-		)
-		if err != nil {
-			diags.AddError(
-				"Error assinging host groups to CrowdStrike prevention policy",
-				fmt.Sprintf(
-					"Could not add host groups: (%s) to policy with id: %s \n\n %s",
-					strings.Join(groupsToAdd, ", "),
-					policyID,
-					err.Error(),
-				),
-			)
-			return diags
-		}
-	}
-
-	if len(groupsToRemove) != 0 {
-		err := r.updateHostGroups(
-			ctx,
-			hostgroups.RemoveHostGroup,
-			groupsToRemove,
-			policyID,
-		)
-		if err != nil {
-			diags.AddError(
-				"Error remvoing host groups from CrowdStrike prevention policy",
-				fmt.Sprintf(
-					"Could not remove host groups: (%s) from policy with id: %s \n\n %s",
-					strings.Join(groupsToAdd, ", "),
-					policyID,
-					err.Error(),
-				),
-			)
-			return diags
-		}
-	}
 
 	return diags
 }

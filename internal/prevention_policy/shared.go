@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/prevention_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -20,8 +21,8 @@ import (
 )
 
 var windowsPlatformName = "Windows"
+var linuxPlatformName = "Linux"
 
-// var linuxPlatformName = "Linux"
 // var macPlatformName = "Mac"
 
 // ruleGroupAction for prevention policy action api.
@@ -77,6 +78,108 @@ func getRuleGroupsToModify(
 	}
 
 	return
+}
+
+// syncRuleGroups will sync the rule groups from the resource model to the api.
+func syncRuleGroups(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	planGroups, stateGroups types.Set,
+	id string,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+	groupsToAdd, groupsToRemove, diags := getRuleGroupsToModify(
+		ctx,
+		planGroups,
+		stateGroups,
+	)
+
+	diags.Append(diags...)
+	if diags.HasError() {
+		return diags
+	}
+
+	if len(groupsToAdd) != 0 {
+		err := updateRuleGroups(
+			ctx,
+			client,
+			addRuleGroup,
+			groupsToAdd,
+			id,
+		)
+		if err != nil {
+			diags.AddError(
+				"Error assinging ioa rule groups to CrowdStrike prevention policy",
+				fmt.Sprintf(
+					"Could not add ioa rule groups: (%s) to policy with id: %s \n\n %s",
+					strings.Join(groupsToAdd, ", "),
+					id,
+					err.Error(),
+				),
+			)
+			return diags
+		}
+	}
+
+	if len(groupsToRemove) != 0 {
+		err := updateRuleGroups(
+			ctx,
+			client,
+			removeRuleGroup,
+			groupsToRemove,
+			id,
+		)
+		if err != nil {
+			diags.AddError(
+				"Error removing ioa rule groups from CrowdStrike prevention policy",
+				fmt.Sprintf(
+					"Could not remove ioa rule groups: (%s) from policy with id: %s \n\n %s",
+					strings.Join(groupsToAdd, ", "),
+					id,
+					err.Error(),
+				),
+			)
+			return diags
+		}
+	}
+
+	return diags
+}
+
+// updateRuleGroups will remove or add a slice of rule groups
+// to a slice of prevention policies.
+func updateRuleGroups(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	action ruleGroupAction,
+	ruleGroupIDs []string,
+	id string,
+) error {
+	var actionParams []*models.MsaspecActionParameter
+	name := "rule_group_id"
+
+	for _, g := range ruleGroupIDs {
+		gCopy := g
+		actionParam := &models.MsaspecActionParameter{
+			Name:  &name,
+			Value: &gCopy,
+		}
+
+		actionParams = append(actionParams, actionParam)
+	}
+
+	_, err := client.PreventionPolicies.PerformPreventionPoliciesAction(
+		&prevention_policies.PerformPreventionPoliciesActionParams{
+			Context:    ctx,
+			ActionName: action.String(),
+			Body: &models.MsaEntityActionRequestV2{
+				ActionParameters: actionParams,
+				Ids:              []string{id},
+			},
+		},
+	)
+
+	return err
 }
 
 // toggleOptions holds the options for toggleAttribute function.
@@ -217,9 +320,11 @@ type apiMlSlider struct {
 func updatePolicyEnabledState(
 	ctx context.Context,
 	client *client.CrowdStrikeAPISpecification,
-	policyID string,
+	id string,
 	enabled bool,
-) (prevention_policies.PerformPreventionPoliciesActionOK, error) {
+) (prevention_policies.PerformPreventionPoliciesActionOK, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
 	state := "disable"
 	if enabled {
 		state = "enable"
@@ -230,12 +335,23 @@ func updatePolicyEnabledState(
 			ActionName: state,
 			Context:    ctx,
 			Body: &models.MsaEntityActionRequestV2{
-				Ids: []string{policyID},
+				Ids: []string{id},
 			},
 		},
 	)
 
-	return *res, err
+	if err != nil {
+		diags.AddError(
+			"Error changing enabled state on prevention policy",
+			fmt.Sprintf(
+				"Could not %s prevention policy, unexpected error: \n\n %s",
+				state,
+				err.Error(),
+			),
+		)
+	}
+
+	return *res, diags
 }
 
 // mapPreventionSettings converts prevention settings returned by the CrowdStrike api
@@ -285,13 +401,13 @@ func mapPreventionSettings(
 
 // validateMlSlider returns whether or not the mlslider is valid.
 func validateMlSlider(attribute string, slider mlSlider) diag.Diagnostics {
-	diag := diag.Diagnostics{}
+	diags := diag.Diagnostics{}
 
 	detectionLevel := slider.Detection.ValueString()
 	preventionLevel := slider.Prevention.ValueString()
 
 	if mapMlSliderLevels[detectionLevel] < mapMlSliderLevels[preventionLevel] {
-		diag.AddAttributeError(
+		diags.AddAttributeError(
 			path.Root(attribute),
 			"Invalid ml slider setting.",
 			fmt.Sprintf(
@@ -303,7 +419,7 @@ func validateMlSlider(attribute string, slider mlSlider) diag.Diagnostics {
 		)
 	}
 
-	return diag
+	return diags
 }
 
 // validateRequiredAttribute validates that a required attribute is set.
@@ -313,14 +429,286 @@ func validateRequiredAttribute(
 	attr string,
 	otherAttr string,
 ) diag.Diagnostics {
-	diag := diag.Diagnostics{}
+	var diags diag.Diagnostics
 
 	if attrValue && !otherAttrValue {
-		diag.AddAttributeError(
+		diags.AddAttributeError(
 			path.Root(attr),
 			fmt.Sprint("requirements not met to enable ", attr),
 			fmt.Sprintf("%s requires %s to be enabled", attr, otherAttr),
 		)
 	}
-	return diag
+	return diags
+}
+
+// deletePreventionPolicy deletes a prevention policy by id.
+func deletePreventionPolicy(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	id string,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+	_, diags = updatePolicyEnabledState(ctx, client, id, false)
+
+	if diags.HasError() {
+		return diags
+	}
+
+	_, err := client.PreventionPolicies.DeletePreventionPolicies(
+		&prevention_policies.DeletePreventionPoliciesParams{
+			Context: ctx,
+			Ids:     []string{id},
+		},
+	)
+
+	if err != nil {
+		diags.AddError(
+			"Error deleting prevention policy",
+			fmt.Sprintf("Could not delete prevention policy: %s \n\n %s", id, err.Error()),
+		)
+		return diags
+	}
+
+	return diags
+}
+
+// updatePreventionPolicy updates a prevention policy with the provided settings.
+func updatePreventionPolicy(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	name, description string,
+	preventionSettings []*models.PreventionSettingReqV1,
+	id string,
+) (*models.PreventionPolicyV1, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	var preventionPolicy *models.PreventionPolicyV1
+
+	updateParams := prevention_policies.UpdatePreventionPoliciesParams{
+		Context: ctx,
+		Body: &models.PreventionUpdatePoliciesReqV1{
+			Resources: []*models.PreventionUpdatePolicyReqV1{
+				{
+					ID:          &id,
+					Name:        name,
+					Description: description,
+				},
+			},
+		},
+	}
+
+	updateParams.Body.Resources[0].Settings = preventionSettings
+
+	res, err := client.PreventionPolicies.UpdatePreventionPolicies(&updateParams)
+
+	// todo: if we should handle scope and timeout errors instead of giving a vague error
+	if err != nil {
+		diags.AddError(
+			"Error updating prevention policy",
+			fmt.Sprintf(
+				"Could not update prevention policy, unexpected error: \n\n%s",
+				err.Error(),
+			),
+		)
+		return preventionPolicy, diags
+	}
+
+	if len(res.Payload.Resources) == 0 {
+		diags.AddError(
+			"Error updating prevention policy",
+			fmt.Sprintf("No policy found with id: %s", id),
+		)
+	}
+
+	preventionPolicy = res.Payload.Resources[0]
+
+	return preventionPolicy, diags
+}
+
+// getPreventionPolicy retrieves a prevention policy by id.
+func getPreventionPolicy(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	id string,
+) (*models.PreventionPolicyV1, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	var preventionPolicy *models.PreventionPolicyV1
+
+	res, err := client.PreventionPolicies.GetPreventionPolicies(
+		&prevention_policies.GetPreventionPoliciesParams{
+			Context: ctx,
+			Ids:     []string{id},
+		},
+	)
+
+	if err != nil {
+		diags.AddError(
+			"Error reading CrowdStrike prevention policy",
+			fmt.Sprintf(
+				"Could not read CrowdStrike prevention policy: %s \n\n %s",
+				id,
+				err.Error(),
+			),
+		)
+		return preventionPolicy, diags
+	}
+
+	if len(res.GetPayload().Resources) == 0 {
+		diags.AddError(
+			"Error reading CrowdStrike prevention policy",
+			fmt.Sprintf(
+				"Could not read CrowdStrike prevention policy: %s \n\n %s",
+				id,
+				"No policy found",
+			),
+		)
+		return preventionPolicy, diags
+	}
+
+	preventionPolicy = res.GetPayload().Resources[0]
+	return preventionPolicy, diags
+}
+
+// createPreventionPolicy creates a new prevention policy.
+func createPreventionPolicy(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	name, description, platformName string,
+	preventionSettings []*models.PreventionSettingReqV1,
+) (*prevention_policies.CreatePreventionPoliciesCreated, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	var res *prevention_policies.CreatePreventionPoliciesCreated
+
+	createParams := prevention_policies.CreatePreventionPoliciesParams{
+		Context: ctx,
+		Body: &models.PreventionCreatePoliciesReqV1{
+			Resources: []*models.PreventionCreatePolicyReqV1{
+				{
+					Name:         &name,
+					Description:  description,
+					PlatformName: &platformName,
+				},
+			},
+		},
+	}
+
+	createParams.Body.Resources[0].Settings = preventionSettings
+
+	res, err := client.PreventionPolicies.CreatePreventionPolicies(&createParams)
+
+	// todo: if we should handle scope and timeout errors instead of giving a vague error
+	if err != nil {
+		if strings.Contains(err.Error(), "least one ID must be provided") {
+			diags.AddError(
+				"Error creating prevention policy",
+				"A prevention policy with the same name may already exist.",
+			)
+		}
+		diags.AddError(
+			"Error creating prevention policy",
+			"Could not create prevention policy, unexpected error: "+err.Error(),
+		)
+	}
+
+	return res, diags
+}
+
+// updateHostGroups will remove or add a slice of host groups
+// to a slice of prevention policies.
+func updateHostGroups(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	action hostgroups.HostGroupAction,
+	hostGroupIDs []string,
+	id string,
+) error {
+	var actionParams []*models.MsaspecActionParameter
+	name := "group_id"
+
+	for _, g := range hostGroupIDs {
+		gCopy := g
+		actionParam := &models.MsaspecActionParameter{
+			Name:  &name,
+			Value: &gCopy,
+		}
+
+		actionParams = append(actionParams, actionParam)
+	}
+
+	_, err := client.PreventionPolicies.PerformPreventionPoliciesAction(
+		&prevention_policies.PerformPreventionPoliciesActionParams{
+			Context:    ctx,
+			ActionName: action.String(),
+			Body: &models.MsaEntityActionRequestV2{
+				ActionParameters: actionParams,
+				Ids:              []string{id},
+			},
+		},
+	)
+
+	return err
+}
+
+// syncHostGroups will sync the host groups from the resource model to the api.
+func syncHostGroups(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	planGroups, stateGroups types.Set,
+	id string,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+	groupsToAdd, groupsToRemove, diags := hostgroups.GetHostGroupsToModify(
+		ctx,
+		planGroups,
+		stateGroups,
+	)
+	diags.Append(diags...)
+	if diags.HasError() {
+		return diags
+	}
+
+	if len(groupsToAdd) != 0 {
+		err := updateHostGroups(
+			ctx,
+			client,
+			hostgroups.AddHostGroup,
+			groupsToAdd,
+			id,
+		)
+		if err != nil {
+			diags.AddError(
+				"Error assinging host groups to CrowdStrike prevention policy",
+				fmt.Sprintf(
+					"Could not add host groups: (%s) to policy with id: %s \n\n %s",
+					strings.Join(groupsToAdd, ", "),
+					id,
+					err.Error(),
+				),
+			)
+			return diags
+		}
+	}
+
+	if len(groupsToRemove) != 0 {
+		err := updateHostGroups(
+			ctx,
+			client,
+			hostgroups.RemoveHostGroup,
+			groupsToRemove,
+			id,
+		)
+		if err != nil {
+			diags.AddError(
+				"Error remvoing host groups from CrowdStrike prevention policy",
+				fmt.Sprintf(
+					"Could not remove host groups: (%s) from policy with id: %s \n\n %s",
+					strings.Join(groupsToAdd, ", "),
+					id,
+					err.Error(),
+				),
+			)
+			return diags
+		}
+	}
+
+	return diags
 }
