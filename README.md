@@ -1,74 +1,105 @@
-| Scope                   | Permission      | Required to manage these resources |
-|-------------------------|-----------------|------------------------------------|
-| Device Control Policies | *READ*, *WRITE* | `crowdstrike_host_group`           |
-| Prevention Policies     | *READ*, *WRITE* | `crowdstrike_host_group`           |
-| Response Policies       | *READ*, *WRITE* | `crowdstrike_host_group`           |
-| Firewall Management     | *READ*, *WRITE* | `crowdstrike_host_group`           |
-| Host Groups             | *READ*, *WRITE* | `crowdstrike_host_group`           |
-| Sensor Update Policies  | *READ*, *WRITE* | `crowdstrike_sensor_update_policy` |
+# WORK IN PROGRESS
 
-# Terraform Provider Scaffolding (Terraform Plugin Framework)
+The CrowdStrike terraform provider is an open source project, not a CrowdStrike product. As such, it carries no formal support, expressed or implied.
 
+> [!CAUTION]
+> This repository is a work in progress and should not be used.
 
-_This template repository is built on the [Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework). The template repository built on the [Terraform Plugin SDK](https://github.com/hashicorp/terraform-plugin-sdk) can be found at [terraform-provider-scaffolding](https://github.com/hashicorp/terraform-provider-scaffolding). See [Which SDK Should I Use?](https://developer.hashicorp.com/terraform/plugin/framework-benefits) in the Terraform documentation for additional information._
-
-This repository is a *template* for a [Terraform](https://www.terraform.io) provider. It is intended as a starting point for creating Terraform providers, containing:
-
-- A resource and a data source (`internal/provider/`),
-- Examples (`examples/`) and generated documentation (`docs/`),
-- Miscellaneous meta files.
-
-These files contain boilerplate code that you will need to edit to create your own Terraform provider. Tutorials for creating Terraform providers can be found on the [HashiCorp Developer](https://developer.hashicorp.com/terraform/tutorials/providers-plugin-framework) platform. _Terraform Plugin Framework specific guides are titled accordingly._
-
-Please see the [GitHub template repository documentation](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-from-a-template) for how to create a new repository from this template on GitHub.
-
-Once you've written your provider, you'll want to [publish it on the Terraform Registry](https://developer.hashicorp.com/terraform/registry/providers/publishing) so that others can use it.
 
 ## Requirements
 
+### CrowdStrike API Access
+| Scope                   | Permission      |
+|-------------------------|-----------------|
+| Device Control Policies | *READ*, *WRITE* |
+| Prevention Policies     | *READ*, *WRITE* |
+| Response Policies       | *READ*, *WRITE* |
+| Firewall Management     | *READ*, *WRITE* |
+| Host Groups             | *READ*, *WRITE* |
+| Sensor Update Policies  | *READ*, *WRITE* |
+
+
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
-- [Go](https://golang.org/doc/install) >= 1.21
 
-## Building The Provider
+## Testing locally
 
+1. Install [Go >= 1.21](https://golang.org/doc/install)
 1. Clone the repository
 1. Enter the repository directory
 1. Build the provider using the Go `install` command:
+    ```shell
+    go install
+    ```
+1. Create a `.terraformrc` file in your home directory. 
 
-```shell
-go install
-```
+    #### Mac/Linux
+    `~/.terraformrc` is the path to the file.
 
-## Adding Dependencies
+    #### Windows
 
-This provider uses [Go modules](https://github.com/golang/go/wiki/Modules).
-Please see the Go documentation for the most up to date information about using Go modules.
+    `%APPDATA%\.terraform.rc` is the path to the file.
 
-To add a new dependency `github.com/author/dependency` to your Terraform provider:
+1. Find your `GOBIN` path. You can find this by running `go env GOBIN`. If nothing is returned you can run `go env GOPATH` and append `/bin` to the end of the path. Ex: `C:\Users\username\go\bin`
 
-```shell
-go get github.com/author/dependency
-go mod tidy
-```
+1. Add the following to your `.terraformrc` file replacing `GOBIN_PATH` with the path found in the previous step:
+    ```shell
+    provider_installation {
 
-Then commit the changes to `go.mod` and `go.sum`.
+      dev_overrides {
+          "registry.terraform.io/crowdstrike/crowdstrike" = "GOBIN_PATH"
+      }
 
-## Using the provider
+      direct {}
+    }
+    ```
 
-Fill this in for each provider
+    Example:
+    ```shell
+    provider_installation {
 
-## Developing the Provider
+      dev_overrides {
+          "registry.terraform.io/crowdstrike/crowdstrike" = "C:\Users\username\go\bin"
+      }
 
-If you wish to work on the provider, you'll first need [Go](http://www.golang.org) installed on your machine (see [Requirements](#requirements) above).
+      direct {}
+    }
+    ```
+1. You are ready to use the terraform provider. The [docs](./docs/) folder has documentation for each resource. The [examples](./examples/) folder has examples of each resource.
 
-To compile the provider, run `go install`. This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
 
-To generate or update documentation, run `go generate`.
+## Example Usage
+1. Export your CrowdStrike API credentials as environment variables. 
+    ```shell
+    export FALCON_CLIENT_ID="YOUR_CLIENT_ID"
+    export FALCON_CLIENT_SECRET="YOUR_CLIENT_SECRET"
+    ```
 
-In order to run the full suite of Acceptance tests, run `make testacc`.
+1. Create a `main.tf` file with the following content:
+    ```hcl
+    terraform {
+      required_providers {
+        crowdstrike = {
+          source = "registry.terraform.io/crowdstrike/crowdstrike"
+        }
+      }
+    }
 
-*Note:* Acceptance tests create real resources, and often cost money to run.
+    provider "crowdstrike" {
+      cloud = "us-2"
+    }
 
-```shell
-make testacc
-```
+
+    resource "crowdstrike_host_group" "example" {
+      name            = "example_host_group"
+      description     = "made with terraform"
+      type            = "dynamic"
+      assignment_rule = "tags:'SensorGroupingTags/cloud-lab'+os_version:'Amazon Linux 2'"
+    }
+
+    output "host_group" {
+      value = crowdstrike_host_group.example
+    }
+    ```
+1. Run `terraform plan` to see the changes that will be made. (Since we are using a local provider, there is no reason to run `terraform init`)
+1. Run `terraform apply` to apply the changes.
+1. Run `terraform destroy` to remove the resources.
