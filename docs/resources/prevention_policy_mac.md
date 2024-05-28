@@ -66,7 +66,7 @@ resource "crowdstrike_prevention_policy_mac" "example" {
   chopper_webshell                             = true
 }
 
-output "sensor_policy" {
+output "prevention_policy_mac" {
   value = crowdstrike_prevention_policy_mac.example
 }
 ```
@@ -150,6 +150,6 @@ Required:
 Import is supported using the following syntax:
 
 ```shell
-# Sensor update policies can be imported by specifying the policy id.
+# prevention policy can be imported by specifying the policy id.
 terraform import crowdstrike_prevention_policy_mac.example 7fb858a949034a0cbca175f660f1e769
 ```

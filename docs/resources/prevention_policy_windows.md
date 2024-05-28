@@ -111,7 +111,7 @@ resource "crowdstrike_prevention_policy_windows" "example" {
   windows_logon_bypass_sticky_keys               = false
 }
 
-output "sensor_policy" {
+output "prevention_policy_windows" {
   value = crowdstrike_prevention_policy_windows.example
 }
 ```
@@ -258,6 +258,6 @@ Required:
 Import is supported using the following syntax:
 
 ```shell
-# Sensor update policies can be imported by specifying the policy id.
+# prevention policy can be imported by specifying the policy id.
 terraform import crowdstrike_prevention_policy_windows.example 7fb858a949034a0cbca175f660f1e769
 ```

@@ -51,6 +51,6 @@ resource "crowdstrike_prevention_policy_mac" "example" {
   chopper_webshell                             = true
 }
 
-output "sensor_policy" {
+output "prevention_policy_mac" {
   value = crowdstrike_prevention_policy_mac.example
 }

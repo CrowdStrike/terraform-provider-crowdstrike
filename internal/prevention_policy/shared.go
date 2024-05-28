@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/prevention_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -37,48 +38,6 @@ func (r ruleGroupAction) String() string {
 	return [...]string{"remove-rule-group", "add-rule-group"}[r]
 }
 
-// getRuleGroupsToModify takes in a slice of planned rule groups and a slice of current rule groups, and returns
-// the rule groups to add and remove.
-func getRuleGroupsToModify(
-	ctx context.Context,
-	plan, state types.Set,
-) (ruleGroupsToAdd []string, ruleGroupsToRemove []string, diags diag.Diagnostics) {
-	var planRuleGroupIDs, stateRuleGroupIDs []string
-	planMap := make(map[string]bool)
-	stateMap := make(map[string]bool)
-
-	diags.Append(plan.ElementsAs(ctx, &planRuleGroupIDs, false)...)
-	if diags.HasError() {
-		return
-	}
-	diags.Append(state.ElementsAs(ctx, &stateRuleGroupIDs, false)...)
-	if diags.HasError() {
-		return
-	}
-
-	for _, id := range planRuleGroupIDs {
-		planMap[id] = true
-	}
-
-	for _, id := range stateRuleGroupIDs {
-		stateMap[id] = true
-	}
-
-	for _, id := range planRuleGroupIDs {
-		if !stateMap[id] {
-			ruleGroupsToAdd = append(ruleGroupsToAdd, id)
-		}
-	}
-
-	for _, id := range stateRuleGroupIDs {
-		if !planMap[id] {
-			ruleGroupsToRemove = append(ruleGroupsToRemove, id)
-		}
-	}
-
-	return
-}
-
 // syncRuleGroups will sync the rule groups from the resource model to the api.
 func syncRuleGroups(
 	ctx context.Context,
@@ -87,7 +46,7 @@ func syncRuleGroups(
 	id string,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
-	groupsToAdd, groupsToRemove, diags := getRuleGroupsToModify(
+	groupsToAdd, groupsToRemove, diags := utils.IDsToModify(
 		ctx,
 		planGroups,
 		stateGroups,
@@ -98,49 +57,8 @@ func syncRuleGroups(
 		return diags
 	}
 
-	if len(groupsToAdd) != 0 {
-		err := updateRuleGroups(
-			ctx,
-			client,
-			addRuleGroup,
-			groupsToAdd,
-			id,
-		)
-		if err != nil {
-			diags.AddError(
-				"Error assinging ioa rule groups to CrowdStrike prevention policy",
-				fmt.Sprintf(
-					"Could not add ioa rule groups: (%s) to policy with id: %s \n\n %s",
-					strings.Join(groupsToAdd, ", "),
-					id,
-					err.Error(),
-				),
-			)
-			return diags
-		}
-	}
-
-	if len(groupsToRemove) != 0 {
-		err := updateRuleGroups(
-			ctx,
-			client,
-			removeRuleGroup,
-			groupsToRemove,
-			id,
-		)
-		if err != nil {
-			diags.AddError(
-				"Error removing ioa rule groups from CrowdStrike prevention policy",
-				fmt.Sprintf(
-					"Could not remove ioa rule groups: (%s) from policy with id: %s \n\n %s",
-					strings.Join(groupsToAdd, ", "),
-					id,
-					err.Error(),
-				),
-			)
-			return diags
-		}
-	}
+	diags.Append(updateRuleGroups(ctx, client, addRuleGroup, groupsToAdd, id)...)
+	diags.Append(updateRuleGroups(ctx, client, removeRuleGroup, groupsToRemove, id)...)
 
 	return diags
 }
@@ -153,8 +71,17 @@ func updateRuleGroups(
 	action ruleGroupAction,
 	ruleGroupIDs []string,
 	id string,
-) error {
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if len(ruleGroupIDs) == 0 {
+		return diags
+	}
+
 	var actionParams []*models.MsaspecActionParameter
+	actionMsg := "adding"
+	if action == removeRuleGroup {
+		actionMsg = "removing"
+	}
 	name := "rule_group_id"
 
 	for _, g := range ruleGroupIDs {
@@ -167,7 +94,7 @@ func updateRuleGroups(
 		actionParams = append(actionParams, actionParam)
 	}
 
-	_, err := client.PreventionPolicies.PerformPreventionPoliciesAction(
+	res, err := client.PreventionPolicies.PerformPreventionPoliciesAction(
 		&prevention_policies.PerformPreventionPoliciesActionParams{
 			Context:    ctx,
 			ActionName: action.String(),
@@ -178,7 +105,34 @@ func updateRuleGroups(
 		},
 	)
 
-	return err
+	if err != nil {
+		diags.AddError("Error updating prevention policy rule groups", fmt.Sprintf(
+			"Could not %s prevention policy (%s) rule group (%s): %s",
+			actionMsg,
+			id,
+			strings.Join(ruleGroupIDs, ", "),
+			err.Error(),
+		))
+	}
+
+	if res != nil && res.Payload == nil {
+		return diags
+	}
+
+	for _, err := range res.Payload.Errors {
+		diags.AddError(
+			"Error updating prevention policy rule groups",
+			fmt.Sprintf(
+				"Could not %s prevention policy (%s) rule group (%s): %s",
+				actionMsg,
+				id,
+				err.ID,
+				err.String(),
+			),
+		)
+	}
+
+	return diags
 }
 
 // toggleOptions holds the options for toggleAttribute function.
@@ -321,7 +275,7 @@ func updatePolicyEnabledState(
 	client *client.CrowdStrikeAPISpecification,
 	id string,
 	enabled bool,
-) (prevention_policies.PerformPreventionPoliciesActionOK, diag.Diagnostics) {
+) (*prevention_policies.PerformPreventionPoliciesActionOK, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	state := "disable"
@@ -350,7 +304,7 @@ func updatePolicyEnabledState(
 		)
 	}
 
-	return *res, diags
+	return res, diags
 }
 
 // mapPreventionSettings converts prevention settings returned by the CrowdStrike api
@@ -601,11 +555,12 @@ func createPreventionPolicy(
 				"Error creating prevention policy",
 				"A prevention policy with the same name may already exist.",
 			)
+		} else {
+			diags.AddError(
+				"Error creating prevention policy",
+				"Could not create prevention policy, unexpected error: "+err.Error(),
+			)
 		}
-		diags.AddError(
-			"Error creating prevention policy",
-			"Could not create prevention policy, unexpected error: "+err.Error(),
-		)
 	}
 
 	return res, diags
@@ -619,8 +574,17 @@ func updateHostGroups(
 	action hostgroups.HostGroupAction,
 	hostGroupIDs []string,
 	id string,
-) error {
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if len(hostGroupIDs) == 0 {
+		return diags
+	}
+
 	var actionParams []*models.MsaspecActionParameter
+	actionMsg := "adding"
+	if action == hostgroups.RemoveHostGroup {
+		actionMsg = "removing"
+	}
 	name := "group_id"
 
 	for _, g := range hostGroupIDs {
@@ -633,7 +597,11 @@ func updateHostGroups(
 		actionParams = append(actionParams, actionParam)
 	}
 
-	_, err := client.PreventionPolicies.PerformPreventionPoliciesAction(
+	if len(actionParams) == 0 {
+		return diags
+	}
+
+	res, err := client.PreventionPolicies.PerformPreventionPoliciesAction(
 		&prevention_policies.PerformPreventionPoliciesActionParams{
 			Context:    ctx,
 			ActionName: action.String(),
@@ -644,7 +612,34 @@ func updateHostGroups(
 		},
 	)
 
-	return err
+	if err != nil {
+		diags.AddError("Error updating prevention policy host groups", fmt.Sprintf(
+			"Could not %s prevention policy (%s) host group (%s): %s",
+			actionMsg,
+			id,
+			strings.Join(hostGroupIDs, ", "),
+			err.Error(),
+		))
+	}
+
+	if res != nil && res.Payload == nil {
+		return diags
+	}
+
+	for _, err := range res.Payload.Errors {
+		diags.AddError(
+			"Error updating prevention policy host groups",
+			fmt.Sprintf(
+				"Could not %s prevention policy (%s) host group (%s): %s",
+				actionMsg,
+				id,
+				err.ID,
+				err.String(),
+			),
+		)
+	}
+
+	return diags
 }
 
 // syncHostGroups will sync the host groups from the resource model to the api.
@@ -655,7 +650,7 @@ func syncHostGroups(
 	id string,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
-	groupsToAdd, groupsToRemove, diags := hostgroups.GetHostGroupsToModify(
+	groupsToAdd, groupsToRemove, diags := utils.IDsToModify(
 		ctx,
 		planGroups,
 		stateGroups,
@@ -665,49 +660,8 @@ func syncHostGroups(
 		return diags
 	}
 
-	if len(groupsToAdd) != 0 {
-		err := updateHostGroups(
-			ctx,
-			client,
-			hostgroups.AddHostGroup,
-			groupsToAdd,
-			id,
-		)
-		if err != nil {
-			diags.AddError(
-				"Error assinging host groups to CrowdStrike prevention policy",
-				fmt.Sprintf(
-					"Could not add host groups: (%s) to policy with id: %s \n\n %s",
-					strings.Join(groupsToAdd, ", "),
-					id,
-					err.Error(),
-				),
-			)
-			return diags
-		}
-	}
-
-	if len(groupsToRemove) != 0 {
-		err := updateHostGroups(
-			ctx,
-			client,
-			hostgroups.RemoveHostGroup,
-			groupsToRemove,
-			id,
-		)
-		if err != nil {
-			diags.AddError(
-				"Error remvoing host groups from CrowdStrike prevention policy",
-				fmt.Sprintf(
-					"Could not remove host groups: (%s) from policy with id: %s \n\n %s",
-					strings.Join(groupsToAdd, ", "),
-					id,
-					err.Error(),
-				),
-			)
-			return diags
-		}
-	}
+	diags.Append(updateHostGroups(ctx, client, hostgroups.AddHostGroup, groupsToAdd, id)...)
+	diags.Append(updateHostGroups(ctx, client, hostgroups.RemoveHostGroup, groupsToRemove, id)...)
 
 	return diags
 }
