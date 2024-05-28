@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -566,7 +567,7 @@ func (r *sensorUpdatePolicyResource) Update(
 		return
 	}
 
-	hostGroupsToAdd, hostGroupsToRemove, diags := hostgroups.GetHostGroupsToModify(
+	hostGroupsToAdd, hostGroupsToRemove, diags := utils.IDsToModify(
 		ctx,
 		plan.HostGroups,
 		state.HostGroups,

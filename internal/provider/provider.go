@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/crowdstrike/gofalcon/falcon"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -212,6 +213,8 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		preventionpolicy.NewPreventionPolicyWindowsResource,
 		preventionpolicy.NewPreventionPolicyLinuxResource,
 		preventionpolicy.NewPreventionPolicyMacResource,
+		fim.NewFIMPolicyResource,
+		fim.NewFilevantageRuleGroupResource,
 	}
 }
 

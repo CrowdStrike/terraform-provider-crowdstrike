@@ -55,7 +55,7 @@ resource "crowdstrike_prevention_policy_linux" "example" {
   tls_visibility                               = true
 }
 
-output "sensor_policy" {
+output "prevention_policy_linux" {
   value = crowdstrike_prevention_policy_linux.example
 }
 ```
@@ -116,6 +116,6 @@ Required:
 Import is supported using the following syntax:
 
 ```shell
-# Sensor update policies can be imported by specifying the policy id.
+# prevention policy can be imported by specifying the policy id.
 terraform import crowdstrike_prevention_policy_linux.example 7fb858a949034a0cbca175f660f1e769
 ```

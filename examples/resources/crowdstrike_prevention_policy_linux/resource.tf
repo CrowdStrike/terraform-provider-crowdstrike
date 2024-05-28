@@ -40,6 +40,6 @@ resource "crowdstrike_prevention_policy_linux" "example" {
   tls_visibility                               = true
 }
 
-output "sensor_policy" {
+output "prevention_policy_linux" {
   value = crowdstrike_prevention_policy_linux.example
 }

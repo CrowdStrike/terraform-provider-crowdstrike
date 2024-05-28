@@ -96,6 +96,6 @@ resource "crowdstrike_prevention_policy_windows" "example" {
   windows_logon_bypass_sticky_keys               = false
 }
 
-output "sensor_policy" {
+output "prevention_policy_windows" {
   value = crowdstrike_prevention_policy_windows.example
 }
