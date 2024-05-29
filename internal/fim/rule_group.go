@@ -285,11 +285,13 @@ func (r *filevantageRuleGroupResource) Schema(
 						},
 						"file_names": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 							Description: "List of file names whose content will be monitored. Listed files must match the file include pattern and not match the file exclude pattern.",
 						},
 						"registry_values": schema.ListAttribute{
 							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
 							Description: "List of registry values whose content will be monitored. Listed registry values must match the registry include pattern and not match the registry exclude pattern.",
 						},
@@ -723,6 +725,7 @@ func (r *filevantageRuleGroupResource) ValidateConfig(
 				"watch_key_delete_changes":       !rule.WatchDeleteKeyChanges.IsNull(),
 				"watch_key_rename_changes":       !rule.WatchRenameKeyChanges.IsNull(),
 				"watch_key_permissions_changes":  !rule.WatchPermissionsKeyChanges.IsNull(),
+				"registry_values":                !rule.ContentRegistry.IsNull(),
 			}
 
 			for k, v := range invalidFields {
@@ -741,7 +744,6 @@ func (r *filevantageRuleGroupResource) ValidateConfig(
 		}
 
 		if rgType == WindowsRegistry {
-
 			invalidFields := map[string]bool{
 				"watch_file_write_changes":           !rule.WatchWriteFileChanges.IsNull(),
 				"watch_file_create_changes":          !rule.WatchCreateFileChanges.IsNull(),
@@ -754,6 +756,7 @@ func (r *filevantageRuleGroupResource) ValidateConfig(
 				"watch_directory_rename_changes":     !rule.WatchRenameDirectoryChanges.IsNull(),
 				"watch_directory_attribute_changes":  !rule.WatchAttributeDirectoryChanges.IsNull(),
 				"watch_directory_permission_changes": !rule.WatchPermissionDirectoryChanges.IsNull(),
+				"file_names":                         !rule.ContentFiles.IsNull(),
 			}
 
 			for k, v := range invalidFields {

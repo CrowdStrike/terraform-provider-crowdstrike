@@ -79,7 +79,7 @@ type fimPolicyResourceModel struct {
 	PlatformName        types.String          `tfsdk:"platform_name"`
 	Enabled             types.Bool            `tfsdk:"enabled"`
 	HostGroups          types.Set             `tfsdk:"host_groups"`
-	RuleGroups          types.Set             `tfsdk:"rule_groups"`
+	RuleGroups          types.List            `tfsdk:"rule_groups"`
 	LastUpdated         types.String          `tfsdk:"last_updated"`
 	ScheduledExclusions []*scheduledExclusion `tfsdk:"scheduled_exclusions"`
 }
@@ -185,10 +185,10 @@ func (r *fimPolicyResource) Schema(
 				ElementType: types.StringType,
 				Description: "Host Group ids to attach to the filevantage policy.",
 			},
-			"rule_groups": schema.SetAttribute{
+			"rule_groups": schema.ListAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
-				Description: "Rule Group ids to attach to the filevantage policy. Rule groups must be the same type as the policy.",
+				Description: "Rule Group ids to attach to the filevantage policy. Precedence is based on the order of the list. Rule groups must be the same type as the policy.",
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
@@ -378,6 +378,8 @@ func (r *fimPolicyResource) Create(
 
 	emptySet, diags := types.SetValueFrom(ctx, types.StringType, []string{})
 	resp.Diagnostics.Append(diags...)
+	emptyList, diags := types.ListValueFrom(ctx, types.StringType, []string{})
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -389,7 +391,7 @@ func (r *fimPolicyResource) Create(
 	}
 
 	resp.Diagnostics.Append(
-		r.syncRuleGroups(ctx, plan.RuleGroups, emptySet, plan.ID.ValueString())...)
+		r.syncRuleGroups(ctx, plan.RuleGroups, emptyList, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -457,6 +459,7 @@ func (r *fimPolicyResource) Read(
 		state.Description = types.StringValue(policy.Description)
 		state.Enabled = types.BoolValue(*policy.Enabled)
 		state.PlatformName = types.StringValue(policy.Platform)
+		state.LastUpdated = oldState.LastUpdated
 		hostGroups = policy.HostGroups
 		ruleGroups = policy.RuleGroups
 	}
@@ -563,12 +566,6 @@ func (r *fimPolicyResource) Update(
 		return
 	}
 	resp.Diagnostics.Append(r.assignScheduledExclusions(ctx, &plan, exclusions)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -854,7 +851,7 @@ func (r *fimPolicyResource) syncHostGroups(
 	id string,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
-	groupsToAdd, groupsToRemove, diags := utils.IDsToModify(
+	groupsToAdd, groupsToRemove, diags := utils.SetIDsToModify(
 		ctx,
 		planGroups,
 		stateGroups,
@@ -947,11 +944,11 @@ func (r *fimPolicyResource) assignHostGroups(
 // syncRuleGroups sync the rule groups from the resource model to the api.
 func (r *fimPolicyResource) syncRuleGroups(
 	ctx context.Context,
-	planGroups, stateGroups types.Set,
+	planGroups, stateGroups types.List,
 	id string,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
-	groupsToAdd, groupsToRemove, diags := utils.IDsToModify(
+	groupsToAdd, groupsToRemove, diags := utils.ListIDsToModify(
 		ctx,
 		planGroups,
 		stateGroups,
@@ -963,6 +960,18 @@ func (r *fimPolicyResource) syncRuleGroups(
 
 	diags.Append(r.updateRuleGroups(ctx, addRuleGroup, groupsToAdd, id)...)
 	diags.Append(r.updateRuleGroups(ctx, removeRuleGroup, groupsToRemove, id)...)
+
+	if diags.HasError() {
+		return diags
+	}
+
+	planGroupIDs := []string{}
+	diags.Append(planGroups.ElementsAs(ctx, &planGroupIDs, false)...)
+	if diags.HasError() {
+		return diags
+	}
+
+	diags.Append(r.updateRuleGroups(ctx, precedenceRuleGroup, planGroupIDs, id)...)
 
 	return diags
 }
@@ -1039,7 +1048,7 @@ func (r *fimPolicyResource) assignRuleGroups(
 		ruleGroups = append(ruleGroups, *ruleGroup.ID)
 	}
 
-	ruleGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, ruleGroups)
+	ruleGroupIDs, diags := types.ListValueFrom(ctx, types.StringType, ruleGroups)
 	config.RuleGroups = ruleGroupIDs
 
 	return diags

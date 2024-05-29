@@ -46,7 +46,7 @@ func syncRuleGroups(
 	id string,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
-	groupsToAdd, groupsToRemove, diags := utils.IDsToModify(
+	groupsToAdd, groupsToRemove, diags := utils.SetIDsToModify(
 		ctx,
 		planGroups,
 		stateGroups,
@@ -650,7 +650,7 @@ func syncHostGroups(
 	id string,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
-	groupsToAdd, groupsToRemove, diags := utils.IDsToModify(
+	groupsToAdd, groupsToRemove, diags := utils.SetIDsToModify(
 		ctx,
 		planGroups,
 		stateGroups,
