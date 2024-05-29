@@ -3,6 +3,7 @@ package fim
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -48,18 +51,19 @@ type filevantageRuleGroupResource struct {
 
 // filevantageRuleGroupResourceModel is the resource implementation.
 type filevantageRuleGroupResourceModel struct {
-	ID          types.String                    `tfsdk:"id"`
-	Name        types.String                    `tfsdk:"name"`
-	Type        types.String                    `tfsdk:"type"`
-	Description types.String                    `tfsdk:"description"`
-	Rules       []*filevantageRuleResourceModel `tfsdk:"rules"`
-	LastUpdated types.String                    `tfsdk:"last_updated"`
+	ID          types.String `tfsdk:"id"`
+	Name        types.String `tfsdk:"name"`
+	Type        types.String `tfsdk:"type"`
+	Description types.String `tfsdk:"description"`
+	Rules       []*fimRule   `tfsdk:"rules"`
+	LastUpdated types.String `tfsdk:"last_updated"`
 }
 
-// filevantageRuleResourceModel is the resource implementation.
-type filevantageRuleResourceModel struct {
+// fimRule is the resource implementation.
+type fimRule struct {
 	ID                   types.String `tfsdk:"id"`
 	Description          types.String `tfsdk:"description"`
+	Precedence           types.Int64  `tfsdk:"precedence"`
 	Path                 types.String `tfsdk:"path"`
 	Severity             types.String `tfsdk:"severity"`
 	Depth                types.String `tfsdk:"depth"`
@@ -184,6 +188,13 @@ func (r *filevantageRuleGroupResource) Schema(
 								stringplanmodifier.UseStateForUnknown(),
 							},
 						},
+						"precedence": schema.Int64Attribute{
+							Computed:    true,
+							Description: "Precedence of the rule in the rule group.",
+							PlanModifiers: []planmodifier.Int64{
+								int64planmodifier.UseStateForUnknown(),
+							},
+						},
 						"path": schema.StringAttribute{
 							Required:    true,
 							Description: "Representing the file system or registry path to monitor. All paths must end with the path separator, e.g. c:\\windows\\ for windows and /usr/bin/ for linux/mac.",
@@ -236,26 +247,41 @@ func (r *filevantageRuleGroupResource) Schema(
 							Optional:    true,
 							Computed:    true,
 							Description: "Represents the files, directories, registry keys, or registry values that will be excluded from monitoring.",
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"include_users": schema.StringAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Represents the changes performed by specific users that will be monitored.",
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"include_processes": schema.StringAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Represents the changes performed by specific processes that will be monitored.",
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"exclude_users": schema.StringAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Represents the changes performed by specific users that will be excluded from monitoring.",
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"exclude_processes": schema.StringAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Represents the changes performed by specific processes that will be excluded from monitoring.",
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"file_names": schema.ListAttribute{
 							Optional:    true,
@@ -271,91 +297,145 @@ func (r *filevantageRuleGroupResource) Schema(
 							Optional:    true,
 							Computed:    true,
 							Description: "Enable content capture for the rule. Requires watch_file_write_changes or watch_key_value_set_changes to be enabled.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"watch_directory_delete_changes": schema.BoolAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Monitor directory deletion events.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"watch_directory_create_changes": schema.BoolAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Monitor directory creation events.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"watch_directory_rename_changes": schema.BoolAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Monitor directory rename events.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"watch_directory_attribute_changes": schema.BoolAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Monitor directory attribute change events.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"watch_directory_permission_changes": schema.BoolAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Monitor directory permission change events.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"watch_file_rename_changes": schema.BoolAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Monitor file rename events.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"watch_file_write_changes": schema.BoolAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Monitor file write events.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"watch_file_create_changes": schema.BoolAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Monitor file creation events.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"watch_file_delete_changes": schema.BoolAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Monitor file deletion events.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"watch_file_attribute_changes": schema.BoolAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Monitor file attribute change events.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"watch_file_permission_changes": schema.BoolAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Monitor file permission change events.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"watch_key_create_changes": schema.BoolAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Monitor registry key creation events.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"watch_key_delete_changes": schema.BoolAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Monitor registry key deletion events.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"watch_key_rename_changes": schema.BoolAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Monitor registry key rename events.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"watch_key_permissions_changes": schema.BoolAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Monitor registry key permission change events.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"watch_key_value_set_changes": schema.BoolAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Monitor registry value set events.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"watch_key_value_delete_changes": schema.BoolAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "Monitor registry value deletion events.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
 						},
 					},
 				},
@@ -393,7 +473,7 @@ func (r *filevantageRuleGroupResource) Create(
 		res = &filevantage.CreateRuleGroupsOK{}
 	}
 
-	resp.Diagnostics.Append(handleRuleGroupErrors(plan, res, err, "create")...)
+	resp.Diagnostics.Append(handleRuleGroupErrors(plan.Name.ValueString(), res, err, "create")...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -406,72 +486,24 @@ func (r *filevantageRuleGroupResource) Create(
 		return
 	}
 
-	rules, diags := r.createRules(ctx, plan)
+	resp.Diagnostics.Append(
+		r.syncRules(ctx, rgType, plan.Rules, []*fimRule{}, plan.ID.ValueString())...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	rules, diags := r.getRules(
+		ctx,
+		plan.ID.ValueString(),
+		[]*models.RulegroupsAssignedRule{},
+	)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	if len(rules) > 0 {
-		plan.Rules = make([]*filevantageRuleResourceModel, len(rules))
-
-		for i, rule := range rules {
-			plan.Rules[i] = &filevantageRuleResourceModel{}
-			r := rule.GetPayload().Resources[0]
-
-			plan.Rules[i].ID = types.StringValue(*r.ID)
-			plan.Rules[i].Description = types.StringValue(r.Description)
-			plan.Rules[i].Path = types.StringValue(*r.Path)
-			plan.Rules[i].Severity = types.StringValue(*r.Severity)
-			plan.Rules[i].Depth = types.StringValue(*r.Depth)
-			plan.Rules[i].Include = types.StringValue(*r.Include)
-			plan.Rules[i].Exclude = types.StringValue(r.Exclude)
-			plan.Rules[i].IncludeUsers = types.StringValue(r.IncludeUsers)
-			plan.Rules[i].IncludeProcesses = types.StringValue(r.IncludeProcesses)
-			plan.Rules[i].ExcludeUsers = types.StringValue(r.ExcludeUsers)
-			plan.Rules[i].ExcludeProcesses = types.StringValue(r.ExcludeProcesses)
-			filesList, diags := types.ListValueFrom(ctx, types.StringType, r.ContentFiles)
-			resp.Diagnostics.Append(diags...)
-			if resp.Diagnostics.HasError() {
-				return
-			}
-
-			plan.Rules[i].ContentFiles = filesList
-			registryList, diags := types.ListValueFrom(
-				ctx,
-				types.StringType,
-				r.ContentRegistryValues,
-			)
-			resp.Diagnostics.Append(diags...)
-			if resp.Diagnostics.HasError() {
-				return
-			}
-			plan.Rules[i].ContentRegistry = registryList
-			plan.Rules[i].EnableContentCapture = types.BoolValue(r.EnableContentCapture)
-
-			if plan.Type.ValueString() == WindowsRegistry {
-				plan.Rules[i].WatchCreateKeyChanges = types.BoolValue(r.WatchCreateKeyChanges)
-				plan.Rules[i].WatchDeleteKeyChanges = types.BoolValue(r.WatchDeleteKeyChanges)
-				plan.Rules[i].WatchRenameKeyChanges = types.BoolValue(r.WatchRenameKeyChanges)
-				plan.Rules[i].WatchPermissionsKeyChanges = types.BoolValue(
-					r.WatchPermissionsKeyChanges,
-				)
-				plan.Rules[i].WatchSetValueChanges = types.BoolValue(r.WatchSetValueChanges)
-				plan.Rules[i].WatchDeleteValueChanges = types.BoolValue(r.WatchDeleteValueChanges)
-			} else {
-				plan.Rules[i].WatchDeleteDirectoryChanges = types.BoolValue(r.WatchDeleteDirectoryChanges)
-				plan.Rules[i].WatchCreateDirectoryChanges = types.BoolValue(r.WatchCreateDirectoryChanges)
-				plan.Rules[i].WatchRenameDirectoryChanges = types.BoolValue(r.WatchRenameDirectoryChanges)
-				plan.Rules[i].WatchAttributeDirectoryChanges = types.BoolValue(r.WatchAttributesDirectoryChanges)
-				plan.Rules[i].WatchPermissionDirectoryChanges = types.BoolValue(r.WatchPermissionsDirectoryChanges)
-				plan.Rules[i].WatchRenameFileChanges = types.BoolValue(r.WatchRenameFileChanges)
-				plan.Rules[i].WatchWriteFileChanges = types.BoolValue(r.WatchWriteFileChanges)
-				plan.Rules[i].WatchCreateFileChanges = types.BoolValue(r.WatchCreateFileChanges)
-				plan.Rules[i].WatchDeleteFileChanges = types.BoolValue(r.WatchDeleteFileChanges)
-				plan.Rules[i].WatchAttributeFileChanges = types.BoolValue(r.WatchAttributesFileChanges)
-				plan.Rules[i].WatchPermissionFileChanges = types.BoolValue(r.WatchPermissionsFileChanges)
-			}
-		}
+		plan.Rules = rules
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -492,18 +524,17 @@ func (r *filevantageRuleGroupResource) Read(
 		return
 	}
 
-	params := filevantage.GetRuleGroupsParams{
-		Context: ctx,
-		Ids:     []string{state.ID.ValueString()},
+	res, diags := r.getRuleGroup(ctx, state.ID.ValueString())
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
-
-	res, err := r.client.Filevantage.GetRuleGroups(&params)
 
 	if res == nil {
 		res = &filevantage.GetRuleGroupsOK{}
 	}
 
-	resp.Diagnostics.Append(handleRuleGroupErrors(state, res, err, "read")...)
+	resp.Diagnostics.Append(handleRuleGroupErrors(state.ID.ValueString(), res, nil, "read")...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -511,100 +542,18 @@ func (r *filevantageRuleGroupResource) Read(
 	assignRuleGroup(res, &state)
 	state.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
-	assignedRules := res.Payload.Resources[0].AssignedRules
+	rules, diags := r.getRules(
+		ctx,
+		state.ID.ValueString(),
+		res.Payload.Resources[0].AssignedRules,
+	)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	if len(assignedRules) > 0 {
-		state.Rules = make([]*filevantageRuleResourceModel, len(assignedRules))
-
-		assignedRuleIDs := []string{}
-		for _, rule := range assignedRules {
-			r := rule
-			assignedRuleIDs = append(assignedRuleIDs, *r.ID)
-		}
-
-		rules, err := r.client.Filevantage.GetRules(&filevantage.GetRulesParams{
-			Ids:         assignedRuleIDs,
-			RuleGroupID: state.ID.ValueString(),
-			Context:     ctx,
-		})
-
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Failed to get rules assigned to rule group",
-				fmt.Sprintf(
-					"Failed to get rules for ids (%s): %s",
-					strings.Join(assignedRuleIDs, ", "),
-					err.Error(),
-				),
-			)
-			return
-		}
-
-		if rules == nil || rules.Payload == nil {
-			resp.Diagnostics.AddError(
-				"Failed to get rules assigned to rule group",
-				"Failed to get rules: response payload is nil",
-			)
-			return
-		}
-
-		for i, rule := range rules.Payload.Resources {
-			state.Rules[i] = &filevantageRuleResourceModel{}
-			r := rule
-
-			state.Rules[i].ID = types.StringValue(*r.ID)
-			state.Rules[i].Description = types.StringValue(r.Description)
-			state.Rules[i].Path = types.StringValue(*r.Path)
-			state.Rules[i].Severity = types.StringValue(*r.Severity)
-			state.Rules[i].Depth = types.StringValue(*r.Depth)
-			state.Rules[i].Include = types.StringValue(*r.Include)
-			state.Rules[i].Exclude = types.StringValue(r.Exclude)
-			state.Rules[i].IncludeUsers = types.StringValue(r.IncludeUsers)
-			state.Rules[i].IncludeProcesses = types.StringValue(r.IncludeProcesses)
-			state.Rules[i].ExcludeUsers = types.StringValue(r.ExcludeUsers)
-			state.Rules[i].ExcludeProcesses = types.StringValue(r.ExcludeProcesses)
-			filesList, diags := types.ListValueFrom(ctx, types.StringType, r.ContentFiles)
-			resp.Diagnostics.Append(diags...)
-			if resp.Diagnostics.HasError() {
-				return
-			}
-
-			state.Rules[i].ContentFiles = filesList
-			registryList, diags := types.ListValueFrom(
-				ctx,
-				types.StringType,
-				r.ContentRegistryValues,
-			)
-			resp.Diagnostics.Append(diags...)
-			if resp.Diagnostics.HasError() {
-				return
-			}
-			state.Rules[i].ContentRegistry = registryList
-			state.Rules[i].EnableContentCapture = types.BoolValue(r.EnableContentCapture)
-
-			if state.Type.ValueString() == WindowsRegistry {
-				state.Rules[i].WatchCreateKeyChanges = types.BoolValue(r.WatchCreateKeyChanges)
-				state.Rules[i].WatchDeleteKeyChanges = types.BoolValue(r.WatchDeleteKeyChanges)
-				state.Rules[i].WatchRenameKeyChanges = types.BoolValue(r.WatchRenameKeyChanges)
-				state.Rules[i].WatchPermissionsKeyChanges = types.BoolValue(
-					r.WatchPermissionsKeyChanges,
-				)
-				state.Rules[i].WatchSetValueChanges = types.BoolValue(r.WatchSetValueChanges)
-				state.Rules[i].WatchDeleteValueChanges = types.BoolValue(r.WatchDeleteValueChanges)
-			} else {
-				state.Rules[i].WatchDeleteDirectoryChanges = types.BoolValue(r.WatchDeleteDirectoryChanges)
-				state.Rules[i].WatchCreateDirectoryChanges = types.BoolValue(r.WatchCreateDirectoryChanges)
-				state.Rules[i].WatchRenameDirectoryChanges = types.BoolValue(r.WatchRenameDirectoryChanges)
-				state.Rules[i].WatchAttributeDirectoryChanges = types.BoolValue(r.WatchAttributesDirectoryChanges)
-				state.Rules[i].WatchPermissionDirectoryChanges = types.BoolValue(r.WatchPermissionsDirectoryChanges)
-				state.Rules[i].WatchRenameFileChanges = types.BoolValue(r.WatchRenameFileChanges)
-				state.Rules[i].WatchWriteFileChanges = types.BoolValue(r.WatchWriteFileChanges)
-				state.Rules[i].WatchCreateFileChanges = types.BoolValue(r.WatchCreateFileChanges)
-				state.Rules[i].WatchDeleteFileChanges = types.BoolValue(r.WatchDeleteFileChanges)
-				state.Rules[i].WatchAttributeFileChanges = types.BoolValue(r.WatchAttributesFileChanges)
-				state.Rules[i].WatchPermissionFileChanges = types.BoolValue(r.WatchPermissionsFileChanges)
-			}
-		}
+	if len(rules) > 0 {
+		state.Rules = rules
 	}
 
 	// Set refreshed state
@@ -622,7 +571,16 @@ func (r *filevantageRuleGroupResource) Update(
 ) {
 	// Retrieve values from plan
 	var plan filevantageRuleGroupResourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Retrieve values from state
+	var state filevantageRuleGroupResourceModel
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -642,7 +600,7 @@ func (r *filevantageRuleGroupResource) Update(
 		res = &filevantage.UpdateRuleGroupsOK{}
 	}
 
-	resp.Diagnostics.Append(handleRuleGroupErrors(plan, res, err, "update")...)
+	resp.Diagnostics.Append(handleRuleGroupErrors(plan.ID.ValueString(), res, err, "update")...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -650,7 +608,34 @@ func (r *filevantageRuleGroupResource) Update(
 	assignRuleGroup(res, &plan)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+	resp.Diagnostics.Append(
+		r.syncRules(
+			ctx,
+			plan.Type.ValueString(),
+			plan.Rules,
+			state.Rules,
+			plan.ID.ValueString(),
+		)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	rules, diags := r.getRules(
+		ctx,
+		plan.ID.ValueString(),
+		[]*models.RulegroupsAssignedRule{},
+	)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if len(rules) > 0 {
+		plan.Rules = rules
+	}
+
+	resp.Diagnostics.Append(
+		resp.State.Set(ctx, plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -816,21 +801,14 @@ func assignRuleGroup(
 
 // handleRuleGroupErrors is a helper function to handle common errors returned from the API.
 func handleRuleGroupErrors(
-	config filevantageRuleGroupResourceModel,
+	rgID string,
 	r rgResponse,
 	err error,
 	action string,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
-	var rgID string
 
 	summary := fmt.Sprintf("Failed to %s filevantage rule group", action)
-
-	if config.ID.ValueString() != "" {
-		rgID = config.ID.ValueString()
-	} else {
-		rgID = config.Name.ValueString()
-	}
 
 	if err != nil {
 		diags.AddError(
@@ -885,6 +863,27 @@ func handleRuleGroupErrors(
 	return diags
 }
 
+// getRuleGroup retrieves the rule group associated with the resource.
+func (r *filevantageRuleGroupResource) getRuleGroup(
+	ctx context.Context,
+	id string,
+) (*filevantage.GetRuleGroupsOK, diag.Diagnostics) {
+	params := filevantage.GetRuleGroupsParams{
+		Context: ctx,
+		Ids:     []string{id},
+	}
+
+	res, err := r.client.Filevantage.GetRuleGroups(&params)
+
+	if res == nil {
+		res = &filevantage.GetRuleGroupsOK{}
+	}
+
+	diags := handleRuleGroupErrors(id, res, err, "read")
+
+	return res, diags
+}
+
 // ruleResponse is a helper interface to simplify the response handling for create, get, and update.
 type ruleResponse interface {
 	GetPayload() *models.RulegroupsRulesResponse
@@ -892,7 +891,7 @@ type ruleResponse interface {
 
 // handleRuleGroupRulesErrors is a helper function to handle common errors returned from the API.
 func handleRuleGroupRulesErrors(
-	rule *filevantageRuleResourceModel,
+	rule fimRule,
 	ruleResponse ruleResponse,
 	err error,
 	action string,
@@ -954,16 +953,244 @@ func handleRuleGroupRulesErrors(
 	return diags
 }
 
-func (r *filevantageRuleGroupResource) createRules(
+// syncRules syncs the rule group rules from the resource model to the api.
+func (r *filevantageRuleGroupResource) syncRules(
 	ctx context.Context,
-	config filevantageRuleGroupResourceModel,
-) ([]*filevantage.CreateRulesOK, diag.Diagnostics) {
+	ruleGroupType string,
+	planRules, stateRules []*fimRule,
+	ruleGroupID string,
+) diag.Diagnostics {
 	var diags diag.Diagnostics
-	var rules []*filevantage.CreateRulesOK
 
-	rgType := config.Type.ValueString()
+	var rulesToCreate []fimRule
+	var rulesToDelete []string
+	var rulesToUpdate []fimRule
 
-	for _, rule := range config.Rules {
+	var stateMap = make(map[string]fimRule)
+	var planMap = make(map[string]fimRule)
+
+	for _, rule := range stateRules {
+		rule := *rule
+		stateMap[rule.ID.ValueString()] = rule
+	}
+
+	for _, rule := range planRules {
+		rule := *rule
+
+		// null id means it is a new exclusion
+		if rule.ID.IsNull() || rule.ID.IsUnknown() {
+			rulesToCreate = append(rulesToCreate, rule)
+			continue
+		}
+
+		planMap[rule.ID.ValueString()] = rule
+		if _, ok := stateMap[rule.ID.ValueString()]; ok {
+			if !reflect.DeepEqual(rule, stateMap[rule.ID.ValueString()]) {
+				rulesToUpdate = append(rulesToUpdate, rule)
+			}
+		}
+	}
+
+	for _, rule := range stateRules {
+		rule := *rule
+		if _, ok := planMap[rule.ID.ValueString()]; !ok {
+			rulesToDelete = append(rulesToDelete, rule.ID.ValueString())
+		}
+	}
+
+	// panic(
+	// 	fmt.Sprintf(
+	// 		"rulesToCreate: %v rulesToDelete %v rulesToUpdate %v",
+	// 		rulesToCreate,
+	// 		rulesToDelete,
+	// 		rulesToUpdate,
+	// 	),
+	// )
+
+	diags.Append(r.createRules(ctx, ruleGroupType, rulesToCreate, ruleGroupID)...)
+	diags.Append(r.updateRules(ctx, ruleGroupType, rulesToUpdate, ruleGroupID)...)
+	diags.Append(r.deleteRules(ctx, rulesToDelete, ruleGroupID)...)
+
+	return diags
+}
+
+// getRules retrieves the rules associated with the rule group.
+func (r *filevantageRuleGroupResource) getRules(
+	ctx context.Context,
+	ruleGroupID string,
+	assignedRules []*models.RulegroupsAssignedRule,
+) ([]*fimRule, diag.Diagnostics) {
+	var rules []*fimRule
+	var diags diag.Diagnostics
+
+	if len(assignedRules) == 0 {
+		res, diags := r.getRuleGroup(ctx, ruleGroupID)
+		if diags.HasError() {
+			return rules, diags
+		}
+
+		assignedRules = res.Payload.Resources[0].AssignedRules
+	}
+
+	if len(assignedRules) > 0 {
+		assignedRuleIDs := []string{}
+		for _, rule := range assignedRules {
+			r := rule
+			assignedRuleIDs = append(assignedRuleIDs, *r.ID)
+		}
+
+		res, err := r.client.Filevantage.GetRules(&filevantage.GetRulesParams{
+			Ids:         assignedRuleIDs,
+			RuleGroupID: ruleGroupID,
+			Context:     ctx,
+		})
+
+		if err != nil {
+			diags.AddError(
+				"Failed to get rules assigned to rule group",
+				fmt.Sprintf(
+					"Failed to get rules for ids (%s): %s",
+					strings.Join(assignedRuleIDs, ", "),
+					err.Error(),
+				),
+			)
+			return rules, diags
+		}
+
+		if res == nil || res.Payload == nil {
+			diags.AddError(
+				"Failed to get rules assigned to rule group",
+				"Failed to get rules: response payload is nil",
+			)
+			return rules, diags
+		}
+
+		for _, rule := range res.Payload.Resources {
+			r := rule
+			fimRule := fimRule{}
+
+			fimRule.ID = types.StringValue(*r.ID)
+			fimRule.Precedence = types.Int64Value(int64(r.Precedence))
+			fimRule.Description = types.StringValue(r.Description)
+			fimRule.Path = types.StringValue(*r.Path)
+			fimRule.Severity = types.StringValue(*r.Severity)
+			fimRule.Depth = types.StringValue(*r.Depth)
+			fimRule.Include = types.StringValue(*r.Include)
+			fimRule.Exclude = types.StringValue(r.Exclude)
+			fimRule.IncludeUsers = types.StringValue(r.IncludeUsers)
+			fimRule.IncludeProcesses = types.StringValue(r.IncludeProcesses)
+			fimRule.ExcludeUsers = types.StringValue(r.ExcludeUsers)
+			fimRule.ExcludeProcesses = types.StringValue(r.ExcludeProcesses)
+			filesList, diags := types.ListValueFrom(ctx, types.StringType, r.ContentFiles)
+			diags.Append(diags...)
+			if diags.HasError() {
+				return rules, diags
+			}
+
+			fimRule.ContentFiles = filesList
+			registryList, diags := types.ListValueFrom(
+				ctx,
+				types.StringType,
+				r.ContentRegistryValues,
+			)
+			diags.Append(diags...)
+			if diags.HasError() {
+				return rules, diags
+			}
+			fimRule.ContentRegistry = registryList
+			fimRule.EnableContentCapture = types.BoolValue(r.EnableContentCapture)
+
+			fimRule.WatchCreateKeyChanges = types.BoolValue(r.WatchCreateKeyChanges)
+			fimRule.WatchDeleteKeyChanges = types.BoolValue(r.WatchDeleteKeyChanges)
+			fimRule.WatchRenameKeyChanges = types.BoolValue(r.WatchRenameKeyChanges)
+			fimRule.WatchPermissionsKeyChanges = types.BoolValue(
+				r.WatchPermissionsKeyChanges,
+			)
+			fimRule.WatchSetValueChanges = types.BoolValue(r.WatchSetValueChanges)
+			fimRule.WatchDeleteValueChanges = types.BoolValue(r.WatchDeleteValueChanges)
+			fimRule.WatchDeleteDirectoryChanges = types.BoolValue(r.WatchDeleteDirectoryChanges)
+			fimRule.WatchCreateDirectoryChanges = types.BoolValue(r.WatchCreateDirectoryChanges)
+			fimRule.WatchRenameDirectoryChanges = types.BoolValue(r.WatchRenameDirectoryChanges)
+			fimRule.WatchAttributeDirectoryChanges = types.BoolValue(
+				r.WatchAttributesDirectoryChanges,
+			)
+			fimRule.WatchPermissionDirectoryChanges = types.BoolValue(
+				r.WatchPermissionsDirectoryChanges,
+			)
+			fimRule.WatchRenameFileChanges = types.BoolValue(r.WatchRenameFileChanges)
+			fimRule.WatchWriteFileChanges = types.BoolValue(r.WatchWriteFileChanges)
+			fimRule.WatchCreateFileChanges = types.BoolValue(r.WatchCreateFileChanges)
+			fimRule.WatchDeleteFileChanges = types.BoolValue(r.WatchDeleteFileChanges)
+			fimRule.WatchAttributeFileChanges = types.BoolValue(r.WatchAttributesFileChanges)
+			fimRule.WatchPermissionFileChanges = types.BoolValue(r.WatchPermissionsFileChanges)
+			rules = append(rules, &fimRule)
+		}
+	}
+
+	return rules, diags
+}
+
+// deleteRules deletes the rules associated with the rule group.
+func (r *filevantageRuleGroupResource) deleteRules(
+	ctx context.Context,
+	rulesToDelete []string,
+	ruleGroupID string,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if len(rulesToDelete) == 0 {
+		return diags
+	}
+
+	params := filevantage.DeleteRulesParams{
+		Ids:         rulesToDelete,
+		RuleGroupID: ruleGroupID,
+		Context:     ctx,
+	}
+
+	res, err := r.client.Filevantage.DeleteRules(&params)
+
+	if err != nil {
+		diags.AddError(
+			"Failed to delete rules associated with rule group",
+			fmt.Sprintf(
+				"Failed to delete rules for rule group (%s): %s",
+				ruleGroupID,
+				err.Error(),
+			),
+		)
+	}
+
+	if res != nil {
+		for _, err := range res.Payload.Errors {
+			diags.AddError(
+				"Failed to delete rules associated with rule group",
+				fmt.Sprintf(
+					"Failed to delete rules for rule group (%s): %s",
+					ruleGroupID,
+					err.String(),
+				),
+			)
+		}
+	}
+
+	return diags
+}
+
+// updateRules updates the rules associated with the rule group.
+func (r *filevantageRuleGroupResource) updateRules(
+	ctx context.Context,
+	rgType string,
+	rules []fimRule,
+	ruleGroupID string,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if len(rules) == 0 {
+		return diags
+	}
+
+	for _, rule := range rules {
 		rule := rule
 
 		var contentFiles []string
@@ -972,21 +1199,116 @@ func (r *filevantageRuleGroupResource) createRules(
 		if len(rule.ContentFiles.Elements()) > 0 {
 			diags.Append(rule.ContentFiles.ElementsAs(ctx, &contentFiles, true)...)
 			if diags.HasError() {
-				return rules, diags
+				return diags
 			}
 		}
 
 		if len(rule.ContentRegistry.Elements()) > 0 {
 			diags.Append(rule.ContentRegistry.ElementsAs(ctx, &contentRegistryValues, true)...)
 			if diags.HasError() {
-				return rules, diags
+				return diags
+			}
+		}
+
+		params := filevantage.UpdateRulesParams{
+			Context: ctx,
+			Body: &models.RulegroupsRule{
+				ID:                    rule.ID.ValueStringPointer(),
+				Precedence:            int32(rule.Precedence.ValueInt64()),
+				RuleGroupID:           &ruleGroupID,
+				Type:                  &rgType,
+				Path:                  rule.Path.ValueStringPointer(),
+				Description:           rule.Description.ValueString(),
+				EnableContentCapture:  rule.EnableContentCapture.ValueBool(),
+				Exclude:               rule.Exclude.ValueString(),
+				ExcludeProcesses:      rule.ExcludeProcesses.ValueString(),
+				ExcludeUsers:          rule.ExcludeUsers.ValueString(),
+				Include:               rule.Include.ValueStringPointer(),
+				IncludeProcesses:      rule.IncludeProcesses.ValueString(),
+				IncludeUsers:          rule.IncludeUsers.ValueString(),
+				Depth:                 rule.Depth.ValueStringPointer(),
+				Severity:              rule.Severity.ValueStringPointer(),
+				ContentFiles:          contentFiles,
+				ContentRegistryValues: contentRegistryValues,
+
+				// Directory monitoring
+				WatchDeleteDirectoryChanges:      rule.WatchDeleteDirectoryChanges.ValueBool(),
+				WatchCreateDirectoryChanges:      rule.WatchCreateDirectoryChanges.ValueBool(),
+				WatchRenameDirectoryChanges:      rule.WatchRenameDirectoryChanges.ValueBool(),
+				WatchAttributesDirectoryChanges:  rule.WatchAttributeDirectoryChanges.ValueBool(),
+				WatchPermissionsDirectoryChanges: rule.WatchPermissionDirectoryChanges.ValueBool(),
+
+				// File monitoring
+				WatchRenameFileChanges:      rule.WatchRenameFileChanges.ValueBool(),
+				WatchWriteFileChanges:       rule.WatchWriteFileChanges.ValueBool(),
+				WatchCreateFileChanges:      rule.WatchCreateFileChanges.ValueBool(),
+				WatchDeleteFileChanges:      rule.WatchDeleteFileChanges.ValueBool(),
+				WatchAttributesFileChanges:  rule.WatchAttributeFileChanges.ValueBool(),
+				WatchPermissionsFileChanges: rule.WatchPermissionFileChanges.ValueBool(),
+
+				// Registry monitoring
+				WatchCreateKeyChanges:      rule.WatchCreateKeyChanges.ValueBool(),
+				WatchDeleteKeyChanges:      rule.WatchDeleteKeyChanges.ValueBool(),
+				WatchRenameKeyChanges:      rule.WatchRenameKeyChanges.ValueBool(),
+				WatchPermissionsKeyChanges: rule.WatchPermissionsKeyChanges.ValueBool(),
+				WatchSetValueChanges:       rule.WatchSetValueChanges.ValueBool(),
+				WatchDeleteValueChanges:    rule.WatchDeleteValueChanges.ValueBool(),
+			},
+		}
+
+		res, err := r.client.Filevantage.UpdateRules(&params)
+
+		if res == nil {
+			res = &filevantage.UpdateRulesOK{}
+		}
+
+		diags.Append(handleRuleGroupRulesErrors(rule, res, err, "update")...)
+
+		if diags.HasError() {
+			return diags
+		}
+	}
+
+	return diags
+}
+
+// createRules creates the rules associated with the rule group.
+func (r *filevantageRuleGroupResource) createRules(
+	ctx context.Context,
+	rgType string,
+	rules []fimRule,
+	ruleGroupID string,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if len(rules) == 0 {
+		return diags
+	}
+
+	for _, rule := range rules {
+		rule := rule
+
+		var contentFiles []string
+		var contentRegistryValues []string
+
+		if len(rule.ContentFiles.Elements()) > 0 {
+			diags.Append(rule.ContentFiles.ElementsAs(ctx, &contentFiles, true)...)
+			if diags.HasError() {
+				return diags
+			}
+		}
+
+		if len(rule.ContentRegistry.Elements()) > 0 {
+			diags.Append(rule.ContentRegistry.ElementsAs(ctx, &contentRegistryValues, true)...)
+			if diags.HasError() {
+				return diags
 			}
 		}
 
 		params := filevantage.CreateRulesParams{
 			Context: ctx,
 			Body: &models.RulegroupsRule{
-				RuleGroupID:           config.ID.ValueStringPointer(),
+				RuleGroupID:           &ruleGroupID,
 				Type:                  &rgType,
 				Path:                  rule.Path.ValueStringPointer(),
 				Description:           rule.Description.ValueString(),
@@ -1028,7 +1350,6 @@ func (r *filevantageRuleGroupResource) createRules(
 		}
 
 		res, err := r.client.Filevantage.CreateRules(&params)
-		rules = append(rules, res)
 
 		if res == nil {
 			res = &filevantage.CreateRulesOK{}
@@ -1037,9 +1358,9 @@ func (r *filevantageRuleGroupResource) createRules(
 		diags.Append(handleRuleGroupRulesErrors(rule, res, err, "create")...)
 
 		if diags.HasError() {
-			return rules, diags
+			return diags
 		}
 	}
 
-	return rules, diags
+	return diags
 }
