@@ -45,10 +45,13 @@ resource "crowdstrike_filevantage_rule_group" "example2" {
   type        = "MacFiles"
   rules = [
     {
-      description = "first rule"
-      path        = "/path/to/example/"
-      severity    = "High"
-      depth       = "ANY"
+      description              = "first rule"
+      path                     = "/path/to/example/"
+      severity                 = "High"
+      depth                    = "ANY"
+      enable_content_capture   = true
+      watch_file_write_changes = true
+      file_names               = ["example.exe"]
     },
   ]
 }

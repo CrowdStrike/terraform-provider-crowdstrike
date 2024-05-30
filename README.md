@@ -17,6 +17,7 @@ The CrowdStrike terraform provider is an open source project, not a CrowdStrike 
 | Firewall Management     | *READ*, *WRITE* |
 | Host Groups             | *READ*, *WRITE* |
 | Sensor Update Policies  | *READ*, *WRITE* |
+| Falcon FileVantage      | *READ*, *WRITE* |
 
 
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
