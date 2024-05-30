@@ -25,12 +25,41 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
+resource "crowdstrike_filevantage_rule_group" "example" {
+  name        = "example_filevantage_rule_group"
+  description = "made with terraform"
+  type        = "MacFiles"
+  rules = [
+    {
+      description = "first rule"
+      path        = "/path/to/example/"
+      severity    = "High"
+      depth       = "ANY"
+    },
+  ]
+}
+
+resource "crowdstrike_filevantage_rule_group" "example2" {
+  name        = "example_filevantage_rule_group"
+  description = "made with terraform"
+  type        = "MacFiles"
+  rules = [
+    {
+      description = "first rule"
+      path        = "/path/to/example/"
+      severity    = "High"
+      depth       = "ANY"
+    },
+  ]
+}
 
 resource "crowdstrike_filevantage_policy" "example" {
   name          = "example_filevantage_policy"
   enabled       = true
   description   = "made with terraform"
   platform_name = "Mac"
+  # host_groups   = ["1232313"]
+  rule_groups = [crowdstrike_filevantage_rule_group.example.id, crowdstrike_filevantage_rule_group.example2.id]
   scheduled_exclusions = [
     {
       name        = "policy1"
@@ -40,10 +69,10 @@ resource "crowdstrike_filevantage_policy" "example" {
       timezone    = "US/Central"
       processes   = "**/example.exe,/path/to/example2.exe"
       repeated = {
-        all_day           = true
-        frequency         = "monthly"
-        monthly_occurence = "Days"
-        days_of_month     = [1, 2, 3]
+        all_day            = true
+        frequency          = "monthly"
+        monthly_occurrence = "Days"
+        days_of_month      = [1, 2, 3]
       }
     },
     {
@@ -82,7 +111,7 @@ output "filevantage_policy" {
 - `description` (String) Description of the filevantage policy.
 - `enabled` (Boolean) Enable the filevantage policy.
 - `host_groups` (Set of String) Host Group ids to attach to the filevantage policy.
-- `rule_groups` (Set of String) Rule Group ids to attach to the filevantage policy. Rule groups must be the same type as the policy.
+- `rule_groups` (List of String) Rule Group ids to attach to the filevantage policy. Precedence is based on the order of the list. Rule groups must be the same type as the policy.
 - `scheduled_exclusions` (Attributes List) Scheduled exclusions for the filevantage policy. (see [below for nested schema](#nestedatt--scheduled_exclusions))
 
 ### Read-Only

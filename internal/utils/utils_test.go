@@ -59,7 +59,7 @@ func TestIDsToModify(t *testing.T) {
 			plan, _ := types.SetValueFrom(ctx, types.StringType, tt.plan)
 			state, _ := types.SetValueFrom(ctx, types.StringType, tt.state)
 
-			idsToAdd, idsToRemove, diags := IDsToModify(ctx, plan, state)
+			idsToAdd, idsToRemove, diags := SetIDsToModify(ctx, plan, state)
 
 			if !slices.Equal(idsToAdd, tt.expectedAdd) {
 				t.Errorf("idsToAdd = %v, want %v", idsToAdd, tt.expectedAdd)

@@ -567,7 +567,7 @@ func (r *sensorUpdatePolicyResource) Update(
 		return
 	}
 
-	hostGroupsToAdd, hostGroupsToRemove, diags := utils.IDsToModify(
+	hostGroupsToAdd, hostGroupsToRemove, diags := utils.SetIDsToModify(
 		ctx,
 		plan.HostGroups,
 		state.HostGroups,
