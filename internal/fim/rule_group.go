@@ -709,13 +709,40 @@ func (r *filevantageRuleGroupResource) ValidateConfig(
 		rPath := path.Root("rules").AtListIndex(i)
 
 		if rgType == LinuxFiles || rgType == MacFiles || rgType == WindowsFiles {
-			if len(rule.ContentFiles.Elements()) > 0 &&
-				!rule.WatchWriteFileChanges.ValueBool() {
-				resp.Diagnostics.AddAttributeError(
-					rPath.AtName("watch_file_write_changes"),
-					"Missing required attribute",
-					"watch_file_write_changes must be enabled when file_names is set",
-				)
+			if len(rule.ContentFiles.Elements()) > 0 {
+				if !rule.WatchWriteFileChanges.ValueBool() {
+					resp.Diagnostics.AddAttributeError(
+						rPath,
+						"Missing required attribute",
+						"watch_file_write_changes must be enabled when file_names is set",
+					)
+				}
+
+				if !rule.EnableContentCapture.ValueBool() {
+					resp.Diagnostics.AddAttributeError(
+						rPath,
+						"Missing required attribute",
+						"enable_content_capture must be enabled when file_names is set",
+					)
+				}
+			}
+
+			if rule.EnableContentCapture.ValueBool() {
+				if len(rule.ContentFiles.Elements()) == 0 {
+					resp.Diagnostics.AddAttributeError(
+						rPath,
+						"Missing required attribute",
+						"file_names must be set when enable_content_capture is enabled",
+					)
+				}
+
+				if !rule.WatchWriteFileChanges.ValueBool() {
+					resp.Diagnostics.AddAttributeError(
+						rPath,
+						"Missing required attribute",
+						"watch_file_write_changes must be enabled when enable_content_capture is set",
+					)
+				}
 			}
 
 			invalidFields := map[string]bool{
@@ -773,13 +800,40 @@ func (r *filevantageRuleGroupResource) ValidateConfig(
 				}
 			}
 
-			if len(rule.ContentRegistry.Elements()) > 0 &&
-				!rule.WatchSetValueChanges.ValueBool() {
-				resp.Diagnostics.AddAttributeError(
-					rPath.AtName("watch_key_value_set_changes"),
-					"Missing required attribute",
-					"watch_key_value_set_changes must be enabled when registry_contant is set",
-				)
+			if rule.EnableContentCapture.ValueBool() {
+				if len(rule.ContentRegistry.Elements()) == 0 {
+					resp.Diagnostics.AddAttributeError(
+						rPath,
+						"Missing required attribute",
+						"registry_values must be set when enable_content_capture is enabled",
+					)
+				}
+
+				if !rule.WatchSetValueChanges.ValueBool() {
+					resp.Diagnostics.AddAttributeError(
+						rPath,
+						"Missing required attribute",
+						"watch_key_value_set_changes must be enabled when enable_content_capture is set",
+					)
+				}
+			}
+
+			if len(rule.ContentRegistry.Elements()) > 0 {
+				if !rule.WatchSetValueChanges.ValueBool() {
+					resp.Diagnostics.AddAttributeError(
+						rPath,
+						"Missing required attribute",
+						"watch_key_value_set_changes must be enabled when registry_contant is set",
+					)
+				}
+
+				if !rule.EnableContentCapture.ValueBool() {
+					resp.Diagnostics.AddAttributeError(
+						rPath,
+						"Missing required attribute",
+						"enable_content_capture must be enabled when registry_values is set",
+					)
+				}
 			}
 		}
 	}
