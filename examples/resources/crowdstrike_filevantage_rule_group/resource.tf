@@ -23,6 +23,7 @@ resource "crowdstrike_filevantage_rule_group" "example" {
       depth                       = "ANY"
       registry_values             = ["first", "rule"]
       watch_key_value_set_changes = true
+      enable_content_capture      = true
     },
     {
       description                 = "second rule"
@@ -31,6 +32,7 @@ resource "crowdstrike_filevantage_rule_group" "example" {
       depth                       = "ANY"
       registry_values             = ["Value1", "Value2"]
       watch_key_value_set_changes = true
+      enable_content_capture      = true
     },
   ]
 }
