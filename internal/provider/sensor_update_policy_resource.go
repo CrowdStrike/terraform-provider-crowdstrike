@@ -401,6 +401,11 @@ func (r *sensorUpdatePolicyResource) Create(
 	plan.ID = types.StringValue(*policyResource.ID)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	// by default a policy is disabled, so there is no reason to call this unless enabled is true
 	if plan.Enabled.ValueBool() {
 		actionResp, err := r.updatePolicyEnabledState(ctx, plan.ID.ValueString(), true)
