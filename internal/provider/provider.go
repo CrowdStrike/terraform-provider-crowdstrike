@@ -57,6 +57,7 @@ func (p *CrowdStrikeProvider) Schema(
 	resp *provider.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Use the CrowdStrike provider to interact & manage many resources supported by the CrowdStrike Falcon Platform. You must configure the provider with your CrowdStrike API credentials before you can use it.",
 		Attributes: map[string]schema.Attribute{
 			"client_id": schema.StringAttribute{
 				MarkdownDescription: "Falcon Client Id for authenticating to the CrowdStrike APIs. Will use FALCON_CLIENT_ID environment variable when left blank.",
