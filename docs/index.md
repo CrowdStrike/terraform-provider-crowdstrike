@@ -3,12 +3,12 @@
 page_title: "crowdstrike Provider"
 subcategory: ""
 description: |-
-  
+  Use the CrowdStrike provider to interact & manage many resources supported by the CrowdStrike Falcon Platform. You must configure the provider with your CrowdStrike API credentials before you can use it.
 ---
 
 # crowdstrike Provider
 
-
+Use the CrowdStrike provider to interact & manage many resources supported by the CrowdStrike Falcon Platform. You must configure the provider with your CrowdStrike API credentials before you can use it.
 
 ## Example Usage
 
