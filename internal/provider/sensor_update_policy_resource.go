@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -218,6 +219,18 @@ func (r *sensorUpdatePolicyResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: fmt.Sprintf(
+			"Sensor Update Policy --- This resource allows management of sensor update policies in the CrowdStrike Falcon platform. Sensor update policies allow you to control the update process across a set of hosts.\n\n%s",
+			scopes.GenerateScopeDescription(
+				[]scopes.Scope{
+					{
+						Name:  "Sensor update policies",
+						Read:  true,
+						Write: true,
+					},
+				},
+			),
+		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,

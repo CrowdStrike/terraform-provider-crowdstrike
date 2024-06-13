@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/prevention_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -24,6 +25,14 @@ import (
 var windowsPlatformName = "Windows"
 var linuxPlatformName = "Linux"
 var macPlatformName = "Mac"
+
+var apiScopes = []scopes.Scope{
+	{
+		Name:  "Prevention policies",
+		Read:  true,
+		Write: true,
+	},
+}
 
 // ruleGroupAction for prevention policy action api.
 type ruleGroupAction int

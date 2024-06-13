@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/filevantage"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -144,6 +145,10 @@ func (r *filevantageRuleGroupResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: fmt.Sprintf(
+			"FileVantage --- This resource allows management of a FileVantage rule group. A FileVantage rule group is a collection of file integrity rules that can be assigned to a FileVantge policy.\n\n%s",
+			scopes.GenerateScopeDescription(apiScopes),
+		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,

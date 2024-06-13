@@ -14,6 +14,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/response_policies"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -88,6 +89,39 @@ func (r *hostGroupResource) Metadata(
 	resp.TypeName = req.ProviderTypeName + "_host_group"
 }
 
+var apiScopes = []scopes.Scope{
+	{
+		Name:  "Host groups",
+		Read:  true,
+		Write: true,
+	},
+	{
+		Name:  "Device control policies",
+		Read:  true,
+		Write: true,
+	},
+	{
+		Name:  "Firewall management",
+		Read:  true,
+		Write: true,
+	},
+	{
+		Name:  "Prevention policies",
+		Read:  true,
+		Write: true,
+	},
+	{
+		Name:  "Response policies",
+		Read:  true,
+		Write: true,
+	},
+	{
+		Name:  "Sensor update policies",
+		Read:  true,
+		Write: true,
+	},
+}
+
 // Schema defines the schema for the resource.
 func (r *hostGroupResource) Schema(
 	_ context.Context,
@@ -95,6 +129,11 @@ func (r *hostGroupResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: fmt.Sprintf(
+			"Host Group --- This resource allows you to manage host groups in the CrowdStrike Falcon Platform.\n\n%s",
+			scopes.GenerateScopeDescription(apiScopes),
+		),
+		Description: "The resource `crowdstrike_host_group` allows management of host groups in the CrowdStrike Falcon platform.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,

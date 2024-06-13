@@ -7,6 +7,7 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -113,10 +114,22 @@ func (d *sensorUpdatePolicyBuildsDataSource) Schema(
 	resp *datasource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: fmt.Sprintf(
+			"Sensor Update Policy --- This data source provides information about the latest sensor builds for each platform.\n\n%s",
+			scopes.GenerateScopeDescription(
+				[]scopes.Scope{
+					{
+						Name:  "Sensor update policies",
+						Read:  true,
+						Write: false,
+					},
+				},
+			),
+		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Placehodler identifier.",
+				Description: "Placeholder identifier.",
 			},
 			"windows": schema.SingleNestedAttribute{
 				Computed:    true,
