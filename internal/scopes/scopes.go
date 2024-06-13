@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// CrowdStrike API Scope
+// CrowdStrike API Scope.
 type Scope struct {
 	Name  string
 	Read  bool
