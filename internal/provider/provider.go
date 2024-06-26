@@ -38,8 +38,8 @@ type CrowdStrikeProvider struct {
 // CrowdStrikeProviderModel describes the provider data model.
 type CrowdStrikeProviderModel struct {
 	Cloud        types.String `tfsdk:"cloud"`
-	ClientSecret types.String `tfsdk:"client_id"`
-	ClientId     types.String `tfsdk:"client_secret"`
+	ClientSecret types.String `tfsdk:"client_secret"`
+	ClientId     types.String `tfsdk:"client_id"`
 }
 
 func (p *CrowdStrikeProvider) Metadata(
@@ -145,7 +145,7 @@ func (p *CrowdStrikeProvider) Configure(
 	}
 
 	if !config.ClientId.IsNull() {
-		clientId = config.ClientSecret.ValueString()
+		clientId = config.ClientId.ValueString()
 	}
 
 	if !config.ClientSecret.IsNull() {
