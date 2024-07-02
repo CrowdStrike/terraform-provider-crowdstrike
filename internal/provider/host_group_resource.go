@@ -166,8 +166,11 @@ func (r *hostGroupResource) Schema(
 				},
 			},
 			"description": schema.StringAttribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Description of the host group.",
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 		},
 	}
