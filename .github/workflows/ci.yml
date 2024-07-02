@@ -57,7 +57,7 @@ jobs:
     if: |
       (github.event_name == 'pull_request_target' &&
       github.event.label.name == 'ok-to-test') ||
-      contains(fromJson('["push", "pull_request", "workflow_dispatch", "schedule"]'), github.event_name)
+      contains(fromJson('["push", "workflow_dispatch", "schedule"]'), github.event_name)
     name: Terraform Provider Acceptance Tests
     needs: build
     runs-on: ubuntu-latest
