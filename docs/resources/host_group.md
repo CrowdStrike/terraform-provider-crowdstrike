@@ -5,7 +5,7 @@ description: |-
   This resource allows you to manage host groups in the CrowdStrike Falcon Platform.
   API Scopes
   The following API scopes are required:
-  Host groups | Read & WriteDevice control policies | Read & WriteFirewall management | Read & WritePrevention policies | Read & WriteResponse policies | Read & WriteSensor update policies | Read & Write
+  Host groups | Read & WriteFirewall management | Read & WritePrevention policies | Read & WriteResponse policies | Read & WriteSensor update policies | Read & Write
 ---
 
 # crowdstrike_host_group (Resource)
@@ -17,7 +17,6 @@ This resource allows you to manage host groups in the CrowdStrike Falcon Platfor
 The following API scopes are required:
 
 - Host groups | Read & Write
-- Device control policies | Read & Write
 - Firewall management | Read & Write
 - Prevention policies | Read & Write
 - Response policies | Read & Write
