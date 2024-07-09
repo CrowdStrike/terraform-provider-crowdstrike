@@ -851,59 +851,85 @@ func (r *preventionPolicyWindowsResource) assignPreventionSettings(
 ) {
 	toggleSettings, mlSliderSettings, detectionMlSliderSettings := mapPreventionSettings(categories)
 
-	//todo: check if value exists??
-
 	// toggle settings
-	state.AdditionalUserModeData = toggleSettings["AdditionalUserModeData"]
-	state.EndUserNotifications = toggleSettings["EndUserNotifications"]
-	state.UnknownDetectionRelatedExecutables = toggleSettings["UnknownDetectionRelatedExecutables"]
-	state.UnknownExecutables = toggleSettings["UnknownExecutables"]
-	state.SensorTamperingProtection = toggleSettings["SensorTamperingProtection"]
-	state.InterpreterProtection = toggleSettings["InterpreterProtection"]
-	state.EngineProtectionV2 = toggleSettings["EngineProtectionV2"]
-	state.ScriptBasedExecutionMonitoring = toggleSettings["ScriptBasedExecutionMonitoring"]
-	state.HTTPDetections = toggleSettings["HTTPDetections"]
-	state.RedactHTTPDetectionDetails = toggleSettings["RedactHTTPDetectionDetails"]
-	state.HardwareEnhancedExploitDetection = toggleSettings["HardwareEnhancedExploitDetection"]
-	state.EnhancedExploitationVisibility = toggleSettings["EnhancedExploitationVisibility"]
-	state.MemoryScan = toggleSettings["MemoryScan"]
-	state.CPUMemoryScan = toggleSettings["CPUMemoryScan"]
-	state.FirmwareAnalysisExtraction = toggleSettings["FirmwareAnalysisExtraction"]
-	state.MLLargeFileHandling = toggleSettings["ML Large File Handling"]
-	state.USBInsertionTriggeredScan = toggleSettings["USBInsertionTriggeredScan"]
-	state.DetectOnWrite = toggleSettings["DetectOnWrite"]
-	state.QuarantineOnWrite = toggleSettings["QuarantineOnWrite"]
-	state.OnWriteScriptFileVisibility = toggleSettings["OnWriteScriptFileVisibility"]
-	state.NextGenAV = toggleSettings["NextGenAV"]
-	state.NextGenAVQuarantineOnRemovableMedia = toggleSettings["NextGenAVQuarantineOnRemovableMedia"]
-	state.MicrosoftOfficeFileSuspiciousMacroRemoval = toggleSettings["MicrosoftOfficeFileSuspiciousMacroRemoval"]
-	state.CustomBlacklisting = toggleSettings["CustomBlacklisting"]
-	state.PreventSuspiciousProcesses = toggleSettings["PreventSuspiciousProcesses"]
-	state.SuspiciousRegistryOperations = toggleSettings["SuspiciousRegistryOperations"]
-	state.MaliciousPowershell = toggleSettings["MaliciousPowershell"]
-	state.IntelPrevention = toggleSettings["IntelPrevention"]
-	state.SuspiciousKernelDrivers = toggleSettings["SuspiciousKernelDrivers"]
-	state.VulnerableDriverProtection = toggleSettings["VulnerableDriverProtection"]
-	state.ForceASLR = toggleSettings["ForceASLR"]
-	state.ForceDEP = toggleSettings["ForceDEP"]
-	state.HeapSprayPreallocation = toggleSettings["HeapSprayPreallocation"]
-	state.NullPageAllocation = toggleSettings["NullPageAllocation"]
-	state.SEHOverwriteProtection = toggleSettings["SEHOverwriteProtection"]
-	state.BackupDeletion = toggleSettings["BackupDeletion"]
-	state.Cryptowall = toggleSettings["Cryptowall"]
-	state.FileEncryption = toggleSettings["FileEncryption"]
-	state.Locky = toggleSettings["Locky"]
-	state.FileSystemAccess = toggleSettings["FileSystemAccess"]
-	state.VolumeShadowCopyAudit = toggleSettings["VolumeShadowCopyAudit"]
-	state.VolumeShadowCopyProtect = toggleSettings["VolumeShadowCopyProtect"]
-	state.ApplicationExploitationActivity = toggleSettings["ApplicationExploitationActivity"]
-	state.ChopperWebshell = toggleSettings["ChopperWebshell"]
-	state.DriveByDownload = toggleSettings["DriveByDownload"]
-	state.ProcessHollowing = toggleSettings["ProcessHollowing"]
-	state.JavaScriptViaRundll32 = toggleSettings["JavaScriptViaRundll32"]
-	state.WindowsLogonBypassStickyKeys = toggleSettings["WindowsLogonBypassStickyKeys"]
-	state.CredentialDumping = toggleSettings["CredentialDumping"]
-	state.AutomatedRemediation = toggleSettings["AutomatedRemediation"]
+	state.AdditionalUserModeData = defaultBoolFalse(toggleSettings["AdditionalUserModeData"])
+	state.EndUserNotifications = defaultBoolFalse(toggleSettings["EndUserNotifications"])
+	state.UnknownDetectionRelatedExecutables = defaultBoolFalse(
+		toggleSettings["UnknownDetectionRelatedExecutables"],
+	)
+	state.UnknownExecutables = defaultBoolFalse(toggleSettings["UnknownExecutables"])
+	state.SensorTamperingProtection = defaultBoolFalse(toggleSettings["SensorTamperingProtection"])
+	state.InterpreterProtection = defaultBoolFalse(toggleSettings["InterpreterProtection"])
+	state.EngineProtectionV2 = defaultBoolFalse(toggleSettings["EngineProtectionV2"])
+	state.ScriptBasedExecutionMonitoring = defaultBoolFalse(
+		toggleSettings["ScriptBasedExecutionMonitoring"],
+	)
+	state.HTTPDetections = defaultBoolFalse(toggleSettings["HTTPDetections"])
+	state.RedactHTTPDetectionDetails = defaultBoolFalse(
+		toggleSettings["RedactHTTPDetectionDetails"],
+	)
+	state.HardwareEnhancedExploitDetection = defaultBoolFalse(
+		toggleSettings["HardwareEnhancedExploitDetection"],
+	)
+	state.EnhancedExploitationVisibility = defaultBoolFalse(
+		toggleSettings["EnhancedExploitationVisibility"],
+	)
+	state.MemoryScan = defaultBoolFalse(toggleSettings["MemoryScan"])
+	state.CPUMemoryScan = defaultBoolFalse(toggleSettings["CPUMemoryScan"])
+	state.FirmwareAnalysisExtraction = defaultBoolFalse(
+		toggleSettings["FirmwareAnalysisExtraction"],
+	)
+	state.MLLargeFileHandling = defaultBoolFalse(toggleSettings["ML Large File Handling"])
+	state.USBInsertionTriggeredScan = defaultBoolFalse(toggleSettings["USBInsertionTriggeredScan"])
+	state.DetectOnWrite = defaultBoolFalse(toggleSettings["DetectOnWrite"])
+	state.QuarantineOnWrite = defaultBoolFalse(toggleSettings["QuarantineOnWrite"])
+	state.OnWriteScriptFileVisibility = defaultBoolFalse(
+		toggleSettings["OnWriteScriptFileVisibility"],
+	)
+	state.NextGenAV = defaultBoolFalse(toggleSettings["NextGenAV"])
+	state.NextGenAVQuarantineOnRemovableMedia = defaultBoolFalse(
+		toggleSettings["NextGenAVQuarantineOnRemovableMedia"],
+	)
+	state.MicrosoftOfficeFileSuspiciousMacroRemoval = defaultBoolFalse(
+		toggleSettings["MicrosoftOfficeFileSuspiciousMacroRemoval"],
+	)
+	state.CustomBlacklisting = defaultBoolFalse(toggleSettings["CustomBlacklisting"])
+	state.PreventSuspiciousProcesses = defaultBoolFalse(
+		toggleSettings["PreventSuspiciousProcesses"],
+	)
+	state.SuspiciousRegistryOperations = defaultBoolFalse(
+		toggleSettings["SuspiciousRegistryOperations"],
+	)
+	state.MaliciousPowershell = defaultBoolFalse(toggleSettings["MaliciousPowershell"])
+	state.IntelPrevention = defaultBoolFalse(toggleSettings["IntelPrevention"])
+	state.SuspiciousKernelDrivers = defaultBoolFalse(toggleSettings["SuspiciousKernelDrivers"])
+	state.VulnerableDriverProtection = defaultBoolFalse(
+		toggleSettings["VulnerableDriverProtection"],
+	)
+	state.ForceASLR = defaultBoolFalse(toggleSettings["ForceASLR"])
+	state.ForceDEP = defaultBoolFalse(toggleSettings["ForceDEP"])
+	state.HeapSprayPreallocation = defaultBoolFalse(toggleSettings["HeapSprayPreallocation"])
+	state.NullPageAllocation = defaultBoolFalse(toggleSettings["NullPageAllocation"])
+	state.SEHOverwriteProtection = defaultBoolFalse(toggleSettings["SEHOverwriteProtection"])
+	state.BackupDeletion = defaultBoolFalse(toggleSettings["BackupDeletion"])
+	state.Cryptowall = defaultBoolFalse(toggleSettings["Cryptowall"])
+	state.FileEncryption = defaultBoolFalse(toggleSettings["FileEncryption"])
+	state.Locky = defaultBoolFalse(toggleSettings["Locky"])
+	state.FileSystemAccess = defaultBoolFalse(toggleSettings["FileSystemAccess"])
+	state.VolumeShadowCopyAudit = defaultBoolFalse(toggleSettings["VolumeShadowCopyAudit"])
+	state.VolumeShadowCopyProtect = defaultBoolFalse(toggleSettings["VolumeShadowCopyProtect"])
+	state.ApplicationExploitationActivity = defaultBoolFalse(
+		toggleSettings["ApplicationExploitationActivity"],
+	)
+	state.ChopperWebshell = defaultBoolFalse(toggleSettings["ChopperWebshell"])
+	state.DriveByDownload = defaultBoolFalse(toggleSettings["DriveByDownload"])
+	state.ProcessHollowing = defaultBoolFalse(toggleSettings["ProcessHollowing"])
+	state.JavaScriptViaRundll32 = defaultBoolFalse(toggleSettings["JavaScriptViaRundll32"])
+	state.WindowsLogonBypassStickyKeys = defaultBoolFalse(
+		toggleSettings["WindowsLogonBypassStickyKeys"],
+	)
+	state.CredentialDumping = defaultBoolFalse(toggleSettings["CredentialDumping"])
+	state.AutomatedRemediation = defaultBoolFalse(toggleSettings["AutomatedRemediation"])
 
 	// mlslider settings
 	state.ExtendedUserModeDataSlider = detectionMlSliderSettings["ExtendedUserModeDataSlider"]

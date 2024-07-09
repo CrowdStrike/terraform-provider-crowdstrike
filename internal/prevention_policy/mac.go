@@ -558,25 +558,29 @@ func (r *preventionPolicyMacResource) assignPreventionSettings(
 ) {
 	toggleSettings, mlSliderSettings, _ := mapPreventionSettings(categories)
 
-	//todo: check if value exists??
-
 	// toggle settings
-	state.EndUserNotifications = toggleSettings["EndUserNotifications"]
-	state.UnknownDetectionRelatedExecutables = toggleSettings["UnknownDetectionRelatedExecutables"]
-	state.UnknownExecutables = toggleSettings["UnknownExecutables"]
-	state.SensorTamperingProtection = toggleSettings["SensorTamperingProtection"]
-	state.ScriptBasedExecutionMonitoring = toggleSettings["ScriptBasedExecutionMonitoring"]
-	state.DetectOnWrite = toggleSettings["DetectOnWrite"]
-	state.QuarantineOnWrite = toggleSettings["QuarantineOnWrite"]
-	state.NextGenAV = toggleSettings["NextGenAV"]
-	state.CustomBlacklisting = toggleSettings["CustomBlacklisting"]
-	state.PreventSuspiciousProcesses = toggleSettings["PreventSuspiciousProcesses"]
-	state.IntelPrevention = toggleSettings["IntelPrevention"]
-	state.ChopperWebshell = toggleSettings["ChopperWebshell"]
-	state.XPCOMShell = toggleSettings["XPCOMShell"]
-	state.EmpyreBackdoor = toggleSettings["EmpyreBackdoor"]
-	state.KcPasswordDecoded = toggleSettings["KcPasswordDecoded"]
-	state.HashCollector = toggleSettings["HashCollector"]
+	state.EndUserNotifications = defaultBoolFalse(toggleSettings["EndUserNotifications"])
+	state.UnknownDetectionRelatedExecutables = defaultBoolFalse(
+		toggleSettings["UnknownDetectionRelatedExecutables"],
+	)
+	state.UnknownExecutables = defaultBoolFalse(toggleSettings["UnknownExecutables"])
+	state.SensorTamperingProtection = defaultBoolFalse(toggleSettings["SensorTamperingProtection"])
+	state.ScriptBasedExecutionMonitoring = defaultBoolFalse(
+		toggleSettings["ScriptBasedExecutionMonitoring"],
+	)
+	state.DetectOnWrite = defaultBoolFalse(toggleSettings["DetectOnWrite"])
+	state.QuarantineOnWrite = defaultBoolFalse(toggleSettings["QuarantineOnWrite"])
+	state.NextGenAV = defaultBoolFalse(toggleSettings["NextGenAV"])
+	state.CustomBlacklisting = defaultBoolFalse(toggleSettings["CustomBlacklisting"])
+	state.PreventSuspiciousProcesses = defaultBoolFalse(
+		toggleSettings["PreventSuspiciousProcesses"],
+	)
+	state.IntelPrevention = defaultBoolFalse(toggleSettings["IntelPrevention"])
+	state.ChopperWebshell = defaultBoolFalse(toggleSettings["ChopperWebshell"])
+	state.XPCOMShell = defaultBoolFalse(toggleSettings["XPCOMShell"])
+	state.EmpyreBackdoor = defaultBoolFalse(toggleSettings["EmpyreBackdoor"])
+	state.KcPasswordDecoded = defaultBoolFalse(toggleSettings["KcPasswordDecoded"])
+	state.HashCollector = defaultBoolFalse(toggleSettings["HashCollector"])
 
 	// mlslider settings
 	state.CloudAntiMalware = mlSliderSettings["CloudAntiMalware"]

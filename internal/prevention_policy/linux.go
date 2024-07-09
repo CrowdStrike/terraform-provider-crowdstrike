@@ -516,22 +516,26 @@ func (r *preventionPolicyLinuxResource) assignPreventionSettings(
 ) {
 	toggleSettings, mlSliderSettings, _ := mapPreventionSettings(categories)
 
-	//todo: check if value exists??
-
 	// toggle settings
-	state.UnknownDetectionRelatedExecutables = toggleSettings["UnknownDetectionRelatedExecutables"]
-	state.UnknownExecutables = toggleSettings["UnknownExecutables"]
-	state.ScriptBasedExecutionMonitoring = toggleSettings["ScriptBasedExecutionMonitoring"]
-	state.NextGenAV = toggleSettings["NextGenAV"]
-	state.CustomBlacklisting = toggleSettings["CustomBlacklisting"]
-	state.PreventSuspiciousProcesses = toggleSettings["PreventSuspiciousProcesses"]
-	state.DriftPrevention = toggleSettings["DriftPrevention"]
-	state.FilesystemVisibility = toggleSettings["FilesystemVisibility"]
-	state.NetworkVisibility = toggleSettings["NetworkVisibility"]
-	state.HTTPVisibility = toggleSettings["HTTPVisibility"]
-	state.FTPVisibility = toggleSettings["FTPVisibility"]
-	state.TLSVisibility = toggleSettings["TLSVisibility"]
-	state.EmailProtocolVisibility = toggleSettings["EmailProtocolVisibility"]
+	state.UnknownDetectionRelatedExecutables = defaultBoolFalse(
+		toggleSettings["UnknownDetectionRelatedExecutables"],
+	)
+	state.UnknownExecutables = defaultBoolFalse(toggleSettings["UnknownExecutables"])
+	state.ScriptBasedExecutionMonitoring = defaultBoolFalse(
+		toggleSettings["ScriptBasedExecutionMonitoring"],
+	)
+	state.NextGenAV = defaultBoolFalse(toggleSettings["NextGenAV"])
+	state.CustomBlacklisting = defaultBoolFalse(toggleSettings["CustomBlacklisting"])
+	state.PreventSuspiciousProcesses = defaultBoolFalse(
+		toggleSettings["PreventSuspiciousProcesses"],
+	)
+	state.DriftPrevention = defaultBoolFalse(toggleSettings["DriftPrevention"])
+	state.FilesystemVisibility = defaultBoolFalse(toggleSettings["FilesystemVisibility"])
+	state.NetworkVisibility = defaultBoolFalse(toggleSettings["NetworkVisibility"])
+	state.HTTPVisibility = defaultBoolFalse(toggleSettings["HTTPVisibility"])
+	state.FTPVisibility = defaultBoolFalse(toggleSettings["FTPVisibility"])
+	state.TLSVisibility = defaultBoolFalse(toggleSettings["TLSVisibility"])
+	state.EmailProtocolVisibility = defaultBoolFalse(toggleSettings["EmailProtocolVisibility"])
 
 	// mlslider settings
 	state.CloudAntiMalware = mlSliderSettings["CloudAntiMalware"]
