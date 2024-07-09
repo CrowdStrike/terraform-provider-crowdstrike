@@ -674,3 +674,12 @@ func syncHostGroups(
 
 	return diags
 }
+
+// defaultBoolFalse sets the default value of a bool to false if it is not set.
+func defaultBoolFalse(v types.Bool) types.Bool {
+	if !v.ValueBool() {
+		return types.BoolValue(false)
+	}
+
+	return v
+}
