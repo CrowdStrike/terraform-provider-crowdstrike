@@ -8,7 +8,7 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-func TestIDsToModify(t *testing.T) {
+func TestSetIDsToModify(t *testing.T) {
 	tests := []struct {
 		name           string
 		plan           []string

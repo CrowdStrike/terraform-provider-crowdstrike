@@ -11,13 +11,27 @@ provider "crowdstrike" {
 }
 
 
-resource "crowdstrike_host_group" "example" {
-  name            = "example_host_group"
-  description     = "made with terraform"
+resource "crowdstrike_host_group" "dynamic" {
+  assignment_rule = "tags:'SensorGroupingTags/molecule'+os_version:'Debian GNU 11'"
+  description     = "Made with terraform"
+  name            = "Dyanmic Host Group"
   type            = "dynamic"
-  assignment_rule = "tags:'SensorGroupingTags/cloud-lab'+os_version:'Amazon Linux 2'"
+}
+
+resource "crowdstrike_host_group" "static" {
+  description = "Made with terraform"
+  name        = "Dyanmic Host Group"
+  type        = "static"
+  hostnames   = ["host1", "host2"]
+}
+
+resource "crowdstrike_host_group" "staticByID" {
+  description = "Made with terraform"
+  name        = "Dyanmic Host Group"
+  type        = "staticByID"
+  host_ids    = ["123123", "124124"]
 }
 
 output "host_group" {
-  value = crowdstrike_host_group.example
+  value = crowdstrike_host_group.dynamic
 }
