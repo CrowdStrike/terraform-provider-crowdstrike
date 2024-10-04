@@ -399,6 +399,11 @@ func (r *preventionPolicyWindowsResource) Create(
 	plan.Name = types.StringValue(*preventionPolicy.Name)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	if plan.Enabled.ValueBool() {
 		actionResp, diags := updatePolicyEnabledState(
 			ctx,
@@ -416,7 +421,6 @@ func (r *preventionPolicyWindowsResource) Create(
 	} else {
 		plan.Enabled = types.BoolValue(*preventionPolicy.Enabled)
 	}
-
 	r.assignPreventionSettings(&plan, preventionPolicy.PreventionSettings)
 
 	emptySet, diags := types.SetValueFrom(ctx, types.StringType, []string{})
@@ -625,6 +629,9 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	resp.Diagnostics.Append(validateHostGroups(ctx, config.HostGroups)...)
+	resp.Diagnostics.Append(validateIOARuleGroups(ctx, config.RuleGroups)...)
 
 	resp.Diagnostics.Append(
 		validateRequiredAttribute(
