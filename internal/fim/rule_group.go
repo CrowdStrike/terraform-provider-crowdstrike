@@ -911,7 +911,7 @@ func handleRuleGroupErrors(
 		)
 	}
 
-	if res.Resources == nil || len(res.Resources) == 0 {
+	if len(res.Resources) == 0 {
 		diags.AddError(
 			summary,
 			fmt.Sprintf(
@@ -1001,7 +1001,7 @@ func handleRuleGroupRulesErrors(
 		)
 	}
 
-	if res.Resources == nil || len(res.Resources) == 0 {
+	if len(res.Resources) == 0 {
 		diags.AddError(
 			summary,
 			fmt.Sprintf(

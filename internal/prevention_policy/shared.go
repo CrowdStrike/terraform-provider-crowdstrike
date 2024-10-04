@@ -116,15 +116,15 @@ func updateRuleGroups(
 
 	if err != nil {
 		diags.AddError("Error updating prevention policy rule groups", fmt.Sprintf(
-			"Could not %s prevention policy (%s) rule group (%s): %s",
+			"Error %s rule groups (%s) to prevention policy (%s): %s",
 			actionMsg,
-			id,
 			strings.Join(ruleGroupIDs, ", "),
+			id,
 			err.Error(),
 		))
 	}
 
-	if res != nil && res.Payload == nil {
+	if res == nil || res.Payload == nil {
 		return diags
 	}
 
@@ -132,10 +132,10 @@ func updateRuleGroups(
 		diags.AddError(
 			"Error updating prevention policy rule groups",
 			fmt.Sprintf(
-				"Could not %s prevention policy (%s) rule group (%s): %s",
+				"Error %s rule group (%s) to prevention policy (%s): %s",
 				actionMsg,
-				id,
 				err.ID,
+				id,
 				err.String(),
 			),
 		)
@@ -403,6 +403,54 @@ func validateRequiredAttribute(
 	return diags
 }
 
+// validateHostGroups validates the host groups in the resource model.
+func validateHostGroups(ctx context.Context, hostGroupSet types.Set) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	var hostGroups []string
+
+	diags.Append(hostGroupSet.ElementsAs(ctx, &hostGroups, false)...)
+	if diags.HasError() {
+		return diags
+	}
+
+	for _, id := range hostGroups {
+		if len(id) == 0 {
+			diags.AddAttributeError(
+				path.Root("host_groups"),
+				"Error validating host group",
+				"Host group ID cannot be empty",
+			)
+		}
+	}
+
+	return diags
+}
+
+// validateIOARuleGroups validates the rule groups in the resource model.
+func validateIOARuleGroups(ctx context.Context, ioaRuleGroupSet types.Set) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	var ioaRuleGroups []string
+
+	diags.Append(ioaRuleGroupSet.ElementsAs(ctx, &ioaRuleGroups, false)...)
+	if diags.HasError() {
+		return diags
+	}
+
+	for _, id := range ioaRuleGroups {
+		if len(id) == 0 {
+			diags.AddAttributeError(
+				path.Root("ioa_rule_groups"),
+				"Error validating ioa rule group",
+				"ioa rule group ID cannot be empty",
+			)
+		}
+	}
+
+	return diags
+}
+
 // deletePreventionPolicy deletes a prevention policy by id.
 func deletePreventionPolicy(
 	ctx context.Context,
@@ -623,15 +671,15 @@ func updateHostGroups(
 
 	if err != nil {
 		diags.AddError("Error updating prevention policy host groups", fmt.Sprintf(
-			"Could not %s prevention policy (%s) host group (%s): %s",
+			"Error %s host groups (%s) to prevention policy (%s): %s",
 			actionMsg,
-			id,
 			strings.Join(hostGroupIDs, ", "),
+			id,
 			err.Error(),
 		))
 	}
 
-	if res != nil && res.Payload == nil {
+	if res == nil || res.Payload == nil {
 		return diags
 	}
 
@@ -639,10 +687,10 @@ func updateHostGroups(
 		diags.AddError(
 			"Error updating prevention policy host groups",
 			fmt.Sprintf(
-				"Could not %s prevention policy (%s) host group (%s): %s",
+				"Error %s host groups (%s) to prevention policy (%s): %s",
 				actionMsg,
-				id,
 				err.ID,
+				id,
 				err.String(),
 			),
 		)
