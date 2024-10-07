@@ -23,7 +23,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   enabled              = true
   description          = "made with terraform"
   platform_name        = "Windows"
-  build                = "18110"
+  build                = "18721"
   uninstall_protection = false 
   schedule = {
     enabled = false
@@ -54,7 +54,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
 						"build",
-						"18110",
+						"18721",
 					),
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
@@ -92,7 +92,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   enabled              = false
   description          = "made with terraform updated"
   platform_name        = "Windows"
-  build                = "18110"
+  build                = "18721"
   uninstall_protection = true 
   schedule = {
     enabled = false
@@ -123,7 +123,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
 						"build",
-						"18110",
+						"18721",
 					),
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
@@ -167,7 +167,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   host_groups          = ["%s"]
   description          = "made with terraform"
   platform_name        = "Windows"
-  build                = "18110"
+  build                = "18721"
   uninstall_protection = false 
   schedule = {
     enabled = false
@@ -198,7 +198,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
 						"build",
-						"18110",
+						"18721",
 					),
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
@@ -244,7 +244,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   enabled              = false
   description          = "made with terraform updated"
   platform_name        = "Windows"
-  build                = "18110"
+  build                = "18721"
   uninstall_protection = true 
   schedule = {
     enabled = false
@@ -275,7 +275,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
 						"build",
-						"18110",
+						"18721",
 					),
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
@@ -321,7 +321,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   enabled              = true
   description          = "made with terraform"
   platform_name        = "Windows"
-  build                = "18110"
+  build                = "18721"
   uninstall_protection = false 
   schedule = {
     enabled = false
@@ -352,7 +352,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
 						"build",
-						"18110",
+						"18721",
 					),
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
@@ -383,7 +383,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   enabled              = false
   description          = "made with terraform updated"
   platform_name        = "Windows"
-  build                = "18110"
+  build                = "18721"
   uninstall_protection = true 
   schedule = {
     enabled = true 
@@ -422,7 +422,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
 						"build",
-						"18110",
+						"18721",
 					),
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
