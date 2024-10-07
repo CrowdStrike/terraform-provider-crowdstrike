@@ -526,31 +526,33 @@ func (r *sensorUpdatePolicyResource) Read(
 	if policyResource.Settings.Scheduler != nil {
 		state.Schedule = policySchedule{}
 		state.Schedule.Enabled = types.BoolValue(*policyResource.Settings.Scheduler.Enabled)
-		state.Schedule.Timezone = types.StringValue(*policyResource.Settings.Scheduler.Timezone)
+		if state.Schedule.Enabled.ValueBool() {
+			state.Schedule.Timezone = types.StringValue(*policyResource.Settings.Scheduler.Timezone)
 
-		if policyResource.Settings.Scheduler.Schedules != nil {
-			if len(policyResource.Settings.Scheduler.Schedules) > 0 {
-				state.Schedule.TimeBlocks = []timeBlock{}
+			if policyResource.Settings.Scheduler.Schedules != nil {
+				if len(policyResource.Settings.Scheduler.Schedules) > 0 {
+					state.Schedule.TimeBlocks = []timeBlock{}
 
-				for _, s := range policyResource.Settings.Scheduler.Schedules {
-					sCopy := s
-					daysStr := []string{}
+					for _, s := range policyResource.Settings.Scheduler.Schedules {
+						sCopy := s
+						daysStr := []string{}
 
-					for _, d := range sCopy.Days {
-						dCopy := d
-						daysStr = append(daysStr, int64ToDay[dCopy])
+						for _, d := range sCopy.Days {
+							dCopy := d
+							daysStr = append(daysStr, int64ToDay[dCopy])
+						}
+
+						days, diags := types.SetValueFrom(ctx, types.StringType, daysStr)
+						resp.Diagnostics.Append(diags...)
+						if resp.Diagnostics.HasError() {
+							return
+						}
+						state.Schedule.TimeBlocks = append(state.Schedule.TimeBlocks, timeBlock{
+							Days:      days,
+							StartTime: types.StringValue(*sCopy.Start),
+							EndTime:   types.StringValue(*sCopy.End),
+						})
 					}
-
-					days, diags := types.SetValueFrom(ctx, types.StringType, daysStr)
-					resp.Diagnostics.Append(diags...)
-					if resp.Diagnostics.HasError() {
-						return
-					}
-					state.Schedule.TimeBlocks = append(state.Schedule.TimeBlocks, timeBlock{
-						Days:      days,
-						StartTime: types.StringValue(*sCopy.Start),
-						EndTime:   types.StringValue(*sCopy.End),
-					})
 				}
 			}
 		}
@@ -797,6 +799,9 @@ func (r *sensorUpdatePolicyResource) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 	resp.Diagnostics.Append(
 		resp.State.SetAttribute(ctx, path.Root("schedule").AtName("enabled"), false)...)
+	// resp.Diagnostics.Append(
+	// 	resp.State.SetAttribute(ctx, path.Root("schedule").AtName("timezone"), nil)...)
+
 }
 
 // ValidateConfig runs during validate, plan, and apply
