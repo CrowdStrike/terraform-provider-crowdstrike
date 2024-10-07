@@ -20,7 +20,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -294,9 +293,7 @@ func (r *sensorUpdatePolicyResource) Schema(
 					},
 					"timezone": schema.StringAttribute{
 						Optional:    true,
-						Computed:    true,
 						Description: "The time zones that will be used for the time blocks. Only set when enabled is true.",
-						Default:     stringdefault.StaticString("Etc/UTC"),
 						Validators: []validator.String{
 							stringvalidator.OneOf(timezones...),
 						},
@@ -383,20 +380,22 @@ func (r *sensorUpdatePolicyResource) Create(
 	}
 	policyParams.Body.Resources[0].Settings.UninstallProtection = uninstallProtection
 
-	updateSchedular := models.PolicySensorUpdateScheduler{}
-	updateSchedular.Enabled = plan.Schedule.Enabled.ValueBoolPointer()
-	updateSchedular.Timezone = plan.Schedule.Timezone.ValueStringPointer()
+	if plan.Schedule.Enabled.ValueBool() {
+		updateSchedular := models.PolicySensorUpdateScheduler{}
+		updateSchedular.Enabled = plan.Schedule.Enabled.ValueBoolPointer()
+		updateSchedular.Timezone = plan.Schedule.Timezone.ValueStringPointer()
 
-	if len(plan.Schedule.TimeBlocks) > 0 {
-		updateSchedules, diags := createUpdateSchedules(ctx, plan.Schedule.TimeBlocks)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
+		if len(plan.Schedule.TimeBlocks) > 0 {
+			updateSchedules, diags := createUpdateSchedules(ctx, plan.Schedule.TimeBlocks)
+			resp.Diagnostics.Append(diags...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+
+			updateSchedular.Schedules = updateSchedules
 		}
-
-		updateSchedular.Schedules = updateSchedules
+		policyParams.Body.Resources[0].Settings.Scheduler = &updateSchedular
 	}
-	policyParams.Body.Resources[0].Settings.Scheduler = &updateSchedular
 
 	policy, err := r.client.SensorUpdatePolicies.CreateSensorUpdatePoliciesV2(&policyParams)
 
@@ -526,6 +525,9 @@ func (r *sensorUpdatePolicyResource) Read(
 	if policyResource.Settings.Scheduler != nil {
 		state.Schedule = policySchedule{}
 		state.Schedule.Enabled = types.BoolValue(*policyResource.Settings.Scheduler.Enabled)
+
+		// ignore the timzezone and time_blocks if the schedule is DISABLED
+		// this allows terraform import to work correctly
 		if state.Schedule.Enabled.ValueBool() {
 			state.Schedule.Timezone = types.StringValue(*policyResource.Settings.Scheduler.Timezone)
 
@@ -675,6 +677,18 @@ func (r *sensorUpdatePolicyResource) Update(
 	updateSchedular := models.PolicySensorUpdateScheduler{}
 	updateSchedular.Timezone = plan.Schedule.Timezone.ValueStringPointer()
 	updateSchedular.Enabled = plan.Schedule.Enabled.ValueBoolPointer()
+
+	// WORKAROUND: The API requires a timezone when we are trying to enable/diable the Scheduler
+	// due to other limitiations when it comes to imports we need to allow timezone to be null.
+	// Everything should exist in state etc so knowingly adding drift isn't the best, but
+	// when the schedule is disabled the timezone does not matter.
+	// When the schedule is enabled the timezone is required so we will not have issues.
+	// Permanent fix is to update the API to allow us to provide a null value for timezone when
+	// the schedule is disabled.
+	defaultTimezone := "Etc/UTC"
+	if !*updateSchedular.Enabled && updateSchedular.Timezone == nil {
+		updateSchedular.Timezone = &defaultTimezone
+	}
 
 	if len(plan.Schedule.TimeBlocks) > 0 {
 		updateSchedules, diags := createUpdateSchedules(ctx, plan.Schedule.TimeBlocks)
