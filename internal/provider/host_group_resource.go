@@ -244,6 +244,14 @@ func (r *hostGroupResource) Create(
 			)
 		}
 
+		if strings.Contains(err.Error(), "500") && plan.GroupType.ValueString() == hgDynamic {
+			errMsg = fmt.Sprintf(
+				"Could not create host group (%s): Returned error code 500, this could be caused by invalid assignment_rule. \n\n %s",
+				plan.Name.ValueString(),
+				err.Error(),
+			)
+		}
+
 		resp.Diagnostics.AddError("Error creating scheduled exclusion", errMsg)
 
 		return
@@ -361,6 +369,14 @@ func (r *hostGroupResource) Update(
 			errMsg = fmt.Sprintf(
 				"Could not update host group (%s): A host group already exists with that name. \n\n %s",
 				plan.ID.ValueString(),
+				err.Error(),
+			)
+		}
+
+		if strings.Contains(err.Error(), "500") && plan.GroupType.ValueString() == hgDynamic {
+			errMsg = fmt.Sprintf(
+				"Could not update host group (%s): Returned error code 500, this could be caused by invalid assignment_rule. \n\n %s",
+				plan.Name.ValueString(),
 				err.Error(),
 			)
 		}
