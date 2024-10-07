@@ -20,14 +20,14 @@ resource "crowdstrike_host_group" "dynamic" {
 
 resource "crowdstrike_host_group" "static" {
   description = "Made with terraform"
-  name        = "Dyanmic Host Group"
-  type        = "static"
-  hostnames   = ["host1", "host2"]
+  name        = "Static Host Group rename"
+  type        = "staticByID"
+  host_ids    = ["host1", "host2"]
 }
 
 resource "crowdstrike_host_group" "staticByID" {
   description = "Made with terraform"
-  name        = "Dyanmic Host Group"
+  name        = "staticByID Host Group"
   type        = "staticByID"
   host_ids    = ["123123", "124124"]
 }
