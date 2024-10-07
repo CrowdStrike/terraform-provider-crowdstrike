@@ -173,6 +173,9 @@ func (r *hostGroupResource) Schema(
 				Required: true,
 				// todo: make this case insensitive
 				Description: "The host group type, case sensitive. (dynamic, static, staticByID)",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 				Validators: []validator.String{
 					stringvalidator.OneOf(hgDynamic, hgStatic, hgStaticByID),
 				},
@@ -228,10 +231,21 @@ func (r *hostGroupResource) Create(
 	hostGroup, err := r.client.HostGroup.CreateHostGroups(&hostGroupParams)
 
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating host group",
-			"Could not create host group, unexpected error: "+err.Error(),
+		errMsg := fmt.Sprintf(
+			"Could not create host group (%s): %s",
+			plan.Name.ValueString(),
+			err.Error(),
 		)
+		if strings.Contains(err.Error(), "409") {
+			errMsg = fmt.Sprintf(
+				"Could not create host group (%s): A host group already exists with that name. \n\n %s",
+				plan.Name.ValueString(),
+				err.Error(),
+			)
+		}
+
+		resp.Diagnostics.AddError("Error creating scheduled exclusion", errMsg)
+
 		return
 	}
 
@@ -338,10 +352,21 @@ func (r *hostGroupResource) Update(
 	hostGroup, err := r.updateHostGroup(ctx, plan, assignmentRule)
 
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error updating CrowdStrike host group",
-			"Could not update host group with ID: "+plan.ID.ValueString()+": "+err.Error(),
+		errMsg := fmt.Sprintf(
+			"Could not update host group (%s): %s",
+			plan.ID.ValueString(),
+			err.Error(),
 		)
+		if strings.Contains(err.Error(), "409") {
+			errMsg = fmt.Sprintf(
+				"Could not update host group (%s): A host group already exists with that name. \n\n %s",
+				plan.ID.ValueString(),
+				err.Error(),
+			)
+		}
+
+		resp.Diagnostics.AddError("Error updating host group", errMsg)
+
 		return
 	}
 
