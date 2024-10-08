@@ -26,4 +26,6 @@ The following scopes are required to create and manage all the resources the pro
 | Sensor Update Policies  | *READ*, *WRITE* |
 | Falcon FileVantage      | *READ*, *WRITE* |
 
+### Importing Existing CrowdStrike resources
 
+The CrowdStrike provider supports importing existing resources into terraform state. This is useful for managing resources that were created outside of terraform. Refer to the [importing guide](./docs/importing.md) for an example of using the `import` block and the `terraform import` command.
