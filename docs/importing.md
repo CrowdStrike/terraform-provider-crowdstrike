@@ -1,6 +1,6 @@
 # Importing CrowdStrike Resources
 
-You can start managing existing CrowdStrike resources with terraform by importing resources into terraform state. This guide will go over two different methods of importing CrowdStrike resources into terraform. 
+You can start managing existing CrowdStrike resources with terraform by importing resources into terraform state. This guide will go over two different methods of importing CrowdStrike resources into terraform. The [#using-the-import-block](Using the Import block) method is preferred because it makes generating the configuration for multiple resources easier and does not require you to remove things like the `id` field from the configuration.
 
 The examples below will show how to import a CrowdStrike Host Group resource, but the same process can be used for other CrowdStrike resources.
 
@@ -26,7 +26,7 @@ resource "crowdstrike_host_group" "import_example" {}
 
 ```
 
-Next, obtain the ID of the resource you want to import. You can obtain the ID by using the CrowdStrike API or, in the CrowdStrike console go to the host group you want to import and copy the ID from the URL.
+Next, obtain the ID of the resource you want to import. You can obtain the ID by using the CrowdStrike API, or in the CrowdStrike console go to the host group you want to import and copy the ID from the URL.
 
 For example, if the URL is `https://falcon.us-2.crowdstrike.com/hosts/groups-new/edit/7e053217c9cf449fbb503429a0501e87` then the ID is `7e053217c9cf449fbb503429a0501e87`.
 
@@ -81,13 +81,11 @@ If the output shows no changes, your configuration now matches the remote state.
 
 ## Using the Import block
 
-Starting in terraform version `1.5.0` and later, you can use the `import` block to import resources into terraform state and generate a configuration file for you.
-
-Hashicorp has a [guide](https://developer.hashicorp.com/terraform/language/import) on how to use the import block.
+Starting in terraform version `1.5.0` and later, you can use the `import` block to import resources into terraform state and generate a configuration file for you. Hashicorp has a [guide](https://developer.hashicorp.com/terraform/language/import) on how to use the import block.
 
 We will use this method to import two CrowdStrike Host Groups named `import_example` and `import_example2`.
 
-First obtain the ID of the resources you want to import. You can obtain the ID by using the CrowdStrike API or, in the CrowdStrike console go to the host group you want to import and copy the ID from the URL.
+First obtain the ID of the resources you want to import. You can obtain the ID by using the CrowdStrike API, or in the CrowdStrike console go to the host group you want to import and copy the ID from the URL.
 
 For example, if the URL is `https://falcon.us-2.crowdstrike.com/hosts/groups-new/edit/7e053217c9cf449fbb503429a0501e87` then the ID is `7e053217c9cf449fbb503429a0501e87`.
 
