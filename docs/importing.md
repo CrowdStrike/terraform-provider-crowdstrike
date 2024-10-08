@@ -1,6 +1,6 @@
 # Importing CrowdStrike Resources
 
-You can start managing existing CrowdStrike resources with terraform by importing resources into terraform state. This guide will go over two different methods of importing CrowdStrike resources into terraform. The [#using-the-import-block](Using the Import block) method is preferred because it makes generating the configuration for multiple resources easier and does not require you to remove things like the `id` field from the configuration.
+You can start managing existing CrowdStrike resources with terraform by importing resources into terraform state. This guide will go over two different methods of importing CrowdStrike resources into terraform. The [Using the Import Block](#using-the-import-block) method is preferred because it makes generating the configuration for multiple resources easier and does not require you to remove things like the `id` field from the configuration.
 
 The examples below will show how to import a CrowdStrike Host Group resource, but the same process can be used for other CrowdStrike resources.
 
