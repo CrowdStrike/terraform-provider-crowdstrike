@@ -407,7 +407,7 @@ func validateRequiredAttribute(
 func validateHostGroups(ctx context.Context, hostGroupSet types.Set) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	var hostGroups []string
+	var hostGroups []types.String
 
 	diags.Append(hostGroupSet.ElementsAs(ctx, &hostGroups, false)...)
 	if diags.HasError() {
@@ -415,7 +415,7 @@ func validateHostGroups(ctx context.Context, hostGroupSet types.Set) diag.Diagno
 	}
 
 	for _, id := range hostGroups {
-		if len(id) == 0 {
+		if !id.IsUnknown() && len(id.ValueString()) == 0 {
 			diags.AddAttributeError(
 				path.Root("host_groups"),
 				"Error validating host group",
@@ -431,7 +431,7 @@ func validateHostGroups(ctx context.Context, hostGroupSet types.Set) diag.Diagno
 func validateIOARuleGroups(ctx context.Context, ioaRuleGroupSet types.Set) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	var ioaRuleGroups []string
+	var ioaRuleGroups []types.String
 
 	diags.Append(ioaRuleGroupSet.ElementsAs(ctx, &ioaRuleGroups, false)...)
 	if diags.HasError() {
@@ -439,7 +439,7 @@ func validateIOARuleGroups(ctx context.Context, ioaRuleGroupSet types.Set) diag.
 	}
 
 	for _, id := range ioaRuleGroups {
-		if len(id) == 0 {
+		if !id.IsUnknown() && len(id.ValueString()) == 0 {
 			diags.AddAttributeError(
 				path.Root("ioa_rule_groups"),
 				"Error validating ioa rule group",
