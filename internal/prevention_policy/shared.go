@@ -124,21 +124,67 @@ func updateRuleGroups(
 		))
 	}
 
-	if res == nil || res.Payload == nil {
-		return diags
+	returnedRuleGroups := make(map[string]bool)
+
+	if res != nil && res.Payload != nil {
+		for _, r := range res.Payload.Resources {
+			groups := r.IoaRuleGroups
+
+			for _, group := range groups {
+				returnedRuleGroups[*group.ID] = true
+			}
+		}
 	}
 
-	for _, err := range res.Payload.Errors {
-		diags.AddError(
-			"Error updating prevention policy rule groups",
-			fmt.Sprintf(
-				"Error %s rule group (%s) to prevention policy (%s): %s",
-				actionMsg,
-				err.ID,
-				id,
-				err.String(),
-			),
-		)
+	if action == removeRuleGroup {
+		for _, group := range ruleGroupIDs {
+			_, ok := returnedRuleGroups[group]
+			if ok {
+				diags.AddError(
+					"Error updating prevention policy rule groups",
+					fmt.Sprintf(
+						"Error %s rule groups (%s) to prevention policy (%s): %s",
+						actionMsg,
+						group,
+						id,
+						"Remove failed",
+					),
+				)
+			}
+		}
+	}
+
+	if action == addRuleGroup {
+		for _, group := range ruleGroupIDs {
+			_, ok := returnedRuleGroups[group]
+			if !ok {
+				diags.AddError(
+					"Error updating prevention policy rule groups",
+					fmt.Sprintf(
+						"Error %s rule groups (%s) to prevention policy (%s): %s",
+						actionMsg,
+						group,
+						id,
+						"Adding failed, ensure the rule group is valid.",
+					),
+				)
+			}
+		}
+	}
+
+	if res == nil || res.Payload == nil {
+		for _, err := range res.Payload.Errors {
+			diags.AddError(
+				"Error updating prevention policy rule groups",
+				fmt.Sprintf(
+					"Error %s rule group (%s) to prevention policy (%s): %s",
+					actionMsg,
+					err.ID,
+					id,
+					err.String(),
+				),
+			)
+		}
 	}
 
 	return diags
@@ -407,8 +453,15 @@ func validateRequiredAttribute(
 func validateHostGroups(ctx context.Context, hostGroupSet types.Set) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	var hostGroups []types.String
+	if hostGroupSet.IsNull() {
+		return diags
+	}
 
+	if hostGroupSet.IsUnknown() {
+		return diags
+	}
+
+	hostGroups := make([]types.String, 0, len(hostGroupSet.Elements()))
 	diags.Append(hostGroupSet.ElementsAs(ctx, &hostGroups, false)...)
 	if diags.HasError() {
 		return diags
@@ -431,8 +484,15 @@ func validateHostGroups(ctx context.Context, hostGroupSet types.Set) diag.Diagno
 func validateIOARuleGroups(ctx context.Context, ioaRuleGroupSet types.Set) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	var ioaRuleGroups []types.String
+	if ioaRuleGroupSet.IsNull() {
+		return diags
+	}
 
+	if ioaRuleGroupSet.IsUnknown() {
+		return diags
+	}
+
+	ioaRuleGroups := make([]types.String, 0, len(ioaRuleGroupSet.Elements()))
 	diags.Append(ioaRuleGroupSet.ElementsAs(ctx, &ioaRuleGroups, false)...)
 	if diags.HasError() {
 		return diags
@@ -677,23 +737,71 @@ func updateHostGroups(
 			id,
 			err.Error(),
 		))
-	}
 
-	if res == nil || res.Payload == nil {
 		return diags
 	}
 
-	for _, err := range res.Payload.Errors {
-		diags.AddError(
-			"Error updating prevention policy host groups",
-			fmt.Sprintf(
-				"Error %s host groups (%s) to prevention policy (%s): %s",
-				actionMsg,
-				err.ID,
-				id,
-				err.String(),
-			),
-		)
+	returnedHostGroups := make(map[string]bool)
+
+	if res != nil && res.Payload != nil {
+		for _, r := range res.Payload.Resources {
+			groups := r.Groups
+
+			for _, group := range groups {
+				returnedHostGroups[*group.ID] = true
+			}
+		}
+	}
+
+	if action == hostgroups.RemoveHostGroup {
+		for _, group := range hostGroupIDs {
+			_, ok := returnedHostGroups[group]
+			if ok {
+				diags.AddError(
+					"Error updating prevention policy host groups",
+					fmt.Sprintf(
+						"Error %s host groups (%s) to prevention policy (%s): %s",
+						actionMsg,
+						group,
+						id,
+						"Remove failed",
+					),
+				)
+			}
+		}
+	}
+
+	if action == hostgroups.AddHostGroup {
+		for _, group := range hostGroupIDs {
+			_, ok := returnedHostGroups[group]
+			if !ok {
+				diags.AddError(
+					"Error updating prevention policy host groups",
+					fmt.Sprintf(
+						"Error %s host groups (%s) to prevention policy (%s): %s",
+						actionMsg,
+						group,
+						id,
+						"Adding failed, ensure the host group is valid.",
+					),
+				)
+			}
+		}
+	}
+
+	if res != nil && res.Payload != nil {
+		for _, err := range res.Payload.Errors {
+			diags.AddError(
+				"Error updating prevention policy host groups",
+				fmt.Sprintf(
+					"Error %s host groups (%s) to prevention policy (%s): %s",
+					actionMsg,
+					err.ID,
+					id,
+					err.String(),
+				),
+			)
+		}
 	}
 
 	return diags

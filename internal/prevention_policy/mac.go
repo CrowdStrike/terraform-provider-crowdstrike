@@ -530,13 +530,13 @@ func (r *preventionPolicyMacResource) assignRuleGroups(
 	groups []*models.IoaRuleGroupsRuleGroupV1,
 ) diag.Diagnostics {
 
-	var ruleGroups []string
-	for _, hostGroup := range groups {
-		ruleGroups = append(ruleGroups, *hostGroup.ID)
+	ruleGroups := make([]types.String, 0, len(groups))
+	for _, ruleGroup := range groups {
+		ruleGroups = append(ruleGroups, types.StringValue(*ruleGroup.ID))
 	}
 
-	hostGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, ruleGroups)
-	config.RuleGroups = hostGroupIDs
+	ruleGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, ruleGroups)
+	config.RuleGroups = ruleGroupIDs
 
 	return diags
 }
@@ -548,9 +548,9 @@ func (r *preventionPolicyMacResource) assignHostGroups(
 	groups []*models.HostGroupsHostGroupV1,
 ) diag.Diagnostics {
 
-	var hostGroups []string
+	hostGroups := make([]types.String, 0, len(groups))
 	for _, hostGroup := range groups {
-		hostGroups = append(hostGroups, *hostGroup.ID)
+		hostGroups = append(hostGroups, types.StringValue(*hostGroup.ID))
 	}
 
 	hostGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, hostGroups)
