@@ -40,7 +40,7 @@ resource "crowdstrike_prevention_policy_windows" "example" {
   enabled         = false
   description     = "made with terraform"
   host_groups     = ["d6e3c1e1b3d0467da0fowc96a5e6ecb5"]
-  ioa_rule_groups = ["ed334b3243bc4b6bb8e7d40a2ecd86fa"]
+  ioa_rule_groups = []
   adware_and_pup = {
     "detection"  = "MODERATE"
     "prevention" = "CAUTIOUS"
