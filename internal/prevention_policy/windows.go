@@ -174,12 +174,12 @@ func (r *preventionPolicyWindowsResource) Schema(
 				Default:     booldefault.StaticBool(true),
 			},
 			"host_groups": schema.SetAttribute{
-				Optional:    true,
+				Required:    true,
 				ElementType: types.StringType,
 				Description: "Host Group ids to attach to the prevention policy.",
 			},
 			"ioa_rule_groups": schema.SetAttribute{
-				Optional:    true,
+				Required:    true,
 				ElementType: types.StringType,
 				Description: "IOA Rule Group to attach to the prevention policy.",
 			},

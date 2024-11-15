@@ -40,7 +40,7 @@ resource "crowdstrike_prevention_policy_windows" "example" {
   enabled         = false
   description     = "made with terraform"
   host_groups     = ["d6e3c1e1b3d0467da0fowc96a5e6ecb5"]
-  ioa_rule_groups = ["ed334b3243bc4b6bb8e7d40a2ecd86fa"]
+  ioa_rule_groups = []
   adware_and_pup = {
     "detection"  = "MODERATE"
     "prevention" = "CAUTIOUS"
@@ -130,6 +130,8 @@ output "prevention_policy_windows" {
 
 ### Required
 
+- `host_groups` (Set of String) Host Group ids to attach to the prevention policy.
+- `ioa_rule_groups` (Set of String) IOA Rule Group to attach to the prevention policy.
 - `name` (String) Name of the prevention policy.
 
 ### Optional
@@ -163,11 +165,9 @@ output "prevention_policy_windows" {
 - `force_dep` (Boolean) Whether to enable the setting. A process that had Force Data Execution Prevention (Force DEP) applied tried to execute non-executable memory and was blocked. Requires additional_user_mode_data to be enabled.
 - `hardware_enhanced_exploit_detection` (Boolean) Whether to enable the setting. Provides additional visibility into application exploits by using CPU hardware features that detect suspicious control flows. Available only for hosts running Windows 10 (RS4) or Windows Server 2016 Version 1803 or later and Skylake or later CPU.
 - `heap_spray_preallocation` (Boolean) Whether to enable the setting. A heap spray attempt was detected and blocked. This may have been part of an attempted exploit. Requires additional_user_mode_data to be enabled.
-- `host_groups` (Set of String) Host Group ids to attach to the prevention policy.
 - `http_detections` (Boolean) Whether to enable the setting. Allows the sensor to monitor unencrypted HTTP traffic and certain encrypted HTTPS traffic on the sensor for malicious patterns and generate detection events on non-Server systems.
 - `intelligence_sourced_threats` (Boolean) Whether to enable the setting. Block processes that CrowdStrike Intelligence analysts classify as malicious. These are focused on static hash-based IOCs.
 - `interpreter_only` (Boolean) Whether to enable the setting. Provides visibility into malicious PowerShell interpreter usage. For hosts running Windows 10, Script-Based Execution Monitoring may be used instead.
-- `ioa_rule_groups` (Set of String) IOA Rule Group to attach to the prevention policy.
 - `javascript_via_rundll32` (Boolean) Whether to enable the setting. JavaScript executing from a command line via rundll32.exe was prevented.
 - `locky` (Boolean) Whether to enable the setting. A process determined to be associated with Locky was blocked.
 - `memory_scanning` (Boolean) Whether to enable the setting. Provides visibility into in-memory attacks by scanning for suspicious artifacts on hosts with the following: an integrated GPU and supporting OS libraries, Windows 10 v1607 (RS1) or later, and a Skylake or newer Intel CPU.

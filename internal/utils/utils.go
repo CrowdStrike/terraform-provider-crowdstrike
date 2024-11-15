@@ -15,36 +15,45 @@ func SetIDsToModify(
 	ctx context.Context,
 	plan, state types.Set,
 ) (idsToAdd []string, idsToRemove []string, diags diag.Diagnostics) {
-	var planIDs, stateIDs []string
+	var planIDs, stateIDs []types.String
 	planMap := make(map[string]bool)
 	stateMap := make(map[string]bool)
 
-	diags.Append(plan.ElementsAs(ctx, &planIDs, false)...)
-	if diags.HasError() {
-		return
+	if !plan.IsUnknown() && !plan.IsNull() {
+		diags.Append(plan.ElementsAs(ctx, &planIDs, false)...)
+		if diags.HasError() {
+			return
+		}
 	}
-	diags.Append(state.ElementsAs(ctx, &stateIDs, false)...)
-	if diags.HasError() {
-		return
+
+	if !state.IsUnknown() && !state.IsNull() {
+		diags.Append(state.ElementsAs(ctx, &stateIDs, false)...)
+		if diags.HasError() {
+			return
+		}
 	}
 
 	for _, id := range planIDs {
-		planMap[id] = true
-	}
-
-	for _, id := range stateIDs {
-		stateMap[id] = true
-	}
-
-	for _, id := range planIDs {
-		if !stateMap[id] {
-			idsToAdd = append(idsToAdd, id)
+		if !id.IsUnknown() && !id.IsNull() {
+			planMap[id.ValueString()] = true
 		}
 	}
 
 	for _, id := range stateIDs {
-		if !planMap[id] {
-			idsToRemove = append(idsToRemove, id)
+		if !id.IsUnknown() && !id.IsNull() {
+			stateMap[id.ValueString()] = true
+		}
+	}
+
+	for _, id := range planIDs {
+		if !stateMap[id.ValueString()] {
+			idsToAdd = append(idsToAdd, id.ValueString())
+		}
+	}
+
+	for _, id := range stateIDs {
+		if !planMap[id.ValueString()] {
+			idsToRemove = append(idsToRemove, id.ValueString())
 		}
 	}
 
