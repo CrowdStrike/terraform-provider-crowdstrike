@@ -15,6 +15,8 @@ func testAccPreventionPolicyWindowsConfig_basic(rName string, enabled bool) stri
 resource "crowdstrike_prevention_policy_windows" "test" {
   name                      = "%s"
   enabled                   = %t 
+  host_groups               = []
+  ioa_rule_groups           = []
   description               = "made with terraform"
   additional_user_mode_data = true
   cloud_anti_malware_microsoft_office_files = {

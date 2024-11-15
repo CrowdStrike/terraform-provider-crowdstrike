@@ -74,6 +74,8 @@ output "prevention_policy_linux" {
 
 ### Required
 
+- `host_groups` (Set of String) Host Group ids to attach to the prevention policy.
+- `ioa_rule_groups` (Set of String) IOA Rule Group to attach to the prevention policy.
 - `name` (String) Name of the prevention policy.
 
 ### Optional
@@ -86,9 +88,7 @@ output "prevention_policy_linux" {
 - `enabled` (Boolean) Enable the prevention policy.
 - `filesystem_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor filesystem activity for additional telemetry and improved detections.
 - `ftp_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor unencrypted FTP traffic for malicious patterns and improved detections.
-- `host_groups` (Set of String) Host Group ids to attach to the prevention policy.
 - `http_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor unencrypted HTTP traffic for malicious patterns and improved detections.
-- `ioa_rule_groups` (Set of String) IOA Rule Group to attach to the prevention policy.
 - `network_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor network activity for additional telemetry and improved detections.
 - `prevent_suspicious_processes` (Boolean) Whether to enable the setting. Block processes that CrowdStrike analysts classify as suspicious. These are focused on dynamic IOAs, such as malware, exploits and other threats.
 - `quarantine` (Boolean) Whether to enable the setting. Quarantine executable files after they’re prevented by NGAV. When this is enabled, we recommend setting anti-malware prevention levels to Moderate or higher and not using other antivirus solutions.

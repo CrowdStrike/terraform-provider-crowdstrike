@@ -85,6 +85,8 @@ output "prevention_policy_mac" {
 
 ### Required
 
+- `host_groups` (Set of String) Host Group ids to attach to the prevention policy.
+- `ioa_rule_groups` (Set of String) IOA Rule Group to attach to the prevention policy.
 - `name` (String) Name of the prevention policy.
 
 ### Optional
@@ -98,9 +100,7 @@ output "prevention_policy_mac" {
 - `empyre_backdoor` (Boolean) Whether to enable the setting. A process with behaviors indicative of the Empyre Backdoor was terminated.
 - `enabled` (Boolean) Enable the prevention policy.
 - `hash_collector` (Boolean) Whether to enable the setting. An attempt to dump a user’s hashed password was blocked.
-- `host_groups` (Set of String) Host Group ids to attach to the prevention policy.
 - `intelligence_sourced_threats` (Boolean) Whether to enable the setting. Block processes that CrowdStrike Intelligence analysts classify as malicious. These are focused on static hash-based IOCs.
-- `ioa_rule_groups` (Set of String) IOA Rule Group to attach to the prevention policy.
 - `kc_password_decoded` (Boolean) Whether to enable the setting. An attempt to recover a plaintext password via the kcpassword file was blocked.
 - `notify_end_users` (Boolean) Whether to enable the setting. Show a pop-up notification to the end user when the Falcon sensor blocks, kills, or quarantines. See these messages in Console.app by searching for Process: Falcon Notifications.
 - `prevent_suspicious_processes` (Boolean) Whether to enable the setting. Block processes that CrowdStrike analysts classify as suspicious. These are focused on dynamic IOAs, such as malware, exploits and other threats.
