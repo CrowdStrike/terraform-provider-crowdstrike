@@ -834,7 +834,7 @@ func (r *sensorUpdatePolicyResource) ValidateConfig(
 
 	platform := strings.ToLower(config.PlatformName.ValueString())
 
-	if platform == "linux" && (config.BuildArm64.IsNull() || config.BuildArm64.IsUnknown()) {
+	if platform == "linux" && config.BuildArm64.IsNull() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("build_arm64"),
 			"Attribute build_arm64 missing",
