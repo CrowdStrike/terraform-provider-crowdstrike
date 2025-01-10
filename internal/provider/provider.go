@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/crowdstrike/gofalcon/falcon"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -190,6 +191,7 @@ func (p *CrowdStrikeProvider) Configure(
 		ClientSecret:      clientSecret,
 		UserAgentOverride: fmt.Sprintf("terraform-provider-crowdstrike/%s", p.version),
 		Context:           context.Background(),
+		HostOverride:      os.Getenv("HOST_OVERRIDE"),
 	})
 
 	if err != nil {
@@ -216,6 +218,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		preventionpolicy.NewPreventionPolicyMacResource,
 		fim.NewFIMPolicyResource,
 		fim.NewFilevantageRuleGroupResource,
+		fcs.NewCSPMAWSAccountResource,
 	}
 }
 

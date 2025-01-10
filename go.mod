@@ -3,7 +3,7 @@ module github.com/crowdstrike/terraform-provider-crowdstrike
 go 1.21
 
 require (
-	github.com/crowdstrike/gofalcon v0.6.1-0.20240426204036-ac8ce2b4f2d7
+	github.com/crowdstrike/gofalcon v0.9.0
 	github.com/hashicorp/terraform-plugin-docs v0.19.1
 	github.com/hashicorp/terraform-plugin-framework v1.8.0
 	github.com/hashicorp/terraform-plugin-framework-validators v0.12.0
@@ -96,7 +96,7 @@ require (
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
 	golang.org/x/mod v0.16.0 // indirect
 	golang.org/x/net v0.23.0 // indirect
-	golang.org/x/oauth2 v0.19.0 // indirect
+	golang.org/x/oauth2 v0.24.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/sys v0.19.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
