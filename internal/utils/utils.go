@@ -104,7 +104,7 @@ func ListIDsToModify(
 	return
 }
 
-// ListTypeAs converts a types.List into a known []T
+// ListTypeAs converts a types.List into a known []T.
 func ListTypeAs[T any](
 	ctx context.Context,
 	list types.List,
