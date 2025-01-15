@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -29,9 +30,14 @@ type cspmAWSAccountResource struct {
 }
 
 type cspmAWSAccountModel struct {
-	AccountID                types.String `tfsdk:"account_id"`
-	OrganizationID           types.String `tfsdk:"organization_id"`
-	TargetOUs                types.List   `tfsdk:"target_ous"`
+	AccountID              types.String `tfsdk:"account_id"`
+	OrganizationID         types.String `tfsdk:"organization_id"`
+	TargetOUs              types.List   `tfsdk:"target_ous"`
+	IsOrgManagementAccount types.Bool   `tfsdk:"is_organization_management_account"`
+	AccountType            types.String `tfsdk:"account_type"`
+	DeploymentMethod       types.String `tfsdk:"deployment_method"`
+
+	// Feature related fields
 	EnableRealtimeVisibility types.Bool   `tfsdk:"enable_realtime_visibility"`
 	EnableSensorManagement   types.Bool   `tfsdk:"enable_sensor_management"`
 	EnableDSPM               types.Bool   `tfsdk:"enable_dspm"`
@@ -114,8 +120,32 @@ func (r *cspmAWSAccountResource) Schema(
 				Validators: []validator.List{
 					listvalidator.ValueStringsAre(
 						stringvalidator.LengthBetween(16, 68),
-						stringvalidator.RegexMatches(regexp.MustCompile(`^ou-[0-9a-z]{4,32}-[a-z0-9]{8,32}$`), "must be in the format of ou-xxxx-xxxxxxxx"),
+						stringvalidator.RegexMatches(regexp.MustCompile(`^(ou-[0-9a-z]{4,32}-[a-z0-9]{8,32}|r-[0-9a-z]{4,32})$`), "must be in the format of ou-xxxx-xxxxxxxx or r-xxxx"),
 					),
+				},
+			},
+			"is_organization_management_account": schema.BoolAttribute{
+				Optional:    true,
+				Default:     booldefault.StaticBool(false),
+				Computed:    true,
+				Description: "Indicates whether this is the management account (formerly known as the root account) of an AWS Organization",
+			},
+			"account_type": schema.StringAttribute{
+				Optional:    true,
+				Default:     stringdefault.StaticString("commercial"),
+				Computed:    true,
+				Description: "The type of account. Not needed for non-govcloud environment",
+				Validators: []validator.String{
+					stringvalidator.OneOf("commercial", "gov"),
+				},
+			},
+			"deployment_method": schema.StringAttribute{
+				Optional:    true,
+				Default:     stringdefault.StaticString("terraform-native"),
+				Computed:    true,
+				Description: "How the account was deployed. Valid values are 'terraform-native' and 'terraform-cft'",
+				Validators: []validator.String{
+					stringvalidator.OneOf("terraform-native", "terraform-cft"),
 				},
 			},
 			"enable_realtime_visibility": schema.BoolAttribute{
@@ -232,7 +262,9 @@ func (r *cspmAWSAccountResource) Create(
 	plan.AccountID = types.StringValue(account.AccountID)
 	if account.OrganizationID != "" {
 		plan.OrganizationID = types.StringValue(account.OrganizationID)
+		plan.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
 	}
+	plan.AccountType = types.StringValue(account.AccountType)
 	plan.EnableRealtimeVisibility = types.BoolValue(account.BehaviorAssessmentEnabled)
 	plan.EnableSensorManagement = types.BoolValue(*account.SensorManagementEnabled)
 	plan.EnableDSPM = types.BoolValue(account.DspmEnabled)
@@ -244,8 +276,6 @@ func (r *cspmAWSAccountResource) Create(
 	plan.CloudTrailBucketName = types.StringValue(account.AwsCloudtrailBucketName)
 	plan.CloudTrailRegion = types.StringValue(account.AwsCloudtrailRegion)
 	plan.DSPMRoleArn = types.StringValue(account.DspmRoleArn)
-
-	//todo: add other fields
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -281,6 +311,7 @@ func (r *cspmAWSAccountResource) Read(
 		state.OrganizationID = types.StringValue(account.OrganizationID)
 		state.TargetOUs, diags = types.ListValueFrom(ctx, types.StringType, account.TargetOus)
 		resp.Diagnostics.Append(diags...)
+		state.AccountType = types.StringValue(account.AccountType)
 		state.EnableRealtimeVisibility = types.BoolValue(account.BehaviorAssessmentEnabled)
 		state.EnableSensorManagement = types.BoolValue(*account.SensorManagementEnabled)
 		state.EnableDSPM = types.BoolValue(account.DspmEnabled)
@@ -333,6 +364,7 @@ func (r *cspmAWSAccountResource) Update(
 	if account.OrganizationID != "" {
 		plan.OrganizationID = types.StringValue(account.OrganizationID)
 	}
+	plan.AccountType = types.StringValue(account.AccountType)
 	plan.EnableRealtimeVisibility = types.BoolValue(account.BehaviorAssessmentEnabled)
 	plan.EnableSensorManagement = types.BoolValue(*account.SensorManagementEnabled)
 	plan.EnableDSPM = types.BoolValue(account.DspmEnabled)
@@ -428,13 +460,6 @@ func (r *cspmAWSAccountResource) createAccount(
 	var targetOUs []string
 
 	diags.Append(config.TargetOUs.ElementsAs(ctx, &targetOUs, false)...)
-	tflog.Debug(ctx, "creating cspm aws account", map[string]interface{}{
-		"account_id":                  config.AccountID.ValueString(),
-		"organization_id":             config.OrganizationID.ValueString(),
-		"behavior_assessment_enabled": config.EnableRealtimeVisibility.ValueBool(),
-		"cloudtrail_region":           config.CloudTrailRegion.ValueString(),
-		"target_ous":                  targetOUs,
-	})
 	res, status, err := r.client.CspmRegistration.CreateCSPMAwsAccount(&cspm_registration.CreateCSPMAwsAccountParams{
 		Context: ctx,
 		Body: &models.RegistrationAWSAccountCreateRequestExtV2{
@@ -443,12 +468,14 @@ func (r *cspmAWSAccountResource) createAccount(
 					AccountID:                 config.AccountID.ValueStringPointer(),
 					OrganizationID:            config.OrganizationID.ValueStringPointer(),
 					TargetOus:                 targetOUs,
+					IsMaster:                  config.IsOrgManagementAccount.ValueBool(),
+					AccountType:               config.AccountType.ValueString(),
+					DeploymentMethod:          config.DeploymentMethod.ValueString(),
 					CloudtrailRegion:          config.CloudTrailRegion.ValueStringPointer(),
 					BehaviorAssessmentEnabled: config.EnableRealtimeVisibility.ValueBool(),
 					SensorManagementEnabled:   config.EnableSensorManagement.ValueBool(),
 					DspmEnabled:               config.EnableDSPM.ValueBool(),
 					DspmRole:                  config.DSPMRoleName.ValueString(),
-					DeploymentMethod:          "terraform-native",
 				},
 			},
 		},
