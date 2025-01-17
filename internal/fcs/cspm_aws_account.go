@@ -119,14 +119,12 @@ func (r *cspmAWSAccountResource) Schema(
 				ElementType: types.StringType,
 				Validators: []validator.List{
 					listvalidator.ValueStringsAre(
-						stringvalidator.LengthBetween(16, 68),
 						stringvalidator.RegexMatches(regexp.MustCompile(`^(ou-[0-9a-z]{4,32}-[a-z0-9]{8,32}|r-[0-9a-z]{4,32})$`), "must be in the format of ou-xxxx-xxxxxxxx or r-xxxx"),
 					),
 				},
 			},
 			"is_organization_management_account": schema.BoolAttribute{
 				Optional:    true,
-				Default:     booldefault.StaticBool(false),
 				Computed:    true,
 				Description: "Indicates whether this is the management account (formerly known as the root account) of an AWS Organization",
 			},
@@ -262,9 +260,9 @@ func (r *cspmAWSAccountResource) Create(
 	plan.AccountID = types.StringValue(account.AccountID)
 	if account.OrganizationID != "" {
 		plan.OrganizationID = types.StringValue(account.OrganizationID)
-		plan.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
 	}
 	plan.AccountType = types.StringValue(account.AccountType)
+	plan.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
 	plan.EnableRealtimeVisibility = types.BoolValue(account.BehaviorAssessmentEnabled)
 	plan.EnableSensorManagement = types.BoolValue(*account.SensorManagementEnabled)
 	plan.EnableDSPM = types.BoolValue(account.DspmEnabled)
@@ -312,6 +310,7 @@ func (r *cspmAWSAccountResource) Read(
 		state.TargetOUs, diags = types.ListValueFrom(ctx, types.StringType, account.TargetOus)
 		resp.Diagnostics.Append(diags...)
 		state.AccountType = types.StringValue(account.AccountType)
+		state.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
 		state.EnableRealtimeVisibility = types.BoolValue(account.BehaviorAssessmentEnabled)
 		state.EnableSensorManagement = types.BoolValue(*account.SensorManagementEnabled)
 		state.EnableDSPM = types.BoolValue(account.DspmEnabled)
@@ -365,6 +364,7 @@ func (r *cspmAWSAccountResource) Update(
 		plan.OrganizationID = types.StringValue(account.OrganizationID)
 	}
 	plan.AccountType = types.StringValue(account.AccountType)
+	plan.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
 	plan.EnableRealtimeVisibility = types.BoolValue(account.BehaviorAssessmentEnabled)
 	plan.EnableSensorManagement = types.BoolValue(*account.SensorManagementEnabled)
 	plan.EnableDSPM = types.BoolValue(account.DspmEnabled)
@@ -603,12 +603,21 @@ func (r *cspmAWSAccountResource) deleteAccount(
 	if account.AccountID.ValueString() == "" && account.OrganizationID.ValueString() == "" {
 		return diags
 	}
-
-	_, status, err := r.client.CspmRegistration.DeleteCSPMAwsAccount(&cspm_registration.DeleteCSPMAwsAccountParams{
-		Context:         ctx,
-		Ids:             []string{account.AccountID.ValueString()},
-		OrganizationIds: []string{account.OrganizationID.ValueString()},
+	params := &cspm_registration.DeleteCSPMAwsAccountParams{
+		Context: ctx,
+	}
+	tflog.Debug(ctx, "deleting account", map[string]interface{}{
+		"account_id":                account.AccountID.ValueString(),
+		"organization_id":           account.OrganizationID.ValueString(),
+		"is_org_management_account": account.IsOrgManagementAccount.ValueBool(),
 	})
+	if account.IsOrgManagementAccount.ValueBool() {
+		params.OrganizationIds = []string{account.OrganizationID.ValueString()}
+	} else {
+		params.Ids = []string{account.AccountID.ValueString()}
+	}
+
+	_, status, err := r.client.CspmRegistration.DeleteCSPMAwsAccount(params)
 	if err != nil {
 		diags.AddError(
 			"Failed to delete CSPM AWS account",
