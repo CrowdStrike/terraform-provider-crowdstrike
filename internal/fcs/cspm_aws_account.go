@@ -60,7 +60,7 @@ var (
 	_ resource.ResourceWithValidateConfig = &cspmAWSAccountResource{}
 )
 
-// NewFIMPolicyResource is a helper function to simplify the provider implementation.
+// NewCSPMAWSAccountResource is a helper function to simplify the provider implementation.
 func NewCSPMAWSAccountResource() resource.Resource {
 	return &cspmAWSAccountResource{}
 }

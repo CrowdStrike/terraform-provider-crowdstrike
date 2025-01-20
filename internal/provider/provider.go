@@ -224,6 +224,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		fim.NewFIMPolicyResource,
 		fim.NewFilevantageRuleGroupResource,
 		fcs.NewCSPMAWSAccountResource,
+		fcs.NewCloudAWSAccountResource,
 	}
 }
 
