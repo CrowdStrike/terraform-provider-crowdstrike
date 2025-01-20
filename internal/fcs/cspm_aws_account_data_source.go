@@ -56,7 +56,7 @@ type cspmAwsAccountDataModel struct {
 	DSPMRoleArn              types.String `tfsdk:"dspm_role_arn"`
 }
 
-// NewSensorUpdateBuildsDataSource is a helper function to simplify the provider implementation.
+// NewCspmAwsAccountDataSource is a helper function to simplify the provider implementation.
 func NewCspmAwsAccountDataSource() datasource.DataSource {
 	return &cspmAwsAccountDataSource{}
 }

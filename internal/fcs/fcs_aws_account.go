@@ -166,7 +166,12 @@ func (r *cloudAWSAccountResource) Create(
 	plan.AccountType = types.StringValue(account.AccountType)
 	plan.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
 	plan.CSPEvents = types.BoolValue(account.CspEvents)
-	//todo: products
+	products, d := productsToState(ctx, account.Products)
+	if d.HasError() {
+		resp.Diagnostics.Append(d...)
+		return
+	}
+	plan.Products = products
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -319,6 +324,7 @@ func (r *cloudAWSAccountResource) Read(
 		state.OrganizationID = types.StringValue(account.OrganizationID)
 		state.AccountType = types.StringValue(account.AccountType)
 		state.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
+		state.CSPEvents = types.BoolValue(account.CspEvents)
 		products, d := productsToState(ctx, account.Products)
 		if d.HasError() {
 			resp.Diagnostics.Append(d...)
@@ -404,6 +410,13 @@ func (r *cloudAWSAccountResource) Update(
 	}
 	plan.AccountType = types.StringValue(account.AccountType)
 	plan.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
+	plan.CSPEvents = types.BoolValue(account.CspEvents)
+	products, d := productsToState(ctx, account.Products)
+	if d.HasError() {
+		resp.Diagnostics.Append(d...)
+		return
+	}
+	plan.Products = products
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)

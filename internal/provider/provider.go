@@ -232,6 +232,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 	return []func() datasource.DataSource{
 		NewSensorUpdateBuildsDataSource,
 		fcs.NewCspmAwsAccountDataSource,
+		fcs.NewFcsAwsAccountDataSource,
 	}
 }
 
