@@ -48,8 +48,8 @@ func (d *fcsAwsAccountDataSource) Schema(_ context.Context, _ datasource.SchemaR
 	resp.Schema = schema.Schema{
 		Description: "Fetches the list of coffees.",
 		MarkdownDescription: fmt.Sprintf(
-			"CSPM AWS Accounts --- This data source provides information about CSPM AWS accounts.\n\n%s",
-			scopes.GenerateScopeDescription(cspmScopes),
+			"FCS AWS Accounts --- This data source provides information about CSPM AWS accounts.\n\n%s",
+			scopes.GenerateScopeDescription(fcsScopes),
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

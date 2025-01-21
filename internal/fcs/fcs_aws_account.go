@@ -71,8 +71,8 @@ func (r *cloudAWSAccountResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: fmt.Sprintf(
-			"CSPM AWS Account --- This resource allows management of a CSPM Account. A FileVantage policy is a collection of file integrity rules and rule groups that you can apply to host groups.\n\n%s",
-			scopes.GenerateScopeDescription(cspmScopes),
+			"FCS AWS Account --- This resource allows management of a CSPM Account. A FileVantage policy is a collection of file integrity rules and rule groups that you can apply to host groups.\n\n%s",
+			scopes.GenerateScopeDescription(fcsScopes),
 		),
 		Attributes: map[string]schema.Attribute{
 			"account_id": schema.StringAttribute{
