@@ -8,7 +8,9 @@ The CrowdStrike provider enables terraform to manage CrowdStrike resources.
 
 ### Support
 
-Refer to our support documentation [here](./SUPPORT.md).
+Terraform CrowdStrike Provider is a community-driven, open source project designed to streamline deploying and managing resources in the CrowdStrike console. While not a formal CrowdStrike product, Terraform CrowdStrike Provider is maintained by CrowdStrike and supported in partnership with the open source developer community.
+
+For additional information, please refer to the [SUPPORT.md](./SUPPORT.md) file.
 
 ### CrowdStrike API Access
 The provider uses the CrowdStrike Falcon API to manage resources. In order to use the provider, you must have a CrowdStrike API client ID and client secret.
