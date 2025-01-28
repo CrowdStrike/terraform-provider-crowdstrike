@@ -57,7 +57,6 @@ func (d *fcsAwsAccountDataSource) Schema(_ context.Context, _ datasource.SchemaR
 				Computed:    true,
 			},
 			"account_id": schema.StringAttribute{
-				// Optional:    true,
 				Required:    true,
 				Description: "The AWS Account ID.",
 			},
@@ -131,7 +130,7 @@ func (d *fcsAwsAccountDataSource) getAccount(
 		}
 	}
 	var ret *models.DomainCloudAWSAccountV1
-	if len(res.Payload.Resources) != 0 {
+	if res != nil && res.Payload != nil && len(res.Payload.Resources) != 0 {
 		ret = res.Payload.Resources[0]
 	}
 
