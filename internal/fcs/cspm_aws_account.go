@@ -11,11 +11,14 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -90,7 +93,7 @@ func (r *cspmAWSAccountResource) Schema(
 				Required:    true,
 				Description: "The AWS Account ID.",
 				PlanModifiers: []planmodifier.String{
-					// stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 				Validators: []validator.String{
@@ -102,17 +105,24 @@ func (r *cspmAWSAccountResource) Schema(
 				Optional:    true,
 				Description: "The AWS Organization ID",
 				PlanModifiers: []planmodifier.String{
-					// stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 				Validators: []validator.String{
-					stringvalidator.LengthBetween(12, 34),
-					stringvalidator.RegexMatches(regexp.MustCompile(`^o-[a-z0-9]{10,32}$`), "must be in the format of o-xxxxxxxxxx"),
+					stringvalidator.Any(
+						stringvalidator.LengthAtMost(0),
+						stringvalidator.All(
+							stringvalidator.LengthBetween(12, 34),
+							stringvalidator.RegexMatches(regexp.MustCompile(`^o-[a-z0-9]{10,32}$`), "must be in the format of o-xxxxxxxxxx"),
+						),
+					),
 				},
 			},
 			"target_ous": schema.ListAttribute{
 				Optional:    true,
+				Computed:    true,
 				Description: "The list of target OUs",
+				Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 				PlanModifiers: []planmodifier.List{
 					listplanmodifier.UseStateForUnknown(),
 				},
@@ -126,7 +136,11 @@ func (r *cspmAWSAccountResource) Schema(
 			"is_organization_management_account": schema.BoolAttribute{
 				Optional:    true,
 				Computed:    true,
+				Default:     booldefault.StaticBool(false),
 				Description: "Indicates whether this is the management account (formerly known as the root account) of an AWS Organization",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.RequiresReplace(),
+				},
 			},
 			"account_type": schema.StringAttribute{
 				Optional:    true,
@@ -142,6 +156,9 @@ func (r *cspmAWSAccountResource) Schema(
 				Default:     stringdefault.StaticString("terraform-native"),
 				Computed:    true,
 				Description: "How the account was deployed. Valid values are 'terraform-native' and 'terraform-cft'",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 				Validators: []validator.String{
 					stringvalidator.OneOf("terraform-native", "terraform-cft"),
 				},
@@ -213,7 +230,9 @@ func (r *cspmAWSAccountResource) Schema(
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
-				Validators: []validator.String{},
+				Validators: []validator.String{
+					stringvalidator.AlsoRequires(path.MatchRoot("enable_realtime_visibility")),
+				},
 			},
 			"dspm_role_name": schema.StringAttribute{
 				Optional:    true,
@@ -263,6 +282,18 @@ func (r *cspmAWSAccountResource) Create(
 	}
 	plan.AccountType = types.StringValue(account.AccountType)
 	plan.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
+	plan.TargetOUs, diags = types.ListValueFrom(ctx, types.StringType, []string{})
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+	}
+	if len(account.TargetOus) != 0 {
+		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, account.TargetOus)
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+		}
+		plan.TargetOUs = targetOUs
+	}
+
 	plan.EnableRealtimeVisibility = types.BoolValue(account.BehaviorAssessmentEnabled)
 	plan.EnableSensorManagement = types.BoolValue(*account.SensorManagementEnabled)
 	plan.EnableDSPM = types.BoolValue(account.DspmEnabled)
@@ -272,7 +303,9 @@ func (r *cspmAWSAccountResource) Create(
 	plan.EventbusName = types.StringValue(account.EventbusName)
 	plan.EventbusArn = types.StringValue(account.AwsEventbusArn)
 	plan.CloudTrailBucketName = types.StringValue(account.AwsCloudtrailBucketName)
-	plan.CloudTrailRegion = types.StringValue(account.AwsCloudtrailRegion)
+	if account.AwsCloudtrailRegion != "" {
+		plan.CloudTrailRegion = types.StringValue(account.AwsCloudtrailRegion)
+	}
 	plan.DSPMRoleArn = types.StringValue(account.DspmRoleArn)
 
 	diags = resp.State.Set(ctx, plan)
@@ -304,25 +337,40 @@ func (r *cspmAWSAccountResource) Read(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if account != nil {
-		state.AccountID = types.StringValue(account.AccountID)
+	state.AccountID = types.StringValue(account.AccountID)
+	if account.OrganizationID != "" {
 		state.OrganizationID = types.StringValue(account.OrganizationID)
-		state.TargetOUs, diags = types.ListValueFrom(ctx, types.StringType, account.TargetOus)
-		resp.Diagnostics.Append(diags...)
-		state.AccountType = types.StringValue(account.AccountType)
-		state.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
-		state.EnableRealtimeVisibility = types.BoolValue(account.BehaviorAssessmentEnabled)
-		state.EnableSensorManagement = types.BoolValue(*account.SensorManagementEnabled)
-		state.EnableDSPM = types.BoolValue(account.DspmEnabled)
-		state.ExternalID = types.StringValue(account.ExternalID)
-		state.IntermediateRoleArn = types.StringValue(account.IntermediateRoleArn)
-		state.IamRoleArn = types.StringValue(account.IamRoleArn)
-		state.EventbusName = types.StringValue(account.EventbusName)
-		state.EventbusArn = types.StringValue(account.AwsEventbusArn)
-		state.CloudTrailBucketName = types.StringValue(account.AwsCloudtrailBucketName)
-		state.CloudTrailRegion = types.StringValue(account.AwsCloudtrailRegion)
-		state.DSPMRoleArn = types.StringValue(account.DspmRoleArn)
 	}
+	state.AccountType = types.StringValue(account.AccountType)
+	state.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
+	state.DeploymentMethod = oldState.DeploymentMethod
+	state.TargetOUs, diags = types.ListValueFrom(ctx, types.StringType, []string{})
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+	}
+	if len(account.TargetOus) != 0 {
+		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, account.TargetOus)
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+		}
+		state.TargetOUs = targetOUs
+	} else {
+		state.TargetOUs = oldState.TargetOUs
+	}
+	state.EnableRealtimeVisibility = types.BoolValue(account.BehaviorAssessmentEnabled)
+	state.EnableSensorManagement = types.BoolValue(*account.SensorManagementEnabled)
+	state.EnableDSPM = types.BoolValue(account.DspmEnabled)
+	state.ExternalID = types.StringValue(account.ExternalID)
+	state.IntermediateRoleArn = types.StringValue(account.IntermediateRoleArn)
+	state.IamRoleArn = types.StringValue(account.IamRoleArn)
+	state.EventbusName = types.StringValue(account.EventbusName)
+	state.EventbusArn = types.StringValue(account.AwsEventbusArn)
+	state.CloudTrailBucketName = types.StringValue(account.AwsCloudtrailBucketName)
+	if account.AwsCloudtrailRegion != "" {
+		state.CloudTrailRegion = types.StringValue(account.AwsCloudtrailRegion)
+	}
+	state.DSPMRoleArn = types.StringValue(account.DspmRoleArn)
+	state.DSPMRoleName = oldState.DSPMRoleName
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, &state)
@@ -339,8 +387,13 @@ func (r *cspmAWSAccountResource) Update(
 	resp *resource.UpdateResponse,
 ) {
 	// Retrieve values from plan
-	var plan cspmAWSAccountModel
+	var plan, oldState cspmAWSAccountModel
 	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	diags = req.State.Get(ctx, &oldState)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -359,12 +412,21 @@ func (r *cspmAWSAccountResource) Update(
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	plan.AccountID = types.StringValue(account.AccountID)
 	if account.OrganizationID != "" {
 		plan.OrganizationID = types.StringValue(account.OrganizationID)
 	}
 	plan.AccountType = types.StringValue(account.AccountType)
 	plan.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
+	plan.DeploymentMethod = state.DeploymentMethod
+	if len(account.TargetOus) != 0 {
+		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, account.TargetOus)
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+		}
+		plan.TargetOUs = targetOUs
+	}
 	plan.EnableRealtimeVisibility = types.BoolValue(account.BehaviorAssessmentEnabled)
 	plan.EnableSensorManagement = types.BoolValue(*account.SensorManagementEnabled)
 	plan.EnableDSPM = types.BoolValue(account.DspmEnabled)
@@ -374,8 +436,11 @@ func (r *cspmAWSAccountResource) Update(
 	plan.EventbusName = types.StringValue(account.EventbusName)
 	plan.EventbusArn = types.StringValue(account.AwsEventbusArn)
 	plan.CloudTrailBucketName = types.StringValue(account.AwsCloudtrailBucketName)
-	plan.CloudTrailRegion = types.StringValue(account.AwsCloudtrailRegion)
+	if account.AwsCloudtrailRegion != "" {
+		plan.CloudTrailRegion = types.StringValue(account.AwsCloudtrailRegion)
+	}
 	plan.DSPMRoleArn = types.StringValue(account.DspmRoleArn)
+	plan.DSPMRoleName = oldState.DSPMRoleName
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -606,7 +671,7 @@ func (r *cspmAWSAccountResource) deleteAccount(
 	params := &cspm_registration.DeleteCSPMAwsAccountParams{
 		Context: ctx,
 	}
-	tflog.Debug(ctx, "deleting account", map[string]interface{}{
+	tflog.Info(ctx, "deleting account", map[string]interface{}{
 		"account_id":                account.AccountID.ValueString(),
 		"organization_id":           account.OrganizationID.ValueString(),
 		"is_org_management_account": account.IsOrgManagementAccount.ValueBool(),
@@ -633,4 +698,13 @@ func (r *cspmAWSAccountResource) deleteAccount(
 		return diags
 	}
 	return diags
+}
+
+func getSettingsValue(account *models.DomainAWSAccountV2, key string) (string, bool) {
+	settings, ok := account.Settings.(map[string]string)
+	if !ok {
+		return "", false
+	}
+	value, ok := settings[key]
+	return value, ok
 }

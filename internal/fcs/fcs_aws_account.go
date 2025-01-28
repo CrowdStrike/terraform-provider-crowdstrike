@@ -6,7 +6,7 @@ import (
 	"regexp"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
-	"github.com/crowdstrike/gofalcon/falcon/client/operations"
+	"github.com/crowdstrike/gofalcon/falcon/client/cloud_aws_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -79,6 +80,7 @@ func (r *cloudAWSAccountResource) Schema(
 				Required:    true,
 				Description: "The AWS Account ID.",
 				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 				Validators: []validator.String{
@@ -90,6 +92,7 @@ func (r *cloudAWSAccountResource) Schema(
 				Optional:    true,
 				Description: "The AWS Organization ID",
 				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 				Validators: []validator.String{
@@ -100,6 +103,7 @@ func (r *cloudAWSAccountResource) Schema(
 			"is_organization_management_account": schema.BoolAttribute{
 				Optional:    true,
 				Computed:    true,
+				Default:     booldefault.StaticBool(false),
 				Description: "Indicates whether this is the management account (formerly known as the root account) of an AWS Organization",
 			},
 			"account_type": schema.StringAttribute{
@@ -119,7 +123,15 @@ func (r *cloudAWSAccountResource) Schema(
 			},
 			"products": schema.SetNestedAttribute{
 				Optional:    true,
+				Computed:    true,
 				Description: "The list of products to enable for this account",
+				Default: setdefault.StaticValue(types.SetValueMust(types.ObjectType{
+					AttrTypes: map[string]attr.Type{
+						"product":  types.StringType,
+						"features": types.SetType{ElemType: types.StringType},
+					},
+				}, []attr.Value{})),
+
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"product": schema.StringAttribute{
@@ -166,12 +178,14 @@ func (r *cloudAWSAccountResource) Create(
 	plan.AccountType = types.StringValue(account.AccountType)
 	plan.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
 	plan.CSPEvents = types.BoolValue(account.CspEvents)
-	products, d := productsToState(ctx, account.Products)
-	if d.HasError() {
-		resp.Diagnostics.Append(d...)
-		return
+	if len(account.Products) > 0 {
+		products, d := productsToState(ctx, account.Products)
+		if d.HasError() {
+			resp.Diagnostics.Append(d...)
+			return
+		}
+		plan.Products = products
 	}
-	plan.Products = products
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -212,7 +226,7 @@ func (r *cloudAWSAccountResource) createAccount(
 	if diags.HasError() {
 		return nil, diags
 	}
-	res, status, err := r.client.Operations.CloudRegistrationAwsCreateAccount(&operations.CloudRegistrationAwsCreateAccountParams{
+	res, status, err := r.client.CloudAwsRegistration.CloudRegistrationAwsCreateAccount(&cloud_aws_registration.CloudRegistrationAwsCreateAccountParams{
 		Context: ctx,
 		Body: &models.RestAWSAccountCreateRequestExtv1{
 			Resources: []*models.RestCloudAWSAccountCreateExtV1{
@@ -321,16 +335,22 @@ func (r *cloudAWSAccountResource) Read(
 	}
 	if account != nil {
 		state.AccountID = types.StringValue(account.AccountID)
-		state.OrganizationID = types.StringValue(account.OrganizationID)
+		if account.OrganizationID != "" {
+			state.OrganizationID = types.StringValue(account.OrganizationID)
+		}
 		state.AccountType = types.StringValue(account.AccountType)
 		state.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
 		state.CSPEvents = types.BoolValue(account.CspEvents)
-		products, d := productsToState(ctx, account.Products)
-		if d.HasError() {
-			resp.Diagnostics.Append(d...)
-			return
+		if len(account.Products) > 0 {
+			products, d := productsToState(ctx, account.Products)
+			if d.HasError() {
+				resp.Diagnostics.Append(d...)
+				return
+			}
+			state.Products = products
+		} else {
+			state.Products = oldState.Products
 		}
-		state.Products = products
 	}
 
 	// Set refreshed state
@@ -346,7 +366,7 @@ func (r *cloudAWSAccountResource) getAccount(
 	accountID string,
 ) (*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	res, status, err := r.client.Operations.CloudRegistrationAwsGetAccounts(&operations.CloudRegistrationAwsGetAccountsParams{
+	res, status, err := r.client.CloudAwsRegistration.CloudRegistrationAwsGetAccounts(&cloud_aws_registration.CloudRegistrationAwsGetAccountsParams{
 		Context: ctx,
 		Ids:     []string{accountID},
 	})
@@ -411,12 +431,14 @@ func (r *cloudAWSAccountResource) Update(
 	plan.AccountType = types.StringValue(account.AccountType)
 	plan.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
 	plan.CSPEvents = types.BoolValue(account.CspEvents)
-	products, d := productsToState(ctx, account.Products)
-	if d.HasError() {
-		resp.Diagnostics.Append(d...)
-		return
+	if len(account.Products) > 0 {
+		products, d := productsToState(ctx, account.Products)
+		if d.HasError() {
+			resp.Diagnostics.Append(d...)
+			return
+		}
+		plan.Products = products
 	}
-	plan.Products = products
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -434,7 +456,7 @@ func (r *cloudAWSAccountResource) updateAccount(
 	if diags.HasError() {
 		return nil, diags
 	}
-	res, status, err := r.client.Operations.CloudRegistrationAwsUpdateAccount(&operations.CloudRegistrationAwsUpdateAccountParams{
+	res, status, err := r.client.CloudAwsRegistration.CloudRegistrationAwsUpdateAccount(&cloud_aws_registration.CloudRegistrationAwsUpdateAccountParams{
 		Context: ctx,
 		Body: &models.RestAWSAccountCreateRequestExtv1{
 			Resources: []*models.RestCloudAWSAccountCreateExtV1{
@@ -501,7 +523,7 @@ func (r *cloudAWSAccountResource) deleteAccount(
 	if account.AccountID.ValueString() == "" && account.OrganizationID.ValueString() == "" {
 		return diags
 	}
-	params := &operations.CloudRegistrationAwsDeleteAccountParams{
+	params := &cloud_aws_registration.CloudRegistrationAwsDeleteAccountParams{
 		Context: ctx,
 	}
 	tflog.Debug(ctx, "deleting Cloud Registration account", map[string]interface{}{
@@ -515,7 +537,7 @@ func (r *cloudAWSAccountResource) deleteAccount(
 		params.Ids = []string{account.AccountID.ValueString()}
 	}
 
-	_, status, err := r.client.Operations.CloudRegistrationAwsDeleteAccount(params)
+	_, status, err := r.client.CloudAwsRegistration.CloudRegistrationAwsDeleteAccount(params)
 	if err != nil {
 		diags.AddError(
 			"Failed to delete Cloud Registration AWS account",

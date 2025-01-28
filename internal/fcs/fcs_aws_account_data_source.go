@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
-	"github.com/crowdstrike/gofalcon/falcon/client/operations"
+	"github.com/crowdstrike/gofalcon/falcon/client/cloud_aws_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -40,7 +40,7 @@ func NewFcsAwsAccountDataSource() datasource.DataSource {
 
 // Metadata returns the data source type name.
 func (d *fcsAwsAccountDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_fcs_aws_accounts"
+	resp.TypeName = req.ProviderTypeName + "_cloud_aws_accounts"
 }
 
 // Schema defines the schema for the data source.
@@ -111,7 +111,7 @@ func (d *fcsAwsAccountDataSource) getAccount(
 ) (*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	tflog.Debug(ctx, "[datasource] Getting FCS AWS Accounts ", map[string]interface{}{"accountID": accountID})
-	res, status, err := d.client.Operations.CloudRegistrationAwsGetAccounts(&operations.CloudRegistrationAwsGetAccountsParams{
+	res, status, err := d.client.CloudAwsRegistration.CloudRegistrationAwsGetAccounts(&cloud_aws_registration.CloudRegistrationAwsGetAccountsParams{
 		Context: ctx,
 		Ids:     []string{accountID},
 	})
