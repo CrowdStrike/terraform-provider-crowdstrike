@@ -150,22 +150,26 @@ func (d *fcsAwsAccountDataSource) Read(ctx context.Context, req datasource.ReadR
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	var m cloudAWSAccountModel
-	if account != nil {
-		m.AccountID = types.StringValue(account.AccountID)
-		m.OrganizationID = types.StringValue(account.OrganizationID)
-		m.AccountType = types.StringValue(account.AccountType)
-		m.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
-		m.CSPEvents = types.BoolValue(account.CspEvents)
-		products, d := productsToState(ctx, account.Products)
-		if d.HasError() {
-			resp.Diagnostics.Append(d...)
-			return
-		}
-		m.Products = products
-		data.Account = &m
+	if account == nil {
+		resp.Diagnostics.AddError(
+			"Cloud AWS Account Not Found",
+			fmt.Sprintf("No AWS account found with ID: %s", data.AccountID.ValueString()),
+		)
+		return
 	}
+	var m cloudAWSAccountModel
+	m.AccountID = types.StringValue(account.AccountID)
+	m.OrganizationID = types.StringValue(account.OrganizationID)
+	m.AccountType = types.StringValue(account.AccountType)
+	m.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
+	m.CSPEvents = types.BoolValue(account.CspEvents)
+	products, diags := productsToState(ctx, account.Products)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+	m.Products = products
+	data.Account = &m
 	data.ID = types.StringValue("placeholder")
 
 	// Set state

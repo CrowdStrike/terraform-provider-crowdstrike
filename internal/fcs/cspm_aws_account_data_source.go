@@ -227,14 +227,14 @@ func (d *cspmAwsAccountDataSource) Read(ctx context.Context, req datasource.Read
 		if account == nil {
 			continue
 		}
-		targetOus := make([]attr.Value, len(account.TargetOus))
+		targetOUs := make([]attr.Value, 0, len(account.TargetOus))
 		for _, ou := range account.TargetOus {
-			targetOus = append(targetOus, types.StringValue(ou))
+			targetOUs = append(targetOUs, types.StringValue(ou))
 		}
 		data.Accounts = append(data.Accounts, cspmAwsAccountDataModel{
 			AccountID:              types.StringValue(account.AccountID),
 			OrganizationID:         types.StringValue(account.OrganizationID),
-			TargetOUs:              types.ListValueMust(types.StringType, targetOus),
+			TargetOUs:              types.ListValueMust(types.StringType, targetOUs),
 			IsOrgManagementAccount: types.BoolValue(account.IsMaster),
 			AccountType:            types.StringValue(account.AccountType),
 

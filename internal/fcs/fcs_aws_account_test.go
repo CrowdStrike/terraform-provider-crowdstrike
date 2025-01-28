@@ -62,7 +62,7 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 	})
 }
 
-// Basic configuration
+// Basic configuration.
 func testAccCloudAwsAccountConfig_basic() string {
 	return `
 resource "crowdstrike_cspm_aws_account" "this" {
@@ -88,7 +88,7 @@ resource "crowdstrike_cloud_aws_account" "test" {
 `
 }
 
-// Updated configuration with multiple products
+// Updated configuration with multiple products.
 func testAccCloudAwsAccountConfig_update() string {
 	return `
 resource "crowdstrike_cspm_aws_account" "this" {
@@ -118,7 +118,7 @@ resource "crowdstrike_cloud_aws_account" "test" {
 `
 }
 
-// Minimal configuration with only required attributes
+// Minimal configuration with only required attributes.
 func testAccCloudAwsAccountConfig_minimal() string {
 	return `
 resource "crowdstrike_cspm_aws_account" "this" {

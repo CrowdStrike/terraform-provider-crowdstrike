@@ -699,12 +699,3 @@ func (r *cspmAWSAccountResource) deleteAccount(
 	}
 	return diags
 }
-
-func getSettingsValue(account *models.DomainAWSAccountV2, key string) (string, bool) {
-	settings, ok := account.Settings.(map[string]string)
-	if !ok {
-		return "", false
-	}
-	value, ok := settings[key]
-	return value, ok
-}
