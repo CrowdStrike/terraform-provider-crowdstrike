@@ -159,7 +159,7 @@ func (d *cspmAwsAccountDataSource) Schema(_ context.Context, _ datasource.Schema
 						},
 						"cloudtrail_bucket_name": schema.StringAttribute{
 							Computed:    true,
-							Description: "",
+							Description: "The name of the CloudTrail bucket used for realtime visibility",
 						},
 						"cloudtrail_region": schema.StringAttribute{
 							Optional:    true,

@@ -37,7 +37,7 @@ func TestAccCloudAwsAccountDataSource(t *testing.T) {
 					resource.TestCheckResourceAttr(dataSourceName, "account.products.#", "1"),
 					resource.TestCheckResourceAttr(dataSourceName, "account.products.0.product", "idp"),
 					resource.TestCheckResourceAttr(dataSourceName, "account.products.0.features.#", "1"),
-					// resource.TestCheckResourceAttr(dataSourceName, "account.products.0.features.0", "default"),
+					resource.TestCheckResourceAttr(dataSourceName, "account.products.0.features.0", "default"),
 				),
 			},
 		},

@@ -196,8 +196,7 @@ func (r *cspmAWSAccountResource) Schema(
 				},
 			},
 			"iam_role_arn": schema.StringAttribute{
-				Computed: true,
-				// Optional: true, //todo: make optional
+				Computed:    true,
 				Description: "The ARN of the AWS IAM role used to access this AWS account",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -219,7 +218,7 @@ func (r *cspmAWSAccountResource) Schema(
 			},
 			"cloudtrail_bucket_name": schema.StringAttribute{
 				Computed:    true,
-				Description: "",
+				Description: "The name of the CloudTrail bucket used for realtime visibility",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},

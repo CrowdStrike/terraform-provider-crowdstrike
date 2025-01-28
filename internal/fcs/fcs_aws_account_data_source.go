@@ -81,7 +81,7 @@ func (d *fcsAwsAccountDataSource) Schema(_ context.Context, _ datasource.SchemaR
 					},
 					"csp_events": schema.BoolAttribute{
 						Computed:    true,
-						Description: "",
+						Description: "Indicates whether Cloud Service Provider live events are enabled",
 					},
 					"products": schema.SetNestedAttribute{
 						Computed:    true,

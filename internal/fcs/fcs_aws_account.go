@@ -119,7 +119,7 @@ func (r *cloudAWSAccountResource) Schema(
 				Optional:    true,
 				Default:     booldefault.StaticBool(false),
 				Computed:    true,
-				Description: "",
+				Description: "Indicates whether Cloud Service Provider live events are enabled",
 			},
 			"products": schema.SetNestedAttribute{
 				Optional:    true,
