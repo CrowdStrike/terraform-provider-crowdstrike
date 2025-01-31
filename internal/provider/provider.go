@@ -223,7 +223,6 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		preventionpolicy.NewPreventionPolicyMacResource,
 		fim.NewFIMPolicyResource,
 		fim.NewFilevantageRuleGroupResource,
-		fcs.NewCSPMAWSAccountResource,
 		fcs.NewCloudAWSAccountResource,
 	}
 }
@@ -231,8 +230,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewSensorUpdateBuildsDataSource,
-		fcs.NewCspmAwsAccountDataSource,
-		fcs.NewFcsAwsAccountDataSource,
+		fcs.NewCloudAwsAccountsDataSource,
 	}
 }
 

@@ -6,49 +6,95 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_aws_registration"
+	"github.com/crowdstrike/gofalcon/falcon/client/cspm_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ datasource.DataSource              = &fcsAwsAccountDataSource{}
-	_ datasource.DataSourceWithConfigure = &fcsAwsAccountDataSource{}
+	_ datasource.DataSource              = &cloudAwsAccountsDataSource{}
+	_ datasource.DataSourceWithConfigure = &cloudAwsAccountsDataSource{}
 )
 
-// cspmAwsAccountDataSource is the data source implementation.
-type fcsAwsAccountDataSource struct {
+// cloudAwsAccountsDataSource is the data source implementation.
+type cloudAwsAccountsDataSource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-type fcsAwsAccountDataSourceModel struct {
-	ID        types.String          `tfsdk:"id"`
-	AccountID types.String          `tfsdk:"account_id"`
-	Account   *cloudAWSAccountModel `tfsdk:"account"`
-	// Account types.Set `tfsdk:"account"`
+type asssetInventoryFeature struct {
+	Enabled types.Bool `tfsdk:"enabled"`
 }
 
-// NewFcsAwsAccountDataSource is a helper function to simplify the provider implementation.
-func NewFcsAwsAccountDataSource() datasource.DataSource {
-	return &fcsAwsAccountDataSource{}
+type reatltimeVisibilityFeature struct {
+	Enabled types.Bool `tfsdk:"enabled"`
+}
+
+type idpFeature struct {
+	Enabled types.Bool `tfsdk:"enabled"`
+}
+
+type sensorManagementFeature struct {
+	Enabled types.Bool `tfsdk:"enabled"`
+}
+
+type dspmFeature struct {
+	Enabled types.Bool `tfsdk:"enabled"`
+}
+
+type cloudAWSAccountDataModel struct {
+	AccountID              types.String                `tfsdk:"account_id"`
+	OrganizationID         types.String                `tfsdk:"organization_id"`
+	TargetOUs              types.List                  `tfsdk:"target_ous"`
+	IsOrgManagementAccount types.Bool                  `tfsdk:"is_organization_management_account"`
+	AccountType            types.String                `tfsdk:"account_type"`
+	ExternalID             types.String                `tfsdk:"external_id"`
+	IntermediateRoleArn    types.String                `tfsdk:"intermediate_role_arn"`
+	IamRoleArn             types.String                `tfsdk:"iam_role_arn"`
+	EventbusName           types.String                `tfsdk:"eventbus_name"`
+	EventbusArn            types.String                `tfsdk:"eventbus_arn"`
+	CloudTrailRegion       types.String                `tfsdk:"cloudtrail_region"`
+	CloudTrailBucketName   types.String                `tfsdk:"cloudtrail_bucket_name"`
+	DspmRoleArn            types.String                `tfsdk:"dspm_role_arn"`
+	AssetInventory         *asssetInventoryFeature     `tfsdk:"asset_inventory"`
+	RealtimeVisibility     *reatltimeVisibilityFeature `tfsdk:"realtime_visibility"`
+	IDP                    *idpFeature                 `tfsdk:"idp"`
+	SensorManagement       *sensorManagementFeature    `tfsdk:"sensor_management"`
+	DSPM                   *dspmFeature                `tfsdk:"dspm"`
+}
+
+type cloudAwsAccountsDataSourceModel struct {
+	ID             types.String                `tfsdk:"id"`
+	AccountID      types.String                `tfsdk:"account_id"`
+	OrganizationID types.String                `tfsdk:"organization_id"`
+	Accounts       []*cloudAWSAccountDataModel `tfsdk:"accounts"`
+}
+
+// NewCloudAwsAccountsDataSource is a helper function to simplify the provider implementation.
+func NewCloudAwsAccountsDataSource() datasource.DataSource {
+	return &cloudAwsAccountsDataSource{}
 }
 
 // Metadata returns the data source type name.
-func (d *fcsAwsAccountDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+func (d *cloudAwsAccountsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_cloud_aws_accounts"
 }
 
 // Schema defines the schema for the data source.
-func (d *fcsAwsAccountDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (d *cloudAwsAccountsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Fetches the list of coffees.",
+		Description: "Fetches Cloud AWS accounts by account_id or organization_id",
 		MarkdownDescription: fmt.Sprintf(
-			"FCS AWS Accounts --- This data source provides information about CSPM AWS accounts.\n\n%s",
+			"Cloud AWS Accounts --- This data source provides information about AWS accounts in Falcon.\n\n%s",
 			scopes.GenerateScopeDescription(fcsScopes),
 		),
 		Attributes: map[string]schema.Attribute{
@@ -57,43 +103,130 @@ func (d *fcsAwsAccountDataSource) Schema(_ context.Context, _ datasource.SchemaR
 				Computed:    true,
 			},
 			"account_id": schema.StringAttribute{
-				Required:    true,
+				Optional:    true,
 				Description: "The AWS Account ID.",
+				Validators: []validator.String{
+					stringvalidator.ExactlyOneOf(
+						path.MatchRoot("account_id"),
+						path.MatchRoot("organization_id"),
+					),
+				},
 			},
-			"account": schema.SingleNestedAttribute{
-				Computed: true,
-				Attributes: map[string]schema.Attribute{
-					"account_id": schema.StringAttribute{
-						Computed:    true,
-						Description: "The AWS Account ID.",
-					},
-					"organization_id": schema.StringAttribute{
-						Computed:    true,
-						Description: "The AWS Organization ID",
-					},
-					"is_organization_management_account": schema.BoolAttribute{
-						Computed:    true,
-						Description: "Indicates whether this is the management account (formerly known as the root account) of an AWS Organization",
-					},
-					"account_type": schema.StringAttribute{
-						Computed:    true,
-						Description: "The type of account. Not needed for non-govcloud environment",
-					},
-					"csp_events": schema.BoolAttribute{
-						Computed:    true,
-						Description: "Indicates whether Cloud Service Provider live events are enabled",
-					},
-					"products": schema.SetNestedAttribute{
-						Computed:    true,
-						Description: "The list of products to enable for this account",
-						NestedObject: schema.NestedAttributeObject{
+			"organization_id": schema.StringAttribute{
+				Optional:    true,
+				Description: "The AWS Organization ID",
+				Validators: []validator.String{
+					stringvalidator.ExactlyOneOf(
+						path.MatchRoot("account_id"),
+						path.MatchRoot("organization_id"),
+					),
+				},
+			},
+			"accounts": schema.ListNestedAttribute{
+				Computed:    true,
+				Description: "The list of AWS accounts",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"account_id": schema.StringAttribute{
+							Computed:    true,
+							Description: "The AWS Account ID.",
+						},
+						"organization_id": schema.StringAttribute{
+							Computed:    true,
+							Description: "The AWS Organization ID",
+						},
+						"target_ous": schema.ListAttribute{
+							Optional:    true,
+							ElementType: types.StringType,
+							Description: "The list of target OUs",
+						},
+						"is_organization_management_account": schema.BoolAttribute{
+							Computed:    true,
+							Description: "Indicates whether this is the management account (formerly known as the root account) of an AWS Organization",
+						},
+						"account_type": schema.StringAttribute{
+							Computed:    true,
+							Description: "The type of account. Not needed for non-govcloud environment",
+						},
+						"external_id": schema.StringAttribute{
+							Computed:    true,
+							Description: "The external ID used to assume the AWS IAM role",
+						},
+						"intermediate_role_arn": schema.StringAttribute{
+							Computed:    true,
+							Description: "The ARN of the intermediate role used to assume the AWS IAM role",
+						},
+						"iam_role_arn": schema.StringAttribute{
+							Computed:    true,
+							Description: "The ARN of the AWS IAM role used to access this AWS account",
+						},
+						"eventbus_name": schema.StringAttribute{
+							Computed:    true,
+							Description: "The name of CrowdStrike Event Bridge to forward messages to",
+						},
+						"eventbus_arn": schema.StringAttribute{
+							Computed:    true,
+							Description: "The ARN of CrowdStrike Event Bridge to forward messages to",
+						},
+						"cloudtrail_bucket_name": schema.StringAttribute{
+							Computed:    true,
+							Description: "",
+						},
+						"cloudtrail_region": schema.StringAttribute{
+							Optional:    true,
+							Description: "The AWS region of the CloudTrail bucket",
+						},
+						"dspm_role_arn": schema.StringAttribute{
+							Computed:    true,
+							Description: "The ARN of the IAM role to be used by CrowdStrike DSPM",
+						},
+						"asset_inventory": schema.SingleNestedAttribute{
+							Computed:    true,
+							Description: "Asset inventory feature status",
 							Attributes: map[string]schema.Attribute{
-								"product": schema.StringAttribute{
-									Required: true,
+								"enabled": schema.BoolAttribute{
+									Computed:    true,
+									Description: "Weather asset inventory is enabled",
 								},
-								"features": schema.SetAttribute{
-									Required:    true,
-									ElementType: types.StringType,
+							},
+						},
+						"realtime_visibility": schema.SingleNestedAttribute{
+							Computed:    true,
+							Description: "Realtime visibility feature status",
+							Attributes: map[string]schema.Attribute{
+								"enabled": schema.BoolAttribute{
+									Computed:    true,
+									Description: "Weather realtime visibility is enabled",
+								},
+							},
+						},
+						"idp": schema.SingleNestedAttribute{
+							Computed:    true,
+							Description: "IDP feature status",
+							Attributes: map[string]schema.Attribute{
+								"enabled": schema.BoolAttribute{
+									Computed:    true,
+									Description: "Weather IDP is enabled",
+								},
+							},
+						},
+						"sensor_management": schema.SingleNestedAttribute{
+							Computed:    true,
+							Description: "Sensor management feature status",
+							Attributes: map[string]schema.Attribute{
+								"enabled": schema.BoolAttribute{
+									Computed:    true,
+									Description: "Weather sensor management is enabled",
+								},
+							},
+						},
+						"dspm": schema.SingleNestedAttribute{
+							Computed:    true,
+							Description: "DSPM feature status",
+							Attributes: map[string]schema.Attribute{
+								"enabled": schema.BoolAttribute{
+									Computed:    true,
+									Description: "Weather DSPM is enabled",
 								},
 							},
 						},
@@ -104,73 +237,147 @@ func (d *fcsAwsAccountDataSource) Schema(_ context.Context, _ datasource.SchemaR
 	}
 }
 
-func (d *fcsAwsAccountDataSource) getAccount(
+func (d *cloudAwsAccountsDataSource) getCSPMAccounts(
 	ctx context.Context,
 	accountID string,
-) (*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
+	organizationID string,
+) ([]*models.DomainAWSAccountV2, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	tflog.Debug(ctx, "[datasource] Getting FCS AWS Accounts ", map[string]interface{}{"accountID": accountID})
-	res, status, err := d.client.CloudAwsRegistration.CloudRegistrationAwsGetAccounts(&cloud_aws_registration.CloudRegistrationAwsGetAccountsParams{
-		Context: ctx,
-		Ids:     []string{accountID},
+	tflog.Info(ctx, "[datasource] Getting CSPM AWS Accounts ", map[string]interface{}{"accountID": accountID, "organizationID": organizationID})
+	res, status, err := d.client.CspmRegistration.GetCSPMAwsAccount(&cspm_registration.GetCSPMAwsAccountParams{
+		Context:         ctx,
+		Ids:             []string{accountID},
+		OrganizationIds: []string{organizationID},
 	})
 	if err != nil {
 		diags.AddError(
-			"Failed to read FCS AWS account",
-			fmt.Sprintf("Failed to get FCS AWS account: %s", err.Error()),
+			"Failed to read CSPM AWS accounts",
+			fmt.Sprintf("Failed to get CSPM AWS accounts: %s", err.Error()),
 		)
 		return nil, diags
 	}
 	if status != nil {
 		for _, error := range status.Payload.Errors {
 			diags.AddError(
-				"Failed to read FCS AWS account",
-				fmt.Sprintf("Failed to get FCS AWS account: %s", *error.Message),
+				"Failed to read CSPM AWS accounts",
+				fmt.Sprintf("Failed to get CSPM AWS accounts: %s", *error.Message),
+			)
+		}
+		return status.Payload.Resources, diags
+	}
+	return res.Payload.Resources, diags
+}
+
+func (d *cloudAwsAccountsDataSource) getCloudAccounts(
+	ctx context.Context,
+	accounts []string,
+) ([]*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	tflog.Debug(ctx, "[datasource] Getting Cloud AWS Accounts ", map[string]interface{}{"accounts": accounts})
+	res, status, err := d.client.CloudAwsRegistration.CloudRegistrationAwsGetAccounts(&cloud_aws_registration.CloudRegistrationAwsGetAccountsParams{
+		Context: ctx,
+		Ids:     accounts,
+	})
+	if err != nil {
+		diags.AddError(
+			"Failed to read Cloud AWS accounts",
+			fmt.Sprintf("Failed to get Cloud AWS accounts: %s", err.Error()),
+		)
+		return nil, diags
+	}
+	if status != nil {
+		for _, error := range status.Payload.Errors {
+			diags.AddError(
+				"Failed to read Cloud AWS accounts",
+				fmt.Sprintf("Failed to get Cloud AWS accounts: %s", *error.Message),
 			)
 		}
 	}
-	var ret *models.DomainCloudAWSAccountV1
-	if res != nil && res.Payload != nil && len(res.Payload.Resources) != 0 {
-		ret = res.Payload.Resources[0]
-	}
-
-	return ret, diags
+	return res.Payload.Resources, diags
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (d *fcsAwsAccountDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var data fcsAwsAccountDataSourceModel
+func (d *cloudAwsAccountsDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var data cloudAwsAccountsDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	account, diags := d.getAccount(ctx, data.AccountID.ValueString())
+	cspmAccounts, diags := d.getCSPMAccounts(ctx, data.AccountID.ValueString(), data.OrganizationID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if account == nil {
-		resp.Diagnostics.AddError(
-			"Cloud AWS Account Not Found",
-			fmt.Sprintf("No AWS account found with ID: %s", data.AccountID.ValueString()),
-		)
-		return
+	data.Accounts = make([]*cloudAWSAccountDataModel, 0, len(cspmAccounts))
+	ids := make([]string, 0, len(cspmAccounts))
+	idToModel := make(map[string]*cloudAWSAccountDataModel, len(cspmAccounts))
+
+	for _, a := range cspmAccounts {
+		if a == nil {
+			continue
+		}
+		targetOus := make([]attr.Value, len(a.TargetOus))
+		for _, ou := range a.TargetOus {
+			targetOus = append(targetOus, types.StringValue(ou))
+		}
+		m := &cloudAWSAccountDataModel{
+			AccountID:              types.StringValue(a.AccountID),
+			OrganizationID:         types.StringValue(a.OrganizationID),
+			TargetOUs:              types.ListValueMust(types.StringType, targetOus),
+			IsOrgManagementAccount: types.BoolValue(a.IsMaster),
+			AccountType:            types.StringValue(a.AccountType),
+			ExternalID:             types.StringValue(a.ExternalID),
+			IntermediateRoleArn:    types.StringValue(a.IntermediateRoleArn),
+			IamRoleArn:             types.StringValue(a.IamRoleArn),
+			EventbusName:           types.StringValue(a.EventbusName),
+			EventbusArn:            types.StringValue(a.AwsEventbusArn),
+			CloudTrailBucketName:   types.StringValue(a.AwsCloudtrailBucketName),
+			CloudTrailRegion:       types.StringValue(a.AwsCloudtrailRegion),
+			DspmRoleArn:            types.StringValue(a.DspmRoleArn),
+			AssetInventory: &asssetInventoryFeature{
+				Enabled: types.BoolValue(true), // this feature is always enabled
+			},
+			RealtimeVisibility: &reatltimeVisibilityFeature{
+				Enabled: types.BoolValue(a.BehaviorAssessmentEnabled),
+			},
+			IDP: &idpFeature{
+				Enabled: types.BoolValue(false),
+			},
+			SensorManagement: &sensorManagementFeature{
+				Enabled: types.BoolValue(*a.SensorManagementEnabled),
+			},
+			DSPM: &dspmFeature{
+				Enabled: types.BoolValue(a.DspmEnabled),
+			},
+		}
+		ids = append(ids, a.AccountID)
+		idToModel[a.AccountID] = m
+		data.Accounts = append(data.Accounts, m)
 	}
-	var m cloudAWSAccountModel
-	m.AccountID = types.StringValue(account.AccountID)
-	m.OrganizationID = types.StringValue(account.OrganizationID)
-	m.AccountType = types.StringValue(account.AccountType)
-	m.IsOrgManagementAccount = types.BoolValue(account.IsMaster)
-	m.CSPEvents = types.BoolValue(account.CspEvents)
-	products, diags := productsToState(ctx, account.Products)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-		return
-	}
-	m.Products = products
-	data.Account = &m
 	data.ID = types.StringValue("placeholder")
+	// Set state
+	diags = resp.State.Set(ctx, &data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Now we need to read and update the IDP status from Cloud Registration
+	cloudAccounts, diags := d.getCloudAccounts(ctx, ids)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	for _, a := range cloudAccounts {
+		for _, p := range a.Products {
+			if *p.Product == "idp" {
+				if m, ok := idToModel[a.AccountID]; ok {
+					m.IDP.Enabled = types.BoolValue(true)
+				}
+				break
+			}
+		}
+	}
 
 	// Set state
 	diags = resp.State.Set(ctx, &data)
@@ -181,7 +388,7 @@ func (d *fcsAwsAccountDataSource) Read(ctx context.Context, req datasource.ReadR
 }
 
 // Configure adds the provider configured client to the data source.
-func (d *fcsAwsAccountDataSource) Configure(
+func (d *cloudAwsAccountsDataSource) Configure(
 	_ context.Context,
 	req datasource.ConfigureRequest,
 	resp *datasource.ConfigureResponse,
