@@ -5,7 +5,7 @@ description: |-
   This data source provides information about AWS accounts in Falcon.
   API Scopes
   The following API scopes are required:
-  Cloud security AWS registration | Read & Write
+  Cloud security AWS registration | Read & WriteCSPM registration | Read & Write
 ---
 
 # crowdstrike_cloud_aws_accounts (Data Source)
@@ -17,6 +17,7 @@ This data source provides information about AWS accounts in Falcon.
 The following API scopes are required:
 
 - Cloud security AWS registration | Read & Write
+- CSPM registration | Read & Write
 
 
 

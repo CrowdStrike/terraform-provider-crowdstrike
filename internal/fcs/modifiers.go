@@ -57,3 +57,7 @@ func (m dspmRoleArnModifier) Description(ctx context.Context) string {
 func (m dspmRoleArnModifier) MarkdownDescription(ctx context.Context) string {
 	return "Marks the DSPM role ARN as unknown when the DSPM role name changes"
 }
+
+func DSPMArnStateModifier() dspmRoleArnModifier {
+	return dspmRoleArnModifier{}
+}

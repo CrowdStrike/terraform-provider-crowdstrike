@@ -112,7 +112,7 @@ func (r *cloudAWSAccountResource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: fmt.Sprintf(
 			"Cloud AWS Account --- This resource allows management of an AWS account in Falcon.\n\n%s",
-			scopes.GenerateScopeDescription(fcsScopes),
+			scopes.GenerateScopeDescription(cloudSecurityScopes),
 		),
 		Attributes: map[string]schema.Attribute{
 			"account_id": schema.StringAttribute{
@@ -406,7 +406,7 @@ func (r *cloudAWSAccountResource) Schema(
 				Computed:    true,
 				Description: "The ARN of the IAM role to be used by CrowdStrike DSPM",
 				PlanModifiers: []planmodifier.String{
-					dspmRoleArnModifier{},
+					DSPMArnStateModifier(),
 				},
 			},
 		},

@@ -5,7 +5,7 @@ description: |-
   This resource allows management of an AWS account in Falcon.
   API Scopes
   The following API scopes are required:
-  Cloud security AWS registration | Read & Write
+  Cloud security AWS registration | Read & WriteCSPM registration | Read & Write
 ---
 
 # crowdstrike_cloud_aws_account (Resource)
@@ -17,6 +17,7 @@ This resource allows management of an AWS account in Falcon.
 The following API scopes are required:
 
 - Cloud security AWS registration | Read & Write
+- CSPM registration | Read & Write
 
 
 

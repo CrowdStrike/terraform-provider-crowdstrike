@@ -95,7 +95,7 @@ func (d *cloudAwsAccountsDataSource) Schema(_ context.Context, _ datasource.Sche
 		Description: "Fetches Cloud AWS accounts by account_id or organization_id",
 		MarkdownDescription: fmt.Sprintf(
 			"Cloud AWS Accounts --- This data source provides information about AWS accounts in Falcon.\n\n%s",
-			scopes.GenerateScopeDescription(fcsScopes),
+			scopes.GenerateScopeDescription(cloudSecurityScopes),
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -317,7 +317,7 @@ func (d *cloudAwsAccountsDataSource) Read(ctx context.Context, req datasource.Re
 		if a == nil {
 			continue
 		}
-		targetOus := make([]attr.Value, len(a.TargetOus))
+		targetOus := make([]attr.Value, 0, len(a.TargetOus))
 		for _, ou := range a.TargetOus {
 			targetOus = append(targetOus, types.StringValue(ou))
 		}
