@@ -21,6 +21,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -33,43 +35,42 @@ type cloudAWSAccountResource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-type assetInventory struct {
+type assetInventoryOptions struct {
 	Enabled  types.Bool   `tfsdk:"enabled"`
 	RoleName types.String `tfsdk:"role_name"`
 }
-type realtimeVisibility struct {
+type realtimeVisibilityOptions struct {
 	Enabled               types.Bool   `tfsdk:"enabled"`
 	CloudTrailRegion      types.String `tfsdk:"cloudtrail_region"`
 	UseExistingCloudTrail types.Bool   `tfsdk:"use_existing_cloudtrail"`
 }
 
-type idp struct {
-	Enabled     types.Bool   `tfsdk:"enabled"`
-	Status      types.String `tfsdk:"status"`
-	LastUpdated types.String `tfsdk:"last_updated"`
+type idpOptions struct {
+	Enabled types.Bool   `tfsdk:"enabled"`
+	Status  types.String `tfsdk:"status"`
 }
 
-type sensorManagement struct {
+type sensorManagementOptions struct {
 	Enabled types.Bool `tfsdk:"enabled"`
 }
 
-type dspm struct {
+type dspmOptions struct {
 	Enabled  types.Bool   `tfsdk:"enabled"`
 	RoleName types.String `tfsdk:"role_name"`
 }
 
 type cloudAWSAccountModel struct {
-	AccountID              types.String        `tfsdk:"account_id"`
-	OrganizationID         types.String        `tfsdk:"organization_id"`
-	TargetOUs              types.List          `tfsdk:"target_ous"`
-	IsOrgManagementAccount types.Bool          `tfsdk:"is_organization_management_account"`
-	AccountType            types.String        `tfsdk:"account_type"`
-	DeploymentMethod       types.String        `tfsdk:"deployment_method"`
-	AssetInventory         *assetInventory     `tfsdk:"asset_inventory"`
-	RealtimeVisibility     *realtimeVisibility `tfsdk:"realtime_visibility"`
-	IDP                    *idp                `tfsdk:"idp"`
-	SensorManagement       *sensorManagement   `tfsdk:"sensor_management"`
-	DSPM                   *dspm               `tfsdk:"dspm"`
+	AccountID              types.String               `tfsdk:"account_id"`
+	OrganizationID         types.String               `tfsdk:"organization_id"`
+	TargetOUs              types.List                 `tfsdk:"target_ous"`
+	IsOrgManagementAccount types.Bool                 `tfsdk:"is_organization_management_account"`
+	AccountType            types.String               `tfsdk:"account_type"`
+	DeploymentMethod       types.String               `tfsdk:"deployment_method"`
+	AssetInventory         *assetInventoryOptions     `tfsdk:"asset_inventory"`
+	RealtimeVisibility     *realtimeVisibilityOptions `tfsdk:"realtime_visibility"`
+	IDP                    *idpOptions                `tfsdk:"idp"`
+	SensorManagement       *sensorManagementOptions   `tfsdk:"sensor_management"`
+	DSPM                   *dspmOptions               `tfsdk:"dspm"`
 	// Computed
 	ExternalID           types.String `tfsdk:"external_id"`
 	IntermediateRoleArn  types.String `tfsdk:"intermediate_role_arn"`
@@ -128,10 +129,12 @@ func (r *cloudAWSAccountResource) Schema(
 			},
 			"organization_id": schema.StringAttribute{
 				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(""),
 				Description: "The AWS Organization ID",
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
 					stringvalidator.Any(
@@ -165,6 +168,7 @@ func (r *cloudAWSAccountResource) Schema(
 				Description: "Indicates whether this is the management account (formerly known as the root account) of an AWS Organization",
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.RequiresReplace(),
+					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"account_type": schema.StringAttribute{
@@ -191,6 +195,7 @@ func (r *cloudAWSAccountResource) Schema(
 			"asset_inventory": schema.SingleNestedAttribute{
 				Required: false,
 				Optional: true,
+				Computed: true,
 				Attributes: map[string]schema.Attribute{
 					"enabled": schema.BoolAttribute{
 						Required:    true,
@@ -204,10 +209,23 @@ func (r *cloudAWSAccountResource) Schema(
 						},
 					},
 				},
+				Default: objectdefault.StaticValue(
+					types.ObjectValueMust(
+						map[string]attr.Type{
+							"enabled":   types.BoolType,
+							"role_name": types.StringType,
+						},
+						map[string]attr.Value{
+							"enabled":   types.BoolValue(true),
+							"role_name": types.StringNull(),
+						},
+					),
+				),
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
 			},
-			"realtime_visibility": schema.SingleNestedAttribute{
-				Required: false,
-				Optional: true,
+			"realtime_visibility": schema.SingleNestedAttribute{Required: false, Optional: true, Computed: true,
 				Attributes: map[string]schema.Attribute{
 					"enabled": schema.BoolAttribute{
 						Required:    true,
@@ -224,42 +242,98 @@ func (r *cloudAWSAccountResource) Schema(
 						Description: "Set to true if a Cloudtrail already exists",
 					},
 				},
+				Default: objectdefault.StaticValue(
+					types.ObjectValueMust(
+						map[string]attr.Type{
+							"enabled":                 types.BoolType,
+							"cloudtrail_region":       types.StringType,
+							"use_existing_cloudtrail": types.BoolType,
+						},
+						map[string]attr.Value{
+							"enabled":                 types.BoolValue(false),
+							"cloudtrail_region":       types.StringNull(),
+							"use_existing_cloudtrail": types.BoolValue(false),
+						},
+					),
+				),
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"idp": schema.SingleNestedAttribute{
 				Required: false,
+				Computed: true,
 				Optional: true,
 				Attributes: map[string]schema.Attribute{
 					"enabled": schema.BoolAttribute{
 						Required:    true,
 						Description: "Enable realtime visibility",
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"status": schema.StringAttribute{
 						Computed:    true,
 						Description: "Current status of the IDP integration",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
-					"last_updated": schema.StringAttribute{
-						Computed:    true,
-						Description: "Timestamp of last IDP configuration update",
-					},
+				},
+				Default: objectdefault.StaticValue(
+					types.ObjectValueMust(
+						map[string]attr.Type{
+							"enabled": types.BoolType,
+							"status":  types.StringType,
+						},
+						map[string]attr.Value{
+							"enabled": types.BoolValue(false),
+							"status":  types.StringNull(),
+						},
+					),
+				),
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"sensor_management": schema.SingleNestedAttribute{
 				Required: false,
 				Optional: true,
+				Computed: true,
 				Attributes: map[string]schema.Attribute{
 					"enabled": schema.BoolAttribute{
 						Required:    true,
 						Description: "Enable realtime visibility",
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
 					},
+				},
+				Default: objectdefault.StaticValue(
+					types.ObjectValueMust(
+						map[string]attr.Type{
+							"enabled": types.BoolType,
+						},
+						map[string]attr.Value{
+							"enabled": types.BoolValue(false),
+						},
+					),
+				),
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"dspm": schema.SingleNestedAttribute{
 				Required: false,
 				Optional: true,
+				Computed: true,
 				Attributes: map[string]schema.Attribute{
 					"enabled": schema.BoolAttribute{
 						Required:    true,
 						Description: "Enable asset inventory",
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"role_name": schema.StringAttribute{
 						Optional:    true,
@@ -268,6 +342,21 @@ func (r *cloudAWSAccountResource) Schema(
 							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
+				},
+				Default: objectdefault.StaticValue(
+					types.ObjectValueMust(
+						map[string]attr.Type{
+							"enabled":   types.BoolType,
+							"role_name": types.StringType,
+						},
+						map[string]attr.Value{
+							"enabled":   types.BoolValue(false),
+							"role_name": types.StringNull(),
+						},
+					),
+				),
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
 				},
 			},
 			// Computed values
@@ -345,48 +434,69 @@ func (r *cloudAWSAccountResource) Create(
 	}
 
 	tflog.Info(ctx, "cspm account created", map[string]interface{}{"account": cspmAccount})
-
-	plan.AccountID = types.StringValue(cspmAccount.AccountID)
-	if cspmAccount.OrganizationID != "" {
-		plan.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
-	}
-	plan.AccountType = types.StringValue(cspmAccount.AccountType)
-	plan.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
-	plan.TargetOUs, diags = types.ListValueFrom(ctx, types.StringType, []string{})
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-	}
-	if len(cspmAccount.TargetOus) != 0 {
+	state := plan
+	state.AccountID = types.StringValue(cspmAccount.AccountID)
+	state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
+	state.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
+	state.AccountType = types.StringValue(cspmAccount.AccountType)
+	if len(cspmAccount.TargetOus) > 0 {
 		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, cspmAccount.TargetOus)
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
 		}
-		plan.TargetOUs = targetOUs
-	}
-	plan.ExternalID = types.StringValue(cspmAccount.ExternalID)
-	plan.IntermediateRoleArn = types.StringValue(cspmAccount.IntermediateRoleArn)
-	plan.IamRoleArn = types.StringValue(cspmAccount.IamRoleArn)
-	plan.EventbusName = types.StringValue(cspmAccount.EventbusName)
-	plan.EventbusArn = types.StringValue(cspmAccount.AwsEventbusArn)
-	plan.CloudTrailBucketName = types.StringValue(cspmAccount.AwsCloudtrailBucketName)
-	if cspmAccount.AwsCloudtrailRegion != "" {
-		if plan.RealtimeVisibility != nil {
-			plan.RealtimeVisibility.CloudTrailRegion = types.StringValue(cspmAccount.AwsCloudtrailRegion)
+		state.TargetOUs = targetOUs
+	} else {
+		state.TargetOUs, diags = types.ListValueFrom(ctx, types.StringType, []string{})
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
 		}
 	}
-	plan.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
-	diags = resp.State.Set(ctx, plan)
+	state.ExternalID = types.StringValue(cspmAccount.ExternalID)
+	state.IntermediateRoleArn = types.StringValue(cspmAccount.IntermediateRoleArn)
+	state.IamRoleArn = types.StringValue(cspmAccount.IamRoleArn)
+	state.EventbusName = types.StringValue(cspmAccount.EventbusName)
+	state.EventbusArn = types.StringValue(cspmAccount.AwsEventbusArn)
+	state.CloudTrailBucketName = types.StringValue(cspmAccount.AwsCloudtrailBucketName)
+	state.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
+
+	// for each feature options
+	// update with data from backend
+
+	state.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
+	if cspmAccount.AwsCloudtrailRegion != "" {
+		state.RealtimeVisibility.CloudTrailRegion = types.StringValue(cspmAccount.AwsCloudtrailRegion)
+	}
+
+	state.SensorManagement.Enabled = types.BoolValue(*cspmAccount.SensorManagementEnabled)
+
+	state.DSPM.Enabled = types.BoolValue(cspmAccount.DspmEnabled)
+
+	// save current state
+	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// create Cloud Registration account
 	cloudAccount, diags := r.createCloudAccount(ctx, plan)
-	if plan.IDP != nil {
-		plan.IDP.Status = types.StringValue("configured")
-		plan.IDP.LastUpdated = types.StringValue(cloudAccount.UpdatedAt.String())
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.IDP = &idpOptions{
+		Enabled: types.BoolValue(false),
+		Status:  types.StringValue("configured"),
+	}
+	for _, p := range cloudAccount.Products {
+		if *p.Product == "idp" {
+			state.IDP.Enabled = types.BoolValue(true)
+			break
+		}
 	}
 
-	diags = resp.State.Set(ctx, plan)
+	// Set refreshed state
+	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -561,15 +671,20 @@ func (r *cloudAWSAccountResource) Read(
 	}
 
 	state.AccountID = types.StringValue(cspmAccount.AccountID)
-	if cspmAccount.OrganizationID != "" {
-		state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
-	}
-	state.AccountType = types.StringValue(cspmAccount.AccountType)
+	state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
 	state.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
+	state.AccountType = types.StringValue(cspmAccount.AccountType)
 	state.DeploymentMethod = oldState.DeploymentMethod
-	state.TargetOUs, diags = types.ListValueFrom(ctx, types.StringType, []string{})
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
+	if state.DeploymentMethod.IsNull() {
+		state.DeploymentMethod = types.StringValue("terraform-native")
+	}
+	if oldState.TargetOUs.IsNull() {
+		state.TargetOUs, diags = types.ListValueFrom(ctx, types.StringType, []string{})
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+		}
+	} else {
+		state.TargetOUs = oldState.TargetOUs
 	}
 	if len(cspmAccount.TargetOus) != 0 {
 		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, cspmAccount.TargetOus)
@@ -577,44 +692,84 @@ func (r *cloudAWSAccountResource) Read(
 			resp.Diagnostics.Append(diags...)
 		}
 		state.TargetOUs = targetOUs
-	} else {
-		state.TargetOUs = oldState.TargetOUs
 	}
+
 	state.ExternalID = types.StringValue(cspmAccount.ExternalID)
 	state.IntermediateRoleArn = types.StringValue(cspmAccount.IntermediateRoleArn)
 	state.IamRoleArn = types.StringValue(cspmAccount.IamRoleArn)
 	state.EventbusName = types.StringValue(cspmAccount.EventbusName)
 	state.EventbusArn = types.StringValue(cspmAccount.AwsEventbusArn)
 	state.CloudTrailBucketName = types.StringValue(cspmAccount.AwsCloudtrailBucketName)
-	if cspmAccount.AwsCloudtrailRegion != "" {
-		if state.RealtimeVisibility != nil {
-			state.RealtimeVisibility.CloudTrailRegion = types.StringValue(cspmAccount.AwsCloudtrailRegion)
+	state.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
+
+	// for each feature options
+	// if old state is nil, we are importing
+	// if not, copy old state and then update with data from backend
+	if oldState.AssetInventory != nil {
+		state.AssetInventory = oldState.AssetInventory
+	} else {
+		state.AssetInventory = &assetInventoryOptions{
+			Enabled: types.BoolValue(true), //asset inventory is always enabled
 		}
 	}
-	state.AssetInventory = oldState.AssetInventory
-	state.RealtimeVisibility = oldState.RealtimeVisibility
+
+	if oldState.RealtimeVisibility != nil {
+		state.RealtimeVisibility = oldState.RealtimeVisibility
+	} else {
+		state.RealtimeVisibility = &realtimeVisibilityOptions{
+			UseExistingCloudTrail: types.BoolValue(false),
+		}
+	}
+	state.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
+	if cspmAccount.AwsCloudtrailRegion != "" {
+		state.RealtimeVisibility.CloudTrailRegion = types.StringValue(cspmAccount.AwsCloudtrailRegion)
+	}
+
+	if oldState.SensorManagement != nil {
+		state.SensorManagement = oldState.SensorManagement
+	} else {
+		state.SensorManagement = &sensorManagementOptions{}
+	}
+	state.SensorManagement.Enabled = types.BoolValue(*cspmAccount.SensorManagementEnabled)
+
+	if oldState.DSPM != nil {
+		state.DSPM = oldState.DSPM
+	} else {
+		state.DSPM = &dspmOptions{}
+	}
+	state.DSPM.Enabled = types.BoolValue(cspmAccount.DspmEnabled)
+
+	// save current state
+	diags = resp.State.Set(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	cloudAccount, found, diags := r.getCloudAccount(ctx, oldState.AccountID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if oldState.IDP != nil && found {
+	if oldState.IDP != nil {
 		state.IDP = oldState.IDP
+	} else {
+		state.IDP = &idpOptions{
+			Enabled: types.BoolValue(false),
+		}
+	}
+	if found {
+		tflog.Info(ctx, "found cloud registration account", map[string]interface{}{"account_id": cloudAccount.AccountID})
 		for _, p := range cloudAccount.Products {
 			if *p.Product == "idp" {
 				state.IDP.Enabled = types.BoolValue(true)
+				state.IDP.Status = types.StringValue("configured")
 				break
 			}
 		}
+	} else {
+		resp.Diagnostics.AddWarning("didn't find cloud registration account", "no cloud registration account")
 	}
-	state.SensorManagement = &sensorManagement{
-		Enabled: types.BoolValue(*cspmAccount.SensorManagementEnabled),
-	}
-	state.DSPM = &dspm{
-		Enabled: types.BoolValue(cspmAccount.DspmEnabled),
-	}
-	state.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, &state)
@@ -724,12 +879,13 @@ func (r *cloudAWSAccountResource) Update(
 		return
 	}
 	plan.AccountID = types.StringValue(cspmAccount.AccountID)
-	if cspmAccount.OrganizationID != "" {
-		plan.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
-	}
+	plan.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
 	plan.AccountType = types.StringValue(cspmAccount.AccountType)
 	plan.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
 	plan.DeploymentMethod = state.DeploymentMethod
+	if state.DeploymentMethod.IsNull() {
+		plan.DeploymentMethod = types.StringValue("terraform-native")
+	}
 	plan.TargetOUs = state.TargetOUs
 	if len(cspmAccount.TargetOus) != 0 {
 		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, cspmAccount.TargetOus)
@@ -744,27 +900,43 @@ func (r *cloudAWSAccountResource) Update(
 	plan.EventbusName = types.StringValue(cspmAccount.EventbusName)
 	plan.EventbusArn = types.StringValue(cspmAccount.AwsEventbusArn)
 	plan.CloudTrailBucketName = types.StringValue(cspmAccount.AwsCloudtrailBucketName)
-	if cspmAccount.AwsCloudtrailRegion != "" {
-		if plan.RealtimeVisibility != nil {
-			plan.RealtimeVisibility.CloudTrailRegion = types.StringValue(cspmAccount.AwsCloudtrailRegion)
-		}
-	}
-	if plan.DSPM != nil {
-		plan.DSPM.Enabled = types.BoolValue(cspmAccount.DspmEnabled)
-	}
 	plan.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
+
+	plan.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
+	if cspmAccount.AwsCloudtrailRegion != "" {
+		plan.RealtimeVisibility.CloudTrailRegion = types.StringValue(cspmAccount.AwsCloudtrailRegion)
+	}
+
+	plan.SensorManagement.Enabled = types.BoolValue(*cspmAccount.SensorManagementEnabled)
+
+	plan.DSPM.Enabled = types.BoolValue(cspmAccount.DspmEnabled)
+
+	// save current state
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	// update Cloud Registration account
 	cloudAccount, diags := r.updateCloudAccount(ctx, plan)
-	if plan.IDP != nil {
-		plan.IDP.Status = types.StringValue("configured")
-		plan.IDP.LastUpdated = types.StringValue(cloudAccount.UpdatedAt.String())
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
+	plan.IDP = &idpOptions{
+		Enabled: types.BoolValue(false),
+		Status:  types.StringValue("configured"),
+	}
+	for _, p := range cloudAccount.Products {
+		if *p.Product == "idp" {
+			plan.IDP.Enabled = types.BoolValue(true)
+			break
+		}
+	}
+
+	// Set refreshed state
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -901,11 +1073,12 @@ func (r *cloudAWSAccountResource) Delete(
 		return
 	}
 
-	if state.IDP != nil {
-		resp.Diagnostics.Append(r.deleteCloudAccount(ctx, state)...)
+	if state.IDP.Status.ValueString() != "" {
+		diags = append(diags, r.deleteCloudAccount(ctx, state)...)
 	}
+	diags = append(diags, r.deleteCSPMAccount(ctx, state)...)
 
-	resp.Diagnostics.Append(r.deleteCSPMAccount(ctx, state)...)
+	resp.Diagnostics.Append(diags...)
 }
 
 func (r *cloudAWSAccountResource) deleteCSPMAccount(

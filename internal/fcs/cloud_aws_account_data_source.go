@@ -292,6 +292,7 @@ func (d *cloudAwsAccountsDataSource) getCloudAccounts(
 				fmt.Sprintf("Failed to get Cloud AWS accounts: %s", *error.Message),
 			)
 		}
+		return nil, diags
 	}
 	return res.Payload.Resources, diags
 }
