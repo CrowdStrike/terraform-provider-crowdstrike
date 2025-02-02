@@ -406,7 +406,7 @@ func (r *cloudAWSAccountResource) Schema(
 				Computed:    true,
 				Description: "The ARN of the IAM role to be used by CrowdStrike DSPM",
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+					dspmRoleArnModifier{},
 				},
 			},
 		},
