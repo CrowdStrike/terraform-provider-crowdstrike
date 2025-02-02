@@ -1,8 +1,8 @@
 ---
 page_title: "crowdstrike_cloud_aws_account Resource - crowdstrike"
-subcategory: "FCS AWS Account"
+subcategory: "Cloud AWS Account"
 description: |-
-  This resource allows management of a CSPM Account. A FileVantage policy is a collection of file integrity rules and rule groups that you can apply to host groups.
+  This resource allows management of an AWS account in Falcon.
   API Scopes
   The following API scopes are required:
   Cloud security AWS registration | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_cloud_aws_account (Resource)
 
-This resource allows management of a CSPM Account. A FileVantage policy is a collection of file integrity rules and rule groups that you can apply to host groups.
+This resource allows management of an AWS account in Falcon.
 
 ## API Scopes
 
@@ -31,15 +31,78 @@ The following API scopes are required:
 ### Optional
 
 - `account_type` (String) The type of account. Not needed for non-govcloud environment
-- `csp_events` (Boolean) Indicates whether Cloud Service Provider live events are enabled
+- `asset_inventory` (Attributes) (see [below for nested schema](#nestedatt--asset_inventory))
+- `deployment_method` (String) How the account was deployed. Valid values are 'terraform-native' and 'terraform-cft'
+- `dspm` (Attributes) (see [below for nested schema](#nestedatt--dspm))
+- `idp` (Attributes) (see [below for nested schema](#nestedatt--idp))
 - `is_organization_management_account` (Boolean) Indicates whether this is the management account (formerly known as the root account) of an AWS Organization
 - `organization_id` (String) The AWS Organization ID
-- `products` (Attributes Set) The list of products to enable for this account (see [below for nested schema](#nestedatt--products))
+- `realtime_visibility` (Attributes) (see [below for nested schema](#nestedatt--realtime_visibility))
+- `sensor_management` (Attributes) (see [below for nested schema](#nestedatt--sensor_management))
+- `target_ous` (List of String) The list of target OUs
 
-<a id="nestedatt--products"></a>
-### Nested Schema for `products`
+### Read-Only
+
+- `cloudtrail_bucket_name` (String) The name of the CloudTrail bucket used for realtime visibility
+- `dspm_role_arn` (String) The ARN of the IAM role to be used by CrowdStrike DSPM
+- `eventbus_arn` (String) The ARN of CrowdStrike Event Bridge to forward messages to
+- `eventbus_name` (String) The name of CrowdStrike Event Bridge to forward messages to
+- `external_id` (String) The external ID used to assume the AWS IAM role
+- `iam_role_arn` (String) The ARN of the AWS IAM role used to access this AWS account
+- `intermediate_role_arn` (String) The ARN of the intermediate role used to assume the AWS IAM role
+
+<a id="nestedatt--asset_inventory"></a>
+### Nested Schema for `asset_inventory`
 
 Required:
 
-- `features` (Set of String)
-- `product` (String)
+- `enabled` (Boolean) Enable asset inventory
+
+Optional:
+
+- `role_name` (String) Custom AWS IAM role name
+
+
+<a id="nestedatt--dspm"></a>
+### Nested Schema for `dspm`
+
+Required:
+
+- `enabled` (Boolean) Enable asset inventory
+
+Optional:
+
+- `role_name` (String) Custom AWS IAM role name for Data Security Posture Management
+
+
+<a id="nestedatt--idp"></a>
+### Nested Schema for `idp`
+
+Required:
+
+- `enabled` (Boolean) Enable realtime visibility
+
+Read-Only:
+
+- `status` (String) Current status of the IDP integration
+
+
+<a id="nestedatt--realtime_visibility"></a>
+### Nested Schema for `realtime_visibility`
+
+Required:
+
+- `cloudtrail_region` (String) Custom AWS IAM role name
+- `enabled` (Boolean) Enable realtime visibility
+
+Optional:
+
+- `use_existing_cloudtrail` (Boolean) Set to true if a Cloudtrail already exists
+
+
+<a id="nestedatt--sensor_management"></a>
+### Nested Schema for `sensor_management`
+
+Required:
+
+- `enabled` (Boolean) Enable realtime visibility
