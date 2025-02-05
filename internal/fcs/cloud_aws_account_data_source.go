@@ -345,7 +345,7 @@ func (d *cloudAwsAccountsDataSource) Read(ctx context.Context, req datasource.Re
 				Enabled: types.BoolValue(false),
 			},
 			SensorManagement: &sensorManagementFeature{
-				Enabled: types.BoolValue(*a.SensorManagementEnabled),
+				Enabled: types.BoolValue(a.SensorManagementEnabled != nil && *a.SensorManagementEnabled),
 			},
 			DSPM: &dspmFeature{
 				Enabled: types.BoolValue(a.DspmEnabled),
