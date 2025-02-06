@@ -427,7 +427,8 @@ func (r *cloudAWSAccountResource) Create(
 		return
 	}
 
-	cspmAccount, diags := r.createCSPMAccount(ctx, plan)
+	// cspmAccount, diags := r.createCSPMAccount(ctx, plan)
+	cspmAccount, diags := r.createOrUpdateCSPMAccount(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -436,8 +437,12 @@ func (r *cloudAWSAccountResource) Create(
 	tflog.Info(ctx, "cspm account created", map[string]interface{}{"account": cspmAccount})
 	state := plan
 	state.AccountID = types.StringValue(cspmAccount.AccountID)
-	state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
 	state.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
+	if cspmAccount.IsMaster {
+		state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
+	} else {
+		state.OrganizationID = plan.OrganizationID
+	}
 	state.AccountType = types.StringValue(cspmAccount.AccountType)
 	if len(cspmAccount.TargetOus) > 0 {
 		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, cspmAccount.TargetOus)
@@ -501,6 +506,22 @@ func (r *cloudAWSAccountResource) Create(
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+func (r *cloudAWSAccountResource) createOrUpdateCSPMAccount(
+	ctx context.Context,
+	model cloudAWSAccountModel,
+) (*models.DomainAWSAccountV2, diag.Diagnostics) {
+	res, status, err := r.client.CspmRegistration.GetCSPMAwsAccount(&cspm_registration.GetCSPMAwsAccountParams{
+		Context: ctx,
+		Ids:     []string{model.AccountID.ValueString()},
+	})
+	if err != nil || status != nil || len(res.Payload.Resources) == 0 {
+		tflog.Info(ctx, "account doesn't exist, will create")
+		return r.createCSPMAccount(ctx, model)
+	}
+	tflog.Info(ctx, "account exists, will update")
+	return r.updateCSPMAccount(ctx, model)
 }
 
 // createCSPMAccount creates a new CSPM AWS account from the resource model.
@@ -583,6 +604,22 @@ func (r *cloudAWSAccountResource) createCSPMAccount(
 	}
 
 	return res.Payload.Resources[0], diags
+}
+
+func (r *cloudAWSAccountResource) createOrUpdateCloudAccount(
+	ctx context.Context,
+	model cloudAWSAccountModel,
+) (*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
+	res, status, err := r.client.CloudAwsRegistration.CloudRegistrationAwsGetAccounts(&cloud_aws_registration.CloudRegistrationAwsGetAccountsParams{
+		Context: ctx,
+		Ids:     []string{model.AccountID.ValueString()},
+	})
+	if err != nil || status != nil || len(res.Payload.Resources) == 0 {
+		tflog.Info(ctx, "account doesn't exist, will create")
+		r.createCloudAccount(ctx, model)
+	}
+	tflog.Info(ctx, "account exists, will update")
+	return r.updateCloudAccount(ctx, model)
 }
 
 // createAccount creates a new Cloud AWS account from the resource model.
@@ -671,8 +708,13 @@ func (r *cloudAWSAccountResource) Read(
 	}
 
 	state.AccountID = types.StringValue(cspmAccount.AccountID)
-	state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
 	state.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
+	if cspmAccount.IsMaster {
+		state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
+	} else {
+		state.OrganizationID = oldState.OrganizationID
+	}
+
 	state.AccountType = types.StringValue(cspmAccount.AccountType)
 	state.DeploymentMethod = oldState.DeploymentMethod
 	if state.DeploymentMethod.IsNull() {
@@ -879,9 +921,14 @@ func (r *cloudAWSAccountResource) Update(
 		return
 	}
 	plan.AccountID = types.StringValue(cspmAccount.AccountID)
-	plan.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
 	plan.AccountType = types.StringValue(cspmAccount.AccountType)
 	plan.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
+	if cspmAccount.IsMaster {
+		plan.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
+	} else {
+		plan.OrganizationID = state.OrganizationID
+	}
+
 	plan.DeploymentMethod = state.DeploymentMethod
 	if state.DeploymentMethod.IsNull() {
 		plan.DeploymentMethod = types.StringValue("terraform-native")
