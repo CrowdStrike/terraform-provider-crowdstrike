@@ -40,6 +40,7 @@ type CrowdStrikeProviderModel struct {
 	Cloud        types.String `tfsdk:"cloud"`
 	ClientSecret types.String `tfsdk:"client_secret"`
 	ClientId     types.String `tfsdk:"client_id"`
+	MemberCID    types.String `tfsdk:"member_cid"`
 }
 
 func (p *CrowdStrikeProvider) Metadata(
@@ -69,8 +70,13 @@ func (p *CrowdStrikeProvider) Schema(
 				Optional:            true,
 				Sensitive:           true,
 			},
+			"member_cid": schema.StringAttribute{
+				MarkdownDescription: "For MSSP Master CIDs, optionally lock the token to act on behalf of this member CID",
+				Optional:            true,
+				Sensitive:           false,
+			},
 			"cloud": schema.StringAttribute{
-				MarkdownDescription: "Falcon Cloud to authenticate to. Valid values are autodiscover, us-1, us-2, eu-1, us-gov-1",
+				MarkdownDescription: "Falcon Cloud to authenticate to. Valid values are autodiscover, us-1, us-2, eu-1, us-gov-1. Will use FALCON_CLOUD environment variable when left blank.",
 				Optional:            true,
 				Validators: []validator.String{
 					stringvalidator.OneOfCaseInsensitive(
@@ -179,18 +185,25 @@ func (p *CrowdStrikeProvider) Configure(
 	ctx = tflog.SetField(ctx, "crowdstrike_cloud", cloud)
 	ctx = tflog.SetField(ctx, "crowdstrike_client_id", clientId)
 	ctx = tflog.SetField(ctx, "crowdstrike_client_secret", clientSecret)
+	ctx = tflog.SetField(ctx, "crowdstrike_member_cid", config.MemberCID.ValueString())
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "crowdstrike_client_id")
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "crowdstrike_client_secret")
 
 	tflog.Debug(ctx, "Creating CrowdStrike client")
 
-	client, err := falcon.NewClient(&falcon.ApiConfig{
+	apiConfig := falcon.ApiConfig{
 		Cloud:             falcon.Cloud(cloud),
 		ClientId:          clientId,
 		ClientSecret:      clientSecret,
 		UserAgentOverride: fmt.Sprintf("terraform-provider-crowdstrike/%s", p.version),
 		Context:           context.Background(),
-	})
+	}
+
+	if !config.MemberCID.IsNull() {
+		apiConfig.MemberCID = config.MemberCID.ValueString()
+	}
+
+	client, err := falcon.NewClient(&apiConfig)
 
 	if err != nil {
 		resp.Diagnostics.AddError(
