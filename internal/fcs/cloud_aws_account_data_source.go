@@ -313,6 +313,14 @@ func (d *cloudAwsAccountsDataSource) Read(ctx context.Context, req datasource.Re
 	ids := make([]string, 0, len(cspmAccounts))
 	idToModel := make(map[string]*cloudAWSAccountDataModel, len(cspmAccounts))
 
+	var managementAcct *models.DomainAWSAccountV2
+	for _, a := range cspmAccounts {
+		if a.IsMaster {
+			managementAcct = a
+			break
+		}
+	}
+
 	for _, a := range cspmAccounts {
 		if a == nil {
 			continue
@@ -350,6 +358,22 @@ func (d *cloudAwsAccountsDataSource) Read(ctx context.Context, req datasource.Re
 			DSPM: &dspmFeature{
 				Enabled: types.BoolValue(a.DspmEnabled),
 			},
+		}
+		// For org child accounts, the feature values are not always set.
+		// The management account should be the source of truth in this case.
+		if managementAcct != nil {
+			m.RealtimeVisibility = &reatltimeVisibilityFeature{
+				Enabled: types.BoolValue(managementAcct.BehaviorAssessmentEnabled),
+			}
+			m.IDP = &idpFeature{
+				Enabled: types.BoolValue(false),
+			}
+			m.SensorManagement = &sensorManagementFeature{
+				Enabled: types.BoolValue(managementAcct.SensorManagementEnabled != nil && *managementAcct.SensorManagementEnabled),
+			}
+			m.DSPM = &dspmFeature{
+				Enabled: types.BoolValue(managementAcct.DspmEnabled),
+			}
 		}
 		ids = append(ids, a.AccountID)
 		idToModel[a.AccountID] = m
