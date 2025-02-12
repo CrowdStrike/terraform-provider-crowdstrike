@@ -27,13 +27,12 @@ The following API scopes are required:
 
 ### Optional
 
-- `account_id` (String) The AWS Account ID.
-- `organization_id` (String) The AWS Organization ID
+- `account_id` (String) Filter the results to a specific AWS Account ID. When specified, returns details for the matching AWS account. Can be used together with organization_id filter for OR matching.
+- `organization_id` (String) Filter the results to accounts within a specific AWS Organization. When specified, returns all AWS accounts associated with this organization ID. Can be used together with account_id filter for OR matching.
 
 ### Read-Only
 
 - `accounts` (Attributes List) The list of AWS accounts (see [below for nested schema](#nestedatt--accounts))
-- `id` (String) Placeholder identifier attribute.
 
 <a id="nestedatt--accounts"></a>
 ### Nested Schema for `accounts`
@@ -47,56 +46,17 @@ Read-Only:
 
 - `account_id` (String) The AWS Account ID.
 - `account_type` (String) The type of account. Not needed for non-govcloud environment
-- `asset_inventory` (Attributes) Asset inventory feature status (see [below for nested schema](#nestedatt--accounts--asset_inventory))
+- `asset_inventory_enabled` (Boolean) Weather asset inventory is enabled
 - `cloudtrail_bucket_name` (String)
-- `dspm` (Attributes) DSPM feature status (see [below for nested schema](#nestedatt--accounts--dspm))
+- `dspm_enabled` (Boolean) Weather DSPM is enabled
 - `dspm_role_arn` (String) The ARN of the IAM role to be used by CrowdStrike DSPM
 - `eventbus_arn` (String) The ARN of CrowdStrike Event Bridge to forward messages to
 - `eventbus_name` (String) The name of CrowdStrike Event Bridge to forward messages to
 - `external_id` (String) The external ID used to assume the AWS IAM role
 - `iam_role_arn` (String) The ARN of the AWS IAM role used to access this AWS account
-- `idp` (Attributes) IDP feature status (see [below for nested schema](#nestedatt--accounts--idp))
+- `idp_enabled` (Boolean) Weather IDP is enabled
 - `intermediate_role_arn` (String) The ARN of the intermediate role used to assume the AWS IAM role
 - `is_organization_management_account` (Boolean) Indicates whether this is the management account (formerly known as the root account) of an AWS Organization
 - `organization_id` (String) The AWS Organization ID
-- `realtime_visibility` (Attributes) Realtime visibility feature status (see [below for nested schema](#nestedatt--accounts--realtime_visibility))
-- `sensor_management` (Attributes) Sensor management feature status (see [below for nested schema](#nestedatt--accounts--sensor_management))
-
-<a id="nestedatt--accounts--asset_inventory"></a>
-### Nested Schema for `accounts.asset_inventory`
-
-Read-Only:
-
-- `enabled` (Boolean) Weather asset inventory is enabled
-
-
-<a id="nestedatt--accounts--dspm"></a>
-### Nested Schema for `accounts.dspm`
-
-Read-Only:
-
-- `enabled` (Boolean) Weather DSPM is enabled
-
-
-<a id="nestedatt--accounts--idp"></a>
-### Nested Schema for `accounts.idp`
-
-Read-Only:
-
-- `enabled` (Boolean) Weather IDP is enabled
-
-
-<a id="nestedatt--accounts--realtime_visibility"></a>
-### Nested Schema for `accounts.realtime_visibility`
-
-Read-Only:
-
-- `enabled` (Boolean) Weather realtime visibility is enabled
-
-
-<a id="nestedatt--accounts--sensor_management"></a>
-### Nested Schema for `accounts.sensor_management`
-
-Read-Only:
-
-- `enabled` (Boolean) Weather sensor management is enabled
+- `realtime_visibility_enabled` (Boolean) Weather realtime visibility is enabled
+- `sensor_management_enabled` (Boolean) Weather sensor management is enabled
