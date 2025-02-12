@@ -559,6 +559,13 @@ func (r *cloudAWSAccountResource) createCSPMAccount(
 	},
 	)
 	if err != nil {
+		if _, ok := err.(*cspm_registration.CreateCSPMAwsAccountForbidden); ok {
+			diags.AddError(
+				"Failed to create CSPM AWS account: 403 Forbidden",
+				scopes.GenerateScopeDescription(cloudSecurityScopes),
+			)
+			return nil, diags
+		}
 		diags.AddError(
 			"Failed to create CSPM AWS account",
 			fmt.Sprintf("Failed to create CSPM AWS account: %s", err.Error()),
@@ -621,6 +628,13 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 		},
 	})
 	if err != nil {
+		if _, ok := err.(*cloud_aws_registration.CloudRegistrationAwsCreateAccountForbidden); ok {
+			diags.AddError(
+				"Failed to create Cloud Registration AWS account: 403 Forbidden",
+				scopes.GenerateScopeDescription(cloudSecurityScopes),
+			)
+			return nil, diags
+		}
 		diags.AddError(
 			"Failed to create Cloud Registration AWS account",
 			fmt.Sprintf("Failed to create Cloud Registration AWS account: %s", err.Error()),
@@ -789,6 +803,14 @@ func (r *cloudAWSAccountResource) getCSPMAccount(
 		Ids:     []string{accountID},
 	})
 	if err != nil {
+		if forbidden, ok := err.(*cspm_registration.GetCSPMAwsAccountForbidden); ok {
+			tflog.Info(ctx, "forbidden", map[string]interface{}{"resp": forbidden})
+			diags.AddError(
+				"Failed to read CSPM AWS account: 403 Forbidden",
+				scopes.GenerateScopeDescription(cloudSecurityScopes),
+			)
+			return nil, diags
+		}
 		diags.AddError(
 			"Failed to read CSPM AWS account",
 			fmt.Sprintf("Failed to get CSPM AWS account: %s", err.Error()),
@@ -825,6 +847,13 @@ func (r *cloudAWSAccountResource) getCloudAccount(
 		Ids:     []string{accountID},
 	})
 	if err != nil {
+		if _, ok := err.(*cloud_aws_registration.CloudRegistrationAwsGetAccountsForbidden); ok {
+			diags.AddError(
+				"Failed to read Cloud Registration AWS account: 403 Forbidden",
+				scopes.GenerateScopeDescription(cloudSecurityScopes),
+			)
+			return nil, false, diags
+		}
 		diags.AddError(
 			"Failed to read Cloud Registration AWS account",
 			fmt.Sprintf("Failed to read Cloud Registration AWS account: %s", err.Error()),
@@ -977,6 +1006,13 @@ func (r *cloudAWSAccountResource) updateCSPMAccount(
 	})
 
 	if err != nil {
+		if _, ok := err.(*cspm_registration.PatchCSPMAwsAccountForbidden); ok {
+			diags.AddError(
+				"Failed to update CSPM AWS account: 403 Forbidden",
+				scopes.GenerateScopeDescription(cloudSecurityScopes),
+			)
+			return nil, diags
+		}
 		diags.AddError(
 			"Failed to update CSPM AWS account",
 			fmt.Sprintf("Failed to update CSPM AWS account: %s", err.Error()),
@@ -1036,24 +1072,31 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 	})
 
 	if err != nil {
+		if _, ok := err.(*cloud_aws_registration.CloudRegistrationAwsUpdateAccountForbidden); ok {
+			diags.AddError(
+				"Failed to update Cloud Registration AWS account: 403 Forbidden",
+				scopes.GenerateScopeDescription(cloudSecurityScopes),
+			)
+			return nil, diags
+		}
 		diags.AddError(
-			"Failed to update CSPM AWS account",
-			fmt.Sprintf("Failed to update CSPM AWS account: %s", err.Error()),
+			"Failed to update Cloud Registration AWS account",
+			fmt.Sprintf("Failed to update Cloud Registration AWS account: %s", err.Error()),
 		)
 		return nil, diags
 	}
 	if status != nil {
 		diags.AddError(
-			"Failed to update CSPM AWS account",
-			fmt.Sprintf("Failed to update CSPM AWS account: %s", status.Error()),
+			"Failed to update Cloud Registration AWS account",
+			fmt.Sprintf("Failed to update Cloud Registration AWS account: %s", status.Error()),
 		)
 		return nil, diags
 	}
 
 	if len(res.Payload.Resources) == 0 {
 		diags.AddError(
-			"Failed to update CSPM AWS account",
-			"No error returned from api but CSPM account was not returned. Please report this issue to the provider developers.",
+			"Failed to update Cloud Registration AWS account",
+			"No error returned from api but Cloud Registration account was not returned. Please report this issue to the provider developers.",
 		)
 		return nil, diags
 	}
@@ -1107,6 +1150,13 @@ func (r *cloudAWSAccountResource) deleteCSPMAccount(
 
 	_, status, err := r.client.CspmRegistration.DeleteCSPMAwsAccount(params)
 	if err != nil {
+		if _, ok := err.(*cspm_registration.DeleteCSPMAwsAccountForbidden); ok {
+			diags.AddError(
+				"Failed to delete CSPM AWS account: 403 Forbidden",
+				scopes.GenerateScopeDescription(cloudSecurityScopes),
+			)
+			return diags
+		}
 		diags.AddError(
 			"Failed to delete CSPM AWS account",
 			fmt.Sprintf("Failed to delete CSPM AWS account: %s", err.Error()),
@@ -1149,6 +1199,13 @@ func (r *cloudAWSAccountResource) deleteCloudAccount(
 
 	_, status, err := r.client.CloudAwsRegistration.CloudRegistrationAwsDeleteAccount(params)
 	if err != nil {
+		if _, ok := err.(*cloud_aws_registration.CloudRegistrationAwsDeleteAccountForbidden); ok {
+			diags.AddError(
+				"Failed to delete Cloud Registration AWS account: 403 Forbidden",
+				scopes.GenerateScopeDescription(cloudSecurityScopes),
+			)
+			return diags
+		}
 		diags.AddError(
 			"Failed to delete Cloud Registration AWS account",
 			fmt.Sprintf("Failed to delete Cloud Registration AWS account: %s", err.Error()),

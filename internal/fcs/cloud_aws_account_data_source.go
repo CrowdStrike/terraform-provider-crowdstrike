@@ -9,13 +9,10 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cspm_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
-	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -31,49 +28,28 @@ type cloudAwsAccountsDataSource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-type asssetInventoryFeature struct {
-	Enabled types.Bool `tfsdk:"enabled"`
-}
-
-type reatltimeVisibilityFeature struct {
-	Enabled types.Bool `tfsdk:"enabled"`
-}
-
-type idpFeature struct {
-	Enabled types.Bool `tfsdk:"enabled"`
-}
-
-type sensorManagementFeature struct {
-	Enabled types.Bool `tfsdk:"enabled"`
-}
-
-type dspmFeature struct {
-	Enabled types.Bool `tfsdk:"enabled"`
-}
-
 type cloudAWSAccountDataModel struct {
-	AccountID              types.String                `tfsdk:"account_id"`
-	OrganizationID         types.String                `tfsdk:"organization_id"`
-	TargetOUs              types.List                  `tfsdk:"target_ous"`
-	IsOrgManagementAccount types.Bool                  `tfsdk:"is_organization_management_account"`
-	AccountType            types.String                `tfsdk:"account_type"`
-	ExternalID             types.String                `tfsdk:"external_id"`
-	IntermediateRoleArn    types.String                `tfsdk:"intermediate_role_arn"`
-	IamRoleArn             types.String                `tfsdk:"iam_role_arn"`
-	EventbusName           types.String                `tfsdk:"eventbus_name"`
-	EventbusArn            types.String                `tfsdk:"eventbus_arn"`
-	CloudTrailRegion       types.String                `tfsdk:"cloudtrail_region"`
-	CloudTrailBucketName   types.String                `tfsdk:"cloudtrail_bucket_name"`
-	DspmRoleArn            types.String                `tfsdk:"dspm_role_arn"`
-	AssetInventory         *asssetInventoryFeature     `tfsdk:"asset_inventory"`
-	RealtimeVisibility     *reatltimeVisibilityFeature `tfsdk:"realtime_visibility"`
-	IDP                    *idpFeature                 `tfsdk:"idp"`
-	SensorManagement       *sensorManagementFeature    `tfsdk:"sensor_management"`
-	DSPM                   *dspmFeature                `tfsdk:"dspm"`
+	AccountID                 types.String `tfsdk:"account_id"`
+	OrganizationID            types.String `tfsdk:"organization_id"`
+	TargetOUs                 types.List   `tfsdk:"target_ous"`
+	IsOrgManagementAccount    types.Bool   `tfsdk:"is_organization_management_account"`
+	AccountType               types.String `tfsdk:"account_type"`
+	ExternalID                types.String `tfsdk:"external_id"`
+	IntermediateRoleArn       types.String `tfsdk:"intermediate_role_arn"`
+	IamRoleArn                types.String `tfsdk:"iam_role_arn"`
+	EventbusName              types.String `tfsdk:"eventbus_name"`
+	EventbusArn               types.String `tfsdk:"eventbus_arn"`
+	CloudTrailRegion          types.String `tfsdk:"cloudtrail_region"`
+	CloudTrailBucketName      types.String `tfsdk:"cloudtrail_bucket_name"`
+	DspmRoleArn               types.String `tfsdk:"dspm_role_arn"`
+	AssetInventoryEnabled     types.Bool   `tfsdk:"asset_inventory_enabled"`
+	RealtimeVisibilityEnabled types.Bool   `tfsdk:"realtime_visibility_enabled"`
+	IDPEnabled                types.Bool   `tfsdk:"idp_enabled"`
+	SensorManagementEnabled   types.Bool   `tfsdk:"sensor_management_enabled"`
+	DSPMEnabled               types.Bool   `tfsdk:"dspm_enabled"`
 }
 
 type cloudAwsAccountsDataSourceModel struct {
-	ID             types.String                `tfsdk:"id"`
 	AccountID      types.String                `tfsdk:"account_id"`
 	OrganizationID types.String                `tfsdk:"organization_id"`
 	Accounts       []*cloudAWSAccountDataModel `tfsdk:"accounts"`
@@ -98,29 +74,13 @@ func (d *cloudAwsAccountsDataSource) Schema(_ context.Context, _ datasource.Sche
 			scopes.GenerateScopeDescription(cloudSecurityScopes),
 		),
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Description: "Placeholder identifier attribute.",
-				Computed:    true,
-			},
 			"account_id": schema.StringAttribute{
 				Optional:    true,
-				Description: "The AWS Account ID.",
-				Validators: []validator.String{
-					stringvalidator.ExactlyOneOf(
-						path.MatchRoot("account_id"),
-						path.MatchRoot("organization_id"),
-					),
-				},
+				Description: "Filter the results to a specific AWS Account ID. When specified, returns details for the matching AWS account. Can be used together with organization_id filter for OR matching.",
 			},
 			"organization_id": schema.StringAttribute{
 				Optional:    true,
-				Description: "The AWS Organization ID",
-				Validators: []validator.String{
-					stringvalidator.ExactlyOneOf(
-						path.MatchRoot("account_id"),
-						path.MatchRoot("organization_id"),
-					),
-				},
+				Description: "Filter the results to accounts within a specific AWS Organization. When specified, returns all AWS accounts associated with this organization ID. Can be used together with account_id filter for OR matching.",
 			},
 			"accounts": schema.ListNestedAttribute{
 				Computed:    true,
@@ -180,55 +140,25 @@ func (d *cloudAwsAccountsDataSource) Schema(_ context.Context, _ datasource.Sche
 							Computed:    true,
 							Description: "The ARN of the IAM role to be used by CrowdStrike DSPM",
 						},
-						"asset_inventory": schema.SingleNestedAttribute{
+						"asset_inventory_enabled": schema.BoolAttribute{
 							Computed:    true,
-							Description: "Asset inventory feature status",
-							Attributes: map[string]schema.Attribute{
-								"enabled": schema.BoolAttribute{
-									Computed:    true,
-									Description: "Weather asset inventory is enabled",
-								},
-							},
+							Description: "Weather asset inventory is enabled",
 						},
-						"realtime_visibility": schema.SingleNestedAttribute{
+						"realtime_visibility_enabled": schema.BoolAttribute{
 							Computed:    true,
-							Description: "Realtime visibility feature status",
-							Attributes: map[string]schema.Attribute{
-								"enabled": schema.BoolAttribute{
-									Computed:    true,
-									Description: "Weather realtime visibility is enabled",
-								},
-							},
+							Description: "Weather realtime visibility is enabled",
 						},
-						"idp": schema.SingleNestedAttribute{
+						"idp_enabled": schema.BoolAttribute{
 							Computed:    true,
-							Description: "IDP feature status",
-							Attributes: map[string]schema.Attribute{
-								"enabled": schema.BoolAttribute{
-									Computed:    true,
-									Description: "Weather IDP is enabled",
-								},
-							},
+							Description: "Weather IDP is enabled",
 						},
-						"sensor_management": schema.SingleNestedAttribute{
+						"sensor_management_enabled": schema.BoolAttribute{
 							Computed:    true,
-							Description: "Sensor management feature status",
-							Attributes: map[string]schema.Attribute{
-								"enabled": schema.BoolAttribute{
-									Computed:    true,
-									Description: "Weather sensor management is enabled",
-								},
-							},
+							Description: "Weather sensor management is enabled",
 						},
-						"dspm": schema.SingleNestedAttribute{
+						"dspm_enabled": schema.BoolAttribute{
 							Computed:    true,
-							Description: "DSPM feature status",
-							Attributes: map[string]schema.Attribute{
-								"enabled": schema.BoolAttribute{
-									Computed:    true,
-									Description: "Weather DSPM is enabled",
-								},
-							},
+							Description: "Weather DSPM is enabled",
 						},
 					},
 				},
@@ -250,6 +180,13 @@ func (d *cloudAwsAccountsDataSource) getCSPMAccounts(
 		OrganizationIds: []string{organizationID},
 	})
 	if err != nil {
+		if _, ok := err.(*cspm_registration.GetCSPMAwsAccountForbidden); ok {
+			diags.AddError(
+				"Failed to read CSPM AWS account: 403 Forbidden",
+				scopes.GenerateScopeDescription(cloudSecurityScopes),
+			)
+			return nil, diags
+		}
 		diags.AddError(
 			"Failed to read CSPM AWS accounts",
 			fmt.Sprintf("Failed to get CSPM AWS accounts: %s", err.Error()),
@@ -279,8 +216,15 @@ func (d *cloudAwsAccountsDataSource) getCloudAccounts(
 		Ids:     accounts,
 	})
 	if err != nil {
+		if _, ok := err.(*cloud_aws_registration.CloudRegistrationAwsGetAccountsForbidden); ok {
+			diags.AddError(
+				"Failed to read Cloud Registration AWS accounts:: 403 Forbidden",
+				scopes.GenerateScopeDescription(cloudSecurityScopes),
+			)
+			return nil, diags
+		}
 		diags.AddError(
-			"Failed to read Cloud AWS accounts",
+			"Failed to read Cloud Registration AWS accounts",
 			fmt.Sprintf("Failed to get Cloud AWS accounts: %s", err.Error()),
 		)
 		return nil, diags
@@ -288,7 +232,7 @@ func (d *cloudAwsAccountsDataSource) getCloudAccounts(
 	if status != nil {
 		for _, error := range status.Payload.Errors {
 			diags.AddError(
-				"Failed to read Cloud AWS accounts",
+				"Failed to read Cloud Registration AWS accounts",
 				fmt.Sprintf("Failed to get Cloud AWS accounts: %s", *error.Message),
 			)
 		}
@@ -313,11 +257,10 @@ func (d *cloudAwsAccountsDataSource) Read(ctx context.Context, req datasource.Re
 	ids := make([]string, 0, len(cspmAccounts))
 	idToModel := make(map[string]*cloudAWSAccountDataModel, len(cspmAccounts))
 
-	var managementAcct *models.DomainAWSAccountV2
+	managementAccts := make(map[string]*models.DomainAWSAccountV2)
 	for _, a := range cspmAccounts {
 		if a.IsMaster {
-			managementAcct = a
-			break
+			managementAccts[a.OrganizationID] = a
 		}
 	}
 
@@ -330,56 +273,42 @@ func (d *cloudAwsAccountsDataSource) Read(ctx context.Context, req datasource.Re
 			targetOus = append(targetOus, types.StringValue(ou))
 		}
 		m := &cloudAWSAccountDataModel{
-			AccountID:              types.StringValue(a.AccountID),
-			OrganizationID:         types.StringValue(a.OrganizationID),
-			TargetOUs:              types.ListValueMust(types.StringType, targetOus),
-			IsOrgManagementAccount: types.BoolValue(a.IsMaster),
-			AccountType:            types.StringValue(a.AccountType),
-			ExternalID:             types.StringValue(a.ExternalID),
-			IntermediateRoleArn:    types.StringValue(a.IntermediateRoleArn),
-			IamRoleArn:             types.StringValue(a.IamRoleArn),
-			EventbusName:           types.StringValue(a.EventbusName),
-			EventbusArn:            types.StringValue(a.AwsEventbusArn),
-			CloudTrailBucketName:   types.StringValue(a.AwsCloudtrailBucketName),
-			CloudTrailRegion:       types.StringValue(a.AwsCloudtrailRegion),
-			DspmRoleArn:            types.StringValue(a.DspmRoleArn),
-			AssetInventory: &asssetInventoryFeature{
-				Enabled: types.BoolValue(true), // this feature is always enabled
-			},
-			RealtimeVisibility: &reatltimeVisibilityFeature{
-				Enabled: types.BoolValue(a.BehaviorAssessmentEnabled),
-			},
-			IDP: &idpFeature{
-				Enabled: types.BoolValue(false),
-			},
-			SensorManagement: &sensorManagementFeature{
-				Enabled: types.BoolValue(a.SensorManagementEnabled != nil && *a.SensorManagementEnabled),
-			},
-			DSPM: &dspmFeature{
-				Enabled: types.BoolValue(a.DspmEnabled),
-			},
+			AccountID:                 types.StringValue(a.AccountID),
+			OrganizationID:            types.StringValue(a.OrganizationID),
+			TargetOUs:                 types.ListValueMust(types.StringType, targetOus),
+			IsOrgManagementAccount:    types.BoolValue(a.IsMaster),
+			AccountType:               types.StringValue(a.AccountType),
+			ExternalID:                types.StringValue(a.ExternalID),
+			IntermediateRoleArn:       types.StringValue(a.IntermediateRoleArn),
+			IamRoleArn:                types.StringValue(a.IamRoleArn),
+			EventbusName:              types.StringValue(a.EventbusName),
+			EventbusArn:               types.StringValue(a.AwsEventbusArn),
+			CloudTrailBucketName:      types.StringValue(a.AwsCloudtrailBucketName),
+			CloudTrailRegion:          types.StringValue(a.AwsCloudtrailRegion),
+			DspmRoleArn:               types.StringValue(a.DspmRoleArn),
+			AssetInventoryEnabled:     types.BoolValue(true), // this feature is always enabled
+			RealtimeVisibilityEnabled: types.BoolValue(a.BehaviorAssessmentEnabled),
+			IDPEnabled:                types.BoolValue(false),
+			SensorManagementEnabled:   types.BoolValue(a.SensorManagementEnabled != nil && *a.SensorManagementEnabled),
+			DSPMEnabled:               types.BoolValue(a.DspmEnabled),
 		}
 		// For org child accounts, the feature values are not always set.
 		// The management account should be the source of truth in this case.
-		if managementAcct != nil {
-			m.RealtimeVisibility = &reatltimeVisibilityFeature{
-				Enabled: types.BoolValue(managementAcct.BehaviorAssessmentEnabled),
-			}
-			m.IDP = &idpFeature{
-				Enabled: types.BoolValue(false),
-			}
-			m.SensorManagement = &sensorManagementFeature{
-				Enabled: types.BoolValue(managementAcct.SensorManagementEnabled != nil && *managementAcct.SensorManagementEnabled),
-			}
-			m.DSPM = &dspmFeature{
-				Enabled: types.BoolValue(managementAcct.DspmEnabled),
+		if !a.IsMaster && a.OrganizationID != "" {
+			managementAcct, ok := managementAccts[a.OrganizationID]
+			if ok {
+				m.RealtimeVisibilityEnabled = types.BoolValue(managementAcct.BehaviorAssessmentEnabled)
+				m.IDPEnabled = types.BoolValue(false)
+				m.SensorManagementEnabled = types.BoolValue(managementAcct.SensorManagementEnabled != nil && *managementAcct.SensorManagementEnabled)
+				m.DSPMEnabled = types.BoolValue(managementAcct.DspmEnabled)
+			} else {
+				tflog.Warn(ctx, "Got a child account from a different organization.", map[string]interface{}{"account_id": a.AccountID, "organization_id": a.OrganizationID})
 			}
 		}
 		ids = append(ids, a.AccountID)
 		idToModel[a.AccountID] = m
 		data.Accounts = append(data.Accounts, m)
 	}
-	data.ID = types.StringValue("placeholder")
 	// Set state
 	diags = resp.State.Set(ctx, &data)
 	resp.Diagnostics.Append(diags...)
@@ -397,7 +326,7 @@ func (d *cloudAwsAccountsDataSource) Read(ctx context.Context, req datasource.Re
 		for _, p := range a.Products {
 			if *p.Product == "idp" {
 				if m, ok := idToModel[a.AccountID]; ok {
-					m.IDP.Enabled = types.BoolValue(true)
+					m.IDPEnabled = types.BoolValue(true)
 				}
 				break
 			}
