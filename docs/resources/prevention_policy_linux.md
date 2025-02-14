@@ -39,7 +39,7 @@ resource "crowdstrike_prevention_policy_linux" "example" {
   name            = "example_prevention_policy"
   enabled         = true
   description     = "made with terraform"
-  host_groups     = ["d6e3c1e1b3d0467da0fowc96a5e6ecb5"]
+  host_groups     = []
   ioa_rule_groups = []
   cloud_anti_malware = {
     "detection"  = "MODERATE"
@@ -62,6 +62,10 @@ resource "crowdstrike_prevention_policy_linux" "example" {
   http_visibility                              = true
   network_visibility                           = true
   tls_visibility                               = true
+  sensor_tampering_protection                  = true
+  on_write_script_file_visibility              = true
+  memory_visibility                            = true
+
 }
 
 output "prevention_policy_linux" {
@@ -89,11 +93,14 @@ output "prevention_policy_linux" {
 - `filesystem_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor filesystem activity for additional telemetry and improved detections.
 - `ftp_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor unencrypted FTP traffic for malicious patterns and improved detections.
 - `http_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor unencrypted HTTP traffic for malicious patterns and improved detections.
+- `memory_visibility` (Boolean) Whether to enable the setting. When enabled, the sensor will inspect memory-related operations: mmap, mprotect, ptrace and reading/writing remote process memory and produce events.
 - `network_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor network activity for additional telemetry and improved detections.
+- `on_write_script_file_visibility` (Boolean) Whether to enable the setting. Provides improved visibility into various script files being written to disk in addition to clouding a portion of their content.
 - `prevent_suspicious_processes` (Boolean) Whether to enable the setting. Block processes that CrowdStrike analysts classify as suspicious. These are focused on dynamic IOAs, such as malware, exploits and other threats.
 - `quarantine` (Boolean) Whether to enable the setting. Quarantine executable files after they’re prevented by NGAV. When this is enabled, we recommend setting anti-malware prevention levels to Moderate or higher and not using other antivirus solutions.
 - `script_based_execution_monitoring` (Boolean) Whether to enable the setting. Provides visibility into suspicious scripts, including shell and other scripting languages.
 - `sensor_anti_malware` (Attributes) For offline and online hosts, use sensor-based machine learning to identify and analyze unknown executables as they run to detect and prevent malware. (see [below for nested schema](#nestedatt--sensor_anti_malware))
+- `sensor_tampering_protection` (Boolean) Whether to enable the setting. Block attempts to tamper with the sensor by protecting critical components and resources. If disabled, the sensor still creates detections for tampering attempts but will not prevent the activity from occurring. Disabling is not recommended.
 - `tls_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor TLS traffic for malicious patterns and improved detections.
 - `upload_unknown_detection_related_executables` (Boolean) Whether to enable the setting. Upload all unknown detection-related executables for advanced analysis in the cloud.
 - `upload_unknown_executables` (Boolean) Whether to enable the setting. Upload all unknown executables for advanced analysis in the cloud.
