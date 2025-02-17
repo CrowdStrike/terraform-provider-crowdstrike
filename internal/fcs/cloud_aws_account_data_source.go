@@ -174,11 +174,16 @@ func (d *cloudAwsAccountsDataSource) getCSPMAccounts(
 ) ([]*models.DomainAWSAccountV2, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	tflog.Info(ctx, "[datasource] Getting CSPM AWS Accounts ", map[string]interface{}{"accountID": accountID, "organizationID": organizationID})
-	res, status, err := d.client.CspmRegistration.GetCSPMAwsAccount(&cspm_registration.GetCSPMAwsAccountParams{
-		Context:         ctx,
-		Ids:             []string{accountID},
-		OrganizationIds: []string{organizationID},
-	})
+	params := &cspm_registration.GetCSPMAwsAccountParams{
+		Context: ctx,
+	}
+	if len(accountID) > 0 {
+		params.Ids = []string{accountID}
+	}
+	if len(organizationID) > 0 {
+		params.OrganizationIds = []string{organizationID}
+	}
+	res, status, err := d.client.CspmRegistration.GetCSPMAwsAccount(params)
 	if err != nil {
 		if _, ok := err.(*cspm_registration.GetCSPMAwsAccountForbidden); ok {
 			diags.AddError(
