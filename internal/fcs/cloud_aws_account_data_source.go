@@ -61,12 +61,20 @@ func NewCloudAwsAccountsDataSource() datasource.DataSource {
 }
 
 // Metadata returns the data source type name.
-func (d *cloudAwsAccountsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_cloud_aws_accounts"
+func (d *cloudAwsAccountsDataSource) Metadata(
+	_ context.Context,
+	req datasource.MetadataRequest,
+	resp *datasource.MetadataResponse,
+) {
+	resp.TypeName = req.ProviderTypeName + "_cloud_aws_account"
 }
 
 // Schema defines the schema for the data source.
-func (d *cloudAwsAccountsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+func (d *cloudAwsAccountsDataSource) Schema(
+	_ context.Context,
+	_ datasource.SchemaRequest,
+	resp *datasource.SchemaResponse,
+) {
 	resp.Schema = schema.Schema{
 		Description: "Fetches Cloud AWS accounts by account_id or organization_id",
 		MarkdownDescription: fmt.Sprintf(
@@ -173,7 +181,11 @@ func (d *cloudAwsAccountsDataSource) getCSPMAccounts(
 	organizationID string,
 ) ([]*models.DomainAWSAccountV2, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	tflog.Info(ctx, "[datasource] Getting CSPM AWS Accounts ", map[string]interface{}{"accountID": accountID, "organizationID": organizationID})
+	tflog.Info(
+		ctx,
+		"[datasource] Getting CSPM AWS Accounts ",
+		map[string]interface{}{"accountID": accountID, "organizationID": organizationID},
+	)
 	params := &cspm_registration.GetCSPMAwsAccountParams{
 		Context: ctx,
 	}
@@ -215,11 +227,17 @@ func (d *cloudAwsAccountsDataSource) getCloudAccounts(
 	accounts []string,
 ) ([]*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	tflog.Debug(ctx, "[datasource] Getting Cloud AWS Accounts ", map[string]interface{}{"accounts": accounts})
-	res, status, err := d.client.CloudAwsRegistration.CloudRegistrationAwsGetAccounts(&cloud_aws_registration.CloudRegistrationAwsGetAccountsParams{
-		Context: ctx,
-		Ids:     accounts,
-	})
+	tflog.Debug(
+		ctx,
+		"[datasource] Getting Cloud AWS Accounts ",
+		map[string]interface{}{"accounts": accounts},
+	)
+	res, status, err := d.client.CloudAwsRegistration.CloudRegistrationAwsGetAccounts(
+		&cloud_aws_registration.CloudRegistrationAwsGetAccountsParams{
+			Context: ctx,
+			Ids:     accounts,
+		},
+	)
 	if err != nil {
 		if _, ok := err.(*cloud_aws_registration.CloudRegistrationAwsGetAccountsForbidden); ok {
 			diags.AddError(
@@ -247,13 +265,21 @@ func (d *cloudAwsAccountsDataSource) getCloudAccounts(
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (d *cloudAwsAccountsDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+func (d *cloudAwsAccountsDataSource) Read(
+	ctx context.Context,
+	req datasource.ReadRequest,
+	resp *datasource.ReadResponse,
+) {
 	var data cloudAwsAccountsDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	cspmAccounts, diags := d.getCSPMAccounts(ctx, data.AccountID.ValueString(), data.OrganizationID.ValueString())
+	cspmAccounts, diags := d.getCSPMAccounts(
+		ctx,
+		data.AccountID.ValueString(),
+		data.OrganizationID.ValueString(),
+	)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -294,17 +320,24 @@ func (d *cloudAwsAccountsDataSource) Read(ctx context.Context, req datasource.Re
 			AssetInventoryEnabled:     types.BoolValue(true), // this feature is always enabled
 			RealtimeVisibilityEnabled: types.BoolValue(a.BehaviorAssessmentEnabled),
 			IDPEnabled:                types.BoolValue(false),
-			SensorManagementEnabled:   types.BoolValue(a.SensorManagementEnabled != nil && *a.SensorManagementEnabled),
-			DSPMEnabled:               types.BoolValue(a.DspmEnabled),
+			SensorManagementEnabled: types.BoolValue(
+				a.SensorManagementEnabled != nil && *a.SensorManagementEnabled,
+			),
+			DSPMEnabled: types.BoolValue(a.DspmEnabled),
 		}
 		// For org child accounts, the feature values are not always set.
 		// The management account should be the source of truth in this case.
 		if !a.IsMaster && a.OrganizationID != "" {
 			managementAcct, ok := managementAccts[a.OrganizationID]
 			if ok {
-				m.RealtimeVisibilityEnabled = types.BoolValue(managementAcct.BehaviorAssessmentEnabled)
+				m.RealtimeVisibilityEnabled = types.BoolValue(
+					managementAcct.BehaviorAssessmentEnabled,
+				)
 				m.IDPEnabled = types.BoolValue(false)
-				m.SensorManagementEnabled = types.BoolValue(managementAcct.SensorManagementEnabled != nil && *managementAcct.SensorManagementEnabled)
+				m.SensorManagementEnabled = types.BoolValue(
+					managementAcct.SensorManagementEnabled != nil &&
+						*managementAcct.SensorManagementEnabled,
+				)
 				m.DSPMEnabled = types.BoolValue(managementAcct.DspmEnabled)
 			} else {
 				tflog.Warn(ctx, "Got a child account from a different organization.", map[string]interface{}{"account_id": a.AccountID, "organization_id": a.OrganizationID})
