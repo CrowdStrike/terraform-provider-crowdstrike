@@ -39,7 +39,7 @@ resource "crowdstrike_prevention_policy_mac" "example" {
   name            = "example_prevention_policy"
   enabled         = false
   description     = "made with terraform"
-  host_groups     = ["d6e3c1e1b3d0467da0fowc96a5e6ecb5"]
+  host_groups     = []
   ioa_rule_groups = []
   cloud_adware_and_pup = {
     "detection"  = "MODERATE"

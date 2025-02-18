@@ -203,7 +203,7 @@ func (d *sensorUpdatePolicyBuildsDataSource) Read(
 		case "linux":
 			mapBuild(&linuxPlatformBuilds, build)
 			linuxBuilds = append(linuxBuilds, build)
-		default:
+		case "linuxarm64":
 			mapBuild(&linuxArm64PlatformBuilds, build)
 			linuxArm64Builds = append(linuxArm64Builds, build)
 		}

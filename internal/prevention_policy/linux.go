@@ -60,6 +60,9 @@ type preventionPolicyLinuxResourceModel struct {
 	FTPVisibility                      types.Bool   `tfsdk:"ftp_visibility"`
 	TLSVisibility                      types.Bool   `tfsdk:"tls_visibility"`
 	EmailProtocolVisibility            types.Bool   `tfsdk:"email_protocol_visibility"`
+	SensorTamperingProtection          types.Bool   `tfsdk:"sensor_tampering_protection"`
+	MemoryVisibility                   types.Bool   `tfsdk:"memory_visibility"`
+	OnWriteScriptFileVisibility        types.Bool   `tfsdk:"on_write_script_file_visibility"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -189,6 +192,15 @@ func (r *preventionPolicyLinuxResource) Schema(
 			),
 			"email_protocol_visibility": toggleAttribute(
 				"Allows the sensor to monitor SMTP, IMAP, and POP3 traffic for malicious patterns and improved detections.",
+			),
+			"sensor_tampering_protection": toggleAttribute(
+				"Block attempts to tamper with the sensor by protecting critical components and resources. If disabled, the sensor still creates detections for tampering attempts but will not prevent the activity from occurring. Disabling is not recommended.",
+			),
+			"memory_visibility": toggleAttribute(
+				"When enabled, the sensor will inspect memory-related operations: mmap, mprotect, ptrace and reading/writing remote process memory and produce events.",
+			),
+			"on_write_script_file_visibility": toggleAttribute(
+				"Provides improved visibility into various script files being written to disk in addition to clouding a portion of their content.",
 			),
 		},
 	}
@@ -544,6 +556,11 @@ func (r *preventionPolicyLinuxResource) assignPreventionSettings(
 	state.FTPVisibility = defaultBoolFalse(toggleSettings["FTPVisibility"])
 	state.TLSVisibility = defaultBoolFalse(toggleSettings["TLSVisibility"])
 	state.EmailProtocolVisibility = defaultBoolFalse(toggleSettings["EmailProtocolVisibility"])
+	state.SensorTamperingProtection = defaultBoolFalse(toggleSettings["SensorTamperingProtection"])
+	state.MemoryVisibility = defaultBoolFalse(toggleSettings["MemoryVisibility"])
+	state.OnWriteScriptFileVisibility = defaultBoolFalse(
+		toggleSettings["OnWriteScriptFileVisibility"],
+	)
 
 	// mlslider settings
 	state.CloudAntiMalware = mlSliderSettings["CloudAntiMalware"]
@@ -570,6 +587,9 @@ func (r *preventionPolicyLinuxResource) generatePreventionSettings(
 		"FTPVisibility":                      config.FTPVisibility,
 		"TLSVisibility":                      config.TLSVisibility,
 		"EmailProtocolVisibility":            config.EmailProtocolVisibility,
+		"SensorTamperingProtection":          config.SensorTamperingProtection,
+		"MemoryVisibility":                   config.MemoryVisibility,
+		"OnWriteScriptFileVisibility":        config.OnWriteScriptFileVisibility,
 	}
 
 	mlSliderSettings := map[string]mlSlider{

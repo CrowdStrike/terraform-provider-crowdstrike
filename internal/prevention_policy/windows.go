@@ -64,6 +64,7 @@ type preventionPolicyWindowsResourceModel struct {
 	RedactHTTPDetectionDetails                types.Bool         `tfsdk:"redact_http_detection_details"`
 	HardwareEnhancedExploitDetection          types.Bool         `tfsdk:"hardware_enhanced_exploit_detection"`
 	EnhancedExploitationVisibility            types.Bool         `tfsdk:"enhanced_exploitation_visibility"`
+	DLLLoadVisibility                         types.Bool         `tfsdk:"enhanced_dll_load_visibility"`
 	MemoryScan                                types.Bool         `tfsdk:"memory_scanning"`
 	CPUMemoryScan                             types.Bool         `tfsdk:"memory_scanning_scan_with_cpu"`
 	FirmwareAnalysisExtraction                types.Bool         `tfsdk:"bios_deep_visibility"`
@@ -245,6 +246,9 @@ func (r *preventionPolicyWindowsResource) Schema(
 			),
 			"enhanced_exploitation_visibility": toggleAttribute(
 				"For hosts running Windows 10 1809 and Server 2019 and later, provides additional visibility into common exploitation techniques used to weaken or circumvent application security.",
+			),
+			"enhanced_dll_load_visibility": toggleAttribute(
+				"For hosts running Windows Server, increases sensor visibility of loaded DLLs. Improves detection coverage and telemetry, but may cause a small performance impact. Recommend testing with critical applications before full deployment.",
 			),
 			"memory_scanning": toggleAttribute(
 				"Provides visibility into in-memory attacks by scanning for suspicious artifacts on hosts with the following: an integrated GPU and supporting OS libraries, Windows 10 v1607 (RS1) or later, and a Skylake or newer Intel CPU.",
@@ -881,6 +885,7 @@ func (r *preventionPolicyWindowsResource) assignPreventionSettings(
 	state.EnhancedExploitationVisibility = defaultBoolFalse(
 		toggleSettings["EnhancedExploitationVisibility"],
 	)
+	state.DLLLoadVisibility = defaultBoolFalse(toggleSettings["DLLLoadVisibility"])
 	state.MemoryScan = defaultBoolFalse(toggleSettings["MemoryScan"])
 	state.CPUMemoryScan = defaultBoolFalse(toggleSettings["CPUMemoryScan"])
 	state.FirmwareAnalysisExtraction = defaultBoolFalse(
@@ -967,6 +972,7 @@ func (r *preventionPolicyWindowsResource) generatePreventionSettings(
 		"RedactHTTPDetectionDetails":                config.RedactHTTPDetectionDetails,
 		"HardwareEnhancedExploitDetection":          config.HardwareEnhancedExploitDetection,
 		"EnhancedExploitationVisibility":            config.EnhancedExploitationVisibility,
+		"DLLLoadVisibility":                         config.DLLLoadVisibility,
 		"MemoryScan":                                config.MemoryScan,
 		"CPUMemoryScan":                             config.CPUMemoryScan,
 		"FirmwareAnalysisExtraction":                config.FirmwareAnalysisExtraction,

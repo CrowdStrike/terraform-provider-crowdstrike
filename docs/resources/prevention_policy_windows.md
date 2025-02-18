@@ -37,9 +37,9 @@ provider "crowdstrike" {
 
 resource "crowdstrike_prevention_policy_windows" "example" {
   name            = "example_prevention_policy"
-  enabled         = false
+  enabled         = true
   description     = "made with terraform"
-  host_groups     = ["d6e3c1e1b3d0467da0fowc96a5e6ecb5"]
+  host_groups     = []
   ioa_rule_groups = []
   adware_and_pup = {
     "detection"  = "MODERATE"
@@ -68,56 +68,57 @@ resource "crowdstrike_prevention_policy_windows" "example" {
   extended_user_mode_data = {
     "detection" = "MODERATE"
   }
-  usb_insertion_triggered_scan                   = false
-  application_exploitation_activity              = false
-  additional_user_mode_data                      = false
-  notify_end_users                               = false
-  advanced_remediation                           = false
-  backup_deletion                                = false
-  bios_deep_visibility                           = false
-  chopper_webshell                               = false
-  code_injection                                 = false
-  credential_dumping                             = false
-  cryptowall                                     = false
-  custom_blocking                                = false
-  detect_on_write                                = false
-  drive_by_download                              = false
-  driver_load_prevention                         = false
-  interpreter_only                               = false
-  engine_full_visibility                         = false
-  enhanced_exploitation_visibility               = false
-  enhanced_ml_for_larger_files                   = false
-  file_encryption                                = false
-  file_system_access                             = false
-  force_aslr                                     = false
-  force_dep                                      = false
-  heap_spray_preallocation                       = false
-  null_page_allocation                           = false
-  seh_overwrite_protection                       = false
-  hardware_enhanced_exploit_detection            = false
-  http_detections                                = false
-  redact_http_detection_details                  = false
-  intelligence_sourced_threats                   = false
-  javascript_via_rundll32                        = false
-  locky                                          = false
-  memory_scanning                                = false
-  memory_scanning_scan_with_cpu                  = false
-  microsoft_office_file_suspicious_macro_removal = false
-  on_write_script_file_visibility                = false
-  prevent_suspicious_processes                   = false
-  quarantine_and_security_center_registration    = false
-  quarantine_on_removable_media                  = false
-  quarantine_on_write                            = false
-  script_based_execution_monitoring              = false
-  sensor_tampering_protection                    = false
-  suspicious_registry_operations                 = false
-  suspicious_scripts_and_commands                = false
-  upload_unknown_executables                     = false
-  upload_unknown_detection_related_executables   = false
-  volume_shadow_copy_audit                       = false
-  volume_shadow_copy_protect                     = false
-  vulnerable_driver_protection                   = false
-  windows_logon_bypass_sticky_keys               = false
+  usb_insertion_triggered_scan                   = true
+  application_exploitation_activity              = true
+  additional_user_mode_data                      = true
+  notify_end_users                               = true
+  advanced_remediation                           = true
+  backup_deletion                                = true
+  bios_deep_visibility                           = true
+  chopper_webshell                               = true
+  code_injection                                 = true
+  credential_dumping                             = true
+  cryptowall                                     = true
+  custom_blocking                                = true
+  detect_on_write                                = true
+  drive_by_download                              = true
+  driver_load_prevention                         = true
+  interpreter_only                               = true
+  engine_full_visibility                         = true
+  enhanced_exploitation_visibility               = true
+  enhanced_dll_load_visibility                   = true
+  enhanced_ml_for_larger_files                   = true
+  file_encryption                                = true
+  file_system_access                             = true
+  force_aslr                                     = true
+  force_dep                                      = true
+  heap_spray_preallocation                       = true
+  null_page_allocation                           = true
+  seh_overwrite_protection                       = true
+  hardware_enhanced_exploit_detection            = true
+  http_detections                                = true
+  redact_http_detection_details                  = true
+  intelligence_sourced_threats                   = true
+  javascript_via_rundll32                        = true
+  locky                                          = true
+  memory_scanning                                = true
+  memory_scanning_scan_with_cpu                  = true
+  microsoft_office_file_suspicious_macro_removal = true
+  on_write_script_file_visibility                = true
+  prevent_suspicious_processes                   = true
+  quarantine_and_security_center_registration    = true
+  quarantine_on_removable_media                  = true
+  quarantine_on_write                            = true
+  script_based_execution_monitoring              = true
+  sensor_tampering_protection                    = true
+  suspicious_registry_operations                 = true
+  suspicious_scripts_and_commands                = true
+  upload_unknown_executables                     = true
+  upload_unknown_detection_related_executables   = true
+  volume_shadow_copy_audit                       = true
+  volume_shadow_copy_protect                     = true
+  vulnerable_driver_protection                   = true
+  windows_logon_bypass_sticky_keys               = true
 }
 
 output "prevention_policy_windows" {
@@ -156,6 +157,7 @@ output "prevention_policy_windows" {
 - `driver_load_prevention` (Boolean) Whether to enable the setting. Block the loading of kernel drivers that CrowdStrike analysts have identified as malicious. Available on Windows 10 and Windows Server 2016 and later.
 - `enabled` (Boolean) Enable the prevention policy.
 - `engine_full_visibility` (Boolean) Whether to enable the setting. Provides visibility into malicious System Management Automation engine usage by any application. Requires interpreter_only to be enabled.
+- `enhanced_dll_load_visibility` (Boolean) Whether to enable the setting. For hosts running Windows Server, increases sensor visibility of loaded DLLs. Improves detection coverage and telemetry, but may cause a small performance impact. Recommend testing with critical applications before full deployment.
 - `enhanced_exploitation_visibility` (Boolean) Whether to enable the setting. For hosts running Windows 10 1809 and Server 2019 and later, provides additional visibility into common exploitation techniques used to weaken or circumvent application security.
 - `enhanced_ml_for_larger_files` (Boolean) Whether to enable the setting. Expand ML file size coverage. Existing ML level settings apply.
 - `extended_user_mode_data` (Attributes) Allows the sensor to get more data from a user-mode component it loads into all eligible processes, which augments online machine learning and turns on additional detections. Recommend testing with critical applications before full deployment. (see [below for nested schema](#nestedatt--extended_user_mode_data))

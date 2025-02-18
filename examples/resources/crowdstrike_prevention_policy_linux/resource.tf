@@ -15,7 +15,7 @@ resource "crowdstrike_prevention_policy_linux" "example" {
   name            = "example_prevention_policy"
   enabled         = true
   description     = "made with terraform"
-  host_groups     = ["d6e3c1e1b3d0467da0fowc96a5e6ecb5"]
+  host_groups     = []
   ioa_rule_groups = []
   cloud_anti_malware = {
     "detection"  = "MODERATE"
@@ -38,6 +38,10 @@ resource "crowdstrike_prevention_policy_linux" "example" {
   http_visibility                              = true
   network_visibility                           = true
   tls_visibility                               = true
+  sensor_tampering_protection                  = true
+  on_write_script_file_visibility              = true
+  memory_visibility                            = true
+
 }
 
 output "prevention_policy_linux" {

@@ -11,7 +11,9 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/filevantage"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -56,7 +58,7 @@ type filevantageRuleGroupResourceModel struct {
 	Name        types.String `tfsdk:"name"`
 	Type        types.String `tfsdk:"type"`
 	Description types.String `tfsdk:"description"`
-	Rules       []*fimRule   `tfsdk:"rules"`
+	Rules       types.List   `tfsdk:"rules"`
 	LastUpdated types.String `tfsdk:"last_updated"`
 }
 
@@ -100,6 +102,47 @@ type fimRule struct {
 	WatchPermissionsKeyChanges types.Bool `tfsdk:"watch_key_permissions_changes"`
 	WatchSetValueChanges       types.Bool `tfsdk:"watch_key_value_set_changes"`
 	WatchDeleteValueChanges    types.Bool `tfsdk:"watch_key_value_delete_changes"`
+}
+
+func (f fimRule) attrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"id":                types.StringType,
+		"description":       types.StringType,
+		"precedence":        types.Int64Type,
+		"path":              types.StringType,
+		"severity":          types.StringType,
+		"depth":             types.StringType,
+		"include":           types.StringType,
+		"exclude":           types.StringType,
+		"include_users":     types.StringType,
+		"include_processes": types.StringType,
+		"exclude_users":     types.StringType,
+		"exclude_processes": types.StringType,
+		"file_names": types.ListType{
+			ElemType: types.StringType,
+		},
+		"registry_values": types.ListType{
+			ElemType: types.StringType,
+		},
+		"enable_content_capture":             types.BoolType,
+		"watch_directory_delete_changes":     types.BoolType,
+		"watch_directory_create_changes":     types.BoolType,
+		"watch_directory_rename_changes":     types.BoolType,
+		"watch_directory_attribute_changes":  types.BoolType,
+		"watch_directory_permission_changes": types.BoolType,
+		"watch_file_rename_changes":          types.BoolType,
+		"watch_file_write_changes":           types.BoolType,
+		"watch_file_create_changes":          types.BoolType,
+		"watch_file_delete_changes":          types.BoolType,
+		"watch_file_attribute_changes":       types.BoolType,
+		"watch_file_permission_changes":      types.BoolType,
+		"watch_key_create_changes":           types.BoolType,
+		"watch_key_delete_changes":           types.BoolType,
+		"watch_key_rename_changes":           types.BoolType,
+		"watch_key_permissions_changes":      types.BoolType,
+		"watch_key_value_set_changes":        types.BoolType,
+		"watch_key_value_delete_changes":     types.BoolType,
+	}
 }
 
 // Configure adds the provider configured client to the resource.
@@ -493,8 +536,13 @@ func (r *filevantageRuleGroupResource) Create(
 		return
 	}
 
+	rules := utils.ListTypeAs[*fimRule](ctx, plan.Rules, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	resp.Diagnostics.Append(
-		r.syncRules(ctx, rgType, plan.Rules, []*fimRule{}, plan.ID.ValueString())...)
+		r.syncRules(ctx, rgType, rules, []*fimRule{}, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -510,7 +558,16 @@ func (r *filevantageRuleGroupResource) Create(
 	}
 
 	if len(rules) > 0 {
-		plan.Rules = rules
+		ruleList, diags := types.ListValueFrom(
+			ctx,
+			types.ObjectType{AttrTypes: fimRule{}.attrTypes()},
+			rules,
+		)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		plan.Rules = ruleList
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -547,7 +604,6 @@ func (r *filevantageRuleGroupResource) Read(
 	}
 
 	assignRuleGroup(res, &state)
-	state.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
 	rules, diags := r.getRules(
 		ctx,
@@ -560,7 +616,17 @@ func (r *filevantageRuleGroupResource) Read(
 	}
 
 	if len(rules) > 0 {
-		state.Rules = rules
+		ruleList, diags := types.ListValueFrom(
+			ctx,
+			types.ObjectType{AttrTypes: fimRule{}.attrTypes()},
+			&rules,
+		)
+
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		state.Rules = ruleList
 	}
 
 	// Set refreshed state
@@ -615,12 +681,19 @@ func (r *filevantageRuleGroupResource) Update(
 	assignRuleGroup(res, &plan)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
+	planRules := utils.ListTypeAs[*fimRule](ctx, plan.Rules, &resp.Diagnostics)
+	stateRules := utils.ListTypeAs[*fimRule](ctx, state.Rules, &resp.Diagnostics)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	resp.Diagnostics.Append(
 		r.syncRules(
 			ctx,
 			plan.Type.ValueString(),
-			plan.Rules,
-			state.Rules,
+			planRules,
+			stateRules,
 			plan.ID.ValueString(),
 		)...)
 	if resp.Diagnostics.HasError() {
@@ -638,7 +711,16 @@ func (r *filevantageRuleGroupResource) Update(
 	}
 
 	if len(rules) > 0 {
-		plan.Rules = rules
+		ruleList, diags := types.ListValueFrom(
+			ctx,
+			types.ObjectType{AttrTypes: fimRule{}.attrTypes()},
+			rules,
+		)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		plan.Rules = ruleList
 	}
 
 	resp.Diagnostics.Append(
@@ -710,7 +792,13 @@ func (r *filevantageRuleGroupResource) ValidateConfig(
 		return
 	}
 
-	for i, rule := range config.Rules {
+	rules := utils.ListTypeAs[*fimRule](ctx, config.Rules, &resp.Diagnostics)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	for i, rule := range rules {
 		rPath := path.Root("rules").AtListIndex(i)
 
 		if rgType == LinuxFiles || rgType == MacFiles || rgType == WindowsFiles {
@@ -1059,15 +1147,6 @@ func (r *filevantageRuleGroupResource) syncRules(
 			rulesToDelete = append(rulesToDelete, rule.ID.ValueString())
 		}
 	}
-
-	// panic(
-	// 	fmt.Sprintf(
-	// 		"rulesToCreate: %v rulesToDelete %v rulesToUpdate %v",
-	// 		rulesToCreate,
-	// 		rulesToDelete,
-	// 		rulesToUpdate,
-	// 	),
-	// )
 
 	diags.Append(r.createRules(ctx, ruleGroupType, rulesToCreate, ruleGroupID)...)
 	diags.Append(r.updateRules(ctx, ruleGroupType, rulesToUpdate, ruleGroupID)...)

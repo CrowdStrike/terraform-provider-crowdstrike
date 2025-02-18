@@ -9,7 +9,6 @@ linters:
   enable:
     - durationcheck
     - errcheck
-    - exportloopref
     - forcetypeassert
     - godot
     - gofmt
@@ -20,8 +19,8 @@ linters:
     - nilerr
     - predeclared
     - staticcheck
-    - tenv
+    - usetesting 
     - unconvert
     - unparam
     - unused
-    - vet
+    - govet
