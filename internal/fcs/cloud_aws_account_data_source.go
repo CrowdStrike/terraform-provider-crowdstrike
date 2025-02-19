@@ -84,11 +84,11 @@ func (d *cloudAwsAccountsDataSource) Schema(
 		Attributes: map[string]schema.Attribute{
 			"account_id": schema.StringAttribute{
 				Optional:    true,
-				Description: "Filter the results to a specific AWS Account ID. When specified, returns details for the matching AWS account. Can be used together with organization_id filter for OR matching.",
+				Description: "Filter the results to a specific AWS Account ID. When specified, returns details for the matching AWS account. Can be used together with organization_id filter for OR matching",
 			},
 			"organization_id": schema.StringAttribute{
 				Optional:    true,
-				Description: "Filter the results to accounts within a specific AWS Organization. When specified, returns all AWS accounts associated with this organization ID. Can be used together with account_id filter for OR matching.",
+				Description: "Filter the results to accounts within a specific AWS Organization. When specified, returns all AWS accounts associated with this organization ID. Can be used together with account_id filter for OR matching",
 			},
 			"accounts": schema.ListNestedAttribute{
 				Computed:    true,
@@ -97,16 +97,16 @@ func (d *cloudAwsAccountsDataSource) Schema(
 					Attributes: map[string]schema.Attribute{
 						"account_id": schema.StringAttribute{
 							Computed:    true,
-							Description: "The AWS Account ID.",
+							Description: "The AWS Account ID",
 						},
 						"organization_id": schema.StringAttribute{
 							Computed:    true,
 							Description: "The AWS Organization ID",
 						},
 						"target_ous": schema.ListAttribute{
-							Optional:    true,
+							Computed:    true,
 							ElementType: types.StringType,
-							Description: "The list of target OUs",
+							Description: "The list of AWS Organizational Units (OUs) targeted for this account",
 						},
 						"is_organization_management_account": schema.BoolAttribute{
 							Computed:    true,
@@ -114,7 +114,7 @@ func (d *cloudAwsAccountsDataSource) Schema(
 						},
 						"account_type": schema.StringAttribute{
 							Computed:    true,
-							Description: "The type of account. Not needed for non-govcloud environment",
+							Description: "The AWS account type. Value is 'commercial' for Commercial cloud accounts. For GovCloud environments, value can be either 'commercial' or 'gov' depending on the account type",
 						},
 						"external_id": schema.StringAttribute{
 							Computed:    true,
@@ -130,18 +130,18 @@ func (d *cloudAwsAccountsDataSource) Schema(
 						},
 						"eventbus_name": schema.StringAttribute{
 							Computed:    true,
-							Description: "The name of CrowdStrike Event Bridge to forward messages to",
+							Description: "The name of the Amazon EventBridge used by CrowdStrike to forward messages",
 						},
 						"eventbus_arn": schema.StringAttribute{
 							Computed:    true,
-							Description: "The ARN of CrowdStrike Event Bridge to forward messages to",
+							Description: "The ARN of the Amazon EventBridge used by CrowdStrike to forward messages",
 						},
 						"cloudtrail_bucket_name": schema.StringAttribute{
 							Computed:    true,
-							Description: "",
+							Description: "The name of the CloudTrail S3 bucket used for real-time visibility",
 						},
 						"cloudtrail_region": schema.StringAttribute{
-							Optional:    true,
+							Computed:    true,
 							Description: "The AWS region of the CloudTrail bucket",
 						},
 						"dspm_role_arn": schema.StringAttribute{
@@ -150,23 +150,23 @@ func (d *cloudAwsAccountsDataSource) Schema(
 						},
 						"asset_inventory_enabled": schema.BoolAttribute{
 							Computed:    true,
-							Description: "Weather asset inventory is enabled",
+							Description: "Whether asset inventory is enabled",
 						},
 						"realtime_visibility_enabled": schema.BoolAttribute{
 							Computed:    true,
-							Description: "Weather realtime visibility is enabled",
+							Description: "Whether real-time visibility is enabled",
 						},
 						"idp_enabled": schema.BoolAttribute{
 							Computed:    true,
-							Description: "Weather IDP is enabled",
+							Description: "Whether Identity Protection is enabled",
 						},
 						"sensor_management_enabled": schema.BoolAttribute{
 							Computed:    true,
-							Description: "Weather sensor management is enabled",
+							Description: "Whether 1-click sensor deployment is enabled",
 						},
 						"dspm_enabled": schema.BoolAttribute{
 							Computed:    true,
-							Description: "Weather DSPM is enabled",
+							Description: "Whether Data Security Posture Management is enabled",
 						},
 					},
 				},
