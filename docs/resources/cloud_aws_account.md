@@ -64,11 +64,11 @@ resource "crowdstrike_cloud_aws_account" "org" {
 
 ### Required
 
-- `account_id` (String) The AWS Account ID.
+- `account_id` (String) The AWS Account ID
 
 ### Optional
 
-- `account_type` (String) The type of account. Not needed for non-govcloud environment
+- `account_type` (String) The AWS account type. Value is 'commercial' for Commercial cloud accounts. For GovCloud environments, value can be either 'commercial' or 'gov' depending on the account type
 - `asset_inventory` (Attributes) (see [below for nested schema](#nestedatt--asset_inventory))
 - `deployment_method` (String) How the account was deployed. Valid values are 'terraform-native' and 'terraform-cft'
 - `dspm` (Attributes) (see [below for nested schema](#nestedatt--dspm))
@@ -77,14 +77,14 @@ resource "crowdstrike_cloud_aws_account" "org" {
 - `organization_id` (String) The AWS Organization ID
 - `realtime_visibility` (Attributes) (see [below for nested schema](#nestedatt--realtime_visibility))
 - `sensor_management` (Attributes) (see [below for nested schema](#nestedatt--sensor_management))
-- `target_ous` (List of String) The list of target OUs
+- `target_ous` (List of String) The list of target Organizational Units
 
 ### Read-Only
 
-- `cloudtrail_bucket_name` (String) The name of the CloudTrail bucket used for realtime visibility
-- `dspm_role_arn` (String) The ARN of the IAM role to be used by CrowdStrike DSPM
-- `eventbus_arn` (String) The ARN of CrowdStrike Event Bridge to forward messages to
-- `eventbus_name` (String) The name of CrowdStrike Event Bridge to forward messages to
+- `cloudtrail_bucket_name` (String) The name of the CloudTrail S3 bucket used for real-time visibility
+- `dspm_role_arn` (String) The ARN of the IAM role to be used by CrowdStrike Data Security Posture Management
+- `eventbus_arn` (String) The ARN of the Amazon EventBridge used by CrowdStrike to forward messages
+- `eventbus_name` (String) The name of the Amazon EventBridge used by CrowdStrike to forward messages
 - `external_id` (String) The external ID used to assume the AWS IAM role
 - `iam_role_arn` (String) The ARN of the AWS IAM role used to access this AWS account
 - `intermediate_role_arn` (String) The ARN of the intermediate role used to assume the AWS IAM role
@@ -106,7 +106,7 @@ Optional:
 
 Required:
 
-- `enabled` (Boolean) Enable asset inventory
+- `enabled` (Boolean) Enable Data Security Posture Management
 
 Optional:
 
@@ -118,11 +118,11 @@ Optional:
 
 Required:
 
-- `enabled` (Boolean) Enable realtime visibility
+- `enabled` (Boolean) Enable Identity Protection
 
 Read-Only:
 
-- `status` (String) Current status of the IDP integration
+- `status` (String) Current status of the Identity Protection integration
 
 
 <a id="nestedatt--realtime_visibility"></a>
@@ -130,12 +130,12 @@ Read-Only:
 
 Required:
 
-- `cloudtrail_region` (String) Custom AWS IAM role name
-- `enabled` (Boolean) Enable realtime visibility
+- `cloudtrail_region` (String) The AWS region of the CloudTrail bucket
+- `enabled` (Boolean) Enable real-time visibility and detection
 
 Optional:
 
-- `use_existing_cloudtrail` (Boolean) Set to true if a Cloudtrail already exists
+- `use_existing_cloudtrail` (Boolean) Set to true if a CloudTrail already exists
 
 
 <a id="nestedatt--sensor_management"></a>
@@ -143,4 +143,4 @@ Optional:
 
 Required:
 
-- `enabled` (Boolean) Enable realtime visibility
+- `enabled` (Boolean) Enable 1-click sensor deployment

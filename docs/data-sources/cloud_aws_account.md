@@ -54,8 +54,8 @@ data "crowdstrike_cloud_aws_account" "org" {
 
 ### Optional
 
-- `account_id` (String) Filter the results to a specific AWS Account ID. When specified, returns details for the matching AWS account. Can be used together with organization_id filter for OR matching.
-- `organization_id` (String) Filter the results to accounts within a specific AWS Organization. When specified, returns all AWS accounts associated with this organization ID. Can be used together with account_id filter for OR matching.
+- `account_id` (String) Filter the results to a specific AWS Account ID. When specified, returns details for the matching AWS account. Can be used together with organization_id filter for OR matching
+- `organization_id` (String) Filter the results to accounts within a specific AWS Organization. When specified, returns all AWS accounts associated with this organization ID. Can be used together with account_id filter for OR matching
 
 ### Read-Only
 
@@ -64,26 +64,23 @@ data "crowdstrike_cloud_aws_account" "org" {
 <a id="nestedatt--accounts"></a>
 ### Nested Schema for `accounts`
 
-Optional:
-
-- `cloudtrail_region` (String) The AWS region of the CloudTrail bucket
-- `target_ous` (List of String) The list of target OUs
-
 Read-Only:
 
-- `account_id` (String) The AWS Account ID.
-- `account_type` (String) The type of account. Not needed for non-govcloud environment
-- `asset_inventory_enabled` (Boolean) Weather asset inventory is enabled
-- `cloudtrail_bucket_name` (String)
-- `dspm_enabled` (Boolean) Weather DSPM is enabled
+- `account_id` (String) The AWS Account ID
+- `account_type` (String) The AWS account type. Value is 'commercial' for Commercial cloud accounts. For GovCloud environments, value can be either 'commercial' or 'gov' depending on the account type
+- `asset_inventory_enabled` (Boolean) Whether asset inventory is enabled
+- `cloudtrail_bucket_name` (String) The name of the CloudTrail S3 bucket used for real-time visibility
+- `cloudtrail_region` (String) The AWS region of the CloudTrail bucket
+- `dspm_enabled` (Boolean) Whether Data Security Posture Management is enabled
 - `dspm_role_arn` (String) The ARN of the IAM role to be used by CrowdStrike DSPM
-- `eventbus_arn` (String) The ARN of CrowdStrike Event Bridge to forward messages to
-- `eventbus_name` (String) The name of CrowdStrike Event Bridge to forward messages to
+- `eventbus_arn` (String) The ARN of the Amazon EventBridge used by CrowdStrike to forward messages
+- `eventbus_name` (String) The name of the Amazon EventBridge used by CrowdStrike to forward messages
 - `external_id` (String) The external ID used to assume the AWS IAM role
 - `iam_role_arn` (String) The ARN of the AWS IAM role used to access this AWS account
-- `idp_enabled` (Boolean) Weather IDP is enabled
+- `idp_enabled` (Boolean) Whether Identity Protection is enabled
 - `intermediate_role_arn` (String) The ARN of the intermediate role used to assume the AWS IAM role
 - `is_organization_management_account` (Boolean) Indicates whether this is the management account (formerly known as the root account) of an AWS Organization
 - `organization_id` (String) The AWS Organization ID
-- `realtime_visibility_enabled` (Boolean) Weather realtime visibility is enabled
-- `sensor_management_enabled` (Boolean) Weather sensor management is enabled
+- `realtime_visibility_enabled` (Boolean) Whether real-time visibility is enabled
+- `sensor_management_enabled` (Boolean) Whether 1-click sensor deployment is enabled
+- `target_ous` (List of String) The list of AWS Organizational Units (OUs) targeted for this account
