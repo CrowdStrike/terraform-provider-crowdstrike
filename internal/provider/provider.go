@@ -6,9 +6,11 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/crowdstrike/gofalcon/falcon"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -21,6 +23,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/logging"
 )
 
 // Ensure ScaffoldingProvider satisfies various provider interfaces.
@@ -197,6 +200,10 @@ func (p *CrowdStrikeProvider) Configure(
 		ClientSecret:      clientSecret,
 		UserAgentOverride: fmt.Sprintf("terraform-provider-crowdstrike/%s", p.version),
 		Context:           context.Background(),
+		HostOverride:      os.Getenv("HOST_OVERRIDE"),
+		TransportDecorator: falcon.TransportDecorator(func(r http.RoundTripper) http.RoundTripper {
+			return logging.NewLoggingHTTPTransport(r)
+		}),
 	}
 
 	if !config.MemberCID.IsNull() {
@@ -229,12 +236,14 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		preventionpolicy.NewPreventionPolicyMacResource,
 		fim.NewFIMPolicyResource,
 		fim.NewFilevantageRuleGroupResource,
+		fcs.NewCloudAWSAccountResource,
 	}
 }
 
 func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewSensorUpdateBuildsDataSource,
+		fcs.NewCloudAwsAccountsDataSource,
 	}
 }
 
