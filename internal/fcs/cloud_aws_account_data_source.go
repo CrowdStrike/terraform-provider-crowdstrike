@@ -37,11 +37,13 @@ type cloudAWSAccountDataModel struct {
 	ExternalID                types.String `tfsdk:"external_id"`
 	IntermediateRoleArn       types.String `tfsdk:"intermediate_role_arn"`
 	IamRoleArn                types.String `tfsdk:"iam_role_arn"`
+	IamRoleName               types.String `tfsdk:"iam_role_name"`
 	EventbusName              types.String `tfsdk:"eventbus_name"`
 	EventbusArn               types.String `tfsdk:"eventbus_arn"`
 	CloudTrailRegion          types.String `tfsdk:"cloudtrail_region"`
 	CloudTrailBucketName      types.String `tfsdk:"cloudtrail_bucket_name"`
 	DspmRoleArn               types.String `tfsdk:"dspm_role_arn"`
+	DspmRoleName              types.String `tfsdk:"dspm_role_name"`
 	AssetInventoryEnabled     types.Bool   `tfsdk:"asset_inventory_enabled"`
 	RealtimeVisibilityEnabled types.Bool   `tfsdk:"realtime_visibility_enabled"`
 	IDPEnabled                types.Bool   `tfsdk:"idp_enabled"`
@@ -128,6 +130,10 @@ func (d *cloudAwsAccountsDataSource) Schema(
 							Computed:    true,
 							Description: "The ARN of the AWS IAM role used to access this AWS account",
 						},
+						"iam_role_name": schema.StringAttribute{
+							Computed:    true,
+							Description: "The name of the AWS IAM role used to access this AWS account",
+						},
 						"eventbus_name": schema.StringAttribute{
 							Computed:    true,
 							Description: "The name of the Amazon EventBridge used by CrowdStrike to forward messages",
@@ -147,6 +153,10 @@ func (d *cloudAwsAccountsDataSource) Schema(
 						"dspm_role_arn": schema.StringAttribute{
 							Computed:    true,
 							Description: "The ARN of the IAM role to be used by CrowdStrike DSPM",
+						},
+						"dspm_role_name": schema.StringAttribute{
+							Computed:    true,
+							Description: "The name of the IAM role to be used by CrowdStrike DSPM",
 						},
 						"asset_inventory_enabled": schema.BoolAttribute{
 							Computed:    true,
@@ -312,11 +322,13 @@ func (d *cloudAwsAccountsDataSource) Read(
 			ExternalID:                types.StringValue(a.ExternalID),
 			IntermediateRoleArn:       types.StringValue(a.IntermediateRoleArn),
 			IamRoleArn:                types.StringValue(a.IamRoleArn),
+			IamRoleName:               types.StringValue(getRoleNameFromArn(a.IamRoleArn)),
 			EventbusName:              types.StringValue(a.EventbusName),
 			EventbusArn:               types.StringValue(a.AwsEventbusArn),
 			CloudTrailBucketName:      types.StringValue(a.AwsCloudtrailBucketName),
 			CloudTrailRegion:          types.StringValue(a.AwsCloudtrailRegion),
 			DspmRoleArn:               types.StringValue(a.DspmRoleArn),
+			DspmRoleName:              types.StringValue(getRoleNameFromArn(a.DspmRoleArn)),
 			AssetInventoryEnabled:     types.BoolValue(true), // this feature is always enabled
 			RealtimeVisibilityEnabled: types.BoolValue(a.BehaviorAssessmentEnabled),
 			IDPEnabled:                types.BoolValue(false),
