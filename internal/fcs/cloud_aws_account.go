@@ -75,10 +75,12 @@ type cloudAWSAccountModel struct {
 	ExternalID           types.String `tfsdk:"external_id"`
 	IntermediateRoleArn  types.String `tfsdk:"intermediate_role_arn"`
 	IamRoleArn           types.String `tfsdk:"iam_role_arn"`
+	IamRoleName          types.String `tfsdk:"iam_role_name"`
 	EventbusName         types.String `tfsdk:"eventbus_name"`
 	EventbusArn          types.String `tfsdk:"eventbus_arn"`
 	CloudTrailBucketName types.String `tfsdk:"cloudtrail_bucket_name"`
 	DspmRoleArn          types.String `tfsdk:"dspm_role_arn"`
+	DspmRoleName         types.String `tfsdk:"dspm_role_name"`
 }
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -124,7 +126,10 @@ func (r *cloudAWSAccountResource) Schema(
 				},
 				Validators: []validator.String{
 					stringvalidator.LengthBetween(12, 12),
-					stringvalidator.RegexMatches(regexp.MustCompile(`^[0-9]+$`), "must be exactly 12 digits"),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^[0-9]+$`),
+						"must be exactly 12 digits",
+					),
 				},
 			},
 			"organization_id": schema.StringAttribute{
@@ -141,7 +146,10 @@ func (r *cloudAWSAccountResource) Schema(
 						stringvalidator.LengthAtMost(0),
 						stringvalidator.All(
 							stringvalidator.LengthBetween(12, 34),
-							stringvalidator.RegexMatches(regexp.MustCompile(`^o-[a-z0-9]{10,32}$`), "must be in the format of o-xxxxxxxxxx"),
+							stringvalidator.RegexMatches(
+								regexp.MustCompile(`^o-[a-z0-9]{10,32}$`),
+								"must be in the format of o-xxxxxxxxxx",
+							),
 						),
 					),
 				},
@@ -150,14 +158,21 @@ func (r *cloudAWSAccountResource) Schema(
 				Optional:    true,
 				Computed:    true,
 				Description: "The list of target Organizational Units",
-				Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
+				Default: listdefault.StaticValue(
+					types.ListValueMust(types.StringType, []attr.Value{}),
+				),
 				PlanModifiers: []planmodifier.List{
 					listplanmodifier.UseStateForUnknown(),
 				},
 				ElementType: types.StringType,
 				Validators: []validator.List{
 					listvalidator.ValueStringsAre(
-						stringvalidator.RegexMatches(regexp.MustCompile(`^(ou-[0-9a-z]{4,32}-[a-z0-9]{8,32}|r-[0-9a-z]{4,32})$`), "must be in the format of ou-xxxx-xxxxxxxx or r-xxxx"),
+						stringvalidator.RegexMatches(
+							regexp.MustCompile(
+								`^(ou-[0-9a-z]{4,32}-[a-z0-9]{8,32}|r-[0-9a-z]{4,32})$`,
+							),
+							"must be in the format of ou-xxxx-xxxxxxxx or r-xxxx",
+						),
 					),
 				},
 			},
@@ -384,6 +399,13 @@ func (r *cloudAWSAccountResource) Schema(
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"iam_role_name": schema.StringAttribute{
+				Computed:    true,
+				Description: "The name of the AWS IAM role used to access this AWS account",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"eventbus_name": schema.StringAttribute{
 				Computed:    true,
 				Description: "The name of the Amazon EventBridge used by CrowdStrike to forward messages",
@@ -408,6 +430,13 @@ func (r *cloudAWSAccountResource) Schema(
 			"dspm_role_arn": schema.StringAttribute{
 				Computed:    true,
 				Description: "The ARN of the IAM role to be used by CrowdStrike Data Security Posture Management",
+				PlanModifiers: []planmodifier.String{
+					DSPMArnStateModifier(),
+				},
+			},
+			"dspm_role_name": schema.StringAttribute{
+				Computed:    true,
+				Description: "The name of the IAM role to be used by CrowdStrike Data Security Posture Management",
 				PlanModifiers: []planmodifier.String{
 					DSPMArnStateModifier(),
 				},
@@ -457,17 +486,21 @@ func (r *cloudAWSAccountResource) Create(
 	state.ExternalID = types.StringValue(cspmAccount.ExternalID)
 	state.IntermediateRoleArn = types.StringValue(cspmAccount.IntermediateRoleArn)
 	state.IamRoleArn = types.StringValue(cspmAccount.IamRoleArn)
+	state.IamRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.IamRoleArn))
 	state.EventbusName = types.StringValue(cspmAccount.EventbusName)
 	state.EventbusArn = types.StringValue(cspmAccount.AwsEventbusArn)
 	state.CloudTrailBucketName = types.StringValue(cspmAccount.AwsCloudtrailBucketName)
 	state.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
+	state.DspmRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.DspmRoleArn))
 
 	// for each feature options
 	// update with data from backend
 
 	state.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
 	if cspmAccount.AwsCloudtrailRegion != "" {
-		state.RealtimeVisibility.CloudTrailRegion = types.StringValue(cspmAccount.AwsCloudtrailRegion)
+		state.RealtimeVisibility.CloudTrailRegion = types.StringValue(
+			cspmAccount.AwsCloudtrailRegion,
+		)
 	}
 
 	state.SensorManagement.Enabled = types.BoolValue(*cspmAccount.SensorManagementEnabled)
@@ -552,14 +585,15 @@ func (r *cloudAWSAccountResource) createCSPMAccount(
 	}
 
 	tflog.Info(ctx, "creating CSPM account")
-	res, status, err := r.client.CspmRegistration.CreateCSPMAwsAccount(&cspm_registration.CreateCSPMAwsAccountParams{
-		Context: ctx,
-		Body: &models.RegistrationAWSAccountCreateRequestExtV2{
-			Resources: []*models.RegistrationAWSAccountExtV2{
-				&createAccount,
+	res, status, err := r.client.CspmRegistration.CreateCSPMAwsAccount(
+		&cspm_registration.CreateCSPMAwsAccountParams{
+			Context: ctx,
+			Body: &models.RegistrationAWSAccountCreateRequestExtV2{
+				Resources: []*models.RegistrationAWSAccountExtV2{
+					&createAccount,
+				},
 			},
 		},
-	},
 	)
 	if err != nil {
 		if _, ok := err.(*cspm_registration.CreateCSPMAwsAccountForbidden); ok {
@@ -622,14 +656,16 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 		}
 	}
 
-	res, status, err := r.client.CloudAwsRegistration.CloudRegistrationAwsCreateAccount(&cloud_aws_registration.CloudRegistrationAwsCreateAccountParams{
-		Context: ctx,
-		Body: &models.RestAWSAccountCreateRequestExtv1{
-			Resources: []*models.RestCloudAWSAccountCreateExtV1{
-				&createAccount,
+	res, status, err := r.client.CloudAwsRegistration.CloudRegistrationAwsCreateAccount(
+		&cloud_aws_registration.CloudRegistrationAwsCreateAccountParams{
+			Context: ctx,
+			Body: &models.RestAWSAccountCreateRequestExtv1{
+				Resources: []*models.RestCloudAWSAccountCreateExtV1{
+					&createAccount,
+				},
 			},
 		},
-	})
+	)
 	if err != nil {
 		if _, ok := err.(*cloud_aws_registration.CloudRegistrationAwsCreateAccountForbidden); ok {
 			diags.AddError(
@@ -714,10 +750,12 @@ func (r *cloudAWSAccountResource) Read(
 	state.ExternalID = types.StringValue(cspmAccount.ExternalID)
 	state.IntermediateRoleArn = types.StringValue(cspmAccount.IntermediateRoleArn)
 	state.IamRoleArn = types.StringValue(cspmAccount.IamRoleArn)
+	state.IamRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.IamRoleArn))
 	state.EventbusName = types.StringValue(cspmAccount.EventbusName)
 	state.EventbusArn = types.StringValue(cspmAccount.AwsEventbusArn)
 	state.CloudTrailBucketName = types.StringValue(cspmAccount.AwsCloudtrailBucketName)
 	state.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
+	state.DspmRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.DspmRoleArn))
 
 	// for each feature options
 	// if old state is nil, we are importing
@@ -739,7 +777,9 @@ func (r *cloudAWSAccountResource) Read(
 	}
 	state.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
 	if cspmAccount.AwsCloudtrailRegion != "" {
-		state.RealtimeVisibility.CloudTrailRegion = types.StringValue(cspmAccount.AwsCloudtrailRegion)
+		state.RealtimeVisibility.CloudTrailRegion = types.StringValue(
+			cspmAccount.AwsCloudtrailRegion,
+		)
 	}
 
 	if oldState.SensorManagement != nil {
@@ -776,7 +816,11 @@ func (r *cloudAWSAccountResource) Read(
 		}
 	}
 	if found {
-		tflog.Info(ctx, "found cloud registration account", map[string]interface{}{"account_id": cloudAccount.AccountID})
+		tflog.Info(
+			ctx,
+			"found cloud registration account",
+			map[string]interface{}{"account_id": cloudAccount.AccountID},
+		)
 		for _, p := range cloudAccount.Products {
 			if *p.Product == "idp" {
 				state.IDP.Enabled = types.BoolValue(true)
@@ -801,10 +845,12 @@ func (r *cloudAWSAccountResource) getCSPMAccount(
 	accountID string,
 ) (*models.DomainAWSAccountV2, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	res, status, err := r.client.CspmRegistration.GetCSPMAwsAccount(&cspm_registration.GetCSPMAwsAccountParams{
-		Context: ctx,
-		Ids:     []string{accountID},
-	})
+	res, status, err := r.client.CspmRegistration.GetCSPMAwsAccount(
+		&cspm_registration.GetCSPMAwsAccountParams{
+			Context: ctx,
+			Ids:     []string{accountID},
+		},
+	)
 	if err != nil {
 		if forbidden, ok := err.(*cspm_registration.GetCSPMAwsAccountForbidden); ok {
 			tflog.Info(ctx, "forbidden", map[string]interface{}{"resp": forbidden})
@@ -845,10 +891,12 @@ func (r *cloudAWSAccountResource) getCloudAccount(
 	accountID string,
 ) (*models.DomainCloudAWSAccountV1, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	res, status, err := r.client.CloudAwsRegistration.CloudRegistrationAwsGetAccounts(&cloud_aws_registration.CloudRegistrationAwsGetAccountsParams{
-		Context: ctx,
-		Ids:     []string{accountID},
-	})
+	res, status, err := r.client.CloudAwsRegistration.CloudRegistrationAwsGetAccounts(
+		&cloud_aws_registration.CloudRegistrationAwsGetAccountsParams{
+			Context: ctx,
+			Ids:     []string{accountID},
+		},
+	)
 	if err != nil {
 		if _, ok := err.(*cloud_aws_registration.CloudRegistrationAwsGetAccountsForbidden); ok {
 			diags.AddError(
@@ -929,14 +977,18 @@ func (r *cloudAWSAccountResource) Update(
 	plan.ExternalID = types.StringValue(cspmAccount.ExternalID)
 	plan.IntermediateRoleArn = types.StringValue(cspmAccount.IntermediateRoleArn)
 	plan.IamRoleArn = types.StringValue(cspmAccount.IamRoleArn)
+	plan.IamRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.IamRoleArn))
 	plan.EventbusName = types.StringValue(cspmAccount.EventbusName)
 	plan.EventbusArn = types.StringValue(cspmAccount.AwsEventbusArn)
 	plan.CloudTrailBucketName = types.StringValue(cspmAccount.AwsCloudtrailBucketName)
 	plan.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
+	plan.DspmRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.DspmRoleArn))
 
 	plan.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
 	if cspmAccount.AwsCloudtrailRegion != "" {
-		plan.RealtimeVisibility.CloudTrailRegion = types.StringValue(cspmAccount.AwsCloudtrailRegion)
+		plan.RealtimeVisibility.CloudTrailRegion = types.StringValue(
+			cspmAccount.AwsCloudtrailRegion,
+		)
 	}
 
 	plan.SensorManagement.Enabled = types.BoolValue(*cspmAccount.SensorManagementEnabled)
@@ -999,14 +1051,16 @@ func (r *cloudAWSAccountResource) updateCSPMAccount(
 		patchAccount.DspmEnabled = model.DSPM.Enabled.ValueBool()
 		patchAccount.DspmRole = model.DSPM.RoleName.ValueString()
 	}
-	res, status, err := r.client.CspmRegistration.PatchCSPMAwsAccount(&cspm_registration.PatchCSPMAwsAccountParams{
-		Context: ctx,
-		Body: &models.RegistrationAWSAccountPatchRequest{
-			Resources: []*models.RegistrationAWSAccountPatch{
-				&patchAccount,
+	res, status, err := r.client.CspmRegistration.PatchCSPMAwsAccount(
+		&cspm_registration.PatchCSPMAwsAccountParams{
+			Context: ctx,
+			Body: &models.RegistrationAWSAccountPatchRequest{
+				Resources: []*models.RegistrationAWSAccountPatch{
+					&patchAccount,
+				},
 			},
 		},
-	})
+	)
 
 	if err != nil {
 		if _, ok := err.(*cspm_registration.PatchCSPMAwsAccountForbidden); ok {
@@ -1065,14 +1119,16 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 		patchAccount.CspEvents = true
 		patchAccount.Products[0].Features = append(patchAccount.Products[0].Features, "default")
 	}
-	res, status, err := r.client.CloudAwsRegistration.CloudRegistrationAwsUpdateAccount(&cloud_aws_registration.CloudRegistrationAwsUpdateAccountParams{
-		Context: ctx,
-		Body: &models.RestAWSAccountCreateRequestExtv1{
-			Resources: []*models.RestCloudAWSAccountCreateExtV1{
-				&patchAccount,
+	res, status, err := r.client.CloudAwsRegistration.CloudRegistrationAwsUpdateAccount(
+		&cloud_aws_registration.CloudRegistrationAwsUpdateAccountParams{
+			Context: ctx,
+			Body: &models.RestAWSAccountCreateRequestExtv1{
+				Resources: []*models.RestCloudAWSAccountCreateExtV1{
+					&patchAccount,
+				},
 			},
 		},
-	})
+	)
 
 	if err != nil {
 		if _, ok := err.(*cloud_aws_registration.CloudRegistrationAwsUpdateAccountForbidden); ok {

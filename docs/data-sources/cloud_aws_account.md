@@ -73,10 +73,12 @@ Read-Only:
 - `cloudtrail_region` (String) The AWS region of the CloudTrail bucket
 - `dspm_enabled` (Boolean) Whether Data Security Posture Management is enabled
 - `dspm_role_arn` (String) The ARN of the IAM role to be used by CrowdStrike DSPM
+- `dspm_role_name` (String) The name of the IAM role to be used by CrowdStrike DSPM
 - `eventbus_arn` (String) The ARN of the Amazon EventBridge used by CrowdStrike to forward messages
 - `eventbus_name` (String) The name of the Amazon EventBridge used by CrowdStrike to forward messages
 - `external_id` (String) The external ID used to assume the AWS IAM role
 - `iam_role_arn` (String) The ARN of the AWS IAM role used to access this AWS account
+- `iam_role_name` (String) The name of the AWS IAM role used to access this AWS account
 - `idp_enabled` (Boolean) Whether Identity Protection is enabled
 - `intermediate_role_arn` (String) The ARN of the intermediate role used to assume the AWS IAM role
 - `is_organization_management_account` (Boolean) Indicates whether this is the management account (formerly known as the root account) of an AWS Organization

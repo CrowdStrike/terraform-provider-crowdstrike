@@ -83,10 +83,12 @@ resource "crowdstrike_cloud_aws_account" "org" {
 
 - `cloudtrail_bucket_name` (String) The name of the CloudTrail S3 bucket used for real-time visibility
 - `dspm_role_arn` (String) The ARN of the IAM role to be used by CrowdStrike Data Security Posture Management
+- `dspm_role_name` (String) The name of the IAM role to be used by CrowdStrike Data Security Posture Management
 - `eventbus_arn` (String) The ARN of the Amazon EventBridge used by CrowdStrike to forward messages
 - `eventbus_name` (String) The name of the Amazon EventBridge used by CrowdStrike to forward messages
 - `external_id` (String) The external ID used to assume the AWS IAM role
 - `iam_role_arn` (String) The ARN of the AWS IAM role used to access this AWS account
+- `iam_role_name` (String) The name of the AWS IAM role used to access this AWS account
 - `intermediate_role_arn` (String) The ARN of the intermediate role used to assume the AWS IAM role
 
 <a id="nestedatt--asset_inventory"></a>
