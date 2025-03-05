@@ -6,9 +6,11 @@ import (
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+
+	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 )
 
-const account_id = "123456789000"
+var account_id = sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
 
 func TestAccCloudAwsAccountResource(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
@@ -23,7 +25,11 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "account_id", account_id),
 					resource.TestCheckResourceAttr(resourceName, "organization_id", "o-tfacctestt"),
-					resource.TestCheckResourceAttr(resourceName, "is_organization_management_account", "true"),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"is_organization_management_account",
+						"true",
+					),
 					resource.TestCheckResourceAttr(resourceName, "account_type", "commercial"),
 					resource.TestCheckResourceAttr(resourceName, "target_ous.#", "2"),
 					// Computed fields should exist
@@ -59,7 +65,11 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "account_id", account_id),
 					resource.TestCheckResourceAttr(resourceName, "organization_id", "o-tfacctestt"),
-					resource.TestCheckResourceAttr(resourceName, "is_organization_management_account", "true"),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"is_organization_management_account",
+						"true",
+					),
 					resource.TestCheckResourceAttr(resourceName, "account_type", "commercial"),
 					resource.TestCheckResourceAttr(resourceName, "target_ous.#", "2"),
 					// Computed fields should exist
@@ -77,7 +87,11 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 				Config: testAccCloudAwsAccountConfig_minimal("123456789333"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "account_id", "123456789333"),
-					resource.TestCheckResourceAttr(resourceName, "is_organization_management_account", "false"),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"is_organization_management_account",
+						"false",
+					),
 					resource.TestCheckResourceAttr(resourceName, "account_type", "commercial"),
 					// Computed fields should exist
 					resource.TestCheckResourceAttrSet(resourceName, "external_id"),
