@@ -92,5 +92,5 @@ jobs:
           FALCON_CLIENT_SECRET: ${{ secrets.FALCON_CLIENT_SECRET }}
           HOST_GROUP_ID: ${{ secrets.HOST_GROUP_ID }}
           IOA_RULE_GROUP_ID: ${{ secrets.IOA_RULE_GROUP_ID }}
-        run: go test -v -cover ./internal/... -parallel 5
+        run: go test -v -cover ./internal/... -parallel 1
  
