@@ -13,6 +13,7 @@ const (
 	ProviderConfig = `
 provider "crowdstrike" {}
 `
+	CharSetNum = "0123456789"
 )
 
 // ProtoV6ProviderFactories are used to instantiate a provider during
