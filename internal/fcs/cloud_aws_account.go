@@ -1041,14 +1041,14 @@ func (r *cloudAWSAccountResource) updateCSPMAccount(
 		TargetOus: targetOUs,
 	}
 	if model.RealtimeVisibility != nil {
-		patchAccount.BehaviorAssessmentEnabled = model.RealtimeVisibility.Enabled.ValueBool()
+		patchAccount.BehaviorAssessmentEnabled = model.RealtimeVisibility.Enabled.ValueBoolPointer()
 		patchAccount.CloudtrailRegion = model.RealtimeVisibility.CloudTrailRegion.ValueString()
 	}
 	if model.SensorManagement != nil {
-		patchAccount.SensorManagementEnabled = model.SensorManagement.Enabled.ValueBool()
+		patchAccount.SensorManagementEnabled = model.SensorManagement.Enabled.ValueBoolPointer()
 	}
 	if model.DSPM != nil {
-		patchAccount.DspmEnabled = model.DSPM.Enabled.ValueBool()
+		patchAccount.DspmEnabled = model.DSPM.Enabled.ValueBoolPointer()
 		patchAccount.DspmRole = model.DSPM.RoleName.ValueString()
 	}
 	res, status, err := r.client.CspmRegistration.PatchCSPMAwsAccount(
