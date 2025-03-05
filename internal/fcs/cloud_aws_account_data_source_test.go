@@ -13,8 +13,8 @@ const test_org_account_id = "123456789222"
 const test_org_id = "o-tforgdataa"
 
 func TestAccCloudAwsAccountDataSource(t *testing.T) {
-	dataSourceNameAcc := "data.crowdstrike_cloud_aws_accounts.acc"
-	dataSourceNameOrg := "data.crowdstrike_cloud_aws_accounts.org"
+	dataSourceNameAcc := "data.crowdstrike_cloud_aws_account.acc"
+	dataSourceNameOrg := "data.crowdstrike_cloud_aws_account.org"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -25,20 +25,49 @@ func TestAccCloudAwsAccountDataSource(t *testing.T) {
 				Config: testAccCloudAwsAccountDataSource_byAccountID(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Check resource was created
-					resource.TestCheckResourceAttr("crowdstrike_cloud_aws_account.acc", "account_id", test_account_id),
+					resource.TestCheckResourceAttr(
+						"crowdstrike_cloud_aws_account.acc",
+						"account_id",
+						test_account_id,
+					),
 
 					resource.TestCheckResourceAttr(dataSourceNameAcc, "accounts.#", "1"),
-					resource.TestCheckResourceAttr(dataSourceNameAcc, "accounts.0.account_id", test_account_id),
-					resource.TestCheckResourceAttr(dataSourceNameAcc, "accounts.0.organization_id", ""),
-					resource.TestCheckResourceAttr(dataSourceNameAcc, "accounts.0.is_organization_management_account", "false"),
-					resource.TestCheckResourceAttr(dataSourceNameAcc, "accounts.0.account_type", "commercial"),
+					resource.TestCheckResourceAttr(
+						dataSourceNameAcc,
+						"accounts.0.account_id",
+						test_account_id,
+					),
+					resource.TestCheckResourceAttr(
+						dataSourceNameAcc,
+						"accounts.0.organization_id",
+						"",
+					),
+					resource.TestCheckResourceAttr(
+						dataSourceNameAcc,
+						"accounts.0.is_organization_management_account",
+						"false",
+					),
+					resource.TestCheckResourceAttr(
+						dataSourceNameAcc,
+						"accounts.0.account_type",
+						"commercial",
+					),
 					// Computed fields should exist
 					resource.TestCheckResourceAttrSet(dataSourceNameAcc, "accounts.0.external_id"),
-					resource.TestCheckResourceAttrSet(dataSourceNameAcc, "accounts.0.intermediate_role_arn"),
+					resource.TestCheckResourceAttrSet(
+						dataSourceNameAcc,
+						"accounts.0.intermediate_role_arn",
+					),
 					resource.TestCheckResourceAttrSet(dataSourceNameAcc, "accounts.0.iam_role_arn"),
-					resource.TestCheckResourceAttrSet(dataSourceNameAcc, "accounts.0.eventbus_name"),
+					resource.TestCheckResourceAttrSet(
+						dataSourceNameAcc,
+						"accounts.0.eventbus_name",
+					),
 					resource.TestCheckResourceAttrSet(dataSourceNameAcc, "accounts.0.eventbus_arn"),
-					resource.TestCheckResourceAttrSet(dataSourceNameAcc, "accounts.0.dspm_role_arn"),
+					resource.TestCheckResourceAttrSet(
+						dataSourceNameAcc,
+						"accounts.0.dspm_role_arn",
+					),
 				),
 			},
 			// Test data source by organization_id
@@ -46,20 +75,49 @@ func TestAccCloudAwsAccountDataSource(t *testing.T) {
 				Config: testAccCloudAwsAccountDataSource_byOrgID(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Check resource was created
-					resource.TestCheckResourceAttr("crowdstrike_cloud_aws_account.org", "account_id", test_org_account_id),
+					resource.TestCheckResourceAttr(
+						"crowdstrike_cloud_aws_account.org",
+						"account_id",
+						test_org_account_id,
+					),
 
 					resource.TestCheckResourceAttr(dataSourceNameOrg, "accounts.#", "1"),
-					resource.TestCheckResourceAttr(dataSourceNameOrg, "accounts.0.account_id", test_org_account_id),
-					resource.TestCheckResourceAttr(dataSourceNameOrg, "accounts.0.organization_id", test_org_id),
-					resource.TestCheckResourceAttr(dataSourceNameOrg, "accounts.0.is_organization_management_account", "true"),
-					resource.TestCheckResourceAttr(dataSourceNameOrg, "accounts.0.account_type", "commercial"),
+					resource.TestCheckResourceAttr(
+						dataSourceNameOrg,
+						"accounts.0.account_id",
+						test_org_account_id,
+					),
+					resource.TestCheckResourceAttr(
+						dataSourceNameOrg,
+						"accounts.0.organization_id",
+						test_org_id,
+					),
+					resource.TestCheckResourceAttr(
+						dataSourceNameOrg,
+						"accounts.0.is_organization_management_account",
+						"true",
+					),
+					resource.TestCheckResourceAttr(
+						dataSourceNameOrg,
+						"accounts.0.account_type",
+						"commercial",
+					),
 					// Computed fields should exist
 					resource.TestCheckResourceAttrSet(dataSourceNameOrg, "accounts.0.external_id"),
-					resource.TestCheckResourceAttrSet(dataSourceNameOrg, "accounts.0.intermediate_role_arn"),
+					resource.TestCheckResourceAttrSet(
+						dataSourceNameOrg,
+						"accounts.0.intermediate_role_arn",
+					),
 					resource.TestCheckResourceAttrSet(dataSourceNameOrg, "accounts.0.iam_role_arn"),
-					resource.TestCheckResourceAttrSet(dataSourceNameOrg, "accounts.0.eventbus_name"),
+					resource.TestCheckResourceAttrSet(
+						dataSourceNameOrg,
+						"accounts.0.eventbus_name",
+					),
 					resource.TestCheckResourceAttrSet(dataSourceNameOrg, "accounts.0.eventbus_arn"),
-					resource.TestCheckResourceAttrSet(dataSourceNameOrg, "accounts.0.dspm_role_arn"),
+					resource.TestCheckResourceAttrSet(
+						dataSourceNameOrg,
+						"accounts.0.dspm_role_arn",
+					),
 				),
 			},
 		},
@@ -72,7 +130,7 @@ resource "crowdstrike_cloud_aws_account" "acc" {
   account_id                         = "%s"
 }
 
-data "crowdstrike_cloud_aws_accounts" "acc" {
+data "crowdstrike_cloud_aws_account" "acc" {
   account_id = "%s"
   depends_on = [
     crowdstrike_cloud_aws_account.acc
@@ -89,7 +147,7 @@ resource "crowdstrike_cloud_aws_account" "org" {
   is_organization_management_account = true
 }
 
-data "crowdstrike_cloud_aws_accounts" "org" {
+data "crowdstrike_cloud_aws_account" "org" {
   organization_id = "%s"
   depends_on = [
     crowdstrike_cloud_aws_account.org
