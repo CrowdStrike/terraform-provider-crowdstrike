@@ -1054,12 +1054,18 @@ func (r *sensorUpdatePolicyResource) assignHostGroups(
 	groups []*models.HostGroupsHostGroupV1,
 ) diag.Diagnostics {
 
-	var hostGroups []string
+	hostGroups := make([]types.String, 0, len(groups))
 	for _, hostGroup := range groups {
-		hostGroups = append(hostGroups, *hostGroup.ID)
+		hostGroups = append(hostGroups, types.StringValue(*hostGroup.ID))
 	}
 
 	hostGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, hostGroups)
+
+	// allow host_groups to stay null instead of defaulting to an empty set when there are no host groups
+	if config.HostGroups.IsNull() && len(hostGroupIDs.Elements()) == 0 {
+		return diags
+	}
+
 	config.HostGroups = hostGroupIDs
 
 	return diags
