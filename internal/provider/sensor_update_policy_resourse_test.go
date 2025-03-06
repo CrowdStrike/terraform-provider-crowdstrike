@@ -22,6 +22,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   name                 = "%s"
   enabled              = true
   description          = "made with terraform"
+  host_groups          = []
   platform_name        = "Windows"
   build                = "18721"
   uninstall_protection = false 
@@ -92,6 +93,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   enabled              = false
   description          = "made with terraform updated"
   platform_name        = "Windows"
+  host_groups          = []
   build                = "18721"
   uninstall_protection = true 
   schedule = {
@@ -246,6 +248,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   platform_name        = "Windows"
   build                = "18721"
   uninstall_protection = true 
+  host_groups          = []
   schedule = {
     enabled = false
   }
@@ -287,9 +290,11 @@ resource "crowdstrike_sensor_update_policy" "test" {
 						"schedule.enabled",
 						"false",
 					),
-					resource.TestCheckNoResourceAttr(
+
+					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
-						"host_groups",
+						"host_groups.#",
+						"0",
 					),
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet(
