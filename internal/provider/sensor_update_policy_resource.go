@@ -23,6 +23,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"golang.org/x/exp/maps"
 )
 
@@ -431,6 +432,14 @@ func (r *sensorUpdatePolicyResource) Create(
 			return
 		}
 
+		if actionResp == nil {
+			resp.Diagnostics.AddError(
+				"Error enabling sensor update policy",
+				"Could not enable sensor update policy, unexpected response of nil received",
+			)
+			return
+		}
+
 		plan.Enabled = types.BoolValue(*actionResp.Payload.Resources[0].Enabled)
 	}
 
@@ -478,6 +487,17 @@ func (r *sensorUpdatePolicyResource) Read(
 			Ids:     []string{state.ID.ValueString()},
 		},
 	)
+
+	if notFound, ok := err.(*sensor_update_policies.GetSensorUpdatePoliciesV2NotFound); ok {
+		tflog.Warn(
+			ctx,
+			fmt.Sprintf("sensor update policy %s not found, removing from state", state.ID),
+			map[string]interface{}{"resp": notFound},
+		)
+
+		resp.State.RemoveResource(ctx)
+		return
+	}
 
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -741,6 +761,14 @@ func (r *sensorUpdatePolicyResource) Update(
 			return
 		}
 
+		if actionResp == nil {
+			resp.Diagnostics.AddError(
+				"Error enabling sensor update policy",
+				"Could not enable sensor update policy, unexpected response of nil received",
+			)
+			return
+		}
+
 		plan.Enabled = types.BoolValue(*actionResp.Payload.Resources[0].Enabled)
 	} else {
 		plan.Enabled = types.BoolValue(*policyResource.Enabled)
@@ -778,6 +806,15 @@ func (r *sensorUpdatePolicyResource) Delete(
 		false,
 	)
 
+	if notFound, ok := err.(*sensor_update_policies.PerformSensorUpdatePoliciesActionNotFound); ok {
+		tflog.Warn(
+			ctx,
+			fmt.Sprintf("sensor update policy %s not found, removing from state", state.ID),
+			map[string]interface{}{"resp": notFound},
+		)
+		return
+	}
+
 	// todo: if we should handle scope and timeout errors instead of giving a vague error
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -793,6 +830,15 @@ func (r *sensorUpdatePolicyResource) Delete(
 			Ids:     []string{state.ID.ValueString()},
 		},
 	)
+
+	if notFound, ok := err.(*sensor_update_policies.DeleteSensorUpdatePoliciesNotFound); ok {
+		tflog.Warn(
+			ctx,
+			fmt.Sprintf("sensor update policy %s not found, removing from state", state.ID),
+			map[string]interface{}{"resp": notFound},
+		)
+		return
+	}
 
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -959,7 +1005,7 @@ func (r *sensorUpdatePolicyResource) updatePolicyEnabledState(
 	ctx context.Context,
 	policyID string,
 	enabled bool,
-) (sensor_update_policies.PerformSensorUpdatePoliciesActionOK, error) {
+) (*sensor_update_policies.PerformSensorUpdatePoliciesActionOK, error) {
 	state := "disable"
 	if enabled {
 		state = "enable"
@@ -975,7 +1021,7 @@ func (r *sensorUpdatePolicyResource) updatePolicyEnabledState(
 		},
 	)
 
-	return *res, err
+	return res, err
 }
 
 // updateHostGroups will remove or add a slice of host groups
