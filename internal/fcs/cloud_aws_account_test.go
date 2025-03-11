@@ -10,10 +10,10 @@ import (
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 )
 
-var account_id = sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
-
 func TestAccCloudAwsAccountResource(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
+	account_id := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	org_id := fmt.Sprintf("o-%s", sdkacctest.RandStringFromCharSet(10, sdkacctest.CharSetAlpha))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -21,10 +21,10 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: testAccCloudAwsAccountConfig_basic(account_id),
+				Config: testAccCloudAwsAccountConfig_basic(account_id, org_id),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "account_id", account_id),
-					resource.TestCheckResourceAttr(resourceName, "organization_id", "o-tfacctestt"),
+					resource.TestCheckResourceAttr(resourceName, "organization_id", org_id),
 					resource.TestCheckResourceAttr(
 						resourceName,
 						"is_organization_management_account",
@@ -61,10 +61,10 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 			},
 			// Update testing
 			{
-				Config: testAccCloudAwsAccountConfig_update(account_id),
+				Config: testAccCloudAwsAccountConfig_update(account_id, org_id),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "account_id", account_id),
-					resource.TestCheckResourceAttr(resourceName, "organization_id", "o-tfacctestt"),
+					resource.TestCheckResourceAttr(resourceName, "organization_id", org_id),
 					resource.TestCheckResourceAttr(
 						resourceName,
 						"is_organization_management_account",
@@ -78,15 +78,14 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 					resource.TestCheckResourceAttrSet(resourceName, "iam_role_arn"),
 					resource.TestCheckResourceAttrSet(resourceName, "eventbus_name"),
 					resource.TestCheckResourceAttrSet(resourceName, "eventbus_arn"),
-					// resource.TestCheckResourceAttrSet(resourceName, "cloudtrail_bucket_name"),
 					resource.TestCheckResourceAttrSet(resourceName, "dspm_role_arn"),
 				),
 			},
 			// Test minimal configuration
 			{
-				Config: testAccCloudAwsAccountConfig_minimal("123456789333"),
+				Config: testAccCloudAwsAccountConfig_minimal(account_id),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "account_id", "123456789333"),
+					resource.TestCheckResourceAttr(resourceName, "account_id", account_id),
 					resource.TestCheckResourceAttr(
 						resourceName,
 						"is_organization_management_account",
@@ -107,24 +106,24 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 }
 
 // Basic configuration.
-func testAccCloudAwsAccountConfig_basic(account string) string {
+func testAccCloudAwsAccountConfig_basic(account string, organization_id string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_aws_account" "test" {
   account_id                         = "%s"
-  organization_id                    = "o-tfacctestt"
+  organization_id                    = "%s"
   is_organization_management_account = true
   target_ous                         = ["ou-abcd-defghijk", "r-abcd"]
   account_type                       = "commercial"
 }
-`, account)
+`, account, organization_id)
 }
 
 // Updated configuration with multiple products.
-func testAccCloudAwsAccountConfig_update(account string) string {
+func testAccCloudAwsAccountConfig_update(account string, organization_id string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_aws_account" "test" {
   account_id                         = "%s"
-  organization_id                    = "o-tfacctestt"
+  organization_id                    = "%s"
   is_organization_management_account = true
   target_ous                         = ["ou-abcd-defghijk", "r-abcd"]
   account_type                       = "commercial"
@@ -146,7 +145,7 @@ resource "crowdstrike_cloud_aws_account" "test" {
     role_name = "mydspmrole"
   }
 }
-`, account)
+`, account, organization_id)
 }
 
 // Minimal configuration with only required attributes.
