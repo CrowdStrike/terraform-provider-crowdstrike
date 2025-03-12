@@ -1,23 +1,25 @@
-package provider
+package sensorupdatepolicy_test
 
 import (
 	"fmt"
 	"os"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+
+	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
 func TestAccSensorUpdatePolicyResource(t *testing.T) {
-	rName := acctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
 	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: providerConfig + fmt.Sprintf(`
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_sensor_update_policy" "test" {
   name                 = "%s"
   enabled              = true
@@ -87,7 +89,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 			},
 			// Update and Read testing
 			{
-				Config: providerConfig + fmt.Sprintf(`
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_sensor_update_policy" "test" {
   name                 = "%s-updated"
   enabled              = false
@@ -154,15 +156,15 @@ resource "crowdstrike_sensor_update_policy" "test" {
 }
 
 func TestAccSensorUpdatePolicyResourceWithHostGroup(t *testing.T) {
-	rName := acctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
 	hostGroupID, _ := os.LookupEnv("HOST_GROUP_ID")
 	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: providerConfig + fmt.Sprintf(`
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_sensor_update_policy" "test" {
   name                 = "%s"
   enabled              = true
@@ -240,7 +242,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 			},
 			// Update and Read testing
 			{
-				Config: providerConfig + fmt.Sprintf(`
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_sensor_update_policy" "test" {
   name                 = "%s-updated"
   enabled              = false
@@ -313,14 +315,14 @@ resource "crowdstrike_sensor_update_policy" "test" {
 }
 
 func TestAccSensorUpdatePolicyResourceWithSchedule(t *testing.T) {
-	rName := acctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
 	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: providerConfig + fmt.Sprintf(`
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_sensor_update_policy" "test" {
   name                 = "%s"
   enabled              = true
@@ -382,7 +384,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 			},
 			// Update and Read testing
 			{
-				Config: providerConfig + fmt.Sprintf(`
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_sensor_update_policy" "test" {
   name                 = "%s-updated"
   enabled              = false

@@ -13,6 +13,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
+	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/function"
@@ -229,7 +230,7 @@ func (p *CrowdStrikeProvider) Configure(
 
 func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewSensorUpdatePolicyResource,
+		sensorupdatepolicy.NewSensorUpdatePolicyResource,
 		NewHostGroupResource,
 		preventionpolicy.NewPreventionPolicyWindowsResource,
 		preventionpolicy.NewPreventionPolicyLinuxResource,
@@ -242,7 +243,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 
 func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		NewSensorUpdateBuildsDataSource,
+		sensorupdatepolicy.NewSensorUpdateBuildsDataSource,
 		fcs.NewCloudAwsAccountsDataSource,
 	}
 }

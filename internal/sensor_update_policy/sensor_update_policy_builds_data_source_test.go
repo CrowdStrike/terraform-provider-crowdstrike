@@ -1,19 +1,20 @@
-package provider
+package sensorupdatepolicy_test
 
 import (
 	"testing"
 
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
 func TestAccSensorUpdatePolicyBuildsDataSource(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			// Read testing
 			{
-				Config: providerConfig + `data "crowdstrike_sensor_update_policy_builds" "test" {}`,
+				Config: acctest.ProviderConfig + `data "crowdstrike_sensor_update_policy_builds" "test" {}`,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(
 						"data.crowdstrike_sensor_update_policy_builds.test",
