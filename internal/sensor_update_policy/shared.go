@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -119,11 +120,29 @@ type policySchedule struct {
 	TimeBlocks []timeBlock  `tfsdk:"time_blocks"`
 }
 
+func (p policySchedule) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled":  types.BoolType,
+		"timezone": types.StringType,
+		"time_blocks": types.SetType{
+			ElemType: types.ObjectType{AttrTypes: timeBlock{}.AttributeTypes()},
+		},
+	}
+}
+
 // timeBlock a time block for a sensor update policy schedule.
 type timeBlock struct {
 	Days      types.Set    `tfsdk:"days"`
 	StartTime types.String `tfsdk:"start_time"`
 	EndTime   types.String `tfsdk:"end_time"`
+}
+
+func (t timeBlock) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"days":       types.SetType{ElemType: types.StringType},
+		"start_time": types.StringType,
+		"end_time":   types.StringType,
+	}
 }
 
 // validTime checks if the start and end time are atleast 1 hour apart.

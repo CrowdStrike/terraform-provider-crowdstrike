@@ -12,7 +12,6 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -57,52 +56,36 @@ type defaultSensorUpdatePolicyResourceModel struct {
 	LastUpdated         types.String `tfsdk:"last_updated"`
 	Schedule            types.Object `tfsdk:"schedule"`
 
-	schedule *defaultPolicySchedule `tfsdk:"-"`
+	schedule *policySchedule `tfsdk:"-"`
 }
 
 // extract extracts the Go values form their terraform wrapped values.
 func (d *defaultSensorUpdatePolicyResourceModel) extract(ctx context.Context) diag.Diagnostics {
 	var diags diag.Diagnostics
 	if !d.Schedule.IsNull() {
-		d.schedule = &defaultPolicySchedule{}
+		d.schedule = &policySchedule{}
 		diags = d.Schedule.As(ctx, d.schedule, basetypes.ObjectAsOptions{})
 	}
 
 	return diags
 }
 
-// policySchedule the schedule for a sensor update policy.
-type defaultPolicySchedule struct {
-	Enabled    types.Bool     `tfsdk:"enabled"`
-	Timezone   types.String   `tfsdk:"timezone"`
-	TimeBlocks []types.Object `tfsdk:"time_blocks"`
+// fromModel transforms Go values to their terraoform wrapped values.
+func (d *defaultSensorUpdatePolicyResourceModel) wrap(ctx context.Context) diag.Diagnostics {
+	var diags diag.Diagnostics
 
-	timeblocks []defaultTimeBlock `tfsdk:"-"`
-}
+	if d.schedule != nil {
+		policyScheduleObj, diag := types.ObjectValueFrom(
+			ctx,
+			d.schedule.AttributeTypes(),
+			d.schedule,
+		)
+		d.Schedule = policyScheduleObj
+		diags.Append(diag...)
 
-func (p defaultPolicySchedule) AttributeTypes() map[string]attr.Type {
-	return map[string]attr.Type{
-		"enabled":  types.BoolType,
-		"timezone": types.StringType,
-		"timeblocks": types.SetType{
-			ElemType: types.ObjectType{AttrTypes: defaultTimeBlock{}.AttributeTypes()},
-		},
 	}
-}
 
-// timeBlock a time block for a sensor update policy schedule.
-type defaultTimeBlock struct {
-	Days      types.Set    `tfsdk:"days"`
-	StartTime types.String `tfsdk:"start_time"`
-	EndTime   types.String `tfsdk:"end_time"`
-}
-
-func (t defaultTimeBlock) AttributeTypes() map[string]attr.Type {
-	return map[string]attr.Type{
-		"days":       types.SetType{ElemType: types.StringType},
-		"start_time": types.StringType,
-		"end_time":   types.StringType,
-	}
+	return diags
 }
 
 // Configure adds the provider configured client to the resource.
@@ -249,10 +232,9 @@ func (r *defaultSensorUpdatePolicyResource) Create(
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-
 	var plan defaultSensorUpdatePolicyResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(plan.extract(ctx)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -276,8 +258,8 @@ func (r *defaultSensorUpdatePolicyResource) Create(
 		return
 	}
 
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(plan.wrap(ctx)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -329,9 +311,8 @@ func (r *defaultSensorUpdatePolicyResource) Read(
 		return
 	}
 
-	// Set refreshed state
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(state.wrap(ctx)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -343,17 +324,15 @@ func (r *defaultSensorUpdatePolicyResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	// Retrieve values from plan
 	var plan defaultSensorUpdatePolicyResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(plan.extract(ctx)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	// Retrieve values from state
+
 	var state defaultSensorUpdatePolicyResourceModel
-	diags = req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -370,8 +349,8 @@ func (r *defaultSensorUpdatePolicyResource) Update(
 		return
 	}
 
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(plan.wrap(ctx)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -395,10 +374,6 @@ func (r *defaultSensorUpdatePolicyResource) ImportState(
 ) {
 	// Retrieve import ID and save to id attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
-	// resp.Diagnostics.Append(
-	// 	resp.State.SetAttribute(ctx, path.Root("schedule").AtName("enabled"), false)...)
-	// resp.Diagnostics.Append(
-	// 	resp.State.SetAttribute(ctx, path.Root("schedule").AtName("timezone"), nil)...)
 
 }
 
@@ -412,6 +387,7 @@ func (r *defaultSensorUpdatePolicyResource) ValidateConfig(
 
 	var config defaultSensorUpdatePolicyResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	resp.Diagnostics.Append(config.extract(ctx)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -438,9 +414,9 @@ func (r *defaultSensorUpdatePolicyResource) ValidateConfig(
 		return
 	}
 
-	scheduleEnabled := config.Schedule.Enabled.ValueBool()
+	scheduleEnabled := config.schedule.Enabled.ValueBool()
 
-	if !scheduleEnabled && !config.Schedule.Timezone.IsNull() {
+	if !scheduleEnabled && !config.schedule.Timezone.IsNull() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("schedule"),
 			"Invalid schedule block: timezone provided",
@@ -450,7 +426,7 @@ func (r *defaultSensorUpdatePolicyResource) ValidateConfig(
 		return
 	}
 
-	if !scheduleEnabled && len(config.Schedule.TimeBlocks) > 0 {
+	if !scheduleEnabled && len(config.schedule.TimeBlocks) > 0 {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("schedule"),
 			"Invalid schedule block: time_blocks provided",
@@ -461,7 +437,7 @@ func (r *defaultSensorUpdatePolicyResource) ValidateConfig(
 	}
 
 	if scheduleEnabled {
-		if config.Schedule.Timezone.IsUnknown() || config.Schedule.Timezone.IsNull() {
+		if config.schedule.Timezone.IsUnknown() || config.schedule.Timezone.IsNull() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("schedule"),
 				"missing required attribute",
@@ -470,7 +446,7 @@ func (r *defaultSensorUpdatePolicyResource) ValidateConfig(
 			return
 		}
 
-		if len(config.Schedule.TimeBlocks) == 0 {
+		if len(config.schedule.TimeBlocks) == 0 {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("schedule"),
 				"missing required attribute",
@@ -480,7 +456,7 @@ func (r *defaultSensorUpdatePolicyResource) ValidateConfig(
 		}
 		usedDays := make(map[string]interface{})
 
-		for _, b := range config.Schedule.TimeBlocks {
+		for _, b := range config.schedule.TimeBlocks {
 			ok, err := validTime(b.StartTime.ValueString(), b.EndTime.ValueString())
 
 			if err != nil {
@@ -560,8 +536,8 @@ func (r *defaultSensorUpdatePolicyResource) updateDefaultPolicy(
 	}
 
 	updateSchedular := models.PolicySensorUpdateScheduler{}
-	updateSchedular.Timezone = config.Schedule.Timezone.ValueStringPointer()
-	updateSchedular.Enabled = config.Schedule.Enabled.ValueBoolPointer()
+	updateSchedular.Timezone = config.schedule.Timezone.ValueStringPointer()
+	updateSchedular.Enabled = config.schedule.Enabled.ValueBoolPointer()
 
 	// WORKAROUND: The API requires a timezone when we are trying to enable/diable the Scheduler
 	// due to other limitiations when it comes to imports we need to allow timezone to be null.
@@ -575,8 +551,8 @@ func (r *defaultSensorUpdatePolicyResource) updateDefaultPolicy(
 		updateSchedular.Timezone = &defaultTimezone
 	}
 
-	if len(config.Schedule.TimeBlocks) > 0 {
-		updateSchedules, diags := createUpdateSchedules(ctx, config.Schedule.TimeBlocks)
+	if len(config.schedule.TimeBlocks) > 0 {
+		updateSchedules, diags := createUpdateSchedules(ctx, config.schedule.TimeBlocks)
 		diags.Append(diags...)
 		if diags.HasError() {
 			return nil, diags
@@ -621,6 +597,10 @@ func (r *defaultSensorUpdatePolicyResource) assignDefaultPolicy(
 	}
 	config.Build = types.StringValue(*policy.Settings.Build)
 
+	if config.PlatformName.IsNull() {
+		config.PlatformName = types.StringValue(*policy.PlatformName)
+	}
+
 	if strings.ToLower(config.PlatformName.ValueString()) == "linux" &&
 		policy.Settings.Variants != nil {
 		for _, v := range policy.Settings.Variants {
@@ -652,17 +632,17 @@ func (r *defaultSensorUpdatePolicyResource) assignDefaultPolicy(
 	}
 
 	if policy.Settings.Scheduler != nil {
-		config.Schedule = policySchedule{}
-		config.Schedule.Enabled = types.BoolValue(*policy.Settings.Scheduler.Enabled)
+		config.schedule = &policySchedule{}
+		config.schedule.Enabled = types.BoolValue(*policy.Settings.Scheduler.Enabled)
 
 		// ignore the timzezone and time_blocks if the schedule is DISABLED
 		// this allows terraform import to work correctly
-		if config.Schedule.Enabled.ValueBool() {
-			config.Schedule.Timezone = types.StringValue(*policy.Settings.Scheduler.Timezone)
+		if config.schedule.Enabled.ValueBool() {
+			config.schedule.Timezone = types.StringValue(*policy.Settings.Scheduler.Timezone)
 
 			if policy.Settings.Scheduler.Schedules != nil {
 				if len(policy.Settings.Scheduler.Schedules) > 0 {
-					config.Schedule.TimeBlocks = []timeBlock{}
+					config.schedule.TimeBlocks = []timeBlock{}
 
 					for _, s := range policy.Settings.Scheduler.Schedules {
 						sCopy := s
@@ -678,7 +658,7 @@ func (r *defaultSensorUpdatePolicyResource) assignDefaultPolicy(
 						if diags.HasError() {
 							return diags
 						}
-						config.Schedule.TimeBlocks = append(config.Schedule.TimeBlocks, timeBlock{
+						config.schedule.TimeBlocks = append(config.schedule.TimeBlocks, timeBlock{
 							Days:      days,
 							StartTime: types.StringValue(*sCopy.Start),
 							EndTime:   types.StringValue(*sCopy.End),
