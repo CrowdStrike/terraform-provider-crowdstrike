@@ -72,7 +72,7 @@ resource "crowdstrike_cloud_aws_account" "org" {
 - `deployment_method` (String) How the account was deployed. Valid values are 'terraform-native' and 'terraform-cft'
 - `dspm` (Attributes) (see [below for nested schema](#nestedatt--dspm))
 - `idp` (Attributes) (see [below for nested schema](#nestedatt--idp))
-- `organization_id` (String) The AWS Organization ID
+- `organization_id` (String) The AWS Organization ID. When this field is provided, the `account_id` should be the management account ID
 - `realtime_visibility` (Attributes) (see [below for nested schema](#nestedatt--realtime_visibility))
 - `sensor_management` (Attributes) (see [below for nested schema](#nestedatt--sensor_management))
 - `target_ous` (List of String) The list of target Organizational Units

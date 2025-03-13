@@ -133,10 +133,11 @@ func (r *cloudAWSAccountResource) Schema(
 				},
 			},
 			"organization_id": schema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
-				Default:     stringdefault.StaticString(""),
-				Description: "The AWS Organization ID",
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString(""),
+				Description:         "The AWS Organization ID",
+				MarkdownDescription: "The AWS Organization ID. When this field is provided, the `account_id` should be the management account ID",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
