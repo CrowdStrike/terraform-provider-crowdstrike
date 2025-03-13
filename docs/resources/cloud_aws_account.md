@@ -36,9 +36,8 @@ provider "crowdstrike" {
 }
 
 resource "crowdstrike_cloud_aws_account" "org" {
-  account_id                         = "123456789012"
-  organization_id                    = "o-1234567890"
-  is_organization_management_account = true
+  account_id      = "123456789012"
+  organization_id = "o-1234567890"
 
   realtime_visibility = {
     enabled           = true
@@ -73,7 +72,6 @@ resource "crowdstrike_cloud_aws_account" "org" {
 - `deployment_method` (String) How the account was deployed. Valid values are 'terraform-native' and 'terraform-cft'
 - `dspm` (Attributes) (see [below for nested schema](#nestedatt--dspm))
 - `idp` (Attributes) (see [below for nested schema](#nestedatt--idp))
-- `is_organization_management_account` (Boolean) Indicates whether this is the management account (formerly known as the root account) of an AWS Organization
 - `organization_id` (String) The AWS Organization ID
 - `realtime_visibility` (Attributes) (see [below for nested schema](#nestedatt--realtime_visibility))
 - `sensor_management` (Attributes) (see [below for nested schema](#nestedatt--sensor_management))
@@ -90,6 +88,7 @@ resource "crowdstrike_cloud_aws_account" "org" {
 - `iam_role_arn` (String) The ARN of the AWS IAM role used to access this AWS account
 - `iam_role_name` (String) The name of the AWS IAM role used to access this AWS account
 - `intermediate_role_arn` (String) The ARN of the intermediate role used to assume the AWS IAM role
+- `is_organization_management_account` (Boolean) Indicates whether this is the management account (formerly known as the root account) of an AWS Organization
 
 <a id="nestedatt--asset_inventory"></a>
 ### Nested Schema for `asset_inventory`

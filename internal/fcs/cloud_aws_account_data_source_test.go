@@ -146,7 +146,6 @@ func testAccCloudAwsAccountDataSource_byOrgID() string {
 resource "crowdstrike_cloud_aws_account" "org" {
   account_id                         = "%s"
   organization_id                    = "%s"
-  is_organization_management_account = true
 }
 
 data "crowdstrike_cloud_aws_account" "org" {

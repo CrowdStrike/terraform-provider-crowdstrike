@@ -11,9 +11,8 @@ provider "crowdstrike" {
 }
 
 resource "crowdstrike_cloud_aws_account" "org" {
-  account_id                         = "123456789012"
-  organization_id                    = "o-1234567890"
-  is_organization_management_account = true
+  account_id      = "123456789012"
+  organization_id = "o-1234567890"
 
   realtime_visibility = {
     enabled           = true
