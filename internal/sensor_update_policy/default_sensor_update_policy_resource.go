@@ -128,7 +128,6 @@ func (d *defaultSensorUpdatePolicyResourceModel) wrap(
 				d.BuildArm64 = types.StringValue(*vCopy.Build)
 			}
 		}
-
 	}
 
 	if *policy.Settings.UninstallProtection == "ENABLED" {

@@ -12,6 +12,8 @@ import (
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -23,6 +25,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"golang.org/x/exp/maps"
 )
@@ -47,17 +50,162 @@ type sensorUpdatePolicyResource struct {
 
 // sensorUpdatePolicyResourceModel is the resource model.
 type sensorUpdatePolicyResourceModel struct {
-	ID                  types.String   `tfsdk:"id"`
-	Enabled             types.Bool     `tfsdk:"enabled"`
-	Name                types.String   `tfsdk:"name"`
-	Build               types.String   `tfsdk:"build"`
-	BuildArm64          types.String   `tfsdk:"build_arm64"`
-	Description         types.String   `tfsdk:"description"`
-	PlatformName        types.String   `tfsdk:"platform_name"`
-	UninstallProtection types.Bool     `tfsdk:"uninstall_protection"`
-	LastUpdated         types.String   `tfsdk:"last_updated"`
-	HostGroups          types.Set      `tfsdk:"host_groups"`
-	Schedule            policySchedule `tfsdk:"schedule"`
+	ID                  types.String `tfsdk:"id"`
+	Enabled             types.Bool   `tfsdk:"enabled"`
+	Name                types.String `tfsdk:"name"`
+	Build               types.String `tfsdk:"build"`
+	BuildArm64          types.String `tfsdk:"build_arm64"`
+	Description         types.String `tfsdk:"description"`
+	PlatformName        types.String `tfsdk:"platform_name"`
+	UninstallProtection types.Bool   `tfsdk:"uninstall_protection"`
+	LastUpdated         types.String `tfsdk:"last_updated"`
+	HostGroups          types.Set    `tfsdk:"host_groups"`
+	Schedule            types.Object `tfsdk:"schedule"`
+
+	schedule *policySchedule `tfsdk:"-"`
+}
+
+// extract extracts the Go values form their terraform wrapped values.
+func (d *sensorUpdatePolicyResourceModel) extract(ctx context.Context) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if !d.Schedule.IsNull() {
+		d.schedule = &policySchedule{}
+		diags = d.Schedule.As(ctx, d.schedule, basetypes.ObjectAsOptions{})
+	}
+
+	return diags
+}
+
+// wrap transforms Go values to their terraform wrapped values.
+func (d *sensorUpdatePolicyResourceModel) wrap(
+	ctx context.Context,
+	policy models.SensorUpdatePolicyV2,
+	validateBuilds bool,
+	validateHostGroups bool,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	d.ID = types.StringValue(*policy.ID)
+	d.Name = types.StringValue(*policy.Name)
+	d.Description = types.StringValue(*policy.Description)
+	d.Enabled = types.BoolValue(*policy.Enabled)
+
+	less := func(a, b string) bool { return a < b }
+	hostGroupDiff := cmp.Diff(d.HostGroups, policy.Groups, cmpopts.SortSlices(less))
+	if hostGroupDiff != "" && validateHostGroups {
+		summary := "Apply ran without issue, but sensor update policy is still missing host groups. This usually happens when an invalid host group is provided."
+
+		if len(policy.Groups) > 0 {
+			hostGroupIds := []string{}
+
+			for _, hostGroup := range policy.Groups {
+				hostGroupIds = append(hostGroupIds, *hostGroup.ID)
+			}
+			summary = fmt.Sprintf(
+				"%s\n\nThe following host groups are assigned to the policy:\n%s",
+				summary,
+				strings.Join(hostGroupIds, "\n"),
+			)
+		}
+		diags.AddAttributeError(path.Root("host_groups"), "Host group mismatch", summary)
+	}
+
+	diags.Append(d.assignHostGroups(ctx, policy.Groups)...)
+
+	if validateBuilds && d.Build.ValueString() != *policy.Settings.Build {
+		diags.AddError(
+			"Inconsistent build returned",
+			fmt.Sprintf(
+				"The API returned a build that did not match the build in plan: %s This normally occurs when an invalid build is provided, please check the build you are passing is valid. It is recommended to use crowdstrike_sensor_update_policy_builds data source to query for build numbers.\n\nIf you believe there is a bug in the provider or need help please let us know by opening a github issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
+				d.Build,
+			),
+		)
+	}
+	d.Build = types.StringValue(*policy.Settings.Build)
+
+	if d.PlatformName.IsNull() {
+		d.PlatformName = types.StringValue(*policy.PlatformName)
+	}
+
+	if strings.ToLower(d.PlatformName.ValueString()) == "linux" &&
+		policy.Settings.Variants != nil {
+		for _, v := range policy.Settings.Variants {
+			vCopy := *v
+			if vCopy.Platform == nil {
+				continue
+			}
+
+			if strings.EqualFold(*vCopy.Platform, linuxArm64Varient) {
+				if validateBuilds && d.BuildArm64.ValueString() != *vCopy.Build {
+					diags.AddError(
+						"Inconsistent build_arm64 returned",
+						fmt.Sprintf(
+							"The API returned a build_arm64 that did not match the build in plan: %s This normally occurs when an invalid build is provided, please check the build you are passing is valid. It is recommended to use crowdstrike_sensor_update_policy_builds data source to query for build numbers.\n\nIf you believe there is a bug in the provider or need help please let us know by opening a github issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
+							d.BuildArm64,
+						),
+					)
+				}
+				d.BuildArm64 = types.StringValue(*vCopy.Build)
+			}
+		}
+	}
+
+	if *policy.Settings.UninstallProtection == "ENABLED" {
+		d.UninstallProtection = types.BoolValue(true)
+	} else {
+		d.UninstallProtection = types.BoolValue(false)
+	}
+
+	if policy.Settings.Scheduler != nil {
+		d.schedule = &policySchedule{}
+		d.schedule.Enabled = types.BoolValue(*policy.Settings.Scheduler.Enabled)
+
+		// ignore the timzezone and time_blocks if the schedule is DISABLED
+		// this allows terraform import to work correctly
+		if d.schedule.Enabled.ValueBool() {
+			d.schedule.Timezone = types.StringValue(*policy.Settings.Scheduler.Timezone)
+
+			if policy.Settings.Scheduler.Schedules != nil {
+				if len(policy.Settings.Scheduler.Schedules) > 0 {
+					d.schedule.TimeBlocks = []timeBlock{}
+
+					for _, s := range policy.Settings.Scheduler.Schedules {
+						sCopy := s
+						daysStr := []string{}
+
+						for _, d := range sCopy.Days {
+							dCopy := d
+							daysStr = append(daysStr, int64ToDay[dCopy])
+						}
+
+						days, diags := types.SetValueFrom(ctx, types.StringType, daysStr)
+						diags.Append(diags...)
+						if diags.HasError() {
+							return diags
+						}
+						d.schedule.TimeBlocks = append(d.schedule.TimeBlocks, timeBlock{
+							Days:      days,
+							StartTime: types.StringValue(*sCopy.Start),
+							EndTime:   types.StringValue(*sCopy.End),
+						})
+					}
+				}
+			}
+		}
+	}
+
+	if d.schedule != nil {
+		policyScheduleObj, diag := types.ObjectValueFrom(
+			ctx,
+			d.schedule.AttributeTypes(),
+			d.schedule,
+		)
+		d.Schedule = policyScheduleObj
+		diags.Append(diag...)
+
+	}
+
+	return diags
 }
 
 // Configure adds the provider configured client to the resource.
@@ -225,6 +373,7 @@ func (r *sensorUpdatePolicyResource) Create(
 ) {
 	var plan sensorUpdatePolicyResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(plan.extract(ctx)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -263,13 +412,13 @@ func (r *sensorUpdatePolicyResource) Create(
 	}
 	policyParams.Body.Resources[0].Settings.UninstallProtection = uninstallProtection
 
-	if plan.Schedule.Enabled.ValueBool() {
+	if plan.schedule.Enabled.ValueBool() {
 		updateSchedular := models.PolicySensorUpdateScheduler{}
-		updateSchedular.Enabled = plan.Schedule.Enabled.ValueBoolPointer()
-		updateSchedular.Timezone = plan.Schedule.Timezone.ValueStringPointer()
+		updateSchedular.Enabled = plan.schedule.Enabled.ValueBoolPointer()
+		updateSchedular.Timezone = plan.schedule.Timezone.ValueStringPointer()
 
-		if len(plan.Schedule.TimeBlocks) > 0 {
-			updateSchedules, diags := createUpdateSchedules(ctx, plan.Schedule.TimeBlocks)
+		if len(plan.schedule.TimeBlocks) > 0 {
+			updateSchedules, diags := createUpdateSchedules(ctx, plan.schedule.TimeBlocks)
 			resp.Diagnostics.Append(diags...)
 			if resp.Diagnostics.HasError() {
 				return
@@ -280,7 +429,7 @@ func (r *sensorUpdatePolicyResource) Create(
 		policyParams.Body.Resources[0].Settings.Scheduler = &updateSchedular
 	}
 
-	policy, err := r.client.SensorUpdatePolicies.CreateSensorUpdatePoliciesV2(&policyParams)
+	res, err := r.client.SensorUpdatePolicies.CreateSensorUpdatePoliciesV2(&policyParams)
 
 	// todo: if we should handle scope and timeout errors instead of giving a vague error
 	if err != nil {
@@ -291,9 +440,9 @@ func (r *sensorUpdatePolicyResource) Create(
 		return
 	}
 
-	policyResource := policy.Payload.Resources[0]
+	policy := res.Payload.Resources[0]
 
-	plan.ID = types.StringValue(*policyResource.ID)
+	plan.ID = types.StringValue(*policy.ID)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)...)
@@ -343,8 +492,15 @@ func (r *sensorUpdatePolicyResource) Create(
 		}
 	}
 
-	diags = resp.State.Set(ctx, plan)
+	policy, diags := getSensorUpdatePolicy(ctx, r.client, plan.ID.ValueString())
+
 	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(plan.wrap(ctx, *policy, true, true)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -362,7 +518,7 @@ func (r *sensorUpdatePolicyResource) Read(
 		return
 	}
 
-	policy, err := r.client.SensorUpdatePolicies.GetSensorUpdatePoliciesV2(
+	res, err := r.client.SensorUpdatePolicies.GetSensorUpdatePoliciesV2(
 		&sensor_update_policies.GetSensorUpdatePoliciesV2Params{
 			Context: ctx,
 			Ids:     []string{state.ID.ValueString()},
@@ -388,82 +544,10 @@ func (r *sensorUpdatePolicyResource) Read(
 		return
 	}
 
-	policyResource := policy.Payload.Resources[0]
+	policy := res.Payload.Resources[0]
 
-	state.ID = types.StringValue(*policyResource.ID)
-	state.Name = types.StringValue(*policyResource.Name)
-	state.Description = types.StringValue(*policyResource.Description)
-	state.Build = types.StringValue(*policyResource.Settings.Build)
-	state.PlatformName = types.StringValue(*policyResource.PlatformName)
-	state.Enabled = types.BoolValue(*policyResource.Enabled)
-
-	if strings.ToLower(state.PlatformName.ValueString()) == "linux" &&
-		policyResource.Settings.Variants != nil {
-		for _, v := range policyResource.Settings.Variants {
-			vCopy := *v
-			if vCopy.Platform == nil {
-				continue
-			}
-
-			if strings.EqualFold(*vCopy.Platform, linuxArm64Varient) {
-				state.BuildArm64 = types.StringValue(*vCopy.Build)
-			}
-		}
-
-	}
-
-	if *policyResource.Settings.UninstallProtection == "ENABLED" {
-		state.UninstallProtection = types.BoolValue(true)
-	} else {
-		state.UninstallProtection = types.BoolValue(false)
-	}
-
-	resp.Diagnostics.Append(r.assignHostGroups(ctx, &state, policyResource.Groups)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if policyResource.Settings.Scheduler != nil {
-		state.Schedule = policySchedule{}
-		state.Schedule.Enabled = types.BoolValue(*policyResource.Settings.Scheduler.Enabled)
-
-		// ignore the timzezone and time_blocks if the schedule is DISABLED
-		// this allows terraform import to work correctly
-		if state.Schedule.Enabled.ValueBool() {
-			state.Schedule.Timezone = types.StringValue(*policyResource.Settings.Scheduler.Timezone)
-
-			if policyResource.Settings.Scheduler.Schedules != nil {
-				if len(policyResource.Settings.Scheduler.Schedules) > 0 {
-					state.Schedule.TimeBlocks = []timeBlock{}
-
-					for _, s := range policyResource.Settings.Scheduler.Schedules {
-						sCopy := s
-						daysStr := []string{}
-
-						for _, d := range sCopy.Days {
-							dCopy := d
-							daysStr = append(daysStr, int64ToDay[dCopy])
-						}
-
-						days, diags := types.SetValueFrom(ctx, types.StringType, daysStr)
-						resp.Diagnostics.Append(diags...)
-						if resp.Diagnostics.HasError() {
-							return
-						}
-						state.Schedule.TimeBlocks = append(state.Schedule.TimeBlocks, timeBlock{
-							Days:      days,
-							StartTime: types.StringValue(*sCopy.Start),
-							EndTime:   types.StringValue(*sCopy.End),
-						})
-					}
-				}
-			}
-		}
-	}
-
-	// Set refreshed state
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(state.wrap(ctx, *policy, false, true)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -574,8 +658,8 @@ func (r *sensorUpdatePolicyResource) Update(
 	}
 
 	updateSchedular := models.PolicySensorUpdateScheduler{}
-	updateSchedular.Timezone = plan.Schedule.Timezone.ValueStringPointer()
-	updateSchedular.Enabled = plan.Schedule.Enabled.ValueBoolPointer()
+	updateSchedular.Timezone = plan.schedule.Timezone.ValueStringPointer()
+	updateSchedular.Enabled = plan.schedule.Enabled.ValueBoolPointer()
 
 	// WORKAROUND: The API requires a timezone when we are trying to enable/diable the Scheduler
 	// due to other limitiations when it comes to imports we need to allow timezone to be null.
@@ -589,8 +673,8 @@ func (r *sensorUpdatePolicyResource) Update(
 		updateSchedular.Timezone = &defaultTimezone
 	}
 
-	if len(plan.Schedule.TimeBlocks) > 0 {
-		updateSchedules, diags := createUpdateSchedules(ctx, plan.Schedule.TimeBlocks)
+	if len(plan.schedule.TimeBlocks) > 0 {
+		updateSchedules, diags := createUpdateSchedules(ctx, plan.schedule.TimeBlocks)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -600,7 +684,7 @@ func (r *sensorUpdatePolicyResource) Update(
 	}
 	policyParams.Body.Resources[0].Settings.Scheduler = &updateSchedular
 
-	policy, err := r.client.SensorUpdatePolicies.UpdateSensorUpdatePoliciesV2(&policyParams)
+	res, err := r.client.SensorUpdatePolicies.UpdateSensorUpdatePoliciesV2(&policyParams)
 
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -610,18 +694,8 @@ func (r *sensorUpdatePolicyResource) Update(
 		return
 	}
 
-	policyResource := policy.Payload.Resources[0]
+	policy := res.Payload.Resources[0]
 
-	plan.ID = types.StringValue(*policyResource.ID)
-	plan.Name = types.StringValue(*policyResource.Name)
-	plan.Description = types.StringValue(*policyResource.Description)
-	plan.PlatformName = types.StringValue(*policyResource.PlatformName)
-	plan.Build = types.StringValue(*policyResource.Settings.Build)
-	if *policyResource.Settings.UninstallProtection == "ENABLED" {
-		plan.UninstallProtection = types.BoolValue(true)
-	} else {
-		plan.UninstallProtection = types.BoolValue(false)
-	}
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
 	if plan.Enabled.ValueBool() != state.Enabled.ValueBool() {
@@ -650,16 +724,18 @@ func (r *sensorUpdatePolicyResource) Update(
 
 		plan.Enabled = types.BoolValue(*actionResp.Payload.Resources[0].Enabled)
 	} else {
-		plan.Enabled = types.BoolValue(*policyResource.Enabled)
+		plan.Enabled = types.BoolValue(*policy.Enabled)
 	}
 
-	resp.Diagnostics.Append(r.assignHostGroups(ctx, &state, policyResource.Groups)...)
+	policy, diags = getSensorUpdatePolicy(ctx, r.client, plan.ID.ValueString())
+
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(plan.wrap(ctx, *policy, true, true)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -747,6 +823,7 @@ func (r *sensorUpdatePolicyResource) ValidateConfig(
 
 	var config sensorUpdatePolicyResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	resp.Diagnostics.Append(config.extract(ctx)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -773,9 +850,9 @@ func (r *sensorUpdatePolicyResource) ValidateConfig(
 		return
 	}
 
-	scheduleEnabled := config.Schedule.Enabled.ValueBool()
+	scheduleEnabled := config.schedule.Enabled.ValueBool()
 
-	if !scheduleEnabled && !config.Schedule.Timezone.IsNull() {
+	if !scheduleEnabled && !config.schedule.Timezone.IsNull() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("schedule"),
 			"Invalid schedule block: timezone provided",
@@ -785,7 +862,7 @@ func (r *sensorUpdatePolicyResource) ValidateConfig(
 		return
 	}
 
-	if !scheduleEnabled && len(config.Schedule.TimeBlocks) > 0 {
+	if !scheduleEnabled && len(config.schedule.TimeBlocks) > 0 {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("schedule"),
 			"Invalid schedule block: time_blocks provided",
@@ -796,7 +873,7 @@ func (r *sensorUpdatePolicyResource) ValidateConfig(
 	}
 
 	if scheduleEnabled {
-		if config.Schedule.Timezone.IsUnknown() || config.Schedule.Timezone.IsNull() {
+		if config.schedule.Timezone.IsUnknown() || config.schedule.Timezone.IsNull() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("schedule"),
 				"missing required attribute",
@@ -805,7 +882,7 @@ func (r *sensorUpdatePolicyResource) ValidateConfig(
 			return
 		}
 
-		if len(config.Schedule.TimeBlocks) == 0 {
+		if len(config.schedule.TimeBlocks) == 0 {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("schedule"),
 				"missing required attribute",
@@ -815,7 +892,7 @@ func (r *sensorUpdatePolicyResource) ValidateConfig(
 		}
 		usedDays := make(map[string]interface{})
 
-		for _, b := range config.Schedule.TimeBlocks {
+		for _, b := range config.schedule.TimeBlocks {
 			ok, err := validTime(b.StartTime.ValueString(), b.EndTime.ValueString())
 
 			if err != nil {
@@ -917,9 +994,8 @@ func (r *sensorUpdatePolicyResource) updateHostGroups(
 }
 
 // assignHostGroups assigns the host groups returned from the api into the resource model.
-func (r *sensorUpdatePolicyResource) assignHostGroups(
+func (r *sensorUpdatePolicyResourceModel) assignHostGroups(
 	ctx context.Context,
-	config *sensorUpdatePolicyResourceModel,
 	groups []*models.HostGroupsHostGroupV1,
 ) diag.Diagnostics {
 
@@ -931,11 +1007,11 @@ func (r *sensorUpdatePolicyResource) assignHostGroups(
 	hostGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, hostGroups)
 
 	// allow host_groups to stay null instead of defaulting to an empty set when there are no host groups
-	if config.HostGroups.IsNull() && len(hostGroupIDs.Elements()) == 0 {
+	if r.HostGroups.IsNull() && len(hostGroupIDs.Elements()) == 0 {
 		return diags
 	}
 
-	config.HostGroups = hostGroupIDs
+	r.HostGroups = hostGroupIDs
 
 	return diags
 }
