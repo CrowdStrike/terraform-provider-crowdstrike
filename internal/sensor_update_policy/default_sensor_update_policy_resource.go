@@ -70,9 +70,97 @@ func (d *defaultSensorUpdatePolicyResourceModel) extract(ctx context.Context) di
 	return diags
 }
 
-// fromModel transforms Go values to their terraoform wrapped values.
-func (d *defaultSensorUpdatePolicyResourceModel) wrap(ctx context.Context) diag.Diagnostics {
+// wrap transforms Go values to their terraform wrapped values.
+func (d *defaultSensorUpdatePolicyResourceModel) wrap(
+	ctx context.Context,
+	policy models.SensorUpdatePolicyV2,
+	validateBuilds bool,
+) diag.Diagnostics {
 	var diags diag.Diagnostics
+
+	d.ID = types.StringValue(*policy.ID)
+	if validateBuilds && d.Build.ValueString() != *policy.Settings.Build {
+		diags.AddError(
+			"Inconsistent build returned",
+			fmt.Sprintf(
+				"The API returned a build that did not match the build in plan: %s This normally occurs when an invalid build is provided, please check the build you are passing is valid. It is recommended to use crowdstrike_sensor_update_policy_builds data source to query for build numbers.\n\nIf you believe there is a bug in the provider please let us know by opening a github issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
+				d.Build,
+			),
+		)
+	}
+	d.Build = types.StringValue(*policy.Settings.Build)
+
+	if d.PlatformName.IsNull() {
+		d.PlatformName = types.StringValue(*policy.PlatformName)
+	}
+
+	if strings.ToLower(d.PlatformName.ValueString()) == "linux" &&
+		policy.Settings.Variants != nil {
+		for _, v := range policy.Settings.Variants {
+			vCopy := *v
+			if vCopy.Platform == nil {
+				continue
+			}
+
+			if strings.EqualFold(*vCopy.Platform, linuxArm64Varient) {
+				if validateBuilds && d.BuildArm64.ValueString() != *vCopy.Build {
+					diags.AddError(
+						"Inconsistent build_arm64 returned",
+						fmt.Sprintf(
+							"The API returned a build_arm64 that did not match the build in plan: %s This normally occurs when an invalid build is provided, please check the build you are passing is valid. It is recommended to use crowdstrike_sensor_update_policy_builds data source to query for build numbers.\n\nIf you believe there is a bug in the provider please let us know by opening a github issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
+							d.BuildArm64,
+						),
+					)
+				}
+				d.BuildArm64 = types.StringValue(*vCopy.Build)
+			}
+		}
+
+	}
+
+	if *policy.Settings.UninstallProtection == "ENABLED" {
+		d.UninstallProtection = types.BoolValue(true)
+	} else {
+		d.UninstallProtection = types.BoolValue(false)
+	}
+
+	if policy.Settings.Scheduler != nil {
+		d.schedule = &policySchedule{}
+		d.schedule.Enabled = types.BoolValue(*policy.Settings.Scheduler.Enabled)
+
+		// ignore the timzezone and time_blocks if the schedule is DISABLED
+		// this allows terraform import to work correctly
+		if d.schedule.Enabled.ValueBool() {
+			d.schedule.Timezone = types.StringValue(*policy.Settings.Scheduler.Timezone)
+
+			if policy.Settings.Scheduler.Schedules != nil {
+				if len(policy.Settings.Scheduler.Schedules) > 0 {
+					d.schedule.TimeBlocks = []timeBlock{}
+
+					for _, s := range policy.Settings.Scheduler.Schedules {
+						sCopy := s
+						daysStr := []string{}
+
+						for _, d := range sCopy.Days {
+							dCopy := d
+							daysStr = append(daysStr, int64ToDay[dCopy])
+						}
+
+						days, diags := types.SetValueFrom(ctx, types.StringType, daysStr)
+						diags.Append(diags...)
+						if diags.HasError() {
+							return diags
+						}
+						d.schedule.TimeBlocks = append(d.schedule.TimeBlocks, timeBlock{
+							Days:      days,
+							StartTime: types.StringValue(*sCopy.Start),
+							EndTime:   types.StringValue(*sCopy.End),
+						})
+					}
+				}
+			}
+		}
+	}
 
 	if d.schedule != nil {
 		policyScheduleObj, diag := types.ObjectValueFrom(
@@ -246,19 +334,19 @@ func (r *defaultSensorUpdatePolicyResource) Create(
 	}
 
 	plan.ID = types.StringValue(*policy.ID)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)...)
+	resp.Diagnostics.Append(
+		resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	policy, diags = r.updateDefaultPolicy(ctx, &plan)
-
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
-	resp.Diagnostics.Append(r.assignDefaultPolicy(ctx, &plan, *policy, true)...)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(plan.wrap(ctx)...)
+	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+	resp.Diagnostics.Append(plan.wrap(ctx, *policy, true)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -272,13 +360,12 @@ func (r *defaultSensorUpdatePolicyResource) Read(
 	resp *resource.ReadResponse,
 ) {
 	var state defaultSensorUpdatePolicyResourceModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	policy, err := r.client.SensorUpdatePolicies.GetSensorUpdatePoliciesV2(
+	res, err := r.client.SensorUpdatePolicies.GetSensorUpdatePoliciesV2(
 		&sensor_update_policies.GetSensorUpdatePoliciesV2Params{
 			Context: ctx,
 			Ids:     []string{state.ID.ValueString()},
@@ -304,14 +391,9 @@ func (r *defaultSensorUpdatePolicyResource) Read(
 		return
 	}
 
-	policyResource := policy.Payload.Resources[0]
+	policy := res.Payload.Resources[0]
 
-	resp.Diagnostics.Append(r.assignDefaultPolicy(ctx, &state, *policyResource, false)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	resp.Diagnostics.Append(state.wrap(ctx)...)
+	resp.Diagnostics.Append(state.wrap(ctx, *policy, false)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -331,25 +413,15 @@ func (r *defaultSensorUpdatePolicyResource) Update(
 		return
 	}
 
-	var state defaultSensorUpdatePolicyResourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	policyResource, diags := r.updateDefaultPolicy(ctx, &plan)
+	policy, diags := r.updateDefaultPolicy(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
-	resp.Diagnostics.Append(r.assignDefaultPolicy(ctx, &plan, *policyResource, true)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 
-	resp.Diagnostics.Append(plan.wrap(ctx)...)
+	resp.Diagnostics.Append(plan.wrap(ctx, *policy, true)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -374,7 +446,6 @@ func (r *defaultSensorUpdatePolicyResource) ImportState(
 ) {
 	// Retrieve import ID and save to id attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
-
 }
 
 // ValidateConfig runs during validate, plan, and apply
@@ -562,7 +633,7 @@ func (r *defaultSensorUpdatePolicyResource) updateDefaultPolicy(
 	}
 	policyParams.Body.Resources[0].Settings.Scheduler = &updateSchedular
 
-	policy, err := r.client.SensorUpdatePolicies.UpdateSensorUpdatePoliciesV2(&policyParams)
+	res, err := r.client.SensorUpdatePolicies.UpdateSensorUpdatePoliciesV2(&policyParams)
 
 	if err != nil {
 		diags.AddError(
@@ -572,104 +643,9 @@ func (r *defaultSensorUpdatePolicyResource) updateDefaultPolicy(
 		return nil, diags
 	}
 
-	policyResource := policy.Payload.Resources[0]
+	policy := res.Payload.Resources[0]
 
-	return policyResource, diags
-}
-
-// assignDefaultPolicy assigns the default policy returned from the api into the resource model.
-func (r *defaultSensorUpdatePolicyResource) assignDefaultPolicy(
-	ctx context.Context,
-	config *defaultSensorUpdatePolicyResourceModel,
-	policy models.SensorUpdatePolicyV2,
-	validateBuilds bool) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	config.ID = types.StringValue(*policy.ID)
-	if validateBuilds && config.Build.ValueString() != *policy.Settings.Build {
-		diags.AddError(
-			"Inconsistent build returned",
-			fmt.Sprintf(
-				"The API returned a build that did not match the build in plan: %s This normally occurs when an invalid build is provided, please check the build you are passing is valid. It is recommended to use crowdstrike_sensor_update_policy_builds data source to query for build numbers.\n\nIf you believe there is a bug in the provider please let us know by opening a github issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
-				config.Build,
-			),
-		)
-	}
-	config.Build = types.StringValue(*policy.Settings.Build)
-
-	if config.PlatformName.IsNull() {
-		config.PlatformName = types.StringValue(*policy.PlatformName)
-	}
-
-	if strings.ToLower(config.PlatformName.ValueString()) == "linux" &&
-		policy.Settings.Variants != nil {
-		for _, v := range policy.Settings.Variants {
-			vCopy := *v
-			if vCopy.Platform == nil {
-				continue
-			}
-
-			if strings.EqualFold(*vCopy.Platform, linuxArm64Varient) {
-				if validateBuilds && config.BuildArm64.ValueString() != *vCopy.Build {
-					diags.AddError(
-						"Inconsistent build_arm64 returned",
-						fmt.Sprintf(
-							"The API returned a build_arm64 that did not match the build in plan: %s This normally occurs when an invalid build is provided, please check the build you are passing is valid. It is recommended to use crowdstrike_sensor_update_policy_builds data source to query for build numbers.\n\nIf you believe there is a bug in the provider please let us know by opening a github issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
-							config.BuildArm64,
-						),
-					)
-				}
-				config.BuildArm64 = types.StringValue(*vCopy.Build)
-			}
-		}
-
-	}
-
-	if *policy.Settings.UninstallProtection == "ENABLED" {
-		config.UninstallProtection = types.BoolValue(true)
-	} else {
-		config.UninstallProtection = types.BoolValue(false)
-	}
-
-	if policy.Settings.Scheduler != nil {
-		config.schedule = &policySchedule{}
-		config.schedule.Enabled = types.BoolValue(*policy.Settings.Scheduler.Enabled)
-
-		// ignore the timzezone and time_blocks if the schedule is DISABLED
-		// this allows terraform import to work correctly
-		if config.schedule.Enabled.ValueBool() {
-			config.schedule.Timezone = types.StringValue(*policy.Settings.Scheduler.Timezone)
-
-			if policy.Settings.Scheduler.Schedules != nil {
-				if len(policy.Settings.Scheduler.Schedules) > 0 {
-					config.schedule.TimeBlocks = []timeBlock{}
-
-					for _, s := range policy.Settings.Scheduler.Schedules {
-						sCopy := s
-						daysStr := []string{}
-
-						for _, d := range sCopy.Days {
-							dCopy := d
-							daysStr = append(daysStr, int64ToDay[dCopy])
-						}
-
-						days, diags := types.SetValueFrom(ctx, types.StringType, daysStr)
-						diags.Append(diags...)
-						if diags.HasError() {
-							return diags
-						}
-						config.schedule.TimeBlocks = append(config.schedule.TimeBlocks, timeBlock{
-							Days:      days,
-							StartTime: types.StringValue(*sCopy.Start),
-							EndTime:   types.StringValue(*sCopy.End),
-						})
-					}
-				}
-			}
-		}
-	}
-
-	return diags
+	return policy, diags
 }
 
 func (r *defaultSensorUpdatePolicyResource) getDefaultPolicy(
@@ -720,5 +696,4 @@ func (r *defaultSensorUpdatePolicyResource) getDefaultPolicy(
 	defaultPolicy := res.Payload.Resources[0]
 
 	return defaultPolicy, diags
-
 }

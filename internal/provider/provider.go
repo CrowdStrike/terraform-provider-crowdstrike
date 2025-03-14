@@ -231,6 +231,7 @@ func (p *CrowdStrikeProvider) Configure(
 func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		sensorupdatepolicy.NewSensorUpdatePolicyResource,
+		sensorupdatepolicy.NewDefaultSensorUpdatePolicyResource,
 		NewHostGroupResource,
 		preventionpolicy.NewPreventionPolicyWindowsResource,
 		preventionpolicy.NewPreventionPolicyLinuxResource,

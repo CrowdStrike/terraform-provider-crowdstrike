@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/crowdstrike/gofalcon/falcon/client"
+	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -193,4 +195,39 @@ func createUpdateSchedules(
 	}
 
 	return updateSchedules, diags
+}
+
+// getSensorUpdatePolicy gets a sensor update policy based on ID.
+func getSensorUpdatePolicy(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	id string,
+) (*models.SensorUpdatePolicyV2, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	res, err := client.SensorUpdatePolicies.GetSensorUpdatePoliciesV2(
+		&sensor_update_policies.GetSensorUpdatePoliciesV2Params{
+			Context: ctx,
+			Ids:     []string{id},
+		},
+	)
+
+	if err != nil {
+		diags.AddError(
+			"Error reading CrowdStrike sensor update policy",
+			"Could not read CrowdStrike sensor update policy: "+id+": "+err.Error(),
+		)
+	}
+
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
+		diags.AddError(
+			"Error reading CrowdStrike sensor update policy",
+			"API return successful status code, but no resources were returned.",
+		)
+		return nil, diags
+	}
+
+	policy := res.Payload.Resources[0]
+
+	return policy, diags
 }
