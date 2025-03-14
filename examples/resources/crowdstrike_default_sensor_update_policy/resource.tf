@@ -14,7 +14,7 @@ data "crowdstrike_sensor_update_policy_builds" "all" {}
 
 resource "crowdstrike_default_sensor_update_policy" "default" {
   platform_name        = "windows"
-  build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n2.build
+  build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
   uninstall_protection = true
   schedule = {
     enabled  = true
