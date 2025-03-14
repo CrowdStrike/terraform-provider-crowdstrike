@@ -83,7 +83,7 @@ func (d *defaultSensorUpdatePolicyResourceModel) wrap(
 		diags.AddError(
 			"Inconsistent build returned",
 			fmt.Sprintf(
-				"The API returned a build that did not match the build in plan: %s This normally occurs when an invalid build is provided, please check the build you are passing is valid. It is recommended to use crowdstrike_sensor_update_policy_builds data source to query for build numbers.\n\nIf you believe there is a bug in the provider please let us know by opening a github issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
+				"The API returned a build that did not match the build in plan: %s This normally occurs when an invalid build is provided, please check the build you are passing is valid. It is recommended to use crowdstrike_sensor_update_policy_builds data source to query for build numbers.\n\nIf you believe there is a bug in the provider or need help please let us know by opening a github issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
 				d.Build,
 			),
 		)
@@ -92,6 +92,19 @@ func (d *defaultSensorUpdatePolicyResourceModel) wrap(
 
 	if d.PlatformName.IsNull() {
 		d.PlatformName = types.StringValue(*policy.PlatformName)
+	}
+
+	if strings.ToLower(d.PlatformName.ValueString()) != strings.ToLower(*policy.PlatformName) {
+		diags.AddError(
+			"Mismatch platform_name",
+			fmt.Sprintf(
+				"The api returned the following platform_name: %s for default sensor update policy: %s, the terraform config has a platform_name value of %s. This should not be possible, if you imported this resource ensure you updated the platform_name to the correct value in your terraform config.\n\nIf you believe there is a bug in the provider or need help please let us know by opening a github issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
+				*policy.PlatformName,
+				d.ID,
+				d.PlatformName.ValueString(),
+			),
+		)
+
 	}
 
 	if strings.ToLower(d.PlatformName.ValueString()) == "linux" &&
@@ -107,7 +120,7 @@ func (d *defaultSensorUpdatePolicyResourceModel) wrap(
 					diags.AddError(
 						"Inconsistent build_arm64 returned",
 						fmt.Sprintf(
-							"The API returned a build_arm64 that did not match the build in plan: %s This normally occurs when an invalid build is provided, please check the build you are passing is valid. It is recommended to use crowdstrike_sensor_update_policy_builds data source to query for build numbers.\n\nIf you believe there is a bug in the provider please let us know by opening a github issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
+							"The API returned a build_arm64 that did not match the build in plan: %s This normally occurs when an invalid build is provided, please check the build you are passing is valid. It is recommended to use crowdstrike_sensor_update_policy_builds data source to query for build numbers.\n\nIf you believe there is a bug in the provider or need help please let us know by opening a github issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
 							d.BuildArm64,
 						),
 					)
