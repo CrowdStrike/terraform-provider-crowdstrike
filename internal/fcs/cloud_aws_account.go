@@ -133,10 +133,11 @@ func (r *cloudAWSAccountResource) Schema(
 				},
 			},
 			"organization_id": schema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
-				Default:     stringdefault.StaticString(""),
-				Description: "The AWS Organization ID",
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString(""),
+				Description:         "The AWS Organization ID (starts with 'o-'). When specified, accounts within the organization will be registered. If target_ous is empty, all accounts in the organization will be registered. The account_id must be the organization's management account ID.",
+				MarkdownDescription: "The AWS Organization ID (starts with `o-`). When specified, accounts within the organization will be registered. If `target_ous` is empty, all accounts in the organization will be registered. The `account_id` must be the organization's management account ID.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
@@ -174,16 +175,6 @@ func (r *cloudAWSAccountResource) Schema(
 							"must be in the format of ou-xxxx-xxxxxxxx or r-xxxx",
 						),
 					),
-				},
-			},
-			"is_organization_management_account": schema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Default:     booldefault.StaticBool(false),
-				Description: "Indicates whether this is the management account (formerly known as the root account) of an AWS Organization",
-				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.RequiresReplace(),
-					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"account_type": schema.StringAttribute{
@@ -378,6 +369,13 @@ func (r *cloudAWSAccountResource) Schema(
 				},
 			},
 			// Computed values
+			"is_organization_management_account": schema.BoolAttribute{
+				Computed:    true,
+				Description: "Indicates whether this is the management account (formerly known as the root account) of an AWS Organization",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"external_id": schema.StringAttribute{
 				Computed:    true,
 				Description: "The external ID used to assume the AWS IAM role",
@@ -409,23 +407,14 @@ func (r *cloudAWSAccountResource) Schema(
 			"eventbus_name": schema.StringAttribute{
 				Computed:    true,
 				Description: "The name of the Amazon EventBridge used by CrowdStrike to forward messages",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"eventbus_arn": schema.StringAttribute{
 				Computed:    true,
 				Description: "The ARN of the Amazon EventBridge used by CrowdStrike to forward messages",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"cloudtrail_bucket_name": schema.StringAttribute{
 				Computed:    true,
 				Description: "The name of the CloudTrail S3 bucket used for real-time visibility",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"dspm_role_arn": schema.StringAttribute{
 				Computed:    true,
@@ -469,20 +458,15 @@ func (r *cloudAWSAccountResource) Create(
 	state := plan
 	state.AccountID = types.StringValue(cspmAccount.AccountID)
 	state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
-	state.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
 	state.AccountType = types.StringValue(cspmAccount.AccountType)
-	if len(cspmAccount.TargetOus) > 0 {
+	if cspmAccount.IsMaster && len(cspmAccount.TargetOus) > 0 {
 		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, cspmAccount.TargetOus)
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
 		}
 		state.TargetOUs = targetOUs
-	} else {
-		state.TargetOUs, diags = types.ListValueFrom(ctx, types.StringType, []string{})
-		if diags.HasError() {
-			resp.Diagnostics.Append(diags...)
-		}
 	}
+	state.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
 	state.ExternalID = types.StringValue(cspmAccount.ExternalID)
 	state.IntermediateRoleArn = types.StringValue(cspmAccount.IntermediateRoleArn)
 	state.IamRoleArn = types.StringValue(cspmAccount.IamRoleArn)
@@ -547,13 +531,15 @@ func (r *cloudAWSAccountResource) createCSPMAccount(
 	var diags diag.Diagnostics
 
 	var targetOUs []string
-	diags.Append(model.TargetOUs.ElementsAs(ctx, &targetOUs, false)...)
+	if model.OrganizationID.ValueString() != "" {
+		diags.Append(model.TargetOUs.ElementsAs(ctx, &targetOUs, false)...)
+	}
 
 	createAccount := models.RegistrationAWSAccountExtV2{
 		AccountID:        model.AccountID.ValueStringPointer(),
 		OrganizationID:   model.OrganizationID.ValueStringPointer(),
 		TargetOus:        targetOUs,
-		IsMaster:         model.IsOrgManagementAccount.ValueBool(),
+		IsMaster:         model.OrganizationID.ValueString() != "",
 		AccountType:      model.AccountType.ValueString(),
 		DeploymentMethod: model.DeploymentMethod.ValueString(),
 	}
@@ -639,7 +625,7 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 	createAccount := models.RestCloudAWSAccountCreateExtV1{
 		AccountID:      model.AccountID.ValueString(),
 		OrganizationID: model.OrganizationID.ValueStringPointer(),
-		IsMaster:       model.IsOrgManagementAccount.ValueBool(),
+		IsMaster:       model.OrganizationID.ValueString() != "",
 		AccountType:    model.AccountType.ValueString(),
 	}
 	if model.AssetInventory != nil && model.AssetInventory.Enabled.ValueBool() {
@@ -724,22 +710,15 @@ func (r *cloudAWSAccountResource) Read(
 	}
 
 	state.AccountID = types.StringValue(cspmAccount.AccountID)
-	state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
-	state.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
+	state.OrganizationID = oldState.OrganizationID
 	state.AccountType = types.StringValue(cspmAccount.AccountType)
 	state.DeploymentMethod = oldState.DeploymentMethod
 	if state.DeploymentMethod.IsNull() {
 		state.DeploymentMethod = types.StringValue("terraform-native")
 	}
-	if oldState.TargetOUs.IsNull() {
-		state.TargetOUs, diags = types.ListValueFrom(ctx, types.StringType, []string{})
-		if diags.HasError() {
-			resp.Diagnostics.Append(diags...)
-		}
-	} else {
-		state.TargetOUs = oldState.TargetOUs
-	}
-	if len(cspmAccount.TargetOus) != 0 {
+	state.TargetOUs = oldState.TargetOUs
+	// don't store target OU's if it's not a management account
+	if cspmAccount.IsMaster && len(cspmAccount.TargetOus) != 0 {
 		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, cspmAccount.TargetOus)
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
@@ -747,6 +726,7 @@ func (r *cloudAWSAccountResource) Read(
 		state.TargetOUs = targetOUs
 	}
 
+	state.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
 	state.ExternalID = types.StringValue(cspmAccount.ExternalID)
 	state.IntermediateRoleArn = types.StringValue(cspmAccount.IntermediateRoleArn)
 	state.IamRoleArn = types.StringValue(cspmAccount.IamRoleArn)
@@ -959,21 +939,21 @@ func (r *cloudAWSAccountResource) Update(
 		return
 	}
 	plan.AccountID = types.StringValue(cspmAccount.AccountID)
-	plan.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
+	plan.OrganizationID = state.OrganizationID
 	plan.AccountType = types.StringValue(cspmAccount.AccountType)
-	plan.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
 	plan.DeploymentMethod = state.DeploymentMethod
 	if state.DeploymentMethod.IsNull() {
 		plan.DeploymentMethod = types.StringValue("terraform-native")
 	}
 	plan.TargetOUs = state.TargetOUs
-	if len(cspmAccount.TargetOus) != 0 {
+	if cspmAccount.IsMaster && len(cspmAccount.TargetOus) != 0 {
 		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, cspmAccount.TargetOus)
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
 		}
 		plan.TargetOUs = targetOUs
 	}
+	plan.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
 	plan.ExternalID = types.StringValue(cspmAccount.ExternalID)
 	plan.IntermediateRoleArn = types.StringValue(cspmAccount.IntermediateRoleArn)
 	plan.IamRoleArn = types.StringValue(cspmAccount.IamRoleArn)
@@ -1102,7 +1082,7 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 	patchAccount := models.RestCloudAWSAccountCreateExtV1{
 		AccountID:      model.AccountID.ValueString(),
 		OrganizationID: model.OrganizationID.ValueStringPointer(),
-		IsMaster:       model.IsOrgManagementAccount.ValueBool(),
+		IsMaster:       model.OrganizationID.ValueString() != "",
 		AccountType:    model.AccountType.ValueString(),
 	}
 	if model.AssetInventory != nil && model.AssetInventory.Enabled.ValueBool() {

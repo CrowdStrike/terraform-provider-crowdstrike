@@ -111,7 +111,6 @@ func testAccCloudAwsAccountConfig_basic(account string, organization_id string) 
 resource "crowdstrike_cloud_aws_account" "test" {
   account_id                         = "%s"
   organization_id                    = "%s"
-  is_organization_management_account = true
   target_ous                         = ["ou-abcd-defghijk", "r-abcd"]
   account_type                       = "commercial"
 }
@@ -124,7 +123,6 @@ func testAccCloudAwsAccountConfig_update(account string, organization_id string)
 resource "crowdstrike_cloud_aws_account" "test" {
   account_id                         = "%s"
   organization_id                    = "%s"
-  is_organization_management_account = true
   target_ous                         = ["ou-abcd-defghijk", "r-abcd"]
   account_type                       = "commercial"
   asset_inventory = {
