@@ -136,8 +136,8 @@ func (r *cloudAWSAccountResource) Schema(
 				Optional:            true,
 				Computed:            true,
 				Default:             stringdefault.StaticString(""),
-				Description:         "The AWS Organization ID",
-				MarkdownDescription: "The AWS Organization ID. When this field is provided, the `account_id` should be the management account ID",
+				Description:         "The AWS Organization ID (starts with 'o-'). When specified, accounts within the organization will be registered. If target_ous is empty, all accounts in the organization will be registered. The account_id must be the organization's management account ID.",
+				MarkdownDescription: "The AWS Organization ID (starts with `o-`). When specified, accounts within the organization will be registered. If `target_ous` is empty, all accounts in the organization will be registered. The `account_id` must be the organization's management account ID.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
