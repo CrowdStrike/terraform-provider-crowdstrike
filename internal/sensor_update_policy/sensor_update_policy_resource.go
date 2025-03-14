@@ -223,10 +223,8 @@ func (r *sensorUpdatePolicyResource) Create(
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-
 	var plan sensorUpdatePolicyResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -359,8 +357,7 @@ func (r *sensorUpdatePolicyResource) Read(
 	resp *resource.ReadResponse,
 ) {
 	var state sensorUpdatePolicyResourceModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -480,15 +477,13 @@ func (r *sensorUpdatePolicyResource) Update(
 ) {
 	// Retrieve values from plan
 	var plan sensorUpdatePolicyResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	// Retrieve values from state
 	var state sensorUpdatePolicyResourceModel
-	diags = req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -739,13 +734,7 @@ func (r *sensorUpdatePolicyResource) ImportState(
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
 ) {
-	// Retrieve import ID and save to id attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
-	resp.Diagnostics.Append(
-		resp.State.SetAttribute(ctx, path.Root("schedule").AtName("enabled"), false)...)
-	// resp.Diagnostics.Append(
-	// 	resp.State.SetAttribute(ctx, path.Root("schedule").AtName("timezone"), nil)...)
-
 }
 
 // ValidateConfig runs during validate, plan, and apply
