@@ -407,23 +407,14 @@ func (r *cloudAWSAccountResource) Schema(
 			"eventbus_name": schema.StringAttribute{
 				Computed:    true,
 				Description: "The name of the Amazon EventBridge used by CrowdStrike to forward messages",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"eventbus_arn": schema.StringAttribute{
 				Computed:    true,
 				Description: "The ARN of the Amazon EventBridge used by CrowdStrike to forward messages",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"cloudtrail_bucket_name": schema.StringAttribute{
 				Computed:    true,
 				Description: "The name of the CloudTrail S3 bucket used for real-time visibility",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"dspm_role_arn": schema.StringAttribute{
 				Computed:    true,
@@ -468,17 +459,12 @@ func (r *cloudAWSAccountResource) Create(
 	state.AccountID = types.StringValue(cspmAccount.AccountID)
 	state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
 	state.AccountType = types.StringValue(cspmAccount.AccountType)
-	if len(cspmAccount.TargetOus) > 0 {
+	if cspmAccount.IsMaster && len(cspmAccount.TargetOus) > 0 {
 		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, cspmAccount.TargetOus)
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
 		}
 		state.TargetOUs = targetOUs
-	} else {
-		state.TargetOUs, diags = types.ListValueFrom(ctx, types.StringType, []string{})
-		if diags.HasError() {
-			resp.Diagnostics.Append(diags...)
-		}
 	}
 	state.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
 	state.ExternalID = types.StringValue(cspmAccount.ExternalID)
@@ -545,7 +531,9 @@ func (r *cloudAWSAccountResource) createCSPMAccount(
 	var diags diag.Diagnostics
 
 	var targetOUs []string
-	diags.Append(model.TargetOUs.ElementsAs(ctx, &targetOUs, false)...)
+	if model.OrganizationID.ValueString() != "" {
+		diags.Append(model.TargetOUs.ElementsAs(ctx, &targetOUs, false)...)
+	}
 
 	createAccount := models.RegistrationAWSAccountExtV2{
 		AccountID:        model.AccountID.ValueStringPointer(),
@@ -728,15 +716,9 @@ func (r *cloudAWSAccountResource) Read(
 	if state.DeploymentMethod.IsNull() {
 		state.DeploymentMethod = types.StringValue("terraform-native")
 	}
-	if oldState.TargetOUs.IsNull() {
-		state.TargetOUs, diags = types.ListValueFrom(ctx, types.StringType, []string{})
-		if diags.HasError() {
-			resp.Diagnostics.Append(diags...)
-		}
-	} else {
-		state.TargetOUs = oldState.TargetOUs
-	}
-	if len(cspmAccount.TargetOus) != 0 {
+	state.TargetOUs = oldState.TargetOUs
+	// don't store target OU's if it's not a management account
+	if cspmAccount.IsMaster && len(cspmAccount.TargetOus) != 0 {
 		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, cspmAccount.TargetOus)
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
@@ -964,7 +946,7 @@ func (r *cloudAWSAccountResource) Update(
 		plan.DeploymentMethod = types.StringValue("terraform-native")
 	}
 	plan.TargetOUs = state.TargetOUs
-	if len(cspmAccount.TargetOus) != 0 {
+	if cspmAccount.IsMaster && len(cspmAccount.TargetOus) != 0 {
 		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, cspmAccount.TargetOus)
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
