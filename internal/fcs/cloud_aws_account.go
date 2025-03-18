@@ -1241,10 +1241,11 @@ func (r *cloudAWSAccountResource) deleteCSPMAccount(
 		return diags
 	}
 	if status != nil {
-		diags.AddError(
-			"Failed to delete CSPM AWS account",
-			fmt.Sprintf("Failed to delete CSPM AWS account: %s", status.Error()),
-		)
+		// treating this as a 404 not found which is not an error when deleting
+		// diags.AddError(
+		// 	"Failed to delete CSPM AWS account",
+		// 	fmt.Sprintf("Failed to delete CSPM AWS account: %s", status.Error()),
+		// )
 		return diags
 	}
 	return diags
@@ -1290,10 +1291,11 @@ func (r *cloudAWSAccountResource) deleteCloudAccount(
 		return diags
 	}
 	if status != nil {
-		diags.AddError(
-			"Failed to delete Cloud Registration AWS account",
-			fmt.Sprintf("Failed to delete Cloud Registration AWS account: %s", status.Error()),
-		)
+		// treating this as a 404 not found which is not an error when deleting
+		// diags.AddError(
+		// 	"Failed to delete Cloud Registration AWS account",
+		// 	fmt.Sprintf("Failed to delete Cloud Registration AWS account: %s", status.Error()),
+		// )
 		return diags
 	}
 	return diags
