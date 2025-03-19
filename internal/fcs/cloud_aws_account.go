@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_aws_registration"
@@ -408,14 +409,23 @@ func (r *cloudAWSAccountResource) Schema(
 			"eventbus_name": schema.StringAttribute{
 				Computed:    true,
 				Description: "The name of the Amazon EventBridge used by CrowdStrike to forward messages",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"eventbus_arn": schema.StringAttribute{
 				Computed:    true,
 				Description: "The ARN of the Amazon EventBridge used by CrowdStrike to forward messages",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"cloudtrail_bucket_name": schema.StringAttribute{
 				Computed:    true,
 				Description: "The name of the CloudTrail S3 bucket used for real-time visibility",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"dspm_role_arn": schema.StringAttribute{
 				Computed:    true,
@@ -514,6 +524,12 @@ func (r *cloudAWSAccountResource) Create(
 			state.IDP.Enabled = types.BoolValue(true)
 			break
 		}
+	}
+
+	// if IDP or realtime visibility are enabled wait until we get a value for EventbusArn
+	if (state.IDP.Enabled.ValueBool() || state.RealtimeVisibility.Enabled.ValueBool()) &&
+		state.EventbusArn.ValueString() == "" {
+		resp.Diagnostics.Append(r.pollEventbusArn(ctx, &state)...)
 	}
 
 	// Set refreshed state
@@ -729,7 +745,7 @@ func (r *cloudAWSAccountResource) Read(
 	}
 
 	state.AccountID = types.StringValue(cspmAccount.AccountID)
-	state.OrganizationID = oldState.OrganizationID
+	state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
 	state.AccountType = types.StringValue(cspmAccount.AccountType)
 	state.DeploymentMethod = oldState.DeploymentMethod
 	if state.DeploymentMethod.IsNull() {
@@ -1349,5 +1365,44 @@ func (r *cloudAWSAccountResource) ValidateConfig(
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+}
+
+// pollEventbusArn waits for eventbus_arn to be set
+func (r *cloudAWSAccountResource) pollEventbusArn(
+	ctx context.Context,
+	config *cloudAWSAccountModel,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	pollCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			account, diag := r.getCSPMAccount(pollCtx, config.AccountID.ValueString())
+			if diag.HasError() {
+				return diag
+			}
+
+			if account.AwsEventbusArn != "" {
+				config.EventbusArn = types.StringValue(account.AwsEventbusArn)
+				config.EventbusName = types.StringValue(account.EventbusName)
+				return diags
+			}
+
+			tflog.Debug(pollCtx, "EventBus ARN not yet available, polling again in 10s...")
+
+		case <-pollCtx.Done():
+			diags.AddError(
+				"Timed out waiting for eventbus_arn",
+				"Timed out on create waiting for eventbus arn to return from API.",
+			)
+			return diags
+		}
 	}
 }
