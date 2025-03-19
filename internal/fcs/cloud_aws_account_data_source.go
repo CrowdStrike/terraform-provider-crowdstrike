@@ -80,7 +80,7 @@ func (d *cloudAwsAccountsDataSource) Schema(
 	resp.Schema = schema.Schema{
 		Description: "Fetches Cloud AWS accounts by account_id or organization_id",
 		MarkdownDescription: fmt.Sprintf(
-			"Cloud AWS Accounts --- This data source provides information about AWS accounts in Falcon.\n\n%s",
+			"Cloud AWS Account --- This data source provides information about AWS accounts in Falcon.\n\n%s",
 			scopes.GenerateScopeDescription(cloudSecurityScopes),
 		),
 		Attributes: map[string]schema.Attribute{

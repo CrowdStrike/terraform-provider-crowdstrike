@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_aws_registration"
@@ -703,7 +704,25 @@ func (r *cloudAWSAccountResource) Read(
 	if oldState.AccountID.ValueString() == "" {
 		return
 	}
+
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	cspmAccount, diags := r.getCSPMAccount(ctx, oldState.AccountID.ValueString())
+	for _, diagErr := range diags.Errors() {
+		if strings.Contains(diagErr.Detail(), "404 Not Found") {
+			tflog.Warn(
+				ctx,
+				fmt.Sprintf("cspm account %s not found, removing from state", state.AccountID),
+				map[string]interface{}{"resp": diagErr.Detail()},
+			)
+
+			resp.State.RemoveResource(ctx)
+			return
+		}
+	}
+
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -784,6 +803,20 @@ func (r *cloudAWSAccountResource) Read(
 	}
 
 	cloudAccount, found, diags := r.getCloudAccount(ctx, oldState.AccountID.ValueString())
+
+	for _, diagErr := range diags.Errors() {
+		if strings.Contains(diagErr.Detail(), "404 Not Found") {
+			tflog.Warn(
+				ctx,
+				fmt.Sprintf("cloud account %s not found, removing from state", state.AccountID),
+				map[string]interface{}{"resp": diagErr.Detail()},
+			)
+
+			resp.State.RemoveResource(ctx)
+			return
+		}
+	}
+
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -846,10 +879,12 @@ func (r *cloudAWSAccountResource) getCSPMAccount(
 		)
 		return nil, diags
 	}
+
+	// todo: the backend needs to be updated to properly return 404
 	if status != nil {
 		diags.AddError(
 			"Failed to read CSPM AWS account",
-			fmt.Sprintf("Failed to get CSPM AWS account: %s", status.Error()),
+			fmt.Sprintf("Failed to get CSPM AWS account: 404 Not Found %s", status.Error()),
 		)
 		return nil, diags
 	}
@@ -892,9 +927,12 @@ func (r *cloudAWSAccountResource) getCloudAccount(
 		return nil, false, diags
 	}
 	if status != nil {
-		diags.AddWarning(
+		diags.AddError(
 			"Failed to read Cloud Registration AWS account",
-			fmt.Sprintf("Failed to read Cloud Registration AWS account: %s", status.Error()),
+			fmt.Sprintf(
+				"Failed to read Cloud Registration AWS account: 404 Not Found %s",
+				status.Error(),
+			),
 		)
 		return nil, false, diags
 	}
@@ -1203,10 +1241,11 @@ func (r *cloudAWSAccountResource) deleteCSPMAccount(
 		return diags
 	}
 	if status != nil {
-		diags.AddError(
-			"Failed to delete CSPM AWS account",
-			fmt.Sprintf("Failed to delete CSPM AWS account: %s", status.Error()),
-		)
+		// treating this as a 404 not found which is not an error when deleting
+		// diags.AddError(
+		// 	"Failed to delete CSPM AWS account",
+		// 	fmt.Sprintf("Failed to delete CSPM AWS account: %s", status.Error()),
+		// )
 		return diags
 	}
 	return diags
@@ -1252,10 +1291,11 @@ func (r *cloudAWSAccountResource) deleteCloudAccount(
 		return diags
 	}
 	if status != nil {
-		diags.AddError(
-			"Failed to delete Cloud Registration AWS account",
-			fmt.Sprintf("Failed to delete Cloud Registration AWS account: %s", status.Error()),
-		)
+		// treating this as a 404 not found which is not an error when deleting
+		// diags.AddError(
+		// 	"Failed to delete Cloud Registration AWS account",
+		// 	fmt.Sprintf("Failed to delete Cloud Registration AWS account: %s", status.Error()),
+		// )
 		return diags
 	}
 	return diags
