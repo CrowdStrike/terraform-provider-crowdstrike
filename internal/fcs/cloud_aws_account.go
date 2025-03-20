@@ -1352,6 +1352,28 @@ func (r *cloudAWSAccountResource) ImportState(
 ) {
 	// Retrieve import ID and save to id attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("account_id"), req, resp)
+	account, diags := r.getCSPMAccount(ctx, req.ID)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if account.OrganizationID != "" {
+		resp.Diagnostics.Append(
+			resp.State.SetAttribute(ctx, path.Root("organization_id"), account.OrganizationID)...)
+	}
+
+	ous := []string{}
+	if account.IsMaster && len(account.TargetOus) != 0 {
+		ous = account.TargetOus
+
+	}
+	targetOUs, diags := types.ListValueFrom(ctx, types.StringType, ous)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+	}
+	resp.Diagnostics.Append(
+		resp.State.SetAttribute(ctx, path.Root("target_ous"), targetOUs)...)
 }
 
 // ValidateConfig runs during validate, plan, and apply
