@@ -745,7 +745,7 @@ func (r *cloudAWSAccountResource) Read(
 	}
 
 	state.AccountID = types.StringValue(cspmAccount.AccountID)
-	state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
+	state.OrganizationID = oldState.OrganizationID
 	state.AccountType = types.StringValue(cspmAccount.AccountType)
 	state.DeploymentMethod = oldState.DeploymentMethod
 	if state.DeploymentMethod.IsNull() {
