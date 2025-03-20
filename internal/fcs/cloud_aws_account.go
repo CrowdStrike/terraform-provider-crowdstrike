@@ -1390,7 +1390,7 @@ func (r *cloudAWSAccountResource) ValidateConfig(
 	}
 }
 
-// pollMissingValues waits for missing backend values [eventbus_arn, eventbus_name, cloudtrail_bucket_name] to be set
+// pollMissingValues waits for missing backend values [eventbus_arn, eventbus_name, cloudtrail_bucket_name] to be set.
 func (r *cloudAWSAccountResource) pollMissingValues(
 	ctx context.Context,
 	config *cloudAWSAccountModel,
