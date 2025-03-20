@@ -1366,8 +1366,8 @@ func (r *cloudAWSAccountResource) ImportState(
 	ous := []string{}
 	if account.IsMaster && len(account.TargetOus) != 0 {
 		ous = account.TargetOus
-
 	}
+
 	targetOUs, diags := types.ListValueFrom(ctx, types.StringType, ous)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
