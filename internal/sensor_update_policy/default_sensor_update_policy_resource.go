@@ -263,7 +263,6 @@ func (r *defaultSensorUpdatePolicyResource) Schema(
 				Optional:    true,
 				Description: "Sensor arm64 build to use for the default sensor update policy (Linux only). Required if platform_name is Linux.",
 			},
-			// todo: make this case insensitive
 			"platform_name": schema.StringAttribute{
 				Required:    true,
 				Description: "Chooses which default sensor update policy to manage. (Windows, Mac, Linux)",
