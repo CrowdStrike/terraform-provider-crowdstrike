@@ -232,7 +232,7 @@ func (r *defaultSensorUpdatePolicyResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: fmt.Sprintf(
-			"Default Sensor Update Policy --- This resource allows management of the default sensor update policy in the CrowdStrike Falcon platform.\n\n%s",
+			"Sensor Update Policy --- This resource allows management of the default sensor update policy in the CrowdStrike Falcon platform.\n\n%s",
 			scopes.GenerateScopeDescription(
 				[]scopes.Scope{
 					{
