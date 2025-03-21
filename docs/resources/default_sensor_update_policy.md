@@ -1,6 +1,6 @@
 ---
 page_title: "crowdstrike_default_sensor_update_policy Resource - crowdstrike"
-subcategory: "Default Sensor Update Policy"
+subcategory: "Sensor Update Policy"
 description: |-
   This resource allows management of the default sensor update policy in the CrowdStrike Falcon platform.
   API Scopes
