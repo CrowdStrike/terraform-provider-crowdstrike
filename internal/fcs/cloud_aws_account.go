@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
+	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_aws_registration"
@@ -29,6 +31,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"golang.org/x/exp/maps"
 )
 
 type cloudAWSAccountResource struct {
@@ -133,10 +136,11 @@ func (r *cloudAWSAccountResource) Schema(
 				},
 			},
 			"organization_id": schema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
-				Default:     stringdefault.StaticString(""),
-				Description: "The AWS Organization ID",
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString(""),
+				Description:         "The AWS Organization ID (starts with 'o-'). When specified, accounts within the organization will be registered. If target_ous is empty, all accounts in the organization will be registered. The account_id must be the organization's management account ID.",
+				MarkdownDescription: "The AWS Organization ID (starts with `o-`). When specified, accounts within the organization will be registered. If `target_ous` is empty, all accounts in the organization will be registered. The `account_id` must be the organization's management account ID.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
@@ -174,16 +178,6 @@ func (r *cloudAWSAccountResource) Schema(
 							"must be in the format of ou-xxxx-xxxxxxxx or r-xxxx",
 						),
 					),
-				},
-			},
-			"is_organization_management_account": schema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Default:     booldefault.StaticBool(false),
-				Description: "Indicates whether this is the management account (formerly known as the root account) of an AWS Organization",
-				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.RequiresReplace(),
-					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"account_type": schema.StringAttribute{
@@ -378,6 +372,13 @@ func (r *cloudAWSAccountResource) Schema(
 				},
 			},
 			// Computed values
+			"is_organization_management_account": schema.BoolAttribute{
+				Computed:    true,
+				Description: "Indicates whether this is the management account (formerly known as the root account) of an AWS Organization",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"external_id": schema.StringAttribute{
 				Computed:    true,
 				Description: "The external ID used to assume the AWS IAM role",
@@ -469,20 +470,15 @@ func (r *cloudAWSAccountResource) Create(
 	state := plan
 	state.AccountID = types.StringValue(cspmAccount.AccountID)
 	state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
-	state.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
 	state.AccountType = types.StringValue(cspmAccount.AccountType)
-	if len(cspmAccount.TargetOus) > 0 {
+	if cspmAccount.IsMaster && len(cspmAccount.TargetOus) > 0 {
 		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, cspmAccount.TargetOus)
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
 		}
 		state.TargetOUs = targetOUs
-	} else {
-		state.TargetOUs, diags = types.ListValueFrom(ctx, types.StringType, []string{})
-		if diags.HasError() {
-			resp.Diagnostics.Append(diags...)
-		}
 	}
+	state.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
 	state.ExternalID = types.StringValue(cspmAccount.ExternalID)
 	state.IntermediateRoleArn = types.StringValue(cspmAccount.IntermediateRoleArn)
 	state.IamRoleArn = types.StringValue(cspmAccount.IamRoleArn)
@@ -531,6 +527,11 @@ func (r *cloudAWSAccountResource) Create(
 		}
 	}
 
+	// if IDP or realtime visibility are enabled wait until we get all values back
+	if state.IDP.Enabled.ValueBool() || state.RealtimeVisibility.Enabled.ValueBool() {
+		resp.Diagnostics.Append(r.pollMissingValues(ctx, &state)...)
+	}
+
 	// Set refreshed state
 	diags = resp.State.Set(ctx, state)
 	resp.Diagnostics.Append(diags...)
@@ -547,13 +548,15 @@ func (r *cloudAWSAccountResource) createCSPMAccount(
 	var diags diag.Diagnostics
 
 	var targetOUs []string
-	diags.Append(model.TargetOUs.ElementsAs(ctx, &targetOUs, false)...)
+	if model.OrganizationID.ValueString() != "" {
+		diags.Append(model.TargetOUs.ElementsAs(ctx, &targetOUs, false)...)
+	}
 
 	createAccount := models.RegistrationAWSAccountExtV2{
 		AccountID:        model.AccountID.ValueStringPointer(),
 		OrganizationID:   model.OrganizationID.ValueStringPointer(),
 		TargetOus:        targetOUs,
-		IsMaster:         model.IsOrgManagementAccount.ValueBool(),
+		IsMaster:         model.OrganizationID.ValueString() != "",
 		AccountType:      model.AccountType.ValueString(),
 		DeploymentMethod: model.DeploymentMethod.ValueString(),
 	}
@@ -639,7 +642,7 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 	createAccount := models.RestCloudAWSAccountCreateExtV1{
 		AccountID:      model.AccountID.ValueString(),
 		OrganizationID: model.OrganizationID.ValueStringPointer(),
-		IsMaster:       model.IsOrgManagementAccount.ValueBool(),
+		IsMaster:       model.OrganizationID.ValueString() != "",
 		AccountType:    model.AccountType.ValueString(),
 	}
 	if model.AssetInventory != nil && model.AssetInventory.Enabled.ValueBool() {
@@ -717,29 +720,40 @@ func (r *cloudAWSAccountResource) Read(
 	if oldState.AccountID.ValueString() == "" {
 		return
 	}
+
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	cspmAccount, diags := r.getCSPMAccount(ctx, oldState.AccountID.ValueString())
+	for _, diagErr := range diags.Errors() {
+		if strings.Contains(diagErr.Detail(), "404 Not Found") {
+			tflog.Warn(
+				ctx,
+				fmt.Sprintf("cspm account %s not found, removing from state", state.AccountID),
+				map[string]interface{}{"resp": diagErr.Detail()},
+			)
+
+			resp.State.RemoveResource(ctx)
+			return
+		}
+	}
+
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	state.AccountID = types.StringValue(cspmAccount.AccountID)
-	state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
-	state.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
+	state.OrganizationID = oldState.OrganizationID
 	state.AccountType = types.StringValue(cspmAccount.AccountType)
 	state.DeploymentMethod = oldState.DeploymentMethod
 	if state.DeploymentMethod.IsNull() {
 		state.DeploymentMethod = types.StringValue("terraform-native")
 	}
-	if oldState.TargetOUs.IsNull() {
-		state.TargetOUs, diags = types.ListValueFrom(ctx, types.StringType, []string{})
-		if diags.HasError() {
-			resp.Diagnostics.Append(diags...)
-		}
-	} else {
-		state.TargetOUs = oldState.TargetOUs
-	}
-	if len(cspmAccount.TargetOus) != 0 {
+	state.TargetOUs = oldState.TargetOUs
+	// don't store target OU's if it's not a management account
+	if cspmAccount.IsMaster && len(cspmAccount.TargetOus) != 0 {
 		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, cspmAccount.TargetOus)
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
@@ -747,6 +761,7 @@ func (r *cloudAWSAccountResource) Read(
 		state.TargetOUs = targetOUs
 	}
 
+	state.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
 	state.ExternalID = types.StringValue(cspmAccount.ExternalID)
 	state.IntermediateRoleArn = types.StringValue(cspmAccount.IntermediateRoleArn)
 	state.IamRoleArn = types.StringValue(cspmAccount.IamRoleArn)
@@ -804,6 +819,20 @@ func (r *cloudAWSAccountResource) Read(
 	}
 
 	cloudAccount, found, diags := r.getCloudAccount(ctx, oldState.AccountID.ValueString())
+
+	for _, diagErr := range diags.Errors() {
+		if strings.Contains(diagErr.Detail(), "404 Not Found") {
+			tflog.Warn(
+				ctx,
+				fmt.Sprintf("cloud account %s not found, removing from state", state.AccountID),
+				map[string]interface{}{"resp": diagErr.Detail()},
+			)
+
+			resp.State.RemoveResource(ctx)
+			return
+		}
+	}
+
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -866,10 +895,12 @@ func (r *cloudAWSAccountResource) getCSPMAccount(
 		)
 		return nil, diags
 	}
+
+	// todo: the backend needs to be updated to properly return 404
 	if status != nil {
 		diags.AddError(
 			"Failed to read CSPM AWS account",
-			fmt.Sprintf("Failed to get CSPM AWS account: %s", status.Error()),
+			fmt.Sprintf("Failed to get CSPM AWS account: 404 Not Found %s", status.Error()),
 		)
 		return nil, diags
 	}
@@ -912,9 +943,12 @@ func (r *cloudAWSAccountResource) getCloudAccount(
 		return nil, false, diags
 	}
 	if status != nil {
-		diags.AddWarning(
+		diags.AddError(
 			"Failed to read Cloud Registration AWS account",
-			fmt.Sprintf("Failed to read Cloud Registration AWS account: %s", status.Error()),
+			fmt.Sprintf(
+				"Failed to read Cloud Registration AWS account: 404 Not Found %s",
+				status.Error(),
+			),
 		)
 		return nil, false, diags
 	}
@@ -959,21 +993,21 @@ func (r *cloudAWSAccountResource) Update(
 		return
 	}
 	plan.AccountID = types.StringValue(cspmAccount.AccountID)
-	plan.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
+	plan.OrganizationID = state.OrganizationID
 	plan.AccountType = types.StringValue(cspmAccount.AccountType)
-	plan.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
 	plan.DeploymentMethod = state.DeploymentMethod
 	if state.DeploymentMethod.IsNull() {
 		plan.DeploymentMethod = types.StringValue("terraform-native")
 	}
 	plan.TargetOUs = state.TargetOUs
-	if len(cspmAccount.TargetOus) != 0 {
+	if cspmAccount.IsMaster && len(cspmAccount.TargetOus) != 0 {
 		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, cspmAccount.TargetOus)
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
 		}
 		plan.TargetOUs = targetOUs
 	}
+	plan.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
 	plan.ExternalID = types.StringValue(cspmAccount.ExternalID)
 	plan.IntermediateRoleArn = types.StringValue(cspmAccount.IntermediateRoleArn)
 	plan.IamRoleArn = types.StringValue(cspmAccount.IamRoleArn)
@@ -1102,7 +1136,7 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 	patchAccount := models.RestCloudAWSAccountCreateExtV1{
 		AccountID:      model.AccountID.ValueString(),
 		OrganizationID: model.OrganizationID.ValueStringPointer(),
-		IsMaster:       model.IsOrgManagementAccount.ValueBool(),
+		IsMaster:       model.OrganizationID.ValueString() != "",
 		AccountType:    model.AccountType.ValueString(),
 	}
 	if model.AssetInventory != nil && model.AssetInventory.Enabled.ValueBool() {
@@ -1223,10 +1257,11 @@ func (r *cloudAWSAccountResource) deleteCSPMAccount(
 		return diags
 	}
 	if status != nil {
-		diags.AddError(
-			"Failed to delete CSPM AWS account",
-			fmt.Sprintf("Failed to delete CSPM AWS account: %s", status.Error()),
-		)
+		// treating this as a 404 not found which is not an error when deleting
+		// diags.AddError(
+		// 	"Failed to delete CSPM AWS account",
+		// 	fmt.Sprintf("Failed to delete CSPM AWS account: %s", status.Error()),
+		// )
 		return diags
 	}
 	return diags
@@ -1272,10 +1307,11 @@ func (r *cloudAWSAccountResource) deleteCloudAccount(
 		return diags
 	}
 	if status != nil {
-		diags.AddError(
-			"Failed to delete Cloud Registration AWS account",
-			fmt.Sprintf("Failed to delete Cloud Registration AWS account: %s", status.Error()),
-		)
+		// treating this as a 404 not found which is not an error when deleting
+		// diags.AddError(
+		// 	"Failed to delete Cloud Registration AWS account",
+		// 	fmt.Sprintf("Failed to delete Cloud Registration AWS account: %s", status.Error()),
+		// )
 		return diags
 	}
 	return diags
@@ -1316,6 +1352,28 @@ func (r *cloudAWSAccountResource) ImportState(
 ) {
 	// Retrieve import ID and save to id attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("account_id"), req, resp)
+	account, diags := r.getCSPMAccount(ctx, req.ID)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if account.OrganizationID != "" {
+		resp.Diagnostics.Append(
+			resp.State.SetAttribute(ctx, path.Root("organization_id"), account.OrganizationID)...)
+	}
+
+	ous := []string{}
+	if account.IsMaster && len(account.TargetOus) != 0 {
+		ous = account.TargetOus
+	}
+
+	targetOUs, diags := types.ListValueFrom(ctx, types.StringType, ous)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+	}
+	resp.Diagnostics.Append(
+		resp.State.SetAttribute(ctx, path.Root("target_ous"), targetOUs)...)
 }
 
 // ValidateConfig runs during validate, plan, and apply
@@ -1329,5 +1387,91 @@ func (r *cloudAWSAccountResource) ValidateConfig(
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+}
+
+// pollMissingValues waits for missing backend values [eventbus_arn, eventbus_name, cloudtrail_bucket_name] to be set.
+func (r *cloudAWSAccountResource) pollMissingValues(
+	ctx context.Context,
+	config *cloudAWSAccountModel,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+	missingValues := make(map[string]interface{})
+
+	if config.EventbusArn.ValueString() == "" {
+		missingValues["eventbus_arn"] = nil
+	}
+
+	if config.EventbusName.ValueString() == "" {
+		missingValues["eventbus_name"] = nil
+	}
+
+	if config.CloudTrailBucketName.ValueString() == "" {
+		missingValues["cloudtrail_bucket_name"] = nil
+	}
+
+	if len(missingValues) == 0 {
+		return diags
+	}
+
+	pollCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			account, diag := r.getCSPMAccount(pollCtx, config.AccountID.ValueString())
+			if diag.HasError() {
+				return diag
+			}
+
+			if _, ok := missingValues["eventbus_arn"]; ok && account.AwsEventbusArn != "" {
+				config.EventbusArn = types.StringValue(account.AwsEventbusArn)
+				delete(missingValues, "eventbus_arn")
+			}
+
+			if _, ok := missingValues["eventbus_name"]; ok && account.EventbusName != "" {
+				config.EventbusName = types.StringValue(account.EventbusName)
+				delete(missingValues, "eventbus_name")
+			}
+
+			if _, ok := missingValues["cloudtrail_bucket_name"]; ok &&
+				account.AwsCloudtrailBucketName != "" {
+				config.CloudTrailBucketName = types.StringValue(account.AwsCloudtrailBucketName)
+				delete(missingValues, "cloudtrail_bucket_name")
+			}
+
+			if len(missingValues) == 0 {
+				return diags
+			}
+
+			fields := strings.Join(maps.Keys(missingValues), ", ")
+			tflog.Debug(
+				pollCtx,
+				fmt.Sprintf("[%s] not yet available, polling again in 10s...", fields),
+			)
+
+		case <-pollCtx.Done():
+			if pollCtx.Err() != context.DeadlineExceeded {
+				return diags
+			}
+
+			if len(missingValues) == 0 {
+				return diags
+			}
+
+			fields := strings.Join(maps.Keys(missingValues), ", ")
+			diags.AddError(
+				"Timed out waiting for missing fields to populate",
+				fmt.Sprintf(
+					"Timed out on create waiting for missing fields [%s] to return from API.",
+					fields,
+				),
+			)
+			return diags
+		}
 	}
 }
