@@ -94,7 +94,7 @@ func (d *defaultSensorUpdatePolicyResourceModel) wrap(
 		d.PlatformName = types.StringValue(*policy.PlatformName)
 	}
 
-	if strings.ToLower(d.PlatformName.ValueString()) != strings.ToLower(*policy.PlatformName) {
+	if !strings.EqualFold(d.PlatformName.ValueString(), *policy.PlatformName) {
 		diags.AddError(
 			"Mismatch platform_name",
 			fmt.Sprintf(
@@ -446,7 +446,6 @@ func (r *defaultSensorUpdatePolicyResource) Delete(
 	resp *resource.DeleteResponse,
 ) {
 	// We can not delete the default sensor update policy, so we will just remove it from state.
-	return
 }
 
 // ImportState implements the logic to support resource imports.
