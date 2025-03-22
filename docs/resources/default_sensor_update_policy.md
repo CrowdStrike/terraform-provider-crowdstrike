@@ -1,16 +1,16 @@
 ---
-page_title: "crowdstrike_sensor_update_policy Resource - crowdstrike"
+page_title: "crowdstrike_default_sensor_update_policy Resource - crowdstrike"
 subcategory: "Sensor Update Policy"
 description: |-
-  This resource allows management of sensor update policies in the CrowdStrike Falcon platform. Sensor update policies allow you to control the update process across a set of hosts.
+  This resource allows management of the default sensor update policy in the CrowdStrike Falcon platform.
   API Scopes
   The following API scopes are required:
   Sensor update policies | Read & Write
 ---
 
-# crowdstrike_sensor_update_policy (Resource)
+# crowdstrike_default_sensor_update_policy (Resource)
 
-This resource allows management of sensor update policies in the CrowdStrike Falcon platform. Sensor update policies allow you to control the update process across a set of hosts.
+This resource allows management of the default sensor update policy in the CrowdStrike Falcon platform.
 
 ## API Scopes
 
@@ -36,14 +36,10 @@ provider "crowdstrike" {
 
 data "crowdstrike_sensor_update_policy_builds" "all" {}
 
-resource "crowdstrike_sensor_update_policy" "example" {
-  name                 = "example_prevention_policy"
-  enabled              = false
-  description          = "made with terraform"
-  platform_name        = "Windows"
+resource "crowdstrike_default_sensor_update_policy" "default" {
+  platform_name        = "windows"
   build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
-  uninstall_protection = false
-  host_groups          = ["host_group_id"]
+  uninstall_protection = true
   schedule = {
     enabled  = true
     timezone = "Etc/UTC"
@@ -57,8 +53,9 @@ resource "crowdstrike_sensor_update_policy" "example" {
   }
 }
 
+
 output "sensor_policy" {
-  value = crowdstrike_sensor_update_policy.example
+  value = crowdstrike_default_sensor_update_policy.default
 }
 ```
 
@@ -67,17 +64,13 @@ output "sensor_policy" {
 
 ### Required
 
-- `build` (String) Sensor build to use for the sensor update policy.
-- `name` (String) Name of the sensor update policy.
-- `platform_name` (String) Platform for the sensor update policy to manage. (Windows, Mac, Linux)
+- `build` (String) Sensor build to use for the default sensor update policy.
+- `platform_name` (String) Chooses which default sensor update policy to manage. (Windows, Mac, Linux)
 - `schedule` (Attributes) Prohibit sensor updates during a set of time blocks. (see [below for nested schema](#nestedatt--schedule))
 
 ### Optional
 
-- `build_arm64` (String) Sensor arm64 build to use for the sensor update policy (Linux only). Required if platform_name is Linux.
-- `description` (String) Description of the sensor update policy.
-- `enabled` (Boolean) Enable the sensor update policy.
-- `host_groups` (Set of String) Host Group ids to attach to the sensor update policy.
+- `build_arm64` (String) Sensor arm64 build to use for the default sensor update policy (Linux only). Required if platform_name is Linux.
 - `uninstall_protection` (Boolean) Enable uninstall protection. Windows and Mac only.
 
 ### Read-Only
@@ -111,6 +104,6 @@ Required:
 Import is supported using the following syntax:
 
 ```shell
-# sensor update policies can be imported by specifying the policy id.
-terraform import crowdstrike_sensor_update_policy.example 7fb858a949034a0cbca175f660f1e769
+# A default sensor update policy can be imported by specifying the policy id.
+terraform import crowdstrike_default_sensor_update_policy.default 7fb858a949034a0cbca175f660f1e769
 ```
