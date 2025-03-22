@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -634,8 +635,8 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		return
 	}
 
-	resp.Diagnostics.Append(validateHostGroups(ctx, config.HostGroups)...)
-	resp.Diagnostics.Append(validateIOARuleGroups(ctx, config.RuleGroups)...)
+	resp.Diagnostics.Append(utils.ValidateEmptyIDs(ctx, config.HostGroups, "host_groups")...)
+	resp.Diagnostics.Append(utils.ValidateEmptyIDs(ctx, config.RuleGroups, "ioa_rule_groups")...)
 
 	resp.Diagnostics.Append(
 		validateRequiredAttribute(

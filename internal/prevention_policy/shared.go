@@ -449,68 +449,6 @@ func validateRequiredAttribute(
 	return diags
 }
 
-// validateHostGroups validates the host groups in the resource model.
-func validateHostGroups(ctx context.Context, hostGroupSet types.Set) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	if hostGroupSet.IsNull() {
-		return diags
-	}
-
-	if hostGroupSet.IsUnknown() {
-		return diags
-	}
-
-	hostGroups := make([]types.String, 0, len(hostGroupSet.Elements()))
-	diags.Append(hostGroupSet.ElementsAs(ctx, &hostGroups, false)...)
-	if diags.HasError() {
-		return diags
-	}
-
-	for _, id := range hostGroups {
-		if !id.IsUnknown() && len(id.ValueString()) == 0 {
-			diags.AddAttributeError(
-				path.Root("host_groups"),
-				"Error validating host group",
-				"Host group ID cannot be empty",
-			)
-		}
-	}
-
-	return diags
-}
-
-// validateIOARuleGroups validates the rule groups in the resource model.
-func validateIOARuleGroups(ctx context.Context, ioaRuleGroupSet types.Set) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	if ioaRuleGroupSet.IsNull() {
-		return diags
-	}
-
-	if ioaRuleGroupSet.IsUnknown() {
-		return diags
-	}
-
-	ioaRuleGroups := make([]types.String, 0, len(ioaRuleGroupSet.Elements()))
-	diags.Append(ioaRuleGroupSet.ElementsAs(ctx, &ioaRuleGroups, false)...)
-	if diags.HasError() {
-		return diags
-	}
-
-	for _, id := range ioaRuleGroups {
-		if !id.IsUnknown() && len(id.ValueString()) == 0 {
-			diags.AddAttributeError(
-				path.Root("ioa_rule_groups"),
-				"Error validating ioa rule group",
-				"ioa rule group ID cannot be empty",
-			)
-		}
-	}
-
-	return diags
-}
-
 // deletePreventionPolicy deletes a prevention policy by id.
 func deletePreventionPolicy(
 	ctx context.Context,
