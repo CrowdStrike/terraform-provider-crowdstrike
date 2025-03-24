@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
 
-// ImportKey key used in private state
+// ImportKey key used in private state.
 const importKey = "import"
 
 type importPrivateState struct {
@@ -23,7 +23,7 @@ func MarkPrivateStateForImport(
 	return resp.Private.SetKey(ctx, importKey, value)
 }
 
-// IsImportRead checks if read is part of an import
+// IsImportRead checks if read is part of an import.
 func IsImportRead(
 	ctx context.Context,
 	req resource.ReadRequest,

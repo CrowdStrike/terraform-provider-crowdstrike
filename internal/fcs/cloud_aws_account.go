@@ -64,13 +64,12 @@ type dspmOptions struct {
 	RoleName types.String `tfsdk:"role_name"`
 }
 
-// accountStateKey the private state key used in terraform.
-const accountStateKey = "accountState"
+// cloudStateKey the private state key used in terraform.
+const cloudStateKey = "accountState"
 
-// accountState tracks which cloud account has been created.
-type accountState struct {
-	CspmCreated  bool `json:"cspmCreated"`
-	CloudCreated bool `json:"cloudCreated"`
+// cloudAccState tracks if the cloud registration account has been created.
+type cloudAccState struct {
+	Created bool `json:"created"`
 }
 
 type cloudAWSAccountModel struct {
@@ -99,13 +98,10 @@ type cloudAWSAccountModel struct {
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_                     resource.Resource                   = &cloudAWSAccountResource{}
-	_                     resource.ResourceWithConfigure      = &cloudAWSAccountResource{}
-	_                     resource.ResourceWithImportState    = &cloudAWSAccountResource{}
-	_                     resource.ResourceWithValidateConfig = &cloudAWSAccountResource{}
-	cspmAccRegisteredKey  string                              = "cspmAccountRegistered"
-	cloudAccRegisteredKey string                              = "cloudAccountRegistered"
-	importingKey          string                              = "importing"
+	_ resource.Resource                   = &cloudAWSAccountResource{}
+	_ resource.ResourceWithConfigure      = &cloudAWSAccountResource{}
+	_ resource.ResourceWithImportState    = &cloudAWSAccountResource{}
+	_ resource.ResourceWithValidateConfig = &cloudAWSAccountResource{}
 )
 
 // NewCloudAWSAccountResource a helper function to simplify the provider implementation.
@@ -524,7 +520,7 @@ func (r *cloudAWSAccountResource) Create(
 		return
 	}
 
-	// // create Cloud Registration account
+	// create Cloud Registration account
 	cloudAccount, diags := r.createCloudAccount(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -729,9 +725,8 @@ func (r *cloudAWSAccountResource) Read(
 		return
 	}
 
-	accState := accountState{
-		CspmCreated:  true,
-		CloudCreated: true,
+	cloudAccState := cloudAccState{
+		Created: true,
 	}
 
 	var state cloudAWSAccountModel
@@ -754,16 +749,15 @@ func (r *cloudAWSAccountResource) Read(
 		if strings.Contains(diagErr.Detail(), "404 Not Found") {
 			tflog.Warn(
 				ctx,
-				fmt.Sprintf("cspm account %s not found", state.AccountID),
+				fmt.Sprintf("cspm account %s not found, removing from state", state.AccountID),
 				map[string]interface{}{"resp": diagErr.Detail()},
 			)
-
-			accState.CspmCreated = false
-		} else {
-			resp.Diagnostics.Append(diagErr)
+			resp.State.RemoveResource(ctx)
+			return
 		}
 	}
 
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -851,17 +845,17 @@ func (r *cloudAWSAccountResource) Read(
 		return
 	}
 
-	cloudAccount, found, diags := r.getCloudAccount(ctx, oldState.AccountID.ValueString())
+	cloudAccount, _, diags := r.getCloudAccount(ctx, oldState.AccountID.ValueString())
 
 	for _, diagErr := range diags.Errors() {
 		if strings.Contains(diagErr.Detail(), "404 Not Found") {
 			tflog.Warn(
 				ctx,
-				fmt.Sprintf("cloud account %s not found, removing from state", state.AccountID),
+				fmt.Sprintf("cloud account %s not found", state.AccountID),
 				map[string]interface{}{"resp": diagErr.Detail()},
 			)
 
-			accState.CloudCreated = false
+			cloudAccState.Created = false
 		} else {
 			resp.Diagnostics.Append(diagErr)
 		}
@@ -870,6 +864,7 @@ func (r *cloudAWSAccountResource) Read(
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	if oldState.IDP != nil {
 		state.IDP = oldState.IDP
 	} else {
@@ -877,7 +872,8 @@ func (r *cloudAWSAccountResource) Read(
 			Enabled: types.BoolValue(false),
 		}
 	}
-	if found {
+
+	if cloudAccState.Created {
 		tflog.Info(
 			ctx,
 			"found cloud registration account",
@@ -890,22 +886,14 @@ func (r *cloudAWSAccountResource) Read(
 				break
 			}
 		}
-	} else {
-		resp.Diagnostics.AddWarning("didn't find cloud registration account", "no cloud registration account matched, it will be created on the next run.")
 	}
 
-	// if both cspm and cloud account are missing we remove the resource from state and let Create take over.
-	// if one account exists we will let Update take over
-	if !accState.CloudCreated && !accState.CspmCreated {
-		resp.State.RemoveResource(ctx)
-	}
-
-	accPrivateState, err := json.Marshal(accState)
+	cloudAccPrivateState, err := json.Marshal(cloudAccState)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to marshal private account state in read", err.Error())
 	}
 
-	resp.Diagnostics.Append(resp.Private.SetKey(ctx, accountStateKey, accPrivateState)...)
+	resp.Diagnostics.Append(resp.Private.SetKey(ctx, cloudStateKey, cloudAccPrivateState)...)
 
 	// Set refreshed state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -1013,10 +1001,10 @@ func (r *cloudAWSAccountResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	accPrivateState, diags := req.Private.GetKey(ctx, accountStateKey)
+	accPrivateState, diags := req.Private.GetKey(ctx, cloudStateKey)
 	resp.Diagnostics.Append(diags...)
-	var accState accountState
-	err := json.Unmarshal(accPrivateState, &accState)
+	var cloudAccState cloudAccState
+	err := json.Unmarshal(accPrivateState, &cloudAccState)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Internal provider error",
@@ -1038,12 +1026,7 @@ func (r *cloudAWSAccountResource) Update(
 		return
 	}
 
-	var cspmAccount *models.DomainAWSAccountV2
-	if accState.CspmCreated {
-		cspmAccount, diags = r.updateCSPMAccount(ctx, plan)
-	} else {
-		cspmAccount, diags = r.createCSPMAccount(ctx, plan)
-	}
+	cspmAccount, diags := r.updateCSPMAccount(ctx, plan)
 
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -1094,7 +1077,7 @@ func (r *cloudAWSAccountResource) Update(
 	}
 
 	var cloudAccount *models.DomainCloudAWSAccountV1
-	if accState.CloudCreated {
+	if cloudAccState.Created {
 		cloudAccount, diags = r.updateCloudAccount(ctx, plan)
 	} else {
 		cloudAccount, diags = r.createCloudAccount(ctx, plan)
