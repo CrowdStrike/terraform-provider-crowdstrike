@@ -2,6 +2,7 @@ package fcs
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_aws_registration"
 	"github.com/crowdstrike/gofalcon/falcon/client/cspm_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	privatestate "github.com/crowdstrike/terraform-provider-crowdstrike/internal/private_state"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -62,6 +64,15 @@ type dspmOptions struct {
 	RoleName types.String `tfsdk:"role_name"`
 }
 
+// accountStateKey the private state key used in terraform.
+const accountStateKey = "accountState"
+
+// accountState tracks which cloud account has been created.
+type accountState struct {
+	CspmCreated  bool `json:"cspmCreated"`
+	CloudCreated bool `json:"cloudCreated"`
+}
+
 type cloudAWSAccountModel struct {
 	AccountID              types.String               `tfsdk:"account_id"`
 	OrganizationID         types.String               `tfsdk:"organization_id"`
@@ -88,10 +99,13 @@ type cloudAWSAccountModel struct {
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                   = &cloudAWSAccountResource{}
-	_ resource.ResourceWithConfigure      = &cloudAWSAccountResource{}
-	_ resource.ResourceWithImportState    = &cloudAWSAccountResource{}
-	_ resource.ResourceWithValidateConfig = &cloudAWSAccountResource{}
+	_                     resource.Resource                   = &cloudAWSAccountResource{}
+	_                     resource.ResourceWithConfigure      = &cloudAWSAccountResource{}
+	_                     resource.ResourceWithImportState    = &cloudAWSAccountResource{}
+	_                     resource.ResourceWithValidateConfig = &cloudAWSAccountResource{}
+	cspmAccRegisteredKey  string                              = "cspmAccountRegistered"
+	cloudAccRegisteredKey string                              = "cloudAccountRegistered"
+	importingKey          string                              = "importing"
 )
 
 // NewCloudAWSAccountResource a helper function to simplify the provider implementation.
@@ -510,7 +524,7 @@ func (r *cloudAWSAccountResource) Create(
 		return
 	}
 
-	// create Cloud Registration account
+	// // create Cloud Registration account
 	cloudAccount, diags := r.createCloudAccount(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -709,10 +723,20 @@ func (r *cloudAWSAccountResource) Read(
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
+	isImport, diags := privatestate.IsImportRead(ctx, req, resp)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	accState := accountState{
+		CspmCreated:  true,
+		CloudCreated: true,
+	}
+
 	var state cloudAWSAccountModel
 	var oldState cloudAWSAccountModel
-	diags := req.State.Get(ctx, &oldState)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &oldState)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -730,36 +754,45 @@ func (r *cloudAWSAccountResource) Read(
 		if strings.Contains(diagErr.Detail(), "404 Not Found") {
 			tflog.Warn(
 				ctx,
-				fmt.Sprintf("cspm account %s not found, removing from state", state.AccountID),
+				fmt.Sprintf("cspm account %s not found", state.AccountID),
 				map[string]interface{}{"resp": diagErr.Detail()},
 			)
 
-			resp.State.RemoveResource(ctx)
-			return
+			accState.CspmCreated = false
+		} else {
+			resp.Diagnostics.Append(diagErr)
 		}
 	}
 
-	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	state.AccountID = types.StringValue(cspmAccount.AccountID)
-	state.OrganizationID = oldState.OrganizationID
+
+	// imports should use the org id from the API since state will be nil.
+	if isImport {
+		state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
+	} else {
+		state.OrganizationID = oldState.OrganizationID
+	}
+
 	state.AccountType = types.StringValue(cspmAccount.AccountType)
 	state.DeploymentMethod = oldState.DeploymentMethod
 	if state.DeploymentMethod.IsNull() {
 		state.DeploymentMethod = types.StringValue("terraform-native")
 	}
-	state.TargetOUs = oldState.TargetOUs
-	// don't store target OU's if it's not a management account
+
+	ous := []string{}
 	if cspmAccount.IsMaster && len(cspmAccount.TargetOus) != 0 {
-		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, cspmAccount.TargetOus)
-		if diags.HasError() {
-			resp.Diagnostics.Append(diags...)
-		}
-		state.TargetOUs = targetOUs
+		ous = cspmAccount.TargetOus
 	}
+
+	targetOUs, diags := types.ListValueFrom(ctx, types.StringType, ous)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+	}
+	state.TargetOUs = targetOUs
 
 	state.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
 	state.ExternalID = types.StringValue(cspmAccount.ExternalID)
@@ -828,12 +861,12 @@ func (r *cloudAWSAccountResource) Read(
 				map[string]interface{}{"resp": diagErr.Detail()},
 			)
 
-			resp.State.RemoveResource(ctx)
-			return
+			accState.CloudCreated = false
+		} else {
+			resp.Diagnostics.Append(diagErr)
 		}
 	}
 
-	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -858,15 +891,24 @@ func (r *cloudAWSAccountResource) Read(
 			}
 		}
 	} else {
-		resp.Diagnostics.AddWarning("didn't find cloud registration account", "no cloud registration account")
+		resp.Diagnostics.AddWarning("didn't find cloud registration account", "no cloud registration account matched, it will be created on the next run.")
 	}
 
-	// Set refreshed state
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
+	// if both cspm and cloud account are missing we remove the resource from state and let Create take over.
+	// if one account exists we will let Update take over
+	if !accState.CloudCreated && !accState.CspmCreated {
+		resp.State.RemoveResource(ctx)
 	}
+
+	accPrivateState, err := json.Marshal(accState)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to marshal private account state in read", err.Error())
+	}
+
+	resp.Diagnostics.Append(resp.Private.SetKey(ctx, accountStateKey, accPrivateState)...)
+
+	// Set refreshed state
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *cloudAWSAccountResource) getCSPMAccount(
@@ -971,23 +1013,38 @@ func (r *cloudAWSAccountResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
+	accPrivateState, diags := req.Private.GetKey(ctx, accountStateKey)
+	resp.Diagnostics.Append(diags...)
+	var accState accountState
+	err := json.Unmarshal(accPrivateState, &accState)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Internal provider error",
+			"Failed to unmarshal private account state: "+err.Error(),
+		)
+	}
+
 	// Retrieve values from plan
 	var plan cloudAWSAccountModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Retrieve values from state
 	var state cloudAWSAccountModel
-	diags = req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	cspmAccount, diags := r.updateCSPMAccount(ctx, plan)
+	var cspmAccount *models.DomainAWSAccountV2
+	if accState.CspmCreated {
+		cspmAccount, diags = r.updateCSPMAccount(ctx, plan)
+	} else {
+		cspmAccount, diags = r.createCSPMAccount(ctx, plan)
+	}
+
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -1036,8 +1093,13 @@ func (r *cloudAWSAccountResource) Update(
 		return
 	}
 
-	// update Cloud Registration account
-	cloudAccount, diags := r.updateCloudAccount(ctx, plan)
+	var cloudAccount *models.DomainCloudAWSAccountV1
+	if accState.CloudCreated {
+		cloudAccount, diags = r.updateCloudAccount(ctx, plan)
+	} else {
+		cloudAccount, diags = r.createCloudAccount(ctx, plan)
+	}
+
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -1350,30 +1412,11 @@ func (r *cloudAWSAccountResource) ImportState(
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
 ) {
-	// Retrieve import ID and save to id attribute
-	resource.ImportStatePassthroughID(ctx, path.Root("account_id"), req, resp)
-	account, diags := r.getCSPMAccount(ctx, req.ID)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(privatestate.MarkPrivateStateForImport(ctx, resp)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	if account.OrganizationID != "" {
-		resp.Diagnostics.Append(
-			resp.State.SetAttribute(ctx, path.Root("organization_id"), account.OrganizationID)...)
-	}
-
-	ous := []string{}
-	if account.IsMaster && len(account.TargetOus) != 0 {
-		ous = account.TargetOus
-	}
-
-	targetOUs, diags := types.ListValueFrom(ctx, types.StringType, ous)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-	}
-	resp.Diagnostics.Append(
-		resp.State.SetAttribute(ctx, path.Root("target_ous"), targetOUs)...)
+	resource.ImportStatePassthroughID(ctx, path.Root("account_id"), req, resp)
 }
 
 // ValidateConfig runs during validate, plan, and apply
