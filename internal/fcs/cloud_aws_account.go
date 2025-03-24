@@ -645,7 +645,7 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 		IsMaster:       model.OrganizationID.ValueString() != "",
 		AccountType:    model.AccountType.ValueString(),
 	}
-	if model.AssetInventory != nil && model.AssetInventory.Enabled.ValueBool() {
+	if model.RealtimeVisibility != nil && model.RealtimeVisibility.Enabled.ValueBool() {
 		createAccount.CspEvents = true
 	}
 	if model.IDP != nil && model.IDP.Enabled.ValueBool() {
