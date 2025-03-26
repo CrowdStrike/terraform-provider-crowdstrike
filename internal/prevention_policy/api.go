@@ -11,15 +11,10 @@ import (
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
-	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectdefault"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var windowsPlatformName = "Windows"
@@ -32,6 +27,58 @@ var apiScopes = []scopes.Scope{
 		Read:  true,
 		Write: true,
 	},
+}
+
+// getDefaultPolicy gets the default prevention update policy based on platformName.
+func getDefaultPolicy(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	platformName string,
+) (*models.PreventionPolicyV1, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	caser := cases.Title(language.English)
+	platformName = caser.String(platformName)
+
+	filter := fmt.Sprintf(
+		`platform_name:'%s'+name.raw:'platform_default'`,
+		platformName,
+	)
+	sort := "precedence.desc"
+
+	res, err := client.PreventionPolicies.QueryCombinedPreventionPolicies(
+		&prevention_policies.QueryCombinedPreventionPoliciesParams{
+			Context: ctx,
+			Filter:  &filter,
+			Sort:    &sort,
+		},
+	)
+
+	if err != nil {
+		diags.AddError(
+			"Failed to get default prevention policy",
+			fmt.Sprintf("Failed to get default prevention policy: %s", err),
+		)
+
+		return nil, diags
+	}
+
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
+		diags.AddError(
+			"Unable to find default prevention policy",
+			fmt.Sprintf(
+				"No policy matched filter: %s, a default policy should exist. Please report this issue to the provider developers.",
+				filter,
+			),
+		)
+
+		return nil, diags
+	}
+
+	// we sort by descending precedence, default policy is always first
+	defaultPolicy := res.Payload.Resources[0]
+
+	return defaultPolicy, diags
 }
 
 // ruleGroupAction for prevention policy action api.
@@ -190,140 +237,6 @@ func updateRuleGroups(
 	return diags
 }
 
-// toggleOptions holds the options for toggleAttribute function.
-type toggleOptions struct {
-	enabled bool
-}
-
-// toggleOption is a functional option to configure toggleOption.
-type toggleOption func(*toggleOptions)
-
-// withEnabled sets the enabled field for toggleAttribute.
-func withEnabled(enabled bool) toggleOption {
-	return func(o *toggleOptions) {
-		o.enabled = enabled
-	}
-}
-
-func toggleAttribute(description string, opts ...toggleOption) schema.BoolAttribute {
-	options := toggleOptions{
-		enabled: false,
-	}
-
-	for _, opt := range opts {
-		opt(&options)
-	}
-
-	return schema.BoolAttribute{
-		Optional:    true,
-		Computed:    true,
-		Description: fmt.Sprintf("Whether to enable the setting. %s", description),
-		Default:     booldefault.StaticBool(options.enabled),
-	}
-}
-
-var mlSliderLevels = []string{"DISABLED", "CAUTIOUS", "MODERATE", "AGGRESSIVE", "EXTRA_AGGRESSIVE"}
-var mapMlSliderLevels = map[string]int{
-	"DISABLED":         0,
-	"CAUTIOUS":         1,
-	"MODERATE":         2,
-	"AGGRESSIVE":       3,
-	"EXTRA_AGGRESSIVE": 4,
-}
-
-// mlSliderOptions holds the options for mlSLiderAttribute function.
-type mlSliderOptions struct {
-	description string
-	prevention  bool
-	detection   bool
-}
-
-// mlSliderOption is a functional option to configure mlSliderOptions.
-type mlSliderOption func(*mlSliderOptions)
-
-// withPrevention the description whether prevention should be included in the mlSliderAttribute.
-func withPrevention(prevention bool) mlSliderOption {
-	return func(o *mlSliderOptions) {
-		o.prevention = prevention
-	}
-}
-
-// generateMLSliderAttribute generates a mlslider attribute with a custom description.
-// Includes prevention or detection slider settings if set to true.
-func mlSLiderAttribute(description string, opts ...mlSliderOption) schema.SingleNestedAttribute {
-	options := mlSliderOptions{
-		description: "ml slider setting.",
-		prevention:  true,
-		detection:   true,
-	}
-
-	if description != "" {
-		options.description = description
-	}
-
-	for _, opt := range opts {
-		opt(&options)
-	}
-
-	attributeTypes := map[string]attr.Type{}
-	attributeValues := map[string]attr.Value{}
-
-	mlSliderAttribute := schema.SingleNestedAttribute{
-		Optional:    true,
-		Computed:    true,
-		Description: description,
-		Attributes:  map[string]schema.Attribute{},
-	}
-
-	if options.prevention {
-		mlSliderAttribute.Attributes["prevention"] = schema.StringAttribute{
-			Required:    true,
-			Description: "Machine learning level for prevention.",
-			Validators:  []validator.String{stringvalidator.OneOf(mlSliderLevels...)},
-		}
-		attributeTypes["prevention"] = types.StringType
-		attributeValues["prevention"] = types.StringValue(mlSliderLevels[0])
-	}
-
-	if options.detection {
-		mlSliderAttribute.Attributes["detection"] = schema.StringAttribute{
-			Required:    true,
-			Description: "Machine learning level for detection.",
-			Validators:  []validator.String{stringvalidator.OneOf(mlSliderLevels...)},
-		}
-		attributeTypes["detection"] = types.StringType
-		attributeValues["detection"] = types.StringValue(mlSliderLevels[0])
-	}
-
-	mlSliderAttribute.Default = objectdefault.StaticValue(
-		types.ObjectValueMust(attributeTypes, attributeValues),
-	)
-
-	return mlSliderAttribute
-}
-
-// mlSlider a mlslider setting for a prevention policy.
-type mlSlider struct {
-	Detection  types.String `tfsdk:"detection"`
-	Prevention types.String `tfsdk:"prevention"`
-}
-
-// detectionMlSlider a mlsider setting with only detection for a prevention policy.
-type detectionMlSlider struct {
-	Detection types.String `tfsdk:"detection"`
-}
-
-// apiToggle a toggle setting type used for calling CrowdStrike APIs.
-type apiToggle struct {
-	Enabled bool `json:"enabled"`
-}
-
-// apiMlSlider mlslider setting type used for calling CrowdStrike APIs.
-type apiMlSlider struct {
-	Detection  string `json:"detection,omitempty"`
-	Prevention string `json:"prevention,omitempty"`
-}
-
 // updatePolicyEnabledState enables or disables a prevention policy.
 func updatePolicyEnabledState(
 	ctx context.Context,
@@ -407,86 +320,18 @@ func mapPreventionSettings(
 	return toggleSettings, mlSliderSettings, detectionMlSliderSettings
 }
 
-// validateMlSlider returns whether or not the mlslider is valid.
-func validateMlSlider(attribute string, slider mlSlider) diag.Diagnostics {
-	diags := diag.Diagnostics{}
-
-	detectionLevel := slider.Detection.ValueString()
-	preventionLevel := slider.Prevention.ValueString()
-
-	if mapMlSliderLevels[detectionLevel] < mapMlSliderLevels[preventionLevel] {
-		diags.AddAttributeError(
-			path.Root(attribute),
-			"Invalid ml slider setting.",
-			fmt.Sprintf(
-				"Prevention level: %s must the same or less restrictive than Detection level: %s. Ml detection levels are: %s",
-				detectionLevel,
-				preventionLevel,
-				strings.Join(mlSliderLevels, ", "),
-			),
-		)
-	}
-
-	return diags
-}
-
-// validateRequiredAttribute validates that a required attribute is set.
-func validateRequiredAttribute(
-	attrValue bool,
-	otherAttrValue bool,
-	attr string,
-	otherAttr string,
-) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	if attrValue && !otherAttrValue {
-		diags.AddAttributeError(
-			path.Root(attr),
-			fmt.Sprint("requirements not met to enable ", attr),
-			fmt.Sprintf("%s requires %s to be enabled", attr, otherAttr),
-		)
-	}
-	return diags
-}
-
-// deletePreventionPolicy deletes a prevention policy by id.
-func deletePreventionPolicy(
-	ctx context.Context,
-	client *client.CrowdStrikeAPISpecification,
-	id string,
-) diag.Diagnostics {
-	var diags diag.Diagnostics
-	_, diags = updatePolicyEnabledState(ctx, client, id, false)
-
-	if diags.HasError() {
-		return diags
-	}
-
-	_, err := client.PreventionPolicies.DeletePreventionPolicies(
-		&prevention_policies.DeletePreventionPoliciesParams{
-			Context: ctx,
-			Ids:     []string{id},
-		},
-	)
-
-	if err != nil {
-		diags.AddError(
-			"Error deleting prevention policy",
-			fmt.Sprintf("Could not delete prevention policy: %s \n\n %s", id, err.Error()),
-		)
-		return diags
-	}
-
-	return diags
+type updatePreventionPolicyOptions struct {
+	Name        string
+	Description string
 }
 
 // updatePreventionPolicy updates a prevention policy with the provided settings.
 func updatePreventionPolicy(
 	ctx context.Context,
 	client *client.CrowdStrikeAPISpecification,
-	name, description string,
 	preventionSettings []*models.PreventionSettingReqV1,
 	id string,
+	options updatePreventionPolicyOptions,
 ) (*models.PreventionPolicyV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var preventionPolicy *models.PreventionPolicyV1
@@ -496,13 +341,17 @@ func updatePreventionPolicy(
 		Body: &models.PreventionUpdatePoliciesReqV1{
 			Resources: []*models.PreventionUpdatePolicyReqV1{
 				{
-					ID:          &id,
-					Name:        name,
-					Description: description,
+					ID: &id,
 				},
 			},
 		},
 	}
+
+	if options.Name != "" {
+		updateParams.Body.Resources[0].Name = options.Name
+	}
+
+	updateParams.Body.Resources[0].Description = options.Description
 
 	updateParams.Body.Resources[0].Settings = preventionSettings
 
@@ -520,7 +369,7 @@ func updatePreventionPolicy(
 		return preventionPolicy, diags
 	}
 
-	if len(res.Payload.Resources) == 0 {
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
 		diags.AddError(
 			"Error updating prevention policy",
 			fmt.Sprintf("No policy found with id: %s", id),
@@ -560,7 +409,7 @@ func getPreventionPolicy(
 		return preventionPolicy, diags
 	}
 
-	if len(res.GetPayload().Resources) == 0 {
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
 		diags.AddError(
 			"Error reading CrowdStrike prevention policy",
 			fmt.Sprintf(
@@ -776,4 +625,35 @@ func defaultBoolFalse(v types.Bool) types.Bool {
 	}
 
 	return v
+}
+
+// deletePreventionPolicy deletes a prevention policy by id.
+func deletePreventionPolicy(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	id string,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+	_, diags = updatePolicyEnabledState(ctx, client, id, false)
+
+	if diags.HasError() {
+		return diags
+	}
+
+	_, err := client.PreventionPolicies.DeletePreventionPolicies(
+		&prevention_policies.DeletePreventionPoliciesParams{
+			Context: ctx,
+			Ids:     []string{id},
+		},
+	)
+
+	if err != nil {
+		diags.AddError(
+			"Error deleting prevention policy",
+			fmt.Sprintf("Could not delete prevention policy: %s \n\n %s", id, err.Error()),
+		)
+		return diags
+	}
+
+	return diags
 }

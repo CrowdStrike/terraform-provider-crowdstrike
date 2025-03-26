@@ -7,15 +7,10 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/models"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -64,6 +59,7 @@ type preventionPolicyLinuxResourceModel struct {
 	SensorTamperingProtection          types.Bool   `tfsdk:"sensor_tampering_protection"`
 	MemoryVisibility                   types.Bool   `tfsdk:"memory_visibility"`
 	OnWriteScriptFileVisibility        types.Bool   `tfsdk:"on_write_script_file_visibility"`
+	ExtendedCommandLineVisibility      types.Bool   `tfsdk:"extended_command_line_visibility"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -108,103 +104,7 @@ func (r *preventionPolicyLinuxResource) Schema(
 	_ resource.SchemaRequest,
 	resp *resource.SchemaResponse,
 ) {
-	resp.Schema = schema.Schema{
-		MarkdownDescription: fmt.Sprintf(
-			"Prevention Policy --- This resource allows you to manage CrowdStrike Falcon prevention policies for Linux hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.\n\n%s",
-			scopes.GenerateScopeDescription(apiScopes),
-		),
-		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Computed:    true,
-				Description: "Identifier for the prevention policy.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
-			"last_updated": schema.StringAttribute{
-				Computed:    true,
-				Description: "Timestamp of the last Terraform update of the resource.",
-			},
-			"name": schema.StringAttribute{
-				Required:    true,
-				Description: "Name of the prevention policy.",
-			},
-			"enabled": schema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "Enable the prevention policy.",
-				Default:     booldefault.StaticBool(true),
-			},
-			"host_groups": schema.SetAttribute{
-				Required:    true,
-				ElementType: types.StringType,
-				Description: "Host Group ids to attach to the prevention policy.",
-			},
-			"ioa_rule_groups": schema.SetAttribute{
-				Required:    true,
-				ElementType: types.StringType,
-				Description: "IOA Rule Group to attach to the prevention policy.",
-			},
-			"description": schema.StringAttribute{
-				Optional:    true,
-				Description: "Description of the prevention policy.",
-			},
-			"cloud_anti_malware": mlSLiderAttribute(
-				"Use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware for your online hosts.",
-			),
-			"sensor_anti_malware": mlSLiderAttribute(
-				"For offline and online hosts, use sensor-based machine learning to identify and analyze unknown executables as they run to detect and prevent malware.",
-			),
-			"quarantine": toggleAttribute(
-				"Quarantine executable files after they’re prevented by NGAV. When this is enabled, we recommend setting anti-malware prevention levels to Moderate or higher and not using other antivirus solutions.",
-			),
-			"upload_unknown_detection_related_executables": toggleAttribute(
-				"Upload all unknown detection-related executables for advanced analysis in the cloud.",
-			),
-			"upload_unknown_executables": toggleAttribute(
-				"Upload all unknown executables for advanced analysis in the cloud.",
-			),
-			"script_based_execution_monitoring": toggleAttribute(
-				"Provides visibility into suspicious scripts, including shell and other scripting languages.",
-			),
-			"custom_blocking": toggleAttribute(
-				"Block processes matching hashes that you add to IOC Management with the action set to \"Block\" or \"Block, hide detection\".",
-			),
-			"prevent_suspicious_processes": toggleAttribute(
-				"Block processes that CrowdStrike analysts classify as suspicious. These are focused on dynamic IOAs, such as malware, exploits and other threats.",
-			),
-			"drift_prevention": toggleAttribute(
-				"Block new processes originating from files written in a container. This prevents a container from drifting from its immutable runtime state.",
-			),
-			"filesystem_visibility": toggleAttribute(
-				"Allows the sensor to monitor filesystem activity for additional telemetry and improved detections.",
-			),
-			"network_visibility": toggleAttribute(
-				"Allows the sensor to monitor network activity for additional telemetry and improved detections.",
-			),
-			"http_visibility": toggleAttribute(
-				"Allows the sensor to monitor unencrypted HTTP traffic for malicious patterns and improved detections.",
-			),
-			"ftp_visibility": toggleAttribute(
-				"Allows the sensor to monitor unencrypted FTP traffic for malicious patterns and improved detections.",
-			),
-			"tls_visibility": toggleAttribute(
-				"Allows the sensor to monitor TLS traffic for malicious patterns and improved detections.",
-			),
-			"email_protocol_visibility": toggleAttribute(
-				"Allows the sensor to monitor SMTP, IMAP, and POP3 traffic for malicious patterns and improved detections.",
-			),
-			"sensor_tampering_protection": toggleAttribute(
-				"Block attempts to tamper with the sensor by protecting critical components and resources. If disabled, the sensor still creates detections for tampering attempts but will not prevent the activity from occurring. Disabling is not recommended.",
-			),
-			"memory_visibility": toggleAttribute(
-				"When enabled, the sensor will inspect memory-related operations: mmap, mprotect, ptrace and reading/writing remote process memory and produce events.",
-			),
-			"on_write_script_file_visibility": toggleAttribute(
-				"Provides improved visibility into various script files being written to disk in addition to clouding a portion of their content.",
-			),
-		},
-	}
+	resp.Schema = generateLinuxSchema(false)
 }
 
 // Create creates the resource and sets the initial Terraform state.
@@ -375,10 +275,12 @@ func (r *preventionPolicyLinuxResource) Update(
 	preventionPolicy, diags := updatePreventionPolicy(
 		ctx,
 		r.client,
-		plan.Name.ValueString(),
-		plan.Description.ValueString(),
 		preventionSettings,
 		plan.ID.ValueString(),
+		updatePreventionPolicyOptions{
+			Name:        plan.Name.ValueString(),
+			Description: plan.Description.ValueString(),
+		},
 	)
 
 	resp.Diagnostics.Append(diags...)
@@ -562,6 +464,9 @@ func (r *preventionPolicyLinuxResource) assignPreventionSettings(
 	state.OnWriteScriptFileVisibility = defaultBoolFalse(
 		toggleSettings["OnWriteScriptFileVisibility"],
 	)
+	state.ExtendedCommandLineVisibility = defaultBoolFalse(
+		toggleSettings["ExtendedCommandLineVisibility"],
+	)
 
 	// mlslider settings
 	state.CloudAntiMalware = mlSliderSettings["CloudAntiMalware"]
@@ -591,6 +496,7 @@ func (r *preventionPolicyLinuxResource) generatePreventionSettings(
 		"SensorTamperingProtection":          config.SensorTamperingProtection,
 		"MemoryVisibility":                   config.MemoryVisibility,
 		"OnWriteScriptFileVisibility":        config.OnWriteScriptFileVisibility,
+		"ExtendedCommandLineVisibility":      config.ExtendedCommandLineVisibility,
 	}
 
 	mlSliderSettings := map[string]mlSlider{
