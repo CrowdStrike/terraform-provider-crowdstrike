@@ -145,3 +145,12 @@ Optional:
 Required:
 
 - `enabled` (Boolean) Enable 1-click sensor deployment
+
+## Import
+
+Import is supported using the following syntax:
+
+```shell
+# A previously registered cloud aws account can be imported by account id.
+terraform import crowdstrike_cloud_aws_account.account 12345678910
+```
