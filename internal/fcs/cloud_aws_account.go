@@ -732,7 +732,7 @@ func (r *cloudAWSAccountResource) Read(
 	var state cloudAWSAccountModel
 	var oldState cloudAWSAccountModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &oldState)...)
- 
+
 	if resp.Diagnostics.HasError() {
 		return
 	}
