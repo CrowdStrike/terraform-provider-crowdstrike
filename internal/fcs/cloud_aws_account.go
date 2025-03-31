@@ -2,6 +2,7 @@ package fcs
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -61,6 +62,14 @@ type sensorManagementOptions struct {
 type dspmOptions struct {
 	Enabled  types.Bool   `tfsdk:"enabled"`
 	RoleName types.String `tfsdk:"role_name"`
+}
+
+// cloudStateKey the private state key used in terraform.
+const cloudStateKey = "accountState"
+
+// cloudAccState tracks if the cloud registration account has been created.
+type cloudAccState struct {
+	Created bool `json:"created"`
 }
 
 type cloudAWSAccountModel struct {
@@ -716,10 +725,14 @@ func (r *cloudAWSAccountResource) Read(
 		return
 	}
 
+	cloudAccState := cloudAccState{
+		Created: true,
+	}
+
 	var state cloudAWSAccountModel
 	var oldState cloudAWSAccountModel
-	diags = req.State.Get(ctx, &oldState)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &oldState)...)
+
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -740,7 +753,6 @@ func (r *cloudAWSAccountResource) Read(
 				fmt.Sprintf("cspm account %s not found, removing from state", state.AccountID),
 				map[string]interface{}{"resp": diagErr.Detail()},
 			)
-
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -834,25 +846,26 @@ func (r *cloudAWSAccountResource) Read(
 		return
 	}
 
-	cloudAccount, found, diags := r.getCloudAccount(ctx, oldState.AccountID.ValueString())
+	cloudAccount, _, diags := r.getCloudAccount(ctx, oldState.AccountID.ValueString())
 
 	for _, diagErr := range diags.Errors() {
 		if strings.Contains(diagErr.Detail(), "404 Not Found") {
 			tflog.Warn(
 				ctx,
-				fmt.Sprintf("cloud account %s not found, removing from state", state.AccountID),
+				fmt.Sprintf("cloud account %s not found", state.AccountID),
 				map[string]interface{}{"resp": diagErr.Detail()},
 			)
 
-			resp.State.RemoveResource(ctx)
-			return
+			cloudAccState.Created = false
+		} else {
+			resp.Diagnostics.Append(diagErr)
 		}
 	}
 
-	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	if oldState.IDP != nil {
 		state.IDP = oldState.IDP
 	} else {
@@ -860,7 +873,8 @@ func (r *cloudAWSAccountResource) Read(
 			Enabled: types.BoolValue(false),
 		}
 	}
-	if found {
+
+	if cloudAccState.Created {
 		tflog.Info(
 			ctx,
 			"found cloud registration account",
@@ -873,16 +887,17 @@ func (r *cloudAWSAccountResource) Read(
 				break
 			}
 		}
-	} else {
-		resp.Diagnostics.AddWarning("didn't find cloud registration account", "no cloud registration account")
 	}
 
-	// Set refreshed state
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
+	cloudAccPrivateState, err := json.Marshal(cloudAccState)
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to marshal private account state in read", err.Error())
 	}
+
+	resp.Diagnostics.Append(resp.Private.SetKey(ctx, cloudStateKey, cloudAccPrivateState)...)
+
+	// Set refreshed state
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *cloudAWSAccountResource) getCSPMAccount(
@@ -987,23 +1002,33 @@ func (r *cloudAWSAccountResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
+	accPrivateState, diags := req.Private.GetKey(ctx, cloudStateKey)
+	resp.Diagnostics.Append(diags...)
+	var cloudAccState cloudAccState
+	err := json.Unmarshal(accPrivateState, &cloudAccState)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Internal provider error",
+			"Failed to unmarshal private account state: "+err.Error(),
+		)
+	}
+
 	// Retrieve values from plan
 	var plan cloudAWSAccountModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Retrieve values from state
 	var state cloudAWSAccountModel
-	diags = req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	cspmAccount, diags := r.updateCSPMAccount(ctx, plan)
+
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -1052,8 +1077,13 @@ func (r *cloudAWSAccountResource) Update(
 		return
 	}
 
-	// update Cloud Registration account
-	cloudAccount, diags := r.updateCloudAccount(ctx, plan)
+	var cloudAccount *models.DomainCloudAWSAccountV1
+	if cloudAccState.Created {
+		cloudAccount, diags = r.updateCloudAccount(ctx, plan)
+	} else {
+		cloudAccount, diags = r.createCloudAccount(ctx, plan)
+	}
+
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
