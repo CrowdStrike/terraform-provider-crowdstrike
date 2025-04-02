@@ -408,6 +408,10 @@ func (r *defaultPreventionPolicyWindowsResource) Create(
 		plan.ID.ValueString(),
 		updatePreventionPolicyOptions{Description: plan.Description.ValueString()},
 	)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	resp.Diagnostics.Append(plan.wrap(ctx, *policy)...)

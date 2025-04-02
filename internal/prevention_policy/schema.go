@@ -212,7 +212,7 @@ type apiMlSlider struct {
 	Prevention string `json:"prevention,omitempty"`
 }
 
-// generateWindowsSchema generates the schema.Schema for the windows prevention policy
+// generateWindowsSchema generates the schema.Schema for the windows prevention policy.
 func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 	windowsSchema := schema.Schema{
 		Attributes: map[string]schema.Attribute{
@@ -452,7 +452,7 @@ func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 	return windowsSchema
 }
 
-// generateMacSchema generates the schema.Schema for the mac prevention policy
+// generateMacSchema generates the schema.Schema for the mac prevention policy.
 func generateMacSchema(defaultPolicy bool) schema.Schema {
 	macSchema := schema.Schema{
 		Attributes: map[string]schema.Attribute{
@@ -570,7 +570,7 @@ func generateMacSchema(defaultPolicy bool) schema.Schema {
 	return macSchema
 }
 
-// generateLinuxSchema generates the schema.Schema for the linux prevention policy
+// generateLinuxSchema generates the schema.Schema for the linux prevention policy.
 func generateLinuxSchema(defaultPolicy bool) schema.Schema {
 	linuxSchema := schema.Schema{
 		Attributes: map[string]schema.Attribute{
