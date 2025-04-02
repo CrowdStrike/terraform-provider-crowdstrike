@@ -389,14 +389,14 @@ func (r *defaultPreventionPolicyWindowsResource) Create(
 		return
 	}
 
-	emptySet, diags := types.SetValueFrom(ctx, types.StringType, []string{})
-	resp.Diagnostics.Append(diags...)
+	ruleGroups, diag := convertRuleGroupToSet(ctx, policy.IoaRuleGroups)
+	resp.Diagnostics.Append(diag...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	resp.Diagnostics.Append(
-		syncRuleGroups(ctx, r.client, plan.RuleGroups, emptySet, plan.ID.ValueString())...)
+		syncRuleGroups(ctx, r.client, plan.RuleGroups, ruleGroups, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
