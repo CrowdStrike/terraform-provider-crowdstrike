@@ -1,16 +1,16 @@
 ---
-page_title: "crowdstrike_prevention_policy_linux Resource - crowdstrike"
+page_title: "crowdstrike_default_prevention_policy_linux Resource - crowdstrike"
 subcategory: "Prevention Policy"
 description: |-
-  This resource allows you to manage prevention policies for Linux hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.
+  This resource allows you to manage the default prevention policy for Linux hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.
   API Scopes
   The following API scopes are required:
   Prevention policies | Read & Write
 ---
 
-# crowdstrike_prevention_policy_linux (Resource)
+# crowdstrike_default_prevention_policy_linux (Resource)
 
-This resource allows you to manage prevention policies for Linux hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.
+This resource allows you to manage the default prevention policy for Linux hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.
 
 ## API Scopes
 
@@ -35,11 +35,8 @@ provider "crowdstrike" {
 }
 
 
-resource "crowdstrike_prevention_policy_linux" "example" {
-  name            = "example_prevention_policy"
-  enabled         = true
-  description     = "made with terraform"
-  host_groups     = []
+resource "crowdstrike_default_prevention_policy_linux" "default" {
+  description     = "managed by terraform"
   ioa_rule_groups = []
   cloud_anti_malware = {
     "detection"  = "MODERATE"
@@ -68,8 +65,8 @@ resource "crowdstrike_prevention_policy_linux" "example" {
   extended_command_line_visibility             = true
 }
 
-output "prevention_policy_linux" {
-  value = crowdstrike_prevention_policy_linux.example
+output "default_prevention_policy_linux" {
+  value = crowdstrike_default_prevention_policy_linux.default
 }
 ```
 
@@ -78,9 +75,7 @@ output "prevention_policy_linux" {
 
 ### Required
 
-- `host_groups` (Set of String) Host Group ids to attach to the prevention policy.
 - `ioa_rule_groups` (Set of String) IOA Rule Group to attach to the prevention policy.
-- `name` (String) Name of the prevention policy.
 
 ### Optional
 
@@ -89,7 +84,6 @@ output "prevention_policy_linux" {
 - `description` (String) Description of the prevention policy.
 - `drift_prevention` (Boolean) Whether to enable the setting. Block new processes originating from files written in a container. This prevents a container from drifting from its immutable runtime state.
 - `email_protocol_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor SMTP, IMAP, and POP3 traffic for malicious patterns and improved detections.
-- `enabled` (Boolean) Enable the prevention policy.
 - `extended_command_line_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor full CLI commands that include pipes and redirects. This is applicable only for User mode.
 - `filesystem_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor filesystem activity for additional telemetry and improved detections.
 - `ftp_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor unencrypted FTP traffic for malicious patterns and improved detections.
@@ -133,6 +127,6 @@ Required:
 Import is supported using the following syntax:
 
 ```shell
-# prevention policy can be imported by specifying the policy id.
-terraform import crowdstrike_prevention_policy_linux.example 7fb858a949034a0cbca175f660f1e769
+# The mac default prevention policy can be imported by specifying the id.
+terraform import crowdstrike_default_prevention_policy_mac.default 7fb858a949034a0cbca175f660f1e769
 ```

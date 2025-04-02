@@ -11,11 +11,8 @@ provider "crowdstrike" {
 }
 
 
-resource "crowdstrike_prevention_policy_windows" "example" {
-  name            = "example_prevention_policy"
-  enabled         = true
-  description     = "made with terraform"
-  host_groups     = []
+resource "crowdstrike_default_prevention_policy_windows" "default" {
+  description     = "managed by terraform"
   ioa_rule_groups = []
   adware_and_pup = {
     "detection"  = "MODERATE"
@@ -98,6 +95,6 @@ resource "crowdstrike_prevention_policy_windows" "example" {
   file_system_containment                        = true
 }
 
-output "prevention_policy_windows" {
-  value = crowdstrike_prevention_policy_windows.example
+output "default_prevention_policy_windows" {
+  value = crowdstrike_default_prevention_policy_windows.default
 }

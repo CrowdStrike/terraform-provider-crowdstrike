@@ -1,16 +1,16 @@
 ---
-page_title: "crowdstrike_prevention_policy_windows Resource - crowdstrike"
+page_title: "crowdstrike_default_prevention_policy_windows Resource - crowdstrike"
 subcategory: "Prevention Policy"
 description: |-
-  This resource allows you to manage prevention policies for Windows hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.
+  This resource allows you to manage the default prevention policy for Windows hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.
   API Scopes
   The following API scopes are required:
   Prevention policies | Read & Write
 ---
 
-# crowdstrike_prevention_policy_windows (Resource)
+# crowdstrike_default_prevention_policy_windows (Resource)
 
-This resource allows you to manage prevention policies for Windows hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.
+This resource allows you to manage the default prevention policy for Windows hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.
 
 ## API Scopes
 
@@ -35,11 +35,8 @@ provider "crowdstrike" {
 }
 
 
-resource "crowdstrike_prevention_policy_windows" "example" {
-  name            = "example_prevention_policy"
-  enabled         = true
-  description     = "made with terraform"
-  host_groups     = []
+resource "crowdstrike_default_prevention_policy_windows" "default" {
+  description     = "managed by terraform"
   ioa_rule_groups = []
   adware_and_pup = {
     "detection"  = "MODERATE"
@@ -122,8 +119,8 @@ resource "crowdstrike_prevention_policy_windows" "example" {
   file_system_containment                        = true
 }
 
-output "prevention_policy_windows" {
-  value = crowdstrike_prevention_policy_windows.example
+output "default_prevention_policy_windows" {
+  value = crowdstrike_default_prevention_policy_windows.default
 }
 ```
 
@@ -132,9 +129,7 @@ output "prevention_policy_windows" {
 
 ### Required
 
-- `host_groups` (Set of String) Host Group ids to attach to the prevention policy.
 - `ioa_rule_groups` (Set of String) IOA Rule Group to attach to the prevention policy.
-- `name` (String) Name of the prevention policy.
 
 ### Optional
 
@@ -156,7 +151,6 @@ output "prevention_policy_windows" {
 - `detect_on_write` (Boolean) Whether to enable the setting. Use machine learning to analyze suspicious files when they're written to disk. To adjust detection sensitivity, change Anti-malware Detection levels in Sensor Machine Learning and Cloud Machine Learning.
 - `drive_by_download` (Boolean) Whether to enable the setting. A suspicious file written by a browser attempted to execute and was blocked.
 - `driver_load_prevention` (Boolean) Whether to enable the setting. Block the loading of kernel drivers that CrowdStrike analysts have identified as malicious. Available on Windows 10 and Windows Server 2016 and later.
-- `enabled` (Boolean) Enable the prevention policy.
 - `engine_full_visibility` (Boolean) Whether to enable the setting. Provides visibility into malicious System Management Automation engine usage by any application. Requires interpreter_only to be enabled.
 - `enhanced_dll_load_visibility` (Boolean) Whether to enable the setting. For hosts running Windows Server, increases sensor visibility of loaded DLLs. Improves detection coverage and telemetry, but may cause a small performance impact. Recommend testing with critical applications before full deployment.
 - `enhanced_exploitation_visibility` (Boolean) Whether to enable the setting. For hosts running Windows 10 1809 and Server 2019 and later, provides additional visibility into common exploitation techniques used to weaken or circumvent application security.
@@ -271,6 +265,6 @@ Required:
 Import is supported using the following syntax:
 
 ```shell
-# prevention policy can be imported by specifying the policy id.
-terraform import crowdstrike_prevention_policy_windows.example 7fb858a949034a0cbca175f660f1e769
+# The linux default prevention policy can be imported by specifying the id.
+terraform import crowdstrike_default_prevention_policy_linux.default 7fb858a949034a0cbca175f660f1e769
 ```

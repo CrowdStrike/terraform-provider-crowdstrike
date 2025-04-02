@@ -1,16 +1,16 @@
 ---
-page_title: "crowdstrike_prevention_policy_mac Resource - crowdstrike"
+page_title: "crowdstrike_default_prevention_policy_mac Resource - crowdstrike"
 subcategory: "Prevention Policy"
 description: |-
-  This resource allows you to manage prevention policies for Mac hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.
+  This resource allows you to manage the default prevention policy for Mac hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.
   API Scopes
   The following API scopes are required:
   Prevention policies | Read & Write
 ---
 
-# crowdstrike_prevention_policy_mac (Resource)
+# crowdstrike_default_prevention_policy_mac (Resource)
 
-This resource allows you to manage prevention policies for Mac hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.
+This resource allows you to manage the default prevention policy for Mac hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.
 
 ## API Scopes
 
@@ -35,11 +35,8 @@ provider "crowdstrike" {
 }
 
 
-resource "crowdstrike_prevention_policy_mac" "example" {
-  name            = "example_prevention_policy"
-  enabled         = false
-  description     = "made with terraform"
-  host_groups     = []
+resource "crowdstrike_default_prevention_policy_mac" "default" {
+  description     = "managed by terraform"
   ioa_rule_groups = []
   cloud_adware_and_pup = {
     "detection"  = "MODERATE"
@@ -75,8 +72,8 @@ resource "crowdstrike_prevention_policy_mac" "example" {
   chopper_webshell                             = true
 }
 
-output "prevention_policy_mac" {
-  value = crowdstrike_prevention_policy_mac.example
+output "default_prevention_policy_mac" {
+  value = crowdstrike_default_prevention_policy_mac.default
 }
 ```
 
@@ -85,9 +82,7 @@ output "prevention_policy_mac" {
 
 ### Required
 
-- `host_groups` (Set of String) Host Group ids to attach to the prevention policy.
 - `ioa_rule_groups` (Set of String) IOA Rule Group to attach to the prevention policy.
-- `name` (String) Name of the prevention policy.
 
 ### Optional
 
@@ -98,7 +93,6 @@ output "prevention_policy_mac" {
 - `description` (String) Description of the prevention policy.
 - `detect_on_write` (Boolean) Whether to enable the setting. Use machine learning to analyze suspicious files when they're written to disk. To adjust detection sensitivity, change Anti-malware Detection levels in Sensor Machine Learning and Cloud Machine Learning.
 - `empyre_backdoor` (Boolean) Whether to enable the setting. A process with behaviors indicative of the Empyre Backdoor was terminated.
-- `enabled` (Boolean) Enable the prevention policy.
 - `hash_collector` (Boolean) Whether to enable the setting. An attempt to dump a user’s hashed password was blocked.
 - `intelligence_sourced_threats` (Boolean) Whether to enable the setting. Block processes that CrowdStrike Intelligence analysts classify as malicious. These are focused on static hash-based IOCs.
 - `kc_password_decoded` (Boolean) Whether to enable the setting. An attempt to recover a plaintext password via the kcpassword file was blocked.
@@ -159,6 +153,6 @@ Required:
 Import is supported using the following syntax:
 
 ```shell
-# prevention policy can be imported by specifying the policy id.
-terraform import crowdstrike_prevention_policy_mac.example 7fb858a949034a0cbca175f660f1e769
+# The windows default prevention policy can be imported by specifying the id.
+terraform import crowdstrike_default_prevention_policy_windows.default 7fb858a949034a0cbca175f660f1e769
 ```

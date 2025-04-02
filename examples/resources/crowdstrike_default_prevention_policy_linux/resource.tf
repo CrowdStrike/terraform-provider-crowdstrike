@@ -11,11 +11,8 @@ provider "crowdstrike" {
 }
 
 
-resource "crowdstrike_prevention_policy_linux" "example" {
-  name            = "example_prevention_policy"
-  enabled         = true
-  description     = "made with terraform"
-  host_groups     = []
+resource "crowdstrike_default_prevention_policy_linux" "default" {
+  description     = "managed by terraform"
   ioa_rule_groups = []
   cloud_anti_malware = {
     "detection"  = "MODERATE"
@@ -44,6 +41,6 @@ resource "crowdstrike_prevention_policy_linux" "example" {
   extended_command_line_visibility             = true
 }
 
-output "prevention_policy_linux" {
-  value = crowdstrike_prevention_policy_linux.example
+output "default_prevention_policy_linux" {
+  value = crowdstrike_default_prevention_policy_linux.default
 }

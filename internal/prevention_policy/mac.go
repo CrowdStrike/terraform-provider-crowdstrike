@@ -7,15 +7,10 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/models"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -110,107 +105,7 @@ func (r *preventionPolicyMacResource) Schema(
 	_ resource.SchemaRequest,
 	resp *resource.SchemaResponse,
 ) {
-	resp.Schema = schema.Schema{
-		MarkdownDescription: fmt.Sprintf(
-			"Prevention Policy --- This resource allows you to manage CrowdStrike Falcon prevention policies for Mac hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.\n\n%s",
-			scopes.GenerateScopeDescription(apiScopes),
-		),
-		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Computed:    true,
-				Description: "Identifier for the prevention policy.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
-			"last_updated": schema.StringAttribute{
-				Computed:    true,
-				Description: "Timestamp of the last Terraform update of the resource.",
-			},
-			"name": schema.StringAttribute{
-				Required:    true,
-				Description: "Name of the prevention policy.",
-			},
-			"enabled": schema.BoolAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "Enable the prevention policy.",
-				Default:     booldefault.StaticBool(true),
-			},
-			"host_groups": schema.SetAttribute{
-				Required:    true,
-				ElementType: types.StringType,
-				Description: "Host Group ids to attach to the prevention policy.",
-			},
-			"ioa_rule_groups": schema.SetAttribute{
-				Required:    true,
-				ElementType: types.StringType,
-				Description: "IOA Rule Group to attach to the prevention policy.",
-			},
-			"description": schema.StringAttribute{
-				Optional:    true,
-				Description: "Description of the prevention policy.",
-			},
-			"cloud_anti_malware": mlSLiderAttribute(
-				"Use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware for your online hosts.",
-			),
-			"cloud_adware_and_pup": mlSLiderAttribute(
-				"Use cloud-based machine learning informed by global analysis of executables to detect and prevent adware and potentially unwanted programs (PUP) for your online hosts.",
-			),
-			"sensor_anti_malware": mlSLiderAttribute(
-				"For offline and online hosts, use sensor-based machine learning to identify and analyze unknown executables as they run to detect and prevent malware.",
-			),
-			"sensor_adware_and_pup": mlSLiderAttribute(
-				"For offline and online hosts, use sensor-based machine learning to identify and analyze unknown executables as they run to detect and prevent adware and potentially unwanted programs (PUP).",
-			),
-			"notify_end_users": toggleAttribute(
-				"Show a pop-up notification to the end user when the Falcon sensor blocks, kills, or quarantines. See these messages in Console.app by searching for Process: Falcon Notifications.",
-			),
-			"upload_unknown_detection_related_executables": toggleAttribute(
-				"Upload all unknown detection-related executables for advanced analysis in the cloud.",
-			),
-			"upload_unknown_executables": toggleAttribute(
-				"Upload all unknown executables for advanced analysis in the cloud.",
-			),
-			"sensor_tampering_protection": toggleAttribute(
-				"Blocks attempts to tamper with the sensor. If disabled, the sensor still creates detections for tampering attempts but doesn’t block them. Disabling not recommended.",
-			),
-			"script_based_execution_monitoring": toggleAttribute(
-				"Provides visibility into suspicious scripts, including shell and other scripting languages.",
-			),
-			"detect_on_write": toggleAttribute(
-				"Use machine learning to analyze suspicious files when they're written to disk. To adjust detection sensitivity, change Anti-malware Detection levels in Sensor Machine Learning and Cloud Machine Learning.",
-			),
-			"quarantine_on_write": toggleAttribute(
-				"Use machine learning to quarantine suspicious files when they're written to disk. To adjust quarantine sensitivity, change Anti-malware Prevention levels in Sensor Machine Learning and Cloud Machine Learning.",
-			),
-			"quarantine": toggleAttribute(
-				"Quarantine executable files after they’re prevented by NGAV. When this is enabled, we recommend setting anti-malware prevention levels to Moderate or higher and not using other antivirus solutions.",
-			),
-			"custom_blocking": toggleAttribute(
-				"Block processes matching hashes that you add to IOC Management with the action set to \"Block\" or \"Block, hide detection\".",
-			),
-			"intelligence_sourced_threats": toggleAttribute(
-				"Block processes that CrowdStrike Intelligence analysts classify as malicious. These are focused on static hash-based IOCs.",
-			),
-			"xpcom_shell": toggleAttribute("The execution of an XPCOM shell was blocked."),
-			"empyre_backdoor": toggleAttribute(
-				"A process with behaviors indicative of the Empyre Backdoor was terminated.",
-			),
-			"chopper_webshell": toggleAttribute(
-				"Execution of a command shell was blocked and is indicative of the system hosting a Chopper web page.",
-			),
-			"kc_password_decoded": toggleAttribute(
-				"An attempt to recover a plaintext password via the kcpassword file was blocked.",
-			),
-			"hash_collector": toggleAttribute(
-				"An attempt to dump a user’s hashed password was blocked.",
-			),
-			"prevent_suspicious_processes": toggleAttribute(
-				"Block processes that CrowdStrike analysts classify as suspicious. These are focused on dynamic IOAs, such as malware, exploits and other threats.",
-			),
-		},
-	}
+	resp.Schema = generateMacSchema(false)
 }
 
 // Create creates the resource and sets the initial Terraform state.
@@ -381,10 +276,12 @@ func (r *preventionPolicyMacResource) Update(
 	preventionPolicy, diags := updatePreventionPolicy(
 		ctx,
 		r.client,
-		plan.Name.ValueString(),
-		plan.Description.ValueString(),
 		preventionSettings,
 		plan.ID.ValueString(),
+		updatePreventionPolicyOptions{
+			Name:        plan.Name.ValueString(),
+			Description: plan.Description.ValueString(),
+		},
 	)
 
 	resp.Diagnostics.Append(diags...)

@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var (
@@ -21,7 +22,7 @@ var (
 )
 
 var (
-  resourceMarkdownDescription string         = ""
+  resourceMarkdownDescription string         = "<description>\n\n%s"
   requiredScopes              []scopes.Scope = []scopes.Scope{}
 )
 
@@ -34,6 +35,8 @@ type {{.CamelCaseName}}Resource struct {
 }
 
 type {{.CamelCaseName}}ResourceModel struct {
+	ID          types.String `tfsdk:"id"`
+	LastUpdated types.String `tfsdk:"last_updated"`
   // TODO: Define resource model
 }
 
