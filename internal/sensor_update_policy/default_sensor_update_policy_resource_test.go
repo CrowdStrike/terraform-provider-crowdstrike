@@ -24,7 +24,7 @@ func TestAccDefaultSensorUpdatePolicyResourceBadBuildUpdate(t *testing.T) {
 				Config: acctest.ProviderConfig + `
 resource "crowdstrike_default_sensor_update_policy" "default" {
   platform_name        = "Windows"
-  build                = "18721"
+  build                = "19507"
   uninstall_protection = false 
   schedule = {
     enabled = false
@@ -61,7 +61,7 @@ func TestAccDefaultSensorUpdatePolicyResourceWithSchedule(t *testing.T) {
 				Config: acctest.ProviderConfig + `
 resource "crowdstrike_default_sensor_update_policy" "default" {
   platform_name        = "Windows"
-  build                = "18721"
+  build                = "19507"
   uninstall_protection = true 
   schedule = {
     enabled = true 
@@ -84,7 +84,7 @@ resource "crowdstrike_default_sensor_update_policy" "default" {
 					resource.TestCheckResourceAttr(
 						resourceName,
 						"build",
-						"18721",
+						"19507",
 					),
 					resource.TestCheckResourceAttr(
 						resourceName,
