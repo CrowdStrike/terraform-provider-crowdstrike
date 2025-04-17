@@ -126,7 +126,16 @@ func (d *sensorUpdatePolicyResourceModel) wrap(
 		}
 	}
 
-	diags.Append(d.assignHostGroups(ctx, policy.Groups)...)
+	hostGroupSet, diag := hostgroups.ConvertHostGroupsToSet(ctx, policy.Groups)
+	diags.Append(diag...)
+	if diags.HasError() {
+		return diags
+	}
+
+	// allow host_groups to stay null instead of defaulting to an empty set when there are no host groups
+	if !d.HostGroups.IsNull() || len(hostGroupSet.Elements()) != 0 {
+		d.HostGroups = hostGroupSet
+	}
 
 	if validateBuilds && d.Build.ValueString() != *policy.Settings.Build {
 		diags.AddError(
@@ -1011,27 +1020,4 @@ func (r *sensorUpdatePolicyResource) updateHostGroups(
 	)
 
 	return err
-}
-
-// assignHostGroups assigns the host groups returned from the api into the resource model.
-func (r *sensorUpdatePolicyResourceModel) assignHostGroups(
-	ctx context.Context,
-	groups []*models.HostGroupsHostGroupV1,
-) diag.Diagnostics {
-
-	hostGroups := make([]types.String, 0, len(groups))
-	for _, hostGroup := range groups {
-		hostGroups = append(hostGroups, types.StringValue(*hostGroup.ID))
-	}
-
-	hostGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, hostGroups)
-
-	// allow host_groups to stay null instead of defaulting to an empty set when there are no host groups
-	if r.HostGroups.IsNull() && len(hostGroupIDs.Elements()) == 0 {
-		return diags
-	}
-
-	r.HostGroups = hostGroupIDs
-
-	return diags
 }

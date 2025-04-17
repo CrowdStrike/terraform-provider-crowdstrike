@@ -21,7 +21,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
-// convertRuleGroupToSet converts a slice of IoaRuleGroupsRuleGroupV1 to a set.
+// convertRuleGroupToSet converts a slice of models.IoaRuleGroupsRuleGroupV1 to a terraform set.
 func convertRuleGroupToSet(
 	ctx context.Context,
 	groups []*models.IoaRuleGroupsRuleGroupV1,
@@ -421,7 +421,7 @@ func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 
 	if defaultPolicy {
 		windowsSchema.MarkdownDescription = fmt.Sprintf(
-			"Prevention Policy --- This resource allows you to manage the default prevention policy for Windows hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.\n\n%s",
+			"Prevention Policy --- This resource allows you to manage the default prevention policy for Windows hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts. Destruction of this resource *will not* delete the default prevention policy or remove any configured settings.\n\n%s",
 			scopes.GenerateScopeDescription(apiScopes),
 		)
 	} else {
@@ -539,7 +539,7 @@ func generateMacSchema(defaultPolicy bool) schema.Schema {
 
 	if defaultPolicy {
 		macSchema.MarkdownDescription = fmt.Sprintf(
-			"Prevention Policy --- This resource allows you to manage the default prevention policy for Mac hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.\n\n%s",
+			"Prevention Policy --- This resource allows you to manage the default prevention policy for Mac hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts. Destruction of this resource *will not* delete the default prevention policy or remove any configured settings.\n\n%s",
 			scopes.GenerateScopeDescription(apiScopes),
 		)
 	} else {
@@ -656,7 +656,7 @@ func generateLinuxSchema(defaultPolicy bool) schema.Schema {
 
 	if defaultPolicy {
 		linuxSchema.MarkdownDescription = fmt.Sprintf(
-			"Prevention Policy --- This resource allows you to manage the default prevention policy for Linux hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.\n\n%s",
+			"Prevention Policy --- This resource allows you to manage the default prevention policy for Linux hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts. Destruction of this resource *will not* delete the default prevention policy or remove any configured settings.\n\n%s",
 			scopes.GenerateScopeDescription(apiScopes),
 		)
 	} else {

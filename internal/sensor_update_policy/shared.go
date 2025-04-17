@@ -2,12 +2,15 @@ package sensorupdatepolicy
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -201,22 +204,34 @@ func createUpdateSchedules(
 func getSensorUpdatePolicy(
 	ctx context.Context,
 	client *client.CrowdStrikeAPISpecification,
-	id string,
+	policyID string,
 ) (*models.SensorUpdatePolicyV2, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	res, err := client.SensorUpdatePolicies.GetSensorUpdatePoliciesV2(
 		&sensor_update_policies.GetSensorUpdatePoliciesV2Params{
 			Context: ctx,
-			Ids:     []string{id},
+			Ids:     []string{policyID},
 		},
 	)
+
+	if _, ok := err.(*sensor_update_policies.GetSensorUpdatePoliciesV2NotFound); ok {
+		diags.Append(
+			newNotFoundError(fmt.Sprintf("No sensor update policy with id: %s found.", policyID)),
+		)
+		return nil, diags
+	}
 
 	if err != nil {
 		diags.AddError(
 			"Error reading CrowdStrike sensor update policy",
-			"Could not read CrowdStrike sensor update policy: "+id+": "+err.Error(),
+			fmt.Sprintf(
+				"Could not read CrowdStrike sensor update policy (%s): %s",
+				policyID,
+				err.Error(),
+			),
 		)
+		return nil, diags
 	}
 
 	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
@@ -230,4 +245,149 @@ func getSensorUpdatePolicy(
 	policy := res.Payload.Resources[0]
 
 	return policy, diags
+}
+
+// updateHostGroups will remove or add a slice of host groups
+// to a sensor update policy.
+func updateHostGroups(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	action hostgroups.HostGroupAction,
+	hostGroupIDs []string,
+	policyID string,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if len(hostGroupIDs) == 0 {
+		return diags
+	}
+
+	var actionParams []*models.MsaspecActionParameter
+	actionMsg := "adding"
+	if action == hostgroups.RemoveHostGroup {
+		actionMsg = "removing"
+	}
+	name := "group_id"
+
+	for _, g := range hostGroupIDs {
+		gCopy := g
+		actionParam := &models.MsaspecActionParameter{
+			Name:  &name,
+			Value: &gCopy,
+		}
+
+		actionParams = append(actionParams, actionParam)
+	}
+
+	res, err := client.SensorUpdatePolicies.PerformSensorUpdatePoliciesAction(
+		&sensor_update_policies.PerformSensorUpdatePoliciesActionParams{
+			Context:    ctx,
+			ActionName: action.String(),
+			Body: &models.MsaEntityActionRequestV2{
+				ActionParameters: actionParams,
+				Ids:              []string{policyID},
+			},
+		},
+	)
+
+	if err != nil {
+		diags.AddError("Error updating sensor update policy host groups", fmt.Sprintf(
+			"Error %s host groups (%s) to sensor update policy (%s): %s",
+			actionMsg,
+			strings.Join(hostGroupIDs, ", "),
+			policyID,
+			err.Error(),
+		))
+
+		return diags
+	}
+
+	returnedHostGroups := make(map[string]bool)
+
+	if res != nil && res.Payload != nil {
+		for _, r := range res.Payload.Resources {
+			groups := r.Groups
+
+			for _, group := range groups {
+				returnedHostGroups[*group.ID] = true
+			}
+		}
+	}
+
+	if action == hostgroups.RemoveHostGroup {
+		for _, group := range hostGroupIDs {
+			_, ok := returnedHostGroups[group]
+			if ok {
+				diags.AddError(
+					"Error updating sensor update policy host groups",
+					fmt.Sprintf(
+						"Error %s host groups (%s) to sensor update policy (%s): %s",
+						actionMsg,
+						group,
+						policyID,
+						"Remove failed",
+					),
+				)
+			}
+		}
+	}
+
+	if action == hostgroups.AddHostGroup {
+		for _, group := range hostGroupIDs {
+			_, ok := returnedHostGroups[group]
+			if !ok {
+				diags.AddError(
+					"Error updating sensor update policy host groups",
+					fmt.Sprintf(
+						"Error %s host groups (%s) to sensor update policy (%s): %s",
+						actionMsg,
+						group,
+						policyID,
+						"Adding failed, ensure the host group is valid.",
+					),
+				)
+			}
+		}
+	}
+
+	if res != nil && res.Payload != nil {
+		for _, err := range res.Payload.Errors {
+			diags.AddError(
+				"Error updating sensor update policy host groups",
+				fmt.Sprintf(
+					"Error %s host groups (%s) to sensor update policy (%s): %s",
+					actionMsg,
+					err.ID,
+					policyID,
+					err.String(),
+				),
+			)
+		}
+	}
+
+	return diags
+}
+
+// syncHostGroups will sync the host groups from the resource model to the api.
+func syncHostGroups(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	planGroups, stateGroups types.Set,
+	policyID string,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+	groupsToAdd, groupsToRemove, diags := utils.SetIDsToModify(
+		ctx,
+		planGroups,
+		stateGroups,
+	)
+	diags.Append(diags...)
+	if diags.HasError() {
+		return diags
+	}
+
+	diags.Append(updateHostGroups(ctx, client, hostgroups.AddHostGroup, groupsToAdd, policyID)...)
+	diags.Append(
+		updateHostGroups(ctx, client, hostgroups.RemoveHostGroup, groupsToRemove, policyID)...)
+
+	return diags
 }

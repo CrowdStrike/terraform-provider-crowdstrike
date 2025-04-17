@@ -477,7 +477,7 @@ func updateHostGroups(
 	client *client.CrowdStrikeAPISpecification,
 	action hostgroups.HostGroupAction,
 	hostGroupIDs []string,
-	id string,
+	policyID string,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 	if len(hostGroupIDs) == 0 {
@@ -501,17 +501,13 @@ func updateHostGroups(
 		actionParams = append(actionParams, actionParam)
 	}
 
-	if len(actionParams) == 0 {
-		return diags
-	}
-
 	res, err := client.PreventionPolicies.PerformPreventionPoliciesAction(
 		&prevention_policies.PerformPreventionPoliciesActionParams{
 			Context:    ctx,
 			ActionName: action.String(),
 			Body: &models.MsaEntityActionRequestV2{
 				ActionParameters: actionParams,
-				Ids:              []string{id},
+				Ids:              []string{policyID},
 			},
 		},
 	)
@@ -521,7 +517,7 @@ func updateHostGroups(
 			"Error %s host groups (%s) to prevention policy (%s): %s",
 			actionMsg,
 			strings.Join(hostGroupIDs, ", "),
-			id,
+			policyID,
 			err.Error(),
 		))
 
@@ -550,7 +546,7 @@ func updateHostGroups(
 						"Error %s host groups (%s) to prevention policy (%s): %s",
 						actionMsg,
 						group,
-						id,
+						policyID,
 						"Remove failed",
 					),
 				)
@@ -568,7 +564,7 @@ func updateHostGroups(
 						"Error %s host groups (%s) to prevention policy (%s): %s",
 						actionMsg,
 						group,
-						id,
+						policyID,
 						"Adding failed, ensure the host group is valid.",
 					),
 				)
@@ -584,7 +580,7 @@ func updateHostGroups(
 					"Error %s host groups (%s) to prevention policy (%s): %s",
 					actionMsg,
 					err.ID,
-					id,
+					policyID,
 					err.String(),
 				),
 			)

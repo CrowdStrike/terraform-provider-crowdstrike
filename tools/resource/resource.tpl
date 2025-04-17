@@ -22,7 +22,8 @@ var (
 )
 
 var (
-  resourceMarkdownDescription string         = "<description>\n\n%s"
+  docuementationSection       string         = "section" 
+  resourceMarkdownDescription string         = "<description>"
   requiredScopes              []scopes.Scope = []scopes.Scope{}
 )
 
@@ -80,10 +81,7 @@ func (r *{{.CamelCaseName}}Resource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: fmt.Sprintf(
-		  resourceMarkdownDescription,	
-			scopes.GenerateScopeDescription(requiredScopes),
-		),
+		MarkdownDescription: utils.MarkdownDescription(docuementationSection, resourceMarkdownDescription, requiredScopes),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
