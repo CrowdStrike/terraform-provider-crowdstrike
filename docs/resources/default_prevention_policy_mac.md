@@ -2,7 +2,7 @@
 page_title: "crowdstrike_default_prevention_policy_mac Resource - crowdstrike"
 subcategory: "Prevention Policy"
 description: |-
-  This resource allows you to manage the default prevention policy for Mac hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.
+  This resource allows you to manage the default prevention policy for Mac hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts. Destruction of this resource will not delete the default prevention policy or remove any configured settings.
   API Scopes
   The following API scopes are required:
   Prevention policies | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_default_prevention_policy_mac (Resource)
 
-This resource allows you to manage the default prevention policy for Mac hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.
+This resource allows you to manage the default prevention policy for Mac hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts. Destruction of this resource *will not* delete the default prevention policy or remove any configured settings.
 
 ## API Scopes
 
