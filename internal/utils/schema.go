@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -60,4 +61,13 @@ func ValidateEmptyIDs(ctx context.Context, checkSet types.Set, attrPath string) 
 	}
 
 	return diags
+}
+
+// MarkdownDescription generates a markdown description that works for generating terraform docs.
+func MarkdownDescription(section string, description string, apiScopes []scopes.Scope) string {
+	return fmt.Sprintf("%s --- %s\n\n%s",
+		section,
+		description,
+		scopes.GenerateScopeDescription(apiScopes),
+	)
 }

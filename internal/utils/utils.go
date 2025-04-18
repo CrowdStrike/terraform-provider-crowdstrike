@@ -2,9 +2,11 @@ package utils
 
 import (
 	"context"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 // SetIDsToModify takes a set of IDs from plan and state and returns the IDs to add and remove to get from the state to the plan.
@@ -102,4 +104,8 @@ func ListIDsToModify(
 	}
 
 	return
+}
+
+func GenerateUpdateTimestamp() basetypes.StringValue {
+	return types.StringValue(time.Now().Format(time.RFC850))
 }

@@ -2,7 +2,7 @@
 page_title: "crowdstrike_default_sensor_update_policy Resource - crowdstrike"
 subcategory: "Sensor Update Policy"
 description: |-
-  This resource allows management of the default sensor update policy in the CrowdStrike Falcon platform.
+  This resource allows management of the default sensor update policy in the CrowdStrike Falcon platform. Destruction of this resource will not delete the default sensor update policy or remove any configured settings.
   API Scopes
   The following API scopes are required:
   Sensor update policies | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_default_sensor_update_policy (Resource)
 
-This resource allows management of the default sensor update policy in the CrowdStrike Falcon platform.
+This resource allows management of the default sensor update policy in the CrowdStrike Falcon platform. Destruction of this resource *will not* delete the default sensor update policy or remove any configured settings.
 
 ## API Scopes
 
