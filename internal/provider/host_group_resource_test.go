@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"testing"
@@ -42,7 +41,6 @@ func TestGenerateAssignmentRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
 			config := hostGroupResourceModel{
 				GroupType: types.StringValue(tt.groupType),
 			}
@@ -50,7 +48,7 @@ func TestGenerateAssignmentRule(t *testing.T) {
 			switch tt.groupType {
 			case hgDynamic:
 				config.AssignmentRule = types.StringValue(tt.assignmentRule)
-				apiAssignmentRule, diags := generateAssignmentRule(ctx, config)
+				apiAssignmentRule, diags := generateAssignmentRule(t.Context(), config)
 				if diags.HasError() {
 					t.Errorf("unexpected error: %v", diags)
 				}
@@ -63,12 +61,12 @@ func TestGenerateAssignmentRule(t *testing.T) {
 					)
 				}
 			case hgStatic:
-				hostnames, diags := types.SetValueFrom(ctx, types.StringType, tt.hostnames)
+				hostnames, diags := types.SetValueFrom(t.Context(), types.StringType, tt.hostnames)
 				if diags.HasError() {
 					t.Errorf("unexpected error: %v", diags)
 				}
 				config.Hostnames = hostnames
-				apiAssignmentRule, diags := generateAssignmentRule(ctx, config)
+				apiAssignmentRule, diags := generateAssignmentRule(t.Context(), config)
 				if diags.HasError() {
 					t.Errorf("unexpected error: %v", diags)
 				}
@@ -81,12 +79,12 @@ func TestGenerateAssignmentRule(t *testing.T) {
 					)
 				}
 			case hgStaticByID:
-				hostIDs, diags := types.SetValueFrom(ctx, types.StringType, tt.hostIDs)
+				hostIDs, diags := types.SetValueFrom(t.Context(), types.StringType, tt.hostIDs)
 				if diags.HasError() {
 					t.Errorf("unexpected error: %v", diags)
 				}
 				config.HostIDs = hostIDs
-				apiAssignmentRule, diags := generateAssignmentRule(ctx, config)
+				apiAssignmentRule, diags := generateAssignmentRule(t.Context(), config)
 				if diags.HasError() {
 					t.Errorf("unexpected error: %v", diags)
 				}
@@ -147,11 +145,10 @@ func TestAssignAssignmentRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
 			config := hostGroupResourceModel{
 				GroupType: types.StringValue(tt.groupType),
 			}
-			diags := assignAssignmentRule(ctx, tt.apiAssignmentRule, &config)
+			diags := assignAssignmentRule(t.Context(), tt.apiAssignmentRule, &config)
 			if diags.HasError() {
 				t.Errorf("unexpected error: %v", diags)
 			}
@@ -167,7 +164,7 @@ func TestAssignAssignmentRule(t *testing.T) {
 				}
 			case hgStatic:
 				var hostnames []string
-				diags := config.Hostnames.ElementsAs(ctx, &hostnames, false)
+				diags := config.Hostnames.ElementsAs(t.Context(), &hostnames, false)
 				if diags.HasError() {
 					t.Errorf("unexpected error: %v", diags)
 				}
@@ -181,7 +178,7 @@ func TestAssignAssignmentRule(t *testing.T) {
 				}
 			case hgStaticByID:
 				var hostIDs []string
-				diags := config.HostIDs.ElementsAs(ctx, &hostIDs, false)
+				diags := config.HostIDs.ElementsAs(t.Context(), &hostIDs, false)
 				if diags.HasError() {
 					t.Errorf("unexpected error: %v", diags)
 				}

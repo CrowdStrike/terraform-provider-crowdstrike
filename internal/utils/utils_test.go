@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"context"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -55,11 +54,10 @@ func TestSetIDsToModify(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-			plan, _ := types.SetValueFrom(ctx, types.StringType, tt.plan)
-			state, _ := types.SetValueFrom(ctx, types.StringType, tt.state)
+			plan, _ := types.SetValueFrom(t.Context(), types.StringType, tt.plan)
+			state, _ := types.SetValueFrom(t.Context(), types.StringType, tt.state)
 
-			idsToAdd, idsToRemove, diags := SetIDsToModify(ctx, plan, state)
+			idsToAdd, idsToRemove, diags := SetIDsToModify(t.Context(), plan, state)
 
 			if !slices.Equal(idsToAdd, tt.expectedAdd) {
 				t.Errorf("idsToAdd = %v, want %v", idsToAdd, tt.expectedAdd)
