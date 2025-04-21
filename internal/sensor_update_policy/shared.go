@@ -215,14 +215,16 @@ func getSensorUpdatePolicy(
 		},
 	)
 
-	if _, ok := err.(*sensor_update_policies.GetSensorUpdatePoliciesV2NotFound); ok {
-		diags.Append(
-			newNotFoundError(fmt.Sprintf("No sensor update policy with id: %s found.", policyID)),
-		)
-		return nil, diags
-	}
-
 	if err != nil {
+		if _, ok := err.(*sensor_update_policies.GetSensorUpdatePoliciesV2NotFound); ok {
+			diags.Append(
+				newNotFoundError(
+					fmt.Sprintf("No sensor update policy with id: %s found.", policyID),
+				),
+			)
+			return nil, diags
+		}
+
 		diags.AddError(
 			"Error reading CrowdStrike sensor update policy",
 			fmt.Sprintf(

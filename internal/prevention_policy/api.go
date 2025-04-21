@@ -385,7 +385,7 @@ func updatePreventionPolicy(
 func getPreventionPolicy(
 	ctx context.Context,
 	client *client.CrowdStrikeAPISpecification,
-	id string,
+	policyID string,
 ) (*models.PreventionPolicyV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var preventionPolicy *models.PreventionPolicyV1
@@ -393,16 +393,24 @@ func getPreventionPolicy(
 	res, err := client.PreventionPolicies.GetPreventionPolicies(
 		&prevention_policies.GetPreventionPoliciesParams{
 			Context: ctx,
-			Ids:     []string{id},
+			Ids:     []string{policyID},
 		},
 	)
 
 	if err != nil {
+		if _, ok := err.(*prevention_policies.GetPreventionPoliciesNotFound); ok {
+			diags.Append(
+				newNotFoundError(
+					fmt.Sprintf("No prevention policy with id: %s found.", policyID),
+				),
+			)
+			return preventionPolicy, diags
+		}
 		diags.AddError(
 			"Error reading CrowdStrike prevention policy",
 			fmt.Sprintf(
 				"Could not read CrowdStrike prevention policy: %s \n\n %s",
-				id,
+				policyID,
 				err.Error(),
 			),
 		)
@@ -414,7 +422,7 @@ func getPreventionPolicy(
 			"Error reading CrowdStrike prevention policy",
 			fmt.Sprintf(
 				"Could not read CrowdStrike prevention policy: %s \n\n %s",
-				id,
+				policyID,
 				"No policy found",
 			),
 		)
