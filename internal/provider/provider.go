@@ -240,6 +240,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		preventionpolicy.NewDefaultPreventionPolicyWindowsResource,
 		preventionpolicy.NewPreventionPolicyLinuxResource,
 		preventionpolicy.NewPreventionPolicyMacResource,
+		preventionpolicy.NewPreventionPolicyAttachmentResource,
 		fim.NewFIMPolicyResource,
 		fim.NewFilevantageRuleGroupResource,
 		fcs.NewCloudAWSAccountResource,
