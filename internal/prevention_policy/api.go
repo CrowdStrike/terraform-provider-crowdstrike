@@ -13,6 +13,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -88,6 +89,21 @@ const (
 	removeRuleGroup ruleGroupAction = iota
 	addRuleGroup
 )
+
+// convertRuleGroupToSet converts a slice of models.IoaRuleGroupsRuleGroupV1 to a terraform set.
+func convertRuleGroupToSet(
+	ctx context.Context,
+	groups []*models.IoaRuleGroupsRuleGroupV1,
+) (basetypes.SetValue, diag.Diagnostics) {
+	ruleGroups := make([]types.String, 0, len(groups))
+	for _, ruleGroup := range groups {
+		ruleGroups = append(ruleGroups, types.StringValue(*ruleGroup.ID))
+	}
+
+	ruleGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, ruleGroups)
+
+	return ruleGroupIDs, diags
+}
 
 // String convert ruleGroupAction to string value the api accepts.
 func (r ruleGroupAction) String() string {
@@ -385,7 +401,7 @@ func updatePreventionPolicy(
 func getPreventionPolicy(
 	ctx context.Context,
 	client *client.CrowdStrikeAPISpecification,
-	id string,
+	policyID string,
 ) (*models.PreventionPolicyV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var preventionPolicy *models.PreventionPolicyV1
@@ -393,16 +409,24 @@ func getPreventionPolicy(
 	res, err := client.PreventionPolicies.GetPreventionPolicies(
 		&prevention_policies.GetPreventionPoliciesParams{
 			Context: ctx,
-			Ids:     []string{id},
+			Ids:     []string{policyID},
 		},
 	)
 
 	if err != nil {
+		if _, ok := err.(*prevention_policies.GetPreventionPoliciesNotFound); ok {
+			diags.Append(
+				newNotFoundError(
+					fmt.Sprintf("No prevention policy with id: %s found.", policyID),
+				),
+			)
+			return preventionPolicy, diags
+		}
 		diags.AddError(
 			"Error reading CrowdStrike prevention policy",
 			fmt.Sprintf(
 				"Could not read CrowdStrike prevention policy: %s \n\n %s",
-				id,
+				policyID,
 				err.Error(),
 			),
 		)
@@ -414,7 +438,7 @@ func getPreventionPolicy(
 			"Error reading CrowdStrike prevention policy",
 			fmt.Sprintf(
 				"Could not read CrowdStrike prevention policy: %s \n\n %s",
-				id,
+				policyID,
 				"No policy found",
 			),
 		)

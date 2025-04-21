@@ -22,7 +22,7 @@ func (h HostGroupAction) String() string {
 	return [...]string{"remove-host-group", "add-host-group"}[h]
 }
 
-// convertHostGroupsToSet converts a slice of models.HostGroupsHostGroupV1 to a terraform set.
+// ConvertHostGroupsToSet converts a slice of models.HostGroupsHostGroupV1 to a terraform set.
 func ConvertHostGroupsToSet(
 	ctx context.Context,
 	groups []*models.HostGroupsHostGroupV1,

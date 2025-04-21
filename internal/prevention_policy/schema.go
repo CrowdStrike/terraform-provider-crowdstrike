@@ -1,11 +1,9 @@
 package preventionpolicy
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
-	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -18,23 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
-
-// convertRuleGroupToSet converts a slice of models.IoaRuleGroupsRuleGroupV1 to a terraform set.
-func convertRuleGroupToSet(
-	ctx context.Context,
-	groups []*models.IoaRuleGroupsRuleGroupV1,
-) (basetypes.SetValue, diag.Diagnostics) {
-	ruleGroups := make([]types.String, 0, len(groups))
-	for _, ruleGroup := range groups {
-		ruleGroups = append(ruleGroups, types.StringValue(*ruleGroup.ID))
-	}
-
-	ruleGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, ruleGroups)
-
-	return ruleGroupIDs, diags
-}
 
 // validateMlSlider returns whether or not the mlslider is valid.
 func validateMlSlider(attribute string, slider mlSlider) diag.Diagnostics {

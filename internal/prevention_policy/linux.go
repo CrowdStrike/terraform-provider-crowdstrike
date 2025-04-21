@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -206,7 +207,17 @@ func (r *preventionPolicyLinuxResource) Read(
 	}
 
 	policy, diags := getPreventionPolicy(ctx, r.client, state.ID.ValueString())
+	for _, err := range diags.Errors() {
+		if err.Summary() == notFoundErrorSummary {
+			tflog.Warn(
+				ctx,
+				fmt.Sprintf("prevention policy %s not found, removing from state", state.ID),
+			)
 
+			resp.State.RemoveResource(ctx)
+			return
+		}
+	}
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
