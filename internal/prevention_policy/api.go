@@ -90,15 +90,14 @@ const (
 	addRuleGroup
 )
 
-// convertRuleGroupsToSet converts a slice of models.IoaRuleGroupsRuleGroupV1 to a terraform set.
-func convertRuleGroupsToSet(
+// convertRuleGroupToSet converts a slice of models.IoaRuleGroupsRuleGroupV1 to a terraform set.
+func convertRuleGroupToSet(
 	ctx context.Context,
 	groups []*models.IoaRuleGroupsRuleGroupV1,
 ) (basetypes.SetValue, diag.Diagnostics) {
-
 	ruleGroups := make([]types.String, 0, len(groups))
-	for _, hostGroup := range groups {
-		ruleGroups = append(ruleGroups, types.StringValue(*hostGroup.ID))
+	for _, ruleGroup := range groups {
+		ruleGroups = append(ruleGroups, types.StringValue(*ruleGroup.ID))
 	}
 
 	ruleGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, ruleGroups)
