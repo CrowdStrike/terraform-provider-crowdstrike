@@ -71,3 +71,22 @@ func MarkdownDescription(section string, description string, apiScopes []scopes.
 		scopes.GenerateScopeDescription(apiScopes),
 	)
 }
+
+// MissingElements checks if any elements in slice `a` are missing from slice `b`.
+// It returns a slice containing the missing elements.
+func MissingElements(a, b []string) []string {
+	missing := []string{}
+	bMap := make(map[string]bool, len(b))
+
+	for _, val := range b {
+		bMap[val] = true
+	}
+
+	for _, val := range a {
+		if !bMap[val] {
+			missing = append(missing, val)
+		}
+	}
+
+	return missing
+}

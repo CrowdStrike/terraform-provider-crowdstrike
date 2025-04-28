@@ -12,9 +12,13 @@ provider "crowdstrike" {
 
 
 resource "crowdstrike_prevention_policy_precedence" "example" {
-  ids           = ["622205fedad649b5846c85abc45783c7"]
+  ids = [
+    "a1j09y3yq0wnrpb5o6jlij9e4f40k6lq",
+    "2asia54xti93bg0jbr5hfpqqbhxbyeoa",
+    "xuzq8hs1uyc2s7zdar3fli0shiyl22vc",
+  ]
   platform_name = "linux"
-  enforcement   = "strict"
+  enforcement   = "dynamic"
 }
 
 output "prevention_policy_precedence" {
