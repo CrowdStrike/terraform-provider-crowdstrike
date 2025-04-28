@@ -241,6 +241,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		preventionpolicy.NewPreventionPolicyLinuxResource,
 		preventionpolicy.NewPreventionPolicyMacResource,
 		preventionpolicy.NewPreventionPolicyAttachmentResource,
+		preventionpolicy.NewPreventionPolicyPrecedenceResource,
 		fim.NewFIMPolicyResource,
 		fim.NewFilevantageRuleGroupResource,
 		fcs.NewCloudAWSAccountResource,
