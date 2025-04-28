@@ -35,7 +35,6 @@ var (
 	precedenceRequiredScopes       []scopes.Scope = apiScopes
 
 	dynamicEnforcement = "dynamic"
-	strictEnforcement  = "strict"
 )
 
 func NewPreventionPolicyPrecedenceResource() resource.Resource {
