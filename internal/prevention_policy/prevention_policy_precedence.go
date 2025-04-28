@@ -26,7 +26,6 @@ import (
 var (
 	_ resource.Resource                   = &preventionPolicyPrecedenceResource{}
 	_ resource.ResourceWithConfigure      = &preventionPolicyPrecedenceResource{}
-	_ resource.ResourceWithImportState    = &preventionPolicyPrecedenceResource{}
 	_ resource.ResourceWithValidateConfig = &preventionPolicyPrecedenceResource{}
 )
 
@@ -288,14 +287,6 @@ func (r *preventionPolicyPrecedenceResource) Delete(
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-}
-
-func (r *preventionPolicyPrecedenceResource) ImportState(
-	ctx context.Context,
-	req resource.ImportStateRequest,
-	resp *resource.ImportStateResponse,
-) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 func (r *preventionPolicyPrecedenceResource) ValidateConfig(
