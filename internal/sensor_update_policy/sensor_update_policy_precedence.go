@@ -3,13 +3,14 @@ package sensorupdatepolicy
 import (
 	"context"
 	"fmt"
+	"strings"
 
-	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -24,7 +25,6 @@ import (
 var (
 	_ resource.Resource                   = &sensorUpdatePolicyPrecedenceResource{}
 	_ resource.ResourceWithConfigure      = &sensorUpdatePolicyPrecedenceResource{}
-	_ resource.ResourceWithImportState    = &sensorUpdatePolicyPrecedenceResource{}
 	_ resource.ResourceWithValidateConfig = &sensorUpdatePolicyPrecedenceResource{}
 )
 
@@ -117,6 +117,10 @@ func (r *sensorUpdatePolicyPrecedenceResource) Schema(
 				Required:            true,
 				ElementType:         types.StringType,
 				MarkdownDescription: "The policy ids in order. The first ID specified will have the highest precedence and the last ID specified will have the lowest.",
+				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
+					listvalidator.UniqueValues(),
+				},
 			},
 			"platform_name": schema.StringAttribute{
 				Required:    true,
@@ -144,18 +148,20 @@ func (r *sensorUpdatePolicyPrecedenceResource) Create(
 		return
 	}
 
-	ids := utils.ListTypeAs[string](ctx, plan.IDs, &resp.Diagnostics)
+	var planPolicyIDs []string
+	resp.Diagnostics.Append(plan.IDs.ElementsAs(ctx, &planPolicyIDs, false)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	_, err := publishSensorUpdatePolicyPrecedence(r.client, ids, plan.PlatformName.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating sensor update policy precedence",
-			err.Error(),
-		)
+	resp.Diagnostics.Append(
+		r.setSensorUpdatePolicyPrecedence(ctx, planPolicyIDs, plan.PlatformName.ValueString())...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	plan.LastUpdated = utils.GenerateUpdateTimestamp()
+	resp.Diagnostics.Append(plan.wrap(ctx, planPolicyIDs)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -177,10 +183,6 @@ func (r *sensorUpdatePolicyPrecedenceResource) Read(
 		return
 	}
 
-	if len(policies) > len(state.IDs.Elements()) {
-		policies = policies[:len(state.IDs.Elements())+1]
-	}
-
 	resp.Diagnostics.Append(state.wrap(ctx, policies)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -193,22 +195,25 @@ func (r *sensorUpdatePolicyPrecedenceResource) Update(
 
 	var plan sensorUpdatePolicyPrecedenceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	ids := utils.ListTypeAs[string](ctx, plan.IDs, &resp.Diagnostics)
+	var planPolicyIDs []string
+	resp.Diagnostics.Append(plan.IDs.ElementsAs(ctx, &planPolicyIDs, false)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	_, err := publishSensorUpdatePolicyPrecedence(r.client, ids, plan.PlatformName.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating sensor update policy precedence",
-			err.Error(),
-		)
+	resp.Diagnostics.Append(
+		r.setSensorUpdatePolicyPrecedence(ctx, planPolicyIDs, plan.PlatformName.ValueString())...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	plan.LastUpdated = utils.GenerateUpdateTimestamp()
+	resp.Diagnostics.Append(plan.wrap(ctx, planPolicyIDs)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
 func (r *sensorUpdatePolicyPrecedenceResource) Delete(
@@ -218,13 +223,6 @@ func (r *sensorUpdatePolicyPrecedenceResource) Delete(
 ) {
 }
 
-func (r *sensorUpdatePolicyPrecedenceResource) ImportState(
-	ctx context.Context,
-	req resource.ImportStateRequest,
-	resp *resource.ImportStateResponse,
-) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
-}
 
 func (r *sensorUpdatePolicyPrecedenceResource) ValidateConfig(
 	ctx context.Context,
@@ -274,24 +272,44 @@ func (r *sensorUpdatePolicyPrecedenceResource) getSensorUpdatePoliciesByPreceden
 	return policies, diags
 }
 
-func publishSensorUpdatePolicyPrecedence(client *client.CrowdStrikeAPISpecification, ids []string, platform string) (*sensor_update_policies.SetSensorUpdatePoliciesPrecedenceOK, error) {
-	precedence_request := BaseSetPolicyPrecedenceReqV1{
-		Ids:          ids,
-		PlatformName: &platform,
-	}
+func (r *sensorUpdatePolicyPrecedenceResource) setSensorUpdatePolicyPrecedence(
+	ctx context.Context,
+	policyIDs []string,
+	platformName string,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
 
-	response, err := client.SensorUpdatePolicies.SetSensorUpdatePoliciesPrecedence(
+	caser := cases.Title(language.English)
+	platform := caser.String(platformName)
+
+	_, err := r.client.SensorUpdatePolicies.SetSensorUpdatePoliciesPrecedence(
 		&sensor_update_policies.SetSensorUpdatePoliciesPrecedenceParams{
-			Body: (*models.BaseSetPolicyPrecedenceReqV1)(&precedence_request),
+			Context: ctx,
+			Body: &models.BaseSetPolicyPrecedenceReqV1{
+				Ids:          policyIDs,
+				PlatformName: &platform,
+			},
 		},
 	)
 	if err != nil {
-		panic(falcon.ErrorExplain((err)))
-	}
-	if err = falcon.AssertNoError(response.Payload.Errors); err != nil {
-		panic(err)
+		if strings.Contains(err.Error(), "404") {
+			diags.AddAttributeError(
+				path.Root("ids"),
+				"Error setting CrowdStrike sensor update policies precedence",
+				"One or more sensor update policy ids were not found. Verify all the sensor update policy ids provided are valid for the platform you are targeting.",
+			)
+
+			return diags
+		}
+		diags.AddError(
+			"Error setting CrowdStrike sensor update policies precedence",
+			fmt.Sprintf(
+				"Could not set CrowdStrike sensor update policies precedence\n\n %s",
+				err.Error(),
+			),
+		)
+		return diags
 	}
 
-	return response, nil
-
+	return diags
 }
