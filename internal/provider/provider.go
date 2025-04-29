@@ -233,6 +233,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		sensorupdatepolicy.NewSensorUpdatePolicyResource,
 		sensorupdatepolicy.NewDefaultSensorUpdatePolicyResource,
 		sensorupdatepolicy.NewSensorUpdatePolicyHostGroupAttachmentResource,
+		sensorupdatepolicy.NewSensorUpdatePolicyPrecedenceResource,
 		NewHostGroupResource,
 		preventionpolicy.NewPreventionPolicyWindowsResource,
 		preventionpolicy.NewDefaultPreventionPolicyMacResource,
