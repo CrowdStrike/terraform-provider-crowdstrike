@@ -3,6 +3,7 @@ package sensorupdatepolicy
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
@@ -32,6 +33,8 @@ var (
 	precedenceDocumentationSection string         = "Sensor Update Policy"
 	precedenceMarkdownDescription  string         = "This resource allows you to set the precedence of Sensor Update Policies based on the order of IDs."
 	precedencerequiredScopes       []scopes.Scope = []scopes.Scope{}
+
+	dynamicEnforcement = "dynamic"
 )
 
 func NewSensorUpdatePolicyPrecedenceResource() resource.Resource {
@@ -44,14 +47,9 @@ type sensorUpdatePolicyPrecedenceResource struct {
 
 type sensorUpdatePolicyPrecedenceResourceModel struct {
 	IDs          types.List   `tfsdk:"ids"`
+	Enforcement  types.String `tfsdk:"enforcement"`
 	PlatformName types.String `tfsdk:"platform_name"`
 	LastUpdated  types.String `tfsdk:"last_updated"`
-	// TODO: Define resource model
-}
-
-type BaseSetPolicyPrecedenceReqV1 struct {
-	Ids          []string `json:"ids"`
-	PlatformName *string  `json:"platform_name"`
 }
 
 func (d *sensorUpdatePolicyPrecedenceResourceModel) wrap(
@@ -111,7 +109,7 @@ func (r *sensorUpdatePolicyPrecedenceResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: utils.MarkdownDescription(precedenceDocumentationSection, precedenceMarkdownDescription, requiredScopes),
+		MarkdownDescription: utils.MarkdownDescription(precedenceDocumentationSection, precedenceMarkdownDescription, precedencerequiredScopes),
 		Attributes: map[string]schema.Attribute{
 			"ids": schema.ListAttribute{
 				Required:            true,
@@ -120,6 +118,13 @@ func (r *sensorUpdatePolicyPrecedenceResource) Schema(
 				Validators: []validator.List{
 					listvalidator.SizeAtLeast(1),
 					listvalidator.UniqueValues(),
+				},
+			},
+			"enforcement": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: "The enforcement type for this resource. `strict` requires all non-default sensor update policy ids for platform to be provided. `dynamic` will ensure the provided policies have precedence over others. When using dynamic, policy ids not included in `ids` will retain their current ordering after the managed ids.",
+				Validators: []validator.String{
+					stringvalidator.OneOfCaseInsensitive("strict", "dynamic"),
 				},
 			},
 			"platform_name": schema.StringAttribute{
@@ -154,14 +159,40 @@ func (r *sensorUpdatePolicyPrecedenceResource) Create(
 		return
 	}
 
+	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) {
+		dynamicOrderedPolicyIDs, diags := r.generateDynamicPolicyOrder(
+			ctx,
+			planPolicyIDs,
+			plan.PlatformName.ValueString(),
+		)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		planPolicyIDs = dynamicOrderedPolicyIDs
+	}
+
 	resp.Diagnostics.Append(
 		r.setSensorUpdatePolicyPrecedence(ctx, planPolicyIDs, plan.PlatformName.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	policies, diags := r.getSensorUpdatePoliciesByPrecedence(ctx, plan.PlatformName.ValueString())
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) {
+		if len(policies) > len(plan.IDs.Elements()) {
+			policies = policies[:len(plan.IDs.Elements())]
+		}
+	}
+
 	plan.LastUpdated = utils.GenerateUpdateTimestamp()
-	resp.Diagnostics.Append(plan.wrap(ctx, planPolicyIDs)...)
+	resp.Diagnostics.Append(plan.wrap(ctx, policies)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -181,6 +212,12 @@ func (r *sensorUpdatePolicyPrecedenceResource) Read(
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	if strings.EqualFold(state.Enforcement.ValueString(), dynamicEnforcement) {
+		if len(policies) > len(state.IDs.Elements()) {
+			policies = policies[:len(state.IDs.Elements())]
+		}
 	}
 
 	resp.Diagnostics.Append(state.wrap(ctx, policies)...)
@@ -205,14 +242,40 @@ func (r *sensorUpdatePolicyPrecedenceResource) Update(
 		return
 	}
 
+	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) {
+		dynamicOrderedPolicyIDs, diags := r.generateDynamicPolicyOrder(
+			ctx,
+			planPolicyIDs,
+			plan.PlatformName.ValueString(),
+		)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		planPolicyIDs = dynamicOrderedPolicyIDs
+	}
+
 	resp.Diagnostics.Append(
 		r.setSensorUpdatePolicyPrecedence(ctx, planPolicyIDs, plan.PlatformName.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	policies, diags := r.getSensorUpdatePoliciesByPrecedence(ctx, plan.PlatformName.ValueString())
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) {
+		if len(policies) > len(plan.IDs.Elements()) {
+			policies = policies[:len(plan.IDs.Elements())]
+		}
+	}
+
 	plan.LastUpdated = utils.GenerateUpdateTimestamp()
-	resp.Diagnostics.Append(plan.wrap(ctx, planPolicyIDs)...)
+	resp.Diagnostics.Append(plan.wrap(ctx, policies)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -222,7 +285,6 @@ func (r *sensorUpdatePolicyPrecedenceResource) Delete(
 	resp *resource.DeleteResponse,
 ) {
 }
-
 
 func (r *sensorUpdatePolicyPrecedenceResource) ValidateConfig(
 	ctx context.Context,
@@ -264,14 +326,53 @@ func (r *sensorUpdatePolicyPrecedenceResource) getSensorUpdatePoliciesByPreceden
 	}
 
 	if res != nil && res.Payload != nil {
-		for _, policy := range res.Payload.Resources {
-			policies = append(policies, *policy.ID)
+		for i, policy := range res.Payload.Resources {
+			if i != len(res.Payload.Resources)-1 {
+				policies = append(policies, *policy.ID)
+			}
 		}
 	}
 
 	return policies, diags
 }
 
+// generateDynamicPolicyOrder takes the dynamic managed policies and returns a slice of all policies in the correct order.
+func (r *sensorUpdatePolicyPrecedenceResource) generateDynamicPolicyOrder(
+	ctx context.Context,
+	managedPolicyIDs []string,
+	platformName string,
+) ([]string, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	allPolicies, diag := r.getSensorUpdatePoliciesByPrecedence(ctx, platformName)
+	diags.Append(diag...)
+	if diags.HasError() {
+		return managedPolicyIDs, diags
+	}
+
+	missingPolicies := utils.MissingElements(managedPolicyIDs, allPolicies)
+	if len(missingPolicies) > 0 {
+		diags.AddAttributeError(
+			path.Root("ids"),
+			"Invalid policy ids provided.",
+			fmt.Sprintf(
+				"ids contains policy ids that do not exist for platform: %s, the following ids are invalid:\n\n%s",
+				platformName,
+				strings.Join(missingPolicies, "\n"),
+			),
+		)
+	}
+
+	for _, id := range allPolicies {
+		if !slices.Contains(managedPolicyIDs, id) {
+			managedPolicyIDs = append(managedPolicyIDs, id)
+		}
+	}
+
+	return managedPolicyIDs, diags
+}
+
+// setSensorUpdatePolicyPrecedence sets the precedence of the sensor update polices.
 func (r *sensorUpdatePolicyPrecedenceResource) setSensorUpdatePolicyPrecedence(
 	ctx context.Context,
 	policyIDs []string,
