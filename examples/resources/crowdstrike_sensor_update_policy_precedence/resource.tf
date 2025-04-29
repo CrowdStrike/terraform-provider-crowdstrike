@@ -18,6 +18,7 @@ resource "crowdstrike_sensor_update_policy_precedence" "example" {
     "xuzq8hs1uyc2s7zdar3fli0shiyl22vc",
   ]
   platform_name = "linux"
+  enforcement   = "dynamic"
 }
 
 output "sensor_update_policy_precedence" {
