@@ -32,7 +32,13 @@ var (
 var (
 	precedenceDocumentationSection string         = "Sensor Update Policy"
 	precedenceMarkdownDescription  string         = "This resource allows you to set the precedence of Sensor Update Policies based on the order of IDs."
-	precedencerequiredScopes       []scopes.Scope = []scopes.Scope{}
+	precedencerequiredScopes       []scopes.Scope = []scopes.Scope{
+		{
+			Name:  "Sensor update policies",
+			Read:  true,
+			Write: true,
+		},
+	}
 
 	dynamicEnforcement = "dynamic"
 )
