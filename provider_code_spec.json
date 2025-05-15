@@ -208,12 +208,6 @@
 						"string": {
 							"computed_optional_required": "computed"
 						}
-					},
-					{
-						"name": "deployment_stack_host_url",
-						"string": {
-							"computed_optional_required": "computed"
-						}
 					}
 				]
 			}

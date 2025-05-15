@@ -14,17 +14,16 @@ resources:
         aliases:
           registration_id: id
       ignores:
-        [
-          meta,
-          errors,
-          api_client_key_type,
-          deployment_method,
-          api_client_key_id,
-          deployment_stack_host_id,
-          deployment_stack_name,
-          registration_status,
-          template_version,
-          deleted,
-          created,
-          updated
-        ]
+        - meta
+        - errors
+        - api_client_key_type
+        - deployment_method
+        - api_client_key_id
+        - deployment_stack_host_id
+        - deployment_stack_name
+        - registration_status
+        - template_version
+        - deleted
+        - created
+        - updated
+        - deployment_stack_host_url

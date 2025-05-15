@@ -651,7 +651,7 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 	var diags diag.Diagnostics
 	createAccount := models.RestCloudAWSAccountCreateExtV1{
 		AccountID:      model.AccountID.ValueString(),
-		OrganizationID: model.OrganizationID.ValueStringPointer(),
+		OrganizationID: model.OrganizationID.ValueString(),
 		IsMaster:       model.OrganizationID.ValueString() != "",
 		AccountType:    model.AccountType.ValueString(),
 	}
@@ -1181,7 +1181,7 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 	var diags diag.Diagnostics
 	patchAccount := models.RestCloudAWSAccountCreateExtV1{
 		AccountID:      model.AccountID.ValueString(),
-		OrganizationID: model.OrganizationID.ValueStringPointer(),
+		OrganizationID: model.OrganizationID.ValueString(),
 		IsMaster:       model.OrganizationID.ValueString() != "",
 		AccountType:    model.AccountType.ValueString(),
 	}

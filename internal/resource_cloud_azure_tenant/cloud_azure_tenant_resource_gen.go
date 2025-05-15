@@ -72,9 +72,6 @@ func CloudAzureTenantResourceSchema(ctx context.Context) schema.Schema {
 				Optional: true,
 				Computed: true,
 			},
-			"deployment_stack_host_url": schema.StringAttribute{
-				Computed: true,
-			},
 			"dspm_regions": schema.ListAttribute{
 				ElementType: types.StringType,
 				Optional:    true,
@@ -175,7 +172,6 @@ type CloudAzureTenantModel struct {
 	Cid                                 types.String              `tfsdk:"cid"`
 	CsInfraRegion                       types.String              `tfsdk:"cs_infra_region"`
 	CsInfraSubscriptionId               types.String              `tfsdk:"cs_infra_subscription_id"`
-	DeploymentStackHostUrl              types.String              `tfsdk:"deployment_stack_host_url"`
 	DspmRegions                         types.List                `tfsdk:"dspm_regions"`
 	Environment                         types.String              `tfsdk:"environment"`
 	EventHubSettings                    types.List                `tfsdk:"event_hub_settings"`
