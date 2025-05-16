@@ -11,6 +11,6 @@ provider "crowdstrike" {
 }
 
 resource "crowdstrike_cloud_azure_tenant" "org" {
-  tenant_id                      = "00000000-0000-0000-0000-000000000000 "
+  tenant_id                      = "00000000-0000-0000-0000-000000000000"
   microsoft_graph_permission_ids = []
 }
