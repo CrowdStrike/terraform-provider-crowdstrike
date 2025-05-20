@@ -78,34 +78,6 @@
 						}
 					},
 					{
-						"name": "event_hub_settings",
-						"list_nested": {
-							"computed_optional_required": "computed_optional",
-							"nested_object": {
-								"attributes": [
-									{
-										"name": "consumer_group",
-										"string": {
-											"computed_optional_required": "required"
-										}
-									},
-									{
-										"name": "event_hub_id",
-										"string": {
-											"computed_optional_required": "required"
-										}
-									},
-									{
-										"name": "purpose",
-										"string": {
-											"computed_optional_required": "required"
-										}
-									}
-								]
-							}
-						}
-					},
-					{
 						"name": "management_group_ids",
 						"list": {
 							"computed_optional_required": "computed_optional",
@@ -121,12 +93,6 @@
 							"element_type": {
 								"string": {}
 							}
-						}
-					},
-					{
-						"name": "microsoft_graph_permission_ids_readonly",
-						"bool": {
-							"computed_optional_required": "computed_optional"
 						}
 					},
 					{

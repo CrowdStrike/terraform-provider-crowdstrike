@@ -80,9 +80,6 @@ func wrap(
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	model.TenantId = types.StringValue(*registration.TenantID)
-	model.AppRegistrationId = types.StringValue(registration.AppRegistrationID)
-
 	graphPermissionIDs, err := types.ListValueFrom(
 		ctx,
 		types.StringType,
@@ -93,7 +90,41 @@ func wrap(
 		return diags
 	}
 
+	model.TenantId = types.StringValue(*registration.TenantID)
+	model.AppRegistrationId = types.StringValue(registration.AppRegistrationID)
 	model.MicrosoftGraphPermissionIds = graphPermissionIDs
+	model.AccountType = types.StringValue(registration.AccountType)
+	model.AdminConsentUrl = types.StringValue(registration.AdminConsentURL)
+	model.Cid = types.StringValue(registration.Cid)
+	model.CsInfraRegion = types.StringPointerValue(registration.CsInfraRegion)
+	model.CsInfraSubscriptionId = types.StringPointerValue(registration.CsInfraSubscriptionID)
+	model.Environment = types.StringPointerValue(registration.Environment)
+	model.ResourceNamePrefix = types.StringPointerValue(registration.ResourceNamePrefix)
+	model.ResourceNameSuffix = types.StringPointerValue(registration.ResourceNameSuffix)
+
+	// todo actually implement
+	// model.AdditionalFeatures, _ = types.ListValueFrom(
+	// 	ctx,
+	// 	resource_cloud_azure_tenant.AdditionalFeaturesType{},
+	// 	registration.AdditionalFeatures,
+	// )
+	// model.DspmRegions = types.ListNull(types.StringType)
+	// model.EventHubSettings, _ = types.ListValueFrom(
+	// 	ctx,
+	// 	resource_cloud_azure_tenant.EventHubSettingsType{},
+	// 	registration.EventHubSettings,
+	// )
+	model.ManagementGroupIds = types.ListNull(types.StringType)
+	model.MicrosoftGraphPermissionIdsReadonly = types.BoolValue(false)
+	// model.Products, _ = types.ListValueFrom(
+	// 	ctx,
+	// 	resource_cloud_azure_tenant.ProductsType{},
+	// 	registration.Products,
+	// )
+	// model.SubscriptionIds = types.ListNull(types.StringType)
+	// model.Tags, _ = types.MapValueFrom(ctx, types.MapType{}, registration.Tags)
+	// types.MapValueFrom(ctx, resource_cloud_azure_tenant.NewTag)
+
 	return diags
 }
 
@@ -244,7 +275,6 @@ func (r *cloudAzureTenantResource) getRegistration(
 		return nil, diags
 	}
 
-	//TODO fix
 	if res == nil || res.Payload == nil || res.Payload.Resource == nil {
 		diags.AddError(
 			"Failed to get registration",

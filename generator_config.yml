@@ -27,3 +27,5 @@ resources:
         - created
         - updated
         - deployment_stack_host_url
+        - event_hub_settings
+        - microsoft_graph_permission_ids_readonly

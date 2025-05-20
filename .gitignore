@@ -36,5 +36,5 @@ website/vendor
 
 # terraform code gen
 openapi.json
-./provider_crowdstrike/
+provider_crowdstrike/
 
