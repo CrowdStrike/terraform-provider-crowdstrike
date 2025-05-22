@@ -210,27 +210,25 @@ func wrap(
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	graphPermissionIDs, err := types.ListValueFrom(
+	graphPermissionIDs := utils.SliceToListTypeString(
 		ctx,
-		types.StringType,
 		registration.MicrosoftGraphPermissionIds,
+		&diags,
 	)
-	diags.Append(err...)
-	subscriptionIDs, err := types.ListValueFrom(
-		ctx,
-		types.StringType,
-		registration.SubscriptionIds,
-	)
-	diags.Append(err...)
-	// if !model.SubscriptionIds.IsUnknown() && subscriptionIDs == nil {
-	// 	subscriptionIDs = types.ListValue(types.StringType)
-	// }
-	managementGroupIDs, err := types.ListValueFrom(
-		ctx,
-		types.StringType,
-		registration.ManagementGroupIds,
-	)
-	diags.Append(err...)
+	if model.MicrosoftGraphPermissionIds.IsNull() && len(graphPermissionIDs.Elements()) == 0 {
+		graphPermissionIDs = types.ListNull(types.StringType)
+	}
+
+	subscriptionsIDs := utils.SliceToListTypeString(ctx, registration.SubscriptionIds, &diags)
+	if model.SubscriptionIds.IsNull() && len(subscriptionsIDs.Elements()) == 0 {
+		subscriptionsIDs = types.ListNull(types.StringType)
+	}
+
+	managementGroupIDs := utils.SliceToListTypeString(ctx, registration.ManagementGroupIds, &diags)
+	if model.ManagementGroupIds.IsNull() && len(managementGroupIDs.Elements()) == 0 {
+		managementGroupIDs = types.ListNull(types.StringType)
+	}
+
 	tags, err := types.MapValueFrom(ctx, types.StringType, registration.Tags)
 	diags.Append(err...)
 
@@ -244,7 +242,7 @@ func wrap(
 	model.ResourceNameSuffix = types.StringPointerValue(registration.ResourceNameSuffix)
 	model.MicrosoftGraphPermissionIds = graphPermissionIDs
 	model.Tags = tags
-	model.SubscriptionIds = subscriptionIDs
+	model.SubscriptionIds = subscriptionsIDs
 	model.ManagementGroupIds = managementGroupIDs
 
 	if model.RealtimeVisibility == nil {
@@ -578,16 +576,6 @@ func (r *cloudAzureTenantResource) updateRegistration(
 ) (*models.AzureTenantRegistration, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	microsoftGraphPermissionIDs := utils.ListTypeAs[string](
-		ctx,
-		data.MicrosoftGraphPermissionIds,
-		&diags,
-	)
-
-	if diags.HasError() {
-		return nil, diags
-	}
-
 	cspmProductFeatures := models.DomainProductFeatures{
 		Product:  utils.Addr("cspm"),
 		Features: []string{},
@@ -598,23 +586,22 @@ func (r *cloudAzureTenantResource) updateRegistration(
 		cspmProductFeatures.Features = append(cspmProductFeatures.Features, features...)
 	}
 
-	tags := utils.MapTypeAs[string](ctx, data.Tags, &diags)
-	if tags == nil {
-		tags = map[string]string{}
-	}
-
 	params := cloud_azure_registration.CloudRegistrationAzureUpdateRegistrationParams{
 		Body: &models.AzureAzureRegistrationUpdateRequestExtV1{
 			Resource: &models.AzureTenantRegistrationBase{
-				AccountType:                 data.AccountType.ValueString(),
-				TenantID:                    data.TenantId.ValueStringPointer(),
-				CsInfraRegion:               data.CsInfraRegion.ValueString(),
-				CsInfraSubscriptionID:       data.CsInfraSubscriptionId.ValueString(),
-				Environment:                 data.Environment.ValueString(),
-				ResourceNamePrefix:          data.ResourceNamePrefix.ValueString(),
-				ResourceNameSuffix:          data.ResourceNameSuffix.ValueString(),
-				MicrosoftGraphPermissionIds: microsoftGraphPermissionIDs,
-				DeploymentMethod:            "terraform-native",
+				AccountType:           data.AccountType.ValueString(),
+				TenantID:              data.TenantId.ValueStringPointer(),
+				CsInfraRegion:         data.CsInfraRegion.ValueString(),
+				CsInfraSubscriptionID: data.CsInfraSubscriptionId.ValueString(),
+				Environment:           data.Environment.ValueString(),
+				ResourceNamePrefix:    data.ResourceNamePrefix.ValueString(),
+				ResourceNameSuffix:    data.ResourceNameSuffix.ValueString(),
+				MicrosoftGraphPermissionIds: utils.ListTypeAs[string](
+					ctx,
+					data.MicrosoftGraphPermissionIds,
+					&diags,
+				),
+				DeploymentMethod: "terraform-native",
 				ManagementGroupIds: utils.ListTypeAs[string](
 					ctx,
 					data.ManagementGroupIds,
@@ -624,7 +611,7 @@ func (r *cloudAzureTenantResource) updateRegistration(
 				Products: []*models.DomainProductFeatures{
 					&cspmProductFeatures,
 				},
-				Tags: tags,
+				Tags: utils.MapTypeAs[string](ctx, data.Tags, &diags),
 			},
 		},
 		Context: ctx,
@@ -632,6 +619,22 @@ func (r *cloudAzureTenantResource) updateRegistration(
 
 	if diags.HasError() {
 		return nil, diags
+	}
+
+	if params.Body.Resource.Tags == nil {
+		params.Body.Resource.Tags = map[string]string{}
+	}
+
+	if params.Body.Resource.ManagementGroupIds == nil {
+		params.Body.Resource.ManagementGroupIds = []string{}
+	}
+
+	if params.Body.Resource.SubscriptionIds == nil {
+		params.Body.Resource.SubscriptionIds = []string{}
+	}
+
+	if params.Body.Resource.MicrosoftGraphPermissionIds == nil {
+		params.Body.Resource.MicrosoftGraphPermissionIds = []string{}
 	}
 
 	res, err := r.client.CloudAzureRegistration.CloudRegistrationAzureUpdateRegistration(&params)

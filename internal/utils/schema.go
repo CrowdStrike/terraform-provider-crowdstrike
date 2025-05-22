@@ -32,6 +32,28 @@ func ListTypeAs[T any](
 	return elements
 }
 
+// SliceToListTypeString converts []string into types.List with an attr.Type of types.String.
+// Empty []string will result in an empty types.List.
+func SliceToListTypeString(
+	ctx context.Context,
+	elems []string,
+	diags *diag.Diagnostics,
+) types.List {
+	elemsSlice := make([]types.String, 0, len(elems))
+	for _, elem := range elems {
+		elemsSlice = append(elemsSlice, types.StringValue(elem))
+	}
+	elemList, err := types.ListValueFrom(
+		ctx,
+		types.StringType,
+		elemsSlice,
+	)
+
+	diags.Append(err...)
+
+	return elemList
+}
+
 // MapTypeAs converts a types.Map into a known map[string]T.
 func MapTypeAs[T any](
 	ctx context.Context,
@@ -79,7 +101,11 @@ func ValidateEmptyIDs(ctx context.Context, checkSet types.Set, attrPath string) 
 }
 
 // ValidateEmptyIDsList checks if a list contains empty IDs. Returns a attribute error at path.
-func ValidateEmptyIDsList(ctx context.Context, checkList types.Set, attrPath string) diag.Diagnostics {
+func ValidateEmptyIDsList(
+	ctx context.Context,
+	checkList types.Set,
+	attrPath string,
+) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	if checkList.IsNull() {
