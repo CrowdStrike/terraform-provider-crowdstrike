@@ -30,6 +30,7 @@ var (
 	_ resource.ResourceWithConfigure      = &cloudAzureTenantResource{}
 	_ resource.ResourceWithImportState    = &cloudAzureTenantResource{}
 	_ resource.ResourceWithValidateConfig = &cloudAzureTenantResource{}
+	_ resource.ResourceWithModifyPlan     = &cloudAzureTenantResource{}
 )
 
 func NewCloudAzureTenantResource() resource.Resource {
@@ -420,6 +421,30 @@ func (r *cloudAzureTenantResource) ValidateConfig(
 			diag.NewAttributeErrorDiagnostic(path.Root("resource_name_suffix"), summary, detail),
 		)
 	}
+}
+
+func (r cloudAzureTenantResource) ModifyPlan(
+	ctx context.Context,
+	req resource.ModifyPlanRequest,
+	resp *resource.ModifyPlanResponse,
+) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var state, plan cloudAzureTenantModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if !state.MicrosoftGraphPermissionIds.Equal(plan.MicrosoftGraphPermissionIds) {
+		plan.AppRegistrationId = types.StringUnknown()
+	}
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }
 
 func (r *cloudAzureTenantResource) deleteRegistration(
