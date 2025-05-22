@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -119,6 +120,7 @@ func (r *cloudAzureTenantResource) Schema(
 			"cs_azure_client_id": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "Client ID of CrowdStrike's multi-tenant application in Azure. This is used to establish the connection between Azure and Falcon Cloud Security.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			// reguired if realtime_visibility is enabled todo validate
 			"cs_infra_location": schema.StringAttribute{
@@ -220,6 +222,9 @@ func wrap(
 		registration.SubscriptionIds,
 	)
 	diags.Append(err...)
+	// if !model.SubscriptionIds.IsUnknown() && subscriptionIDs == nil {
+	// 	subscriptionIDs = types.ListValue(types.StringType)
+	// }
 	managementGroupIDs, err := types.ListValueFrom(
 		ctx,
 		types.StringType,
