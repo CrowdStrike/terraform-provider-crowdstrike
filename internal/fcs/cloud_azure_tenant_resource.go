@@ -190,6 +190,7 @@ func (r *cloudAzureTenantResource) Schema(
 				Optional:            true,
 				Computed:            true,
 				Default:             stringdefault.StaticString(""),
+				Validators:          []validator.String{stringvalidator.LengthAtMost(4)},
 			},
 			"tags": schema.MapAttribute{
 				ElementType:         types.StringType,
@@ -395,6 +396,27 @@ func (r *cloudAzureTenantResource) ValidateConfig(
 			types.Set(config.MicrosoftGraphPermissionIds),
 			"microsoft_graph_permission_ids",
 		)...)
+
+	affixCount := 0
+
+	if utils.IsKnown(config.ResourceNamePrefix) {
+		affixCount += len(config.ResourceNamePrefix.ValueString())
+	}
+
+	if utils.IsKnown(config.ResourceNameSuffix) {
+		affixCount += len(config.ResourceNameSuffix.ValueString())
+	}
+
+	if affixCount > 10 {
+		summary := "Invalid affixes"
+		detail := "The combined length of resource_name_prefix and resource_name_suffix can not be greater than 10."
+		resp.Diagnostics.Append(
+			diag.NewAttributeErrorDiagnostic(path.Root("resource_name_prefix"), summary, detail),
+		)
+		resp.Diagnostics.Append(
+			diag.NewAttributeErrorDiagnostic(path.Root("resource_name_suffix"), summary, detail),
+		)
+	}
 }
 
 func (r *cloudAzureTenantResource) deleteRegistration(

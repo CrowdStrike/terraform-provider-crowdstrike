@@ -16,8 +16,8 @@ resource "crowdstrike_cloud_azure_tenant" "org" {
   realtime_visibility = {
     enabled = true
   }
-  resource_name_prefix = "1"
-  # resource_name_suffix = "1"
+  resource_name_prefix = "1234567"
+  resource_name_suffix = "1234567"
   environment          = "test123456"
   management_group_ids = ["0000000", "2"]
   subscription_ids     = ["00000000-0000-0000-0000-000000000009", "00000000-0000-0000-0000-000000000001"]
