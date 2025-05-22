@@ -500,7 +500,7 @@ func (r *cloudAzureTenantResource) createRegistration(
 				CsInfraSubscriptionID:       data.CsInfraSubscriptionId.ValueString(),
 				Environment:                 data.Environment.ValueString(),
 				ResourceNamePrefix:          data.ResourceNamePrefix.ValueString(),
-				ResourceNameSuffix:          data.ResourceNamePrefix.ValueString(),
+				ResourceNameSuffix:          data.ResourceNameSuffix.ValueString(),
 				MicrosoftGraphPermissionIds: microsoftGraphPermissionIDs,
 				DeploymentMethod:            "terraform-native",
 				ManagementGroupIds: utils.ListTypeAs[string](
@@ -585,7 +585,7 @@ func (r *cloudAzureTenantResource) updateRegistration(
 				CsInfraSubscriptionID:       data.CsInfraSubscriptionId.ValueString(),
 				Environment:                 data.Environment.ValueString(),
 				ResourceNamePrefix:          data.ResourceNamePrefix.ValueString(),
-				ResourceNameSuffix:          data.ResourceNamePrefix.ValueString(),
+				ResourceNameSuffix:          data.ResourceNameSuffix.ValueString(),
 				MicrosoftGraphPermissionIds: microsoftGraphPermissionIDs,
 				DeploymentMethod:            "terraform-native",
 				ManagementGroupIds: utils.ListTypeAs[string](
