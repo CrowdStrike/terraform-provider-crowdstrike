@@ -32,6 +32,21 @@ func ListTypeAs[T any](
 	return elements
 }
 
+// MapTypeAs converts a types.Map into a known map[string]T.
+func MapTypeAs[T any](
+	ctx context.Context,
+	mapIn types.Map,
+	diags *diag.Diagnostics,
+) map[string]T {
+	if !IsKnown(mapIn) {
+		return nil
+	}
+	var items map[string]T
+
+	diags.Append(mapIn.ElementsAs(ctx, &items, false)...)
+	return items
+}
+
 // ValidateEmptyIDs checks if a set contains empty IDs. Returns a attribute error at path.
 func ValidateEmptyIDs(ctx context.Context, checkSet types.Set, attrPath string) diag.Diagnostics {
 	var diags diag.Diagnostics
@@ -46,6 +61,37 @@ func ValidateEmptyIDs(ctx context.Context, checkSet types.Set, attrPath string) 
 
 	ids := make([]types.String, 0, len(checkSet.Elements()))
 	diags.Append(checkSet.ElementsAs(ctx, &ids, false)...)
+	if diags.HasError() {
+		return diags
+	}
+
+	for _, id := range ids {
+		if !id.IsUnknown() && len(id.ValueString()) == 0 {
+			diags.AddAttributeError(
+				path.Root(attrPath),
+				fmt.Sprintf("Error validating %s", attrPath),
+				"List of IDs can not contain a empty \"\" value",
+			)
+		}
+	}
+
+	return diags
+}
+
+// ValidateEmptyIDsList checks if a list contains empty IDs. Returns a attribute error at path.
+func ValidateEmptyIDsList(ctx context.Context, checkList types.Set, attrPath string) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if checkList.IsNull() {
+		return diags
+	}
+
+	if checkList.IsUnknown() {
+		return diags
+	}
+
+	ids := make([]types.String, 0, len(checkList.Elements()))
+	diags.Append(checkList.ElementsAs(ctx, &ids, false)...)
 	if diags.HasError() {
 		return diags
 	}
