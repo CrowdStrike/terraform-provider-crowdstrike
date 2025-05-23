@@ -50,7 +50,7 @@ resource "crowdstrike_host_group" "static" {
   description = "Made with terraform"
   name        = "Static Host Group rename"
   type        = "static"
-  hostnames    = ["host1", "host2"]
+  hostnames   = ["host1", "host2"]
 }
 
 resource "crowdstrike_host_group" "staticByID" {
