@@ -204,9 +204,8 @@ func (r *cloudAzureTenantResource) Schema(
 	}
 }
 
-func wrap(
+func (m *cloudAzureTenantModel) wrap(
 	ctx context.Context,
-	model *cloudAzureTenantModel,
 	registration models.AzureTenantRegistration,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
@@ -216,45 +215,48 @@ func wrap(
 		registration.MicrosoftGraphPermissionIds,
 		&diags,
 	)
-	if model.MicrosoftGraphPermissionIds.IsNull() && len(graphPermissionIDs.Elements()) == 0 {
+	if m.MicrosoftGraphPermissionIds.IsNull() && len(graphPermissionIDs.Elements()) == 0 {
 		graphPermissionIDs = types.ListNull(types.StringType)
 	}
 
 	subscriptionsIDs := utils.SliceToListTypeString(ctx, registration.SubscriptionIds, &diags)
-	if model.SubscriptionIds.IsNull() && len(subscriptionsIDs.Elements()) == 0 {
+	if m.SubscriptionIds.IsNull() && len(subscriptionsIDs.Elements()) == 0 {
 		subscriptionsIDs = types.ListNull(types.StringType)
 	}
 
 	managementGroupIDs := utils.SliceToListTypeString(ctx, registration.ManagementGroupIds, &diags)
-	if model.ManagementGroupIds.IsNull() && len(managementGroupIDs.Elements()) == 0 {
+	if m.ManagementGroupIds.IsNull() && len(managementGroupIDs.Elements()) == 0 {
 		managementGroupIDs = types.ListNull(types.StringType)
 	}
 
 	tags, err := types.MapValueFrom(ctx, types.StringType, registration.Tags)
+	if m.Tags.IsNull() && len(tags.Elements()) == 0 {
+		tags = types.MapNull(types.StringType)
+	}
 	diags.Append(err...)
 
-	model.TenantId = types.StringValue(*registration.TenantID)
-	model.AppRegistrationId = types.StringValue(registration.AppRegistrationID)
-	model.AccountType = types.StringValue(registration.AccountType)
-	model.CsInfraRegion = types.StringPointerValue(registration.CsInfraRegion)
-	model.CsInfraSubscriptionId = types.StringPointerValue(registration.CsInfraSubscriptionID)
-	model.Environment = types.StringPointerValue(registration.Environment)
-	model.ResourceNamePrefix = types.StringPointerValue(registration.ResourceNamePrefix)
-	model.ResourceNameSuffix = types.StringPointerValue(registration.ResourceNameSuffix)
-	model.MicrosoftGraphPermissionIds = graphPermissionIDs
-	model.Tags = tags
-	model.SubscriptionIds = subscriptionsIDs
-	model.ManagementGroupIds = managementGroupIDs
+	m.TenantId = types.StringValue(*registration.TenantID)
+	m.AppRegistrationId = types.StringValue(registration.AppRegistrationID)
+	m.AccountType = types.StringValue(registration.AccountType)
+	m.CsInfraRegion = types.StringPointerValue(registration.CsInfraRegion)
+	m.CsInfraSubscriptionId = types.StringPointerValue(registration.CsInfraSubscriptionID)
+	m.Environment = types.StringPointerValue(registration.Environment)
+	m.ResourceNamePrefix = types.StringPointerValue(registration.ResourceNamePrefix)
+	m.ResourceNameSuffix = types.StringPointerValue(registration.ResourceNameSuffix)
+	m.MicrosoftGraphPermissionIds = graphPermissionIDs
+	m.Tags = tags
+	m.SubscriptionIds = subscriptionsIDs
+	m.ManagementGroupIds = managementGroupIDs
 
-	if model.RealtimeVisibility == nil {
-		model.RealtimeVisibility = &realtimeVisibility{}
+	if m.RealtimeVisibility == nil {
+		m.RealtimeVisibility = &realtimeVisibility{}
 	}
-	model.RealtimeVisibility.Enabled = types.BoolValue(false)
+	m.RealtimeVisibility.Enabled = types.BoolValue(false)
 	for _, product := range registration.Products {
 		if *product.Product == "cspm" {
 			for _, feature := range product.Features {
 				if feature == "ioa" || feature == "iom" {
-					model.RealtimeVisibility.Enabled = types.BoolValue(true)
+					m.RealtimeVisibility.Enabled = types.BoolValue(true)
 				}
 			}
 		}
@@ -290,7 +292,7 @@ func (r *cloudAzureTenantResource) Create(
 		return
 	}
 
-	resp.Diagnostics.Append(wrap(ctx, &data, *registration)...)
+	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -326,7 +328,7 @@ func (r *cloudAzureTenantResource) Read(
 		return
 	}
 
-	resp.Diagnostics.Append(wrap(ctx, &data, *registration)...)
+	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -347,7 +349,7 @@ func (r *cloudAzureTenantResource) Update(
 		return
 	}
 
-	resp.Diagnostics.Append(wrap(ctx, &data, *registration)...)
+	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -463,7 +465,7 @@ func (r *cloudAzureTenantResource) deleteRegistration(
 	if err != nil {
 		diags.AddError(
 			"Failed to delete registration",
-			fmt.Sprintf("Failed to delete azure tenant registration: %s", err),
+			fmt.Sprintf("Failed to delete Azure tenant registration: %s", falcon.ErrorExplain(err)),
 		)
 
 		return diags
@@ -497,7 +499,7 @@ func (r *cloudAzureTenantResource) getRegistration(
 
 		diags.AddError(
 			"Failed to get registration",
-			fmt.Sprintf("Failed to get azure tenant registration: %s", err),
+			fmt.Sprintf("Failed to get Azure tenant registration: %s", falcon.ErrorExplain(err)),
 		)
 
 		return nil, diags
@@ -548,9 +550,9 @@ func (r *cloudAzureTenantResource) createRegistration(
 				TenantID:                    data.TenantId.ValueStringPointer(),
 				CsInfraRegion:               data.CsInfraRegion.ValueString(),
 				CsInfraSubscriptionID:       data.CsInfraSubscriptionId.ValueString(),
-				Environment:                 data.Environment.ValueString(),
-				ResourceNamePrefix:          data.ResourceNamePrefix.ValueString(),
-				ResourceNameSuffix:          data.ResourceNameSuffix.ValueString(),
+				Environment:                 data.Environment.ValueStringPointer(),
+				ResourceNamePrefix:          data.ResourceNamePrefix.ValueStringPointer(),
+				ResourceNameSuffix:          data.ResourceNameSuffix.ValueStringPointer(),
 				MicrosoftGraphPermissionIds: microsoftGraphPermissionIDs,
 				DeploymentMethod:            "terraform-native",
 				ManagementGroupIds: utils.ListTypeAs[string](
@@ -577,7 +579,7 @@ func (r *cloudAzureTenantResource) createRegistration(
 	if err != nil {
 		diags.AddError(
 			"Failed to register tenant",
-			fmt.Sprintf("Failed to register azure tenant: %s", falcon.ErrorExplain(err)),
+			fmt.Sprintf("Failed to register Azure tenant: %s", falcon.ErrorExplain(err)),
 		)
 
 		return nil, diags
@@ -618,9 +620,9 @@ func (r *cloudAzureTenantResource) updateRegistration(
 				TenantID:              data.TenantId.ValueStringPointer(),
 				CsInfraRegion:         data.CsInfraRegion.ValueString(),
 				CsInfraSubscriptionID: data.CsInfraSubscriptionId.ValueString(),
-				Environment:           data.Environment.ValueString(),
-				ResourceNamePrefix:    data.ResourceNamePrefix.ValueString(),
-				ResourceNameSuffix:    data.ResourceNameSuffix.ValueString(),
+				Environment:           data.Environment.ValueStringPointer(),
+				ResourceNamePrefix:    data.ResourceNamePrefix.ValueStringPointer(),
+				ResourceNameSuffix:    data.ResourceNameSuffix.ValueStringPointer(),
 				MicrosoftGraphPermissionIds: utils.ListTypeAs[string](
 					ctx,
 					data.MicrosoftGraphPermissionIds,
@@ -679,7 +681,7 @@ func (r *cloudAzureTenantResource) updateRegistration(
 
 		diags.AddError(
 			"Failed to update registration",
-			fmt.Sprintf("Failed to update azure tenant registration: %s", err),
+			fmt.Sprintf("Failed to update Azure tenant registration: %s", falcon.ErrorExplain(err)),
 		)
 
 		return nil, diags

@@ -54,6 +54,26 @@ func SliceToListTypeString(
 	return elemList
 }
 
+// SliceToListTypeObject converts []T into types.List with an attr.Type of types.Object{}.
+func SliceToListTypeObject[T any](
+	ctx context.Context,
+	elems []T,
+	attrs map[string]attr.Type,
+	diags *diag.Diagnostics,
+) types.List {
+
+	elemsSlice := make([]T, 0, len(elems))
+	elemsSlice = append(elemsSlice, elems...)
+	elemList, err := types.ListValueFrom(
+		ctx,
+		types.ObjectType{AttrTypes: attrs},
+		elemsSlice,
+	)
+
+	diags.Append(err...)
+	return elemList
+}
+
 // MapTypeAs converts a types.Map into a known map[string]T.
 func MapTypeAs[T any](
 	ctx context.Context,
