@@ -14,3 +14,7 @@ generate: provider-spec
 
 provider-spec:
 		tfplugingen-openapi generate --config ./generator_config.yml --output ./provider_code_spec.json ./openapi.json
+	
+build:
+	go install .
+

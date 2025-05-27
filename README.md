@@ -21,3 +21,6 @@ The provider uses the CrowdStrike Falcon API to manage resources. In order to us
 ### Importing Existing CrowdStrike resources
 
 The CrowdStrike provider supports importing existing resources into terraform state. This is useful for managing resources that were created outside of terraform. Refer to the [importing guide](./docs/importing.md) for an example of using the `import` block and the `terraform import` command.
+
+# Contributing
+See the [contributing documentation](./CONTRIBUTING.md).
