@@ -126,7 +126,7 @@ func (r *cloudAWSAccountResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: fmt.Sprintf(
-			"Cloud AWS Account --- This resource allows management of an AWS account in Falcon.\n\n%s",
+			"Falcon Cloud Security --- This resource registers an AWS account or organization in Falcon Cloud Security.\n\n%s",
 			scopes.GenerateScopeDescription(cloudSecurityScopes),
 		),
 		Attributes: map[string]schema.Attribute{

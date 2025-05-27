@@ -24,12 +24,7 @@ resource "crowdstrike_cloud_azure_tenant_eventhub_settings" "eventhub" {
   settings = [
     {
       type           = "activity_logs",
-      id             = "1234",
-      consumer_group = "idk"
-    },
-    {
-      type           = "entra_logs",
-      id             = "1234",
+      id             = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/my-resource-group/providers/Microsoft.EventHub/namespaces/my-eventhub-namespace/eventhubs/my-event-hub",
       consumer_group = "idk"
     },
   ]

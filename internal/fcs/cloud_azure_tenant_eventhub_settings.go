@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_azure_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -97,6 +98,10 @@ func (r *cloudAzureTenantEventhubSettingsResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: fmt.Sprintf(
+			"Falcon Cloud Security --- This resource registers an Azure Tenant in Falcon Cloud Security.\n\n%s",
+			scopes.GenerateScopeDescription(azureRegistrationScopes),
+		),
 		Attributes: map[string]schema.Attribute{
 			"tenant_id": schema.StringAttribute{
 				Required:            true,
