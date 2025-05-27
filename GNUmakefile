@@ -8,3 +8,9 @@ testacc:
 localinstall:
 	go build -o terraform-provider-crowdstrike .
 	mv terraform-provider-crowdstrike ~/go/bin
+
+generate: provider-spec
+		tfplugingen-framework generate all --input ./provider_code_spec.json --output ./internal
+
+provider-spec:
+		tfplugingen-openapi generate --config ./generator_config.yml --output ./provider_code_spec.json ./openapi.json

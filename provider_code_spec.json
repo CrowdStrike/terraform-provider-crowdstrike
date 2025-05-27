@@ -1,0 +1,183 @@
+{
+	"provider": {
+		"name": "crowdstrike"
+	},
+	"resources": [
+		{
+			"name": "cloud_azure_tenant",
+			"schema": {
+				"attributes": [
+					{
+						"name": "account_type",
+						"string": {
+							"computed_optional_required": "computed_optional"
+						}
+					},
+					{
+						"name": "additional_features",
+						"list_nested": {
+							"computed_optional_required": "computed_optional",
+							"nested_object": {
+								"attributes": [
+									{
+										"name": "feature",
+										"string": {
+											"computed_optional_required": "required"
+										}
+									},
+									{
+										"name": "product",
+										"string": {
+											"computed_optional_required": "required"
+										}
+									},
+									{
+										"name": "subscription_ids",
+										"list": {
+											"computed_optional_required": "required",
+											"element_type": {
+												"string": {}
+											}
+										}
+									}
+								]
+							}
+						}
+					},
+					{
+						"name": "additional_properties",
+						"single_nested": {
+							"computed_optional_required": "computed_optional"
+						}
+					},
+					{
+						"name": "cs_infra_region",
+						"string": {
+							"computed_optional_required": "computed_optional"
+						}
+					},
+					{
+						"name": "cs_infra_subscription_id",
+						"string": {
+							"computed_optional_required": "computed_optional"
+						}
+					},
+					{
+						"name": "dspm_regions",
+						"list": {
+							"computed_optional_required": "computed_optional",
+							"element_type": {
+								"string": {}
+							}
+						}
+					},
+					{
+						"name": "environment",
+						"string": {
+							"computed_optional_required": "computed_optional"
+						}
+					},
+					{
+						"name": "management_group_ids",
+						"list": {
+							"computed_optional_required": "computed_optional",
+							"element_type": {
+								"string": {}
+							}
+						}
+					},
+					{
+						"name": "microsoft_graph_permission_ids",
+						"list": {
+							"computed_optional_required": "required",
+							"element_type": {
+								"string": {}
+							}
+						}
+					},
+					{
+						"name": "products",
+						"list_nested": {
+							"computed_optional_required": "computed_optional",
+							"nested_object": {
+								"attributes": [
+									{
+										"name": "features",
+										"list": {
+											"computed_optional_required": "required",
+											"element_type": {
+												"string": {}
+											}
+										}
+									},
+									{
+										"name": "product",
+										"string": {
+											"computed_optional_required": "required"
+										}
+									}
+								]
+							}
+						}
+					},
+					{
+						"name": "resource_name_prefix",
+						"string": {
+							"computed_optional_required": "computed_optional"
+						}
+					},
+					{
+						"name": "resource_name_suffix",
+						"string": {
+							"computed_optional_required": "computed_optional"
+						}
+					},
+					{
+						"name": "subscription_ids",
+						"list": {
+							"computed_optional_required": "computed_optional",
+							"element_type": {
+								"string": {}
+							}
+						}
+					},
+					{
+						"name": "tags",
+						"map": {
+							"computed_optional_required": "computed_optional",
+							"element_type": {
+								"string": {}
+							}
+						}
+					},
+					{
+						"name": "tenant_id",
+						"string": {
+							"computed_optional_required": "required",
+							"description": "Tenant ID"
+						}
+					},
+					{
+						"name": "admin_consent_url",
+						"string": {
+							"computed_optional_required": "computed"
+						}
+					},
+					{
+						"name": "app_registration_id",
+						"string": {
+							"computed_optional_required": "computed"
+						}
+					},
+					{
+						"name": "cid",
+						"string": {
+							"computed_optional_required": "computed"
+						}
+					}
+				]
+			}
+		}
+	],
+	"version": "0.1"
+}
