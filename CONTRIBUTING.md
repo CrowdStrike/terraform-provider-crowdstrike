@@ -37,7 +37,7 @@ Change into the cloned repository.
 
 `cd terraform-provider-crowdstrike`
 
-Build the terraform-provider-crowdstrike provider
+Build the CrowdStrike provider
 
 `make build`
 
