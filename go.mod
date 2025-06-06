@@ -3,7 +3,7 @@ module github.com/crowdstrike/terraform-provider-crowdstrike
 go 1.24.0
 
 require (
-	github.com/crowdstrike/gofalcon v0.13.6-0.20250527182604-72bc4abf4cee
+	github.com/crowdstrike/gofalcon v0.13.6-0.20250606193252-713e6e8d4f0d
 	github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/go-version v1.7.0
 	github.com/hashicorp/terraform-plugin-docs v0.19.1

@@ -367,7 +367,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) getRegistration(
 		return nil, diags
 	}
 
-	if res == nil || res.Payload == nil || res.Payload.Resource == nil {
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
 		diags.AddError(
 			"Failed to get registration",
 			"Get registration api call returned a successful status code, but no registration information was returned. Please report this issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
@@ -376,7 +376,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) getRegistration(
 		return nil, diags
 	}
 
-	return res.Payload.Resource, diags
+	return res.Payload.Resources[0], diags
 }
 
 func (r *cloudAzureTenantEventhubSettingsResource) updateRegistration(
@@ -401,7 +401,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) updateRegistration(
 
 	params := cloud_azure_registration.CloudRegistrationAzureUpdateRegistrationParams{
 		Body: &models.AzureAzureRegistrationUpdateRequestExtV1{
-			Resource: &models.AzureTenantRegistrationBase{
+			Resource: &models.AzureAzureRegistrationUpdateInput{
 				TenantID:         data.TenantId.ValueStringPointer(),
 				EventHubSettings: settingsSlice,
 			},
@@ -432,7 +432,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) updateRegistration(
 		return nil, diags
 	}
 
-	if res == nil || res.Payload == nil || res.Payload.Resource == nil {
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
 		diags.AddError(
 			"Failed to update registration",
 			"Update registration api call returned a successful status code, but no registration information was returned. Please report this issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
@@ -441,5 +441,5 @@ func (r *cloudAzureTenantEventhubSettingsResource) updateRegistration(
 		return nil, diags
 	}
 
-	return res.Payload.Resource, diags
+	return res.Payload.Resources[0], diags
 }

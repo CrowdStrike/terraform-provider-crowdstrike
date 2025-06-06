@@ -510,7 +510,7 @@ func (r *cloudAzureTenantResource) getRegistration(
 		return nil, diags
 	}
 
-	if res == nil || res.Payload == nil || res.Payload.Resource == nil {
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
 		diags.AddError(
 			"Failed to get registration",
 			"Get registration api call returned a successful status code, but no registration information was returned. Please report this issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
@@ -519,7 +519,7 @@ func (r *cloudAzureTenantResource) getRegistration(
 		return nil, diags
 	}
 
-	return res.Payload.Resource, diags
+	return res.Payload.Resources[0], diags
 }
 
 func (r *cloudAzureTenantResource) createRegistration(
@@ -550,7 +550,7 @@ func (r *cloudAzureTenantResource) createRegistration(
 
 	params := cloud_azure_registration.CloudRegistrationAzureCreateRegistrationParams{
 		Body: &models.AzureAzureRegistrationCreateRequestExtV1{
-			Resource: &models.AzureTenantRegistrationBase{
+			Resource: &models.AzureAzureRegistrationCreateInput{
 				AccountType:                 data.AccountType.ValueString(),
 				TenantID:                    data.TenantId.ValueStringPointer(),
 				CsInfraRegion:               data.CsInfraRegion.ValueString(),
@@ -559,7 +559,7 @@ func (r *cloudAzureTenantResource) createRegistration(
 				ResourceNamePrefix:          data.ResourceNamePrefix.ValueStringPointer(),
 				ResourceNameSuffix:          data.ResourceNameSuffix.ValueStringPointer(),
 				MicrosoftGraphPermissionIds: microsoftGraphPermissionIDs,
-				DeploymentMethod:            "terraform-native",
+				DeploymentMethod:            utils.Addr("terraform-native"),
 				ManagementGroupIds: utils.ListTypeAs[string](
 					ctx,
 					data.ManagementGroupIds,
@@ -590,7 +590,7 @@ func (r *cloudAzureTenantResource) createRegistration(
 		return nil, diags
 	}
 
-	if res == nil || res.Payload == nil || res.Payload.Resource == nil {
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
 		diags.AddError(
 			"Failed to register tenant",
 			"Registration api call returned a successful status code, but no registration information was returned. Please report this issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
@@ -599,7 +599,7 @@ func (r *cloudAzureTenantResource) createRegistration(
 		return nil, diags
 	}
 
-	return res.Payload.Resource, diags
+	return res.Payload.Resources[0], diags
 }
 
 func (r *cloudAzureTenantResource) updateRegistration(
@@ -620,7 +620,7 @@ func (r *cloudAzureTenantResource) updateRegistration(
 
 	params := cloud_azure_registration.CloudRegistrationAzureUpdateRegistrationParams{
 		Body: &models.AzureAzureRegistrationUpdateRequestExtV1{
-			Resource: &models.AzureTenantRegistrationBase{
+			Resource: &models.AzureAzureRegistrationUpdateInput{
 				AccountType:           data.AccountType.ValueString(),
 				TenantID:              data.TenantId.ValueStringPointer(),
 				CsInfraRegion:         data.CsInfraRegion.ValueString(),
@@ -692,7 +692,7 @@ func (r *cloudAzureTenantResource) updateRegistration(
 		return nil, diags
 	}
 
-	if res == nil || res.Payload == nil || res.Payload.Resource == nil {
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
 		diags.AddError(
 			"Failed to update registration",
 			"Update registration api call returned a successful status code, but no registration information was returned. Please report this issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
@@ -701,5 +701,5 @@ func (r *cloudAzureTenantResource) updateRegistration(
 		return nil, diags
 	}
 
-	return res.Payload.Resource, diags
+	return res.Payload.Resources[0], diags
 }
