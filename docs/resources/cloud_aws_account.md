@@ -74,6 +74,8 @@ resource "crowdstrike_cloud_aws_account" "org" {
 - `idp` (Attributes) (see [below for nested schema](#nestedatt--idp))
 - `organization_id` (String) The AWS Organization ID (starts with `o-`). When specified, accounts within the organization will be registered. If `target_ous` is empty, all accounts in the organization will be registered. The `account_id` must be the organization's management account ID.
 - `realtime_visibility` (Attributes) (see [below for nested schema](#nestedatt--realtime_visibility))
+- `resource_name_prefix` (String) The prefix to be added to all resource names
+- `resource_name_suffix` (String) The suffix to be added to all resource names
 - `sensor_management` (Attributes) (see [below for nested schema](#nestedatt--sensor_management))
 - `target_ous` (List of String) The list of target Organizational Units
 

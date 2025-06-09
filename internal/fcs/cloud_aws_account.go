@@ -84,6 +84,8 @@ type cloudAWSAccountModel struct {
 	IDP                    *idpOptions                `tfsdk:"idp"`
 	SensorManagement       *sensorManagementOptions   `tfsdk:"sensor_management"`
 	DSPM                   *dspmOptions               `tfsdk:"dspm"`
+	ResourceNamePrefix     types.String               `tfsdk:"resource_name_prefix"`
+	ResourceNameSuffix     types.String               `tfsdk:"resource_name_suffix"`
 	// Computed
 	ExternalID           types.String `tfsdk:"external_id"`
 	IntermediateRoleArn  types.String `tfsdk:"intermediate_role_arn"`
@@ -190,6 +192,36 @@ func (r *cloudAWSAccountResource) Schema(
 					),
 				},
 			},
+			"resource_name_prefix": schema.StringAttribute{
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString(""),
+				Description:         "The prefix to be added to all resource names",
+				MarkdownDescription: "The prefix to be added to all resource names",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.String{
+					stringvalidator.Any(
+						stringvalidator.LengthAtMost(28),
+					),
+				},
+			},
+			"resource_name_suffix": schema.StringAttribute{
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString(""),
+				Description:         "The suffix to be added to all resource names",
+				MarkdownDescription: "The suffix to be added to all resource names",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.String{
+					stringvalidator.Any(
+						stringvalidator.LengthAtMost(28),
+					),
+				},
+			},
 			"account_type": schema.StringAttribute{
 				Optional:    true,
 				Default:     stringdefault.StaticString("commercial"),
@@ -260,7 +292,7 @@ func (r *cloudAWSAccountResource) Schema(
 					"use_existing_cloudtrail": schema.BoolAttribute{
 						Optional:    true,
 						Computed:    true,
-						Default:     booldefault.StaticBool(false),
+						Default:     booldefault.StaticBool(true),
 						Description: "Set to true if a CloudTrail already exists",
 					},
 				},
@@ -274,7 +306,7 @@ func (r *cloudAWSAccountResource) Schema(
 						map[string]attr.Value{
 							"enabled":                 types.BoolValue(false),
 							"cloudtrail_region":       types.StringNull(),
-							"use_existing_cloudtrail": types.BoolValue(false),
+							"use_existing_cloudtrail": types.BoolValue(true),
 						},
 					),
 				),
@@ -650,10 +682,12 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 ) (*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	createAccount := models.RestCloudAWSAccountCreateExtV1{
-		AccountID:      model.AccountID.ValueString(),
-		OrganizationID: model.OrganizationID.ValueStringPointer(),
-		IsMaster:       model.OrganizationID.ValueString() != "",
-		AccountType:    model.AccountType.ValueString(),
+		AccountID:          model.AccountID.ValueString(),
+		OrganizationID:     model.OrganizationID.ValueString(),
+		IsMaster:           model.OrganizationID.ValueString() != "",
+		AccountType:        model.AccountType.ValueString(),
+		ResourceNamePrefix: model.ResourceNamePrefix.ValueString(),
+		ResourceNameSuffix: model.ResourceNameSuffix.ValueString(),
 	}
 	if model.RealtimeVisibility != nil && model.RealtimeVisibility.Enabled.ValueBool() {
 		createAccount.CspEvents = true
@@ -807,7 +841,7 @@ func (r *cloudAWSAccountResource) Read(
 		state.AssetInventory = oldState.AssetInventory
 	} else {
 		state.AssetInventory = &assetInventoryOptions{
-			Enabled: types.BoolValue(true), //asset inventory is always enabled
+			Enabled: types.BoolValue(true), // asset inventory is always enabled
 		}
 	}
 
@@ -1180,10 +1214,12 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 ) (*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	patchAccount := models.RestCloudAWSAccountCreateExtV1{
-		AccountID:      model.AccountID.ValueString(),
-		OrganizationID: model.OrganizationID.ValueStringPointer(),
-		IsMaster:       model.OrganizationID.ValueString() != "",
-		AccountType:    model.AccountType.ValueString(),
+		AccountID:          model.AccountID.ValueString(),
+		OrganizationID:     model.OrganizationID.ValueString(),
+		IsMaster:           model.OrganizationID.ValueString() != "",
+		AccountType:        model.AccountType.ValueString(),
+		ResourceNamePrefix: model.ResourceNamePrefix.ValueString(),
+		ResourceNameSuffix: model.ResourceNameSuffix.ValueString(),
 	}
 	if model.AssetInventory != nil && model.AssetInventory.Enabled.ValueBool() {
 		patchAccount.CspEvents = true
