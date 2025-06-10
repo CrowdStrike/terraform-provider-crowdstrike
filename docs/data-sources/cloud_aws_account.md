@@ -1,6 +1,6 @@
 ---
 page_title: "crowdstrike_cloud_aws_account Data Source - crowdstrike"
-subcategory: "Cloud AWS Account"
+subcategory: "Falcon Cloud Security"
 description: |-
   This data source provides information about AWS accounts in Falcon.
   API Scopes

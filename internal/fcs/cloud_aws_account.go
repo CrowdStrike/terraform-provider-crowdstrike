@@ -126,7 +126,7 @@ func (r *cloudAWSAccountResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: fmt.Sprintf(
-			"Cloud AWS Account --- This resource allows management of an AWS account in Falcon.\n\n%s",
+			"Falcon Cloud Security --- This resource registers an AWS account or organization in Falcon Cloud Security.\n\n%s",
 			scopes.GenerateScopeDescription(cloudSecurityScopes),
 		),
 		Attributes: map[string]schema.Attribute{
@@ -651,7 +651,7 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 	var diags diag.Diagnostics
 	createAccount := models.RestCloudAWSAccountCreateExtV1{
 		AccountID:      model.AccountID.ValueString(),
-		OrganizationID: model.OrganizationID.ValueStringPointer(),
+		OrganizationID: model.OrganizationID.ValueString(),
 		IsMaster:       model.OrganizationID.ValueString() != "",
 		AccountType:    model.AccountType.ValueString(),
 	}
@@ -1181,7 +1181,7 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 	var diags diag.Diagnostics
 	patchAccount := models.RestCloudAWSAccountCreateExtV1{
 		AccountID:      model.AccountID.ValueString(),
-		OrganizationID: model.OrganizationID.ValueStringPointer(),
+		OrganizationID: model.OrganizationID.ValueString(),
 		IsMaster:       model.OrganizationID.ValueString() != "",
 		AccountType:    model.AccountType.ValueString(),
 	}
