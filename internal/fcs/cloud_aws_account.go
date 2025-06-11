@@ -921,6 +921,8 @@ func (r *cloudAWSAccountResource) Read(
 				break
 			}
 		}
+		state.ResourceNamePrefix = types.StringValue(cloudAccount.ResourceNamePrefix)
+		state.ResourceNameSuffix = types.StringValue(cloudAccount.ResourceNameSuffix)
 	}
 
 	cloudAccPrivateState, err := json.Marshal(cloudAccState)
