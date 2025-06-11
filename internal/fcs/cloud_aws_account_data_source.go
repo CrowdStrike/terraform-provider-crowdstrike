@@ -33,6 +33,8 @@ type cloudAWSAccountDataModel struct {
 	OrganizationID            types.String `tfsdk:"organization_id"`
 	TargetOUs                 types.List   `tfsdk:"target_ous"`
 	IsOrgManagementAccount    types.Bool   `tfsdk:"is_organization_management_account"`
+	ResourceNamePrefix        types.String `tfsdk:"resource_name_prefix"`
+	ResourceNameSuffix        types.String `tfsdk:"resource_name_suffix"`
 	AccountType               types.String `tfsdk:"account_type"`
 	ExternalID                types.String `tfsdk:"external_id"`
 	IntermediateRoleArn       types.String `tfsdk:"intermediate_role_arn"`
@@ -177,6 +179,16 @@ func (d *cloudAwsAccountsDataSource) Schema(
 						"dspm_enabled": schema.BoolAttribute{
 							Computed:    true,
 							Description: "Whether Data Security Posture Management is enabled",
+						},
+						"resource_name_prefix": schema.StringAttribute{
+							Optional:    true,
+							Computed:    true,
+							Description: "The prefix to be added to all resource names",
+						},
+						"resource_name_suffix": schema.StringAttribute{
+							Optional:    true,
+							Computed:    true,
+							Description: "The suffix to be added to all resource names",
 						},
 					},
 				},

@@ -64,6 +64,11 @@ data "crowdstrike_cloud_aws_account" "org" {
 <a id="nestedatt--accounts"></a>
 ### Nested Schema for `accounts`
 
+Optional:
+
+- `resource_name_prefix` (String) The prefix to be added to all resource names
+- `resource_name_suffix` (String) The suffix to be added to all resource names
+
 Read-Only:
 
 - `account_id` (String) The AWS Account ID
