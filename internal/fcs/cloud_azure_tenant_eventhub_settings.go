@@ -141,7 +141,6 @@ func (r *cloudAzureTenantEventhubSettingsResource) Schema(
 func (m *cloudAzureTenantEventhubSettingsModel) wrap(
 	ctx context.Context,
 	registration models.AzureTenantRegistration,
-	update bool,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -160,8 +159,6 @@ func (m *cloudAzureTenantEventhubSettingsModel) wrap(
 		eventhubSettings{}.attrTypes(),
 		&diags,
 	)
-	if update {
-	}
 	if m.Settings.IsNull() && len(eventhubSettingsList.Elements()) == 0 {
 		eventhubSettingsList = types.ListNull(
 			types.ObjectType{AttrTypes: eventhubSettings{}.attrTypes()},
@@ -192,7 +189,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) Create(
 		return
 	}
 
-	resp.Diagnostics.Append(data.wrap(ctx, *registration, false)...)
+	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -227,7 +224,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) Read(
 		return
 	}
 
-	resp.Diagnostics.Append(data.wrap(ctx, *registration, false)...)
+	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -248,7 +245,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) Update(
 		return
 	}
 
-	resp.Diagnostics.Append(data.wrap(ctx, *registration, true)...)
+	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -276,7 +273,10 @@ func (r *cloudAzureTenantEventhubSettingsResource) Delete(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	_ = data.wrap(ctx, *registration, false)
+	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	if !data.Settings.IsNull() {
 		resp.Diagnostics.AddAttributeError(
@@ -309,31 +309,6 @@ func (r *cloudAzureTenantEventhubSettingsResource) ValidateConfig(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-}
-
-func (r *cloudAzureTenantEventhubSettingsResource) deleteRegistration(
-	ctx context.Context,
-	tenantID string,
-) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	_, err := r.client.CloudAzureRegistration.CloudRegistrationAzureDeleteRegistration(
-		&cloud_azure_registration.CloudRegistrationAzureDeleteRegistrationParams{
-			TenantIds: []string{tenantID},
-			Context:   ctx,
-		},
-	)
-
-	if err != nil {
-		diags.AddError(
-			"Failed to delete registration",
-			fmt.Sprintf("Failed to delete Azure tenant registration: %s", falcon.ErrorExplain(err)),
-		)
-
-		return diags
-	}
-
-	return diags
 }
 
 func (r *cloudAzureTenantEventhubSettingsResource) getRegistration(

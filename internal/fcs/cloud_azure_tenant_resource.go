@@ -97,12 +97,6 @@ type realtimeVisibility struct {
 	Enabled types.Bool `tfsdk:"enabled"`
 }
 
-func (f realtimeVisibility) attrTypes() map[string]attr.Type {
-	return map[string]attr.Type{
-		"enabled": types.BoolType,
-	}
-}
-
 func (r *cloudAzureTenantResource) Schema(
 	ctx context.Context,
 	req resource.SchemaRequest,
