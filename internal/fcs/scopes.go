@@ -14,3 +14,11 @@ var cloudSecurityScopes = []scopes.Scope{
 		Write: true,
 	},
 }
+
+var azureRegistrationScopes = []scopes.Scope{
+	{
+		Name:  "Cloud security Azure registration",
+		Read:  true,
+		Write: true,
+	},
+}

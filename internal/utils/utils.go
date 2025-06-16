@@ -109,3 +109,8 @@ func ListIDsToModify(
 func GenerateUpdateTimestamp() basetypes.StringValue {
 	return types.StringValue(time.Now().Format(time.RFC850))
 }
+
+// Addr returns the address of t.
+func Addr[T any](t T) *T {
+	return &t
+}

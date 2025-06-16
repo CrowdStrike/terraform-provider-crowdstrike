@@ -8,3 +8,7 @@ testacc:
 localinstall:
 	go build -o terraform-provider-crowdstrike .
 	mv terraform-provider-crowdstrike ~/go/bin
+	
+build:
+	go install .
+
