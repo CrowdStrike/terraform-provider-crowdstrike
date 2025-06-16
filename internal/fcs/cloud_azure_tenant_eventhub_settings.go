@@ -99,7 +99,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: fmt.Sprintf(
-			"Falcon Cloud Security --- This resource registers an Azure Tenant in Falcon Cloud Security.\n\n%s",
+			"Falcon Cloud Security --- This resource manages the eventhub settings on an Azure Tenant in Falcon Cloud Security.\n\n%s",
 			scopes.GenerateScopeDescription(azureRegistrationScopes),
 		),
 		Attributes: map[string]schema.Attribute{

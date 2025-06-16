@@ -110,7 +110,7 @@ func (r *cloudAzureTenantResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: fmt.Sprintf(
-			"Falcon Cloud Security --- This resource manages the eventhub settings on an Azure Tenant in Falcon Cloud Security.\n\n%s",
+			"Falcon Cloud Security --- This resource registers an Azure Tenant in Falcon Cloud Security.\n\n%s",
 			scopes.GenerateScopeDescription(azureRegistrationScopes),
 		),
 		Attributes: map[string]schema.Attribute{
@@ -260,7 +260,7 @@ func (m *cloudAzureTenantModel) wrap(
 	for _, product := range registration.Products {
 		if *product.Product == "cspm" {
 			for _, feature := range product.Features {
-				if feature == "ioa" || feature == "iom" {
+				if feature == "ioa" {
 					m.RealtimeVisibility.Enabled = types.BoolValue(true)
 				}
 			}
@@ -540,12 +540,11 @@ func (r *cloudAzureTenantResource) createRegistration(
 
 	cspmProductFeatures := models.DomainProductFeatures{
 		Product:  utils.Addr("cspm"),
-		Features: []string{},
+		Features: []string{"iom"},
 	}
 
 	if data.RealtimeVisibility.Enabled.ValueBool() {
-		features := []string{"ioa", "iom"}
-		cspmProductFeatures.Features = append(cspmProductFeatures.Features, features...)
+		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "ioa")
 	}
 
 	params := cloud_azure_registration.CloudRegistrationAzureCreateRegistrationParams{
@@ -610,12 +609,11 @@ func (r *cloudAzureTenantResource) updateRegistration(
 
 	cspmProductFeatures := models.DomainProductFeatures{
 		Product:  utils.Addr("cspm"),
-		Features: []string{},
+		Features: []string{"iom"},
 	}
 
 	if data.RealtimeVisibility != nil && data.RealtimeVisibility.Enabled.ValueBool() {
-		features := []string{"ioa", "iom"}
-		cspmProductFeatures.Features = append(cspmProductFeatures.Features, features...)
+		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "ioa")
 	}
 
 	params := cloud_azure_registration.CloudRegistrationAzureUpdateRegistrationParams{

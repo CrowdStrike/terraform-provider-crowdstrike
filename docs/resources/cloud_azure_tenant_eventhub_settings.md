@@ -2,7 +2,7 @@
 page_title: "crowdstrike_cloud_azure_tenant_eventhub_settings Resource - crowdstrike"
 subcategory: "Falcon Cloud Security"
 description: |-
-  This resource registers an Azure Tenant in Falcon Cloud Security.
+  This resource manages the eventhub settings on an Azure Tenant in Falcon Cloud Security.
   API Scopes
   The following API scopes are required:
   Cloud security Azure registration | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_cloud_azure_tenant_eventhub_settings (Resource)
 
-This resource registers an Azure Tenant in Falcon Cloud Security.
+This resource manages the eventhub settings on an Azure Tenant in Falcon Cloud Security.
 
 ## API Scopes
 
