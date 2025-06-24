@@ -137,42 +137,39 @@ func (r *hostGroupResource) Schema(
 			"Host Group --- This resource allows you to manage host groups in the CrowdStrike Falcon Platform.\n\n%s",
 			scopes.GenerateScopeDescription(apiScopes),
 		),
-		Description: "The resource `crowdstrike_host_group` allows management of host groups in the CrowdStrike Falcon platform.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed:    true,
-				Description: "Identifier for the host group.",
-
+				Computed:            true,
+				MarkdownDescription: "The unique identifier for the host group.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"last_updated": schema.StringAttribute{
-				Computed:    true,
-				Description: "Timestamp of the last Terraform update of the resource.",
+				Computed:            true,
+				MarkdownDescription: "The RFC850 timestamp of the last update to this resource by Terraform.",
 			},
 			"name": schema.StringAttribute{
-				Required:    true,
-				Description: "Name of the host group.",
+				Required:            true,
+				MarkdownDescription: "The display name for the host group.",
 			},
 			"assignment_rule": schema.StringAttribute{
-				Optional:    true,
-				Description: "The assignment rule for dynamic host groups.",
+				Optional:            true,
+				MarkdownDescription: "The assignment rule used for dynamic host groups. Required if `type` is `dynamic`.",
 			},
 			"hostnames": schema.SetAttribute{
-				Optional:    true,
-				Description: "List of hostnames to add to a static host group.",
-				ElementType: types.StringType,
+				Optional:            true,
+				MarkdownDescription: "A set of hostnames to include in a static host group. Required if `type` is `static`.",
+				ElementType:         types.StringType,
 			},
 			"host_ids": schema.SetAttribute{
-				Optional:    true,
-				Description: "List of host ids to add to a staticByID host group.",
-				ElementType: types.StringType,
+				Optional:            true,
+				MarkdownDescription: "A set of host IDs to include in a staticByID host group. Required if `type` is `staticByID`.",
+				ElementType:         types.StringType,
 			},
 			"type": schema.StringAttribute{
-				Required: true,
-				// todo: make this case insensitive
-				Description: "The host group type, case sensitive. (dynamic, static, staticByID)",
+				Required:            true,
+				MarkdownDescription: "The type of host group. Valid values: `dynamic`, `static`, `staticByID`. This value is case sensitive.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -181,8 +178,8 @@ func (r *hostGroupResource) Schema(
 				},
 			},
 			"description": schema.StringAttribute{
-				Required:    true,
-				Description: "Description of the host group.",
+				Required:            true,
+				MarkdownDescription: "A description for the host group.",
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
@@ -197,7 +194,6 @@ func (r *hostGroupResource) Create(
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-
 	var plan hostGroupResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -238,7 +234,7 @@ func (r *hostGroupResource) Create(
 		)
 		if strings.Contains(err.Error(), "409") {
 			errMsg = fmt.Sprintf(
-				"Could not create host group (%s): A host group already exists with that name. \n\n %s",
+				"Could not create host group (%s): A host group already exists with that name.\n\n%s",
 				plan.Name.ValueString(),
 				err.Error(),
 			)
@@ -246,14 +242,13 @@ func (r *hostGroupResource) Create(
 
 		if strings.Contains(err.Error(), "500") && plan.GroupType.ValueString() == hgDynamic {
 			errMsg = fmt.Sprintf(
-				"Could not create host group (%s): Returned error code 500, this could be caused by invalid assignment_rule. \n\n %s",
+				"Could not create host group (%s): Returned error code 500, this could be caused by invalid assignment_rule.\n\n%s",
 				plan.Name.ValueString(),
 				err.Error(),
 			)
 		}
 
-		resp.Diagnostics.AddError("Error creating scheduled exclusion", errMsg)
-
+		resp.Diagnostics.AddError("Error creating host group", errMsg)
 		return
 	}
 
@@ -274,7 +269,7 @@ func (r *hostGroupResource) Create(
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error assigning hosts to host group",
-				"Could not assign hosts to host group with ID: "+plan.ID.ValueString()+": "+err.Error(),
+				fmt.Sprintf("Could not assign hosts to host group with ID: %s: %s", plan.ID.ValueString(), err.Error()),
 			)
 			return
 		}
