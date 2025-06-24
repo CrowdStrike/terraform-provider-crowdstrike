@@ -42,6 +42,34 @@ var (
 	HgStaticByID = "staticByID"
 )
 
+var apiScopes = []scopes.Scope{
+	{
+		Name:  "Host groups",
+		Read:  true,
+		Write: true,
+	},
+	{
+		Name:  "Firewall management",
+		Read:  true,
+		Write: true,
+	},
+	{
+		Name:  "Prevention policies",
+		Read:  true,
+		Write: true,
+	},
+	{
+		Name:  "Response policies",
+		Read:  true,
+		Write: true,
+	},
+	{
+		Name:  "Sensor update policies",
+		Read:  true,
+		Write: true,
+	},
+}
+
 // NewHostGroupResource is a helper function to simplify the provider implementation.
 func NewHostGroupResource() resource.Resource {
 	return &hostGroupResource{}
@@ -98,34 +126,6 @@ func (r *hostGroupResource) Metadata(
 	resp *resource.MetadataResponse,
 ) {
 	resp.TypeName = req.ProviderTypeName + "_host_group"
-}
-
-var apiScopes = []scopes.Scope{
-	{
-		Name:  "Host groups",
-		Read:  true,
-		Write: true,
-	},
-	{
-		Name:  "Firewall management",
-		Read:  true,
-		Write: true,
-	},
-	{
-		Name:  "Prevention policies",
-		Read:  true,
-		Write: true,
-	},
-	{
-		Name:  "Response policies",
-		Read:  true,
-		Write: true,
-	},
-	{
-		Name:  "Sensor update policies",
-		Read:  true,
-		Write: true,
-	},
 }
 
 // Schema defines the schema for the resource.
