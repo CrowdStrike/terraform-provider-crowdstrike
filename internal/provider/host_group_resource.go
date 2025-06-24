@@ -14,6 +14,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/response_policies"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/retry"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -24,6 +25,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -435,28 +437,35 @@ func (r *hostGroupResource) Delete(
 	tempDiags.Append(r.purgePreventionPolicies(ctx, state.ID.ValueString())...)
 	tempDiags.Append(r.purgeResponsePolicies(ctx, state.ID.ValueString())...)
 
-	// removal of assigned policies return before the host group is ready to be deleted
-	// adding a simple sleep.
-	time.Sleep(10 * time.Second)
+	// Poll delete until the host group is ready to be removed after unassigning policies.
 
-	_, err := r.client.HostGroup.DeleteHostGroups(
-		&host_group.DeleteHostGroupsParams{
-			Context: ctx,
-			Ids:     []string{state.ID.ValueString()},
-		},
-	)
+	deleteFn := func() error {
+		tflog.Debug(ctx, "Attempting to delete host group", map[string]any{"id": state.ID.ValueString()})
+		_, err := r.client.HostGroup.DeleteHostGroups(
+			&host_group.DeleteHostGroupsParams{
+				Context: ctx,
+				Ids:     []string{state.ID.ValueString()},
+			},
+		)
+		if err == nil {
+			tflog.Debug(ctx, "Successfully deleted host group", map[string]any{"id": state.ID.ValueString()})
+		}
+		return err
+	}
+	const pollInterval = 2 * time.Second
+	const pollTimeout = 15 * time.Second
+	deleteErr := retry.RetryUntilNoError(ctx, pollTimeout, pollInterval, deleteFn)
 
-	if err != nil {
-		if strings.Contains(err.Error(), "409") {
-			resp.Diagnostics.Append(tempDiags...)
+	if deleteErr != nil {
+		if strings.Contains(deleteErr.Error(), "409") {
 			resp.Diagnostics.AddError(
 				"Error deleting CrowdStrike host group",
-				"Please ensure you have the correct api scopes or remove all assigned policies manually (firewall policies, prevention policies, etc) and try again. "+err.Error(),
+				"Host group could not be deleted because assigned policies (firewall, prevention, sensor update, or response) could not be removed, likely due to insufficient API scopes. Please ensure your API credentials have the necessary scopes to remove these assigned policies, or remove them manually, then try again. Error: "+deleteErr.Error(),
 			)
 		} else {
 			resp.Diagnostics.AddError(
 				"Error deleting CrowdStrike host group",
-				"Could not delete host group, unexpected error: "+err.Error(),
+				"Could not delete host group, unexpected error: "+deleteErr.Error(),
 			)
 		}
 		return
