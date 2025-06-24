@@ -283,9 +283,6 @@ func (r *hostGroupResource) Create(
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -324,12 +321,7 @@ func (r *hostGroupResource) Read(
 	state.GroupType = types.StringValue(hostGroupResource.GroupType)
 	resp.Diagnostics.Append(assignAssignmentRule(ctx, hostGroupResource.AssignmentRule, &state)...)
 
-	// Set refreshed state
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
@@ -393,11 +385,7 @@ func (r *hostGroupResource) Update(
 	plan.GroupType = types.StringValue(hostGroupResource.GroupType)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
 func (r *hostGroupResource) updateHostGroup(
