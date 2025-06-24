@@ -197,8 +197,7 @@ func (r *hostGroupResource) Create(
 	resp *resource.CreateResponse,
 ) {
 	var plan hostGroupResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -294,8 +293,7 @@ func (r *hostGroupResource) Read(
 	resp *resource.ReadResponse,
 ) {
 	var state hostGroupResourceModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -332,10 +330,8 @@ func (r *hostGroupResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	// Retrieve values from plan
 	var plan hostGroupResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -421,14 +417,14 @@ func (r *hostGroupResource) Delete(
 	resp *resource.DeleteResponse,
 ) {
 	var state hostGroupResourceModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// some cxs may not have all modules so they will get a 403
 	// storing errors in tempDiags and only throw them after a failed 409 delete
+	// https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues/24
 	var tempDiags diag.Diagnostics
 
 	// all assinged policies must be removed before we are able to delete the host group
@@ -468,7 +464,6 @@ func (r *hostGroupResource) Delete(
 				"Could not delete host group, unexpected error: "+deleteErr.Error(),
 			)
 		}
-		return
 	}
 }
 
