@@ -259,16 +259,37 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
 
 ### Schema Description Formatting
 
-Schema descriptions must follow a specific format to be correctly processed by the documentation generator. The text before the `---` separator indicates the service grouping (e.g., "Falcon Cloud Security") which helps organize resources in the Terraform registry:
+Schema descriptions must follow a specific format to be correctly processed by the documentation generator. The preferred approach is to use the `utils.MarkdownDescription` helper function which handles proper formatting and inclusion of required API scopes:
 
 ```go
-MarkdownDescription: fmt.Sprintf(
-    "Falcon Cloud Security --- This data source provides information about AWS accounts in Falcon.\n\n%s",
-    scopes.GenerateScopeDescription(cloudSecurityScopes),
-),
+var (
+	documentationSection        string         = "Prevention Policy"
+	resourceMarkdownDescription string         = "This resource allows managing the host groups attached to a prevention policy."
+	requiredScopes              []scopes.Scope = []scopes.Scope{
+		{
+			Name:  "Prevention policies",
+			Read:  true,
+			Write: true,
+		},
+	}
+)
+
+// Then in your Schema method
+resp.Schema = schema.Schema{
+    MarkdownDescription: utils.MarkdownDescription(
+        documentationSection,
+        resourceMarkdownDescription,
+        requiredScopes,
+    ),
+    // Schema attributes...
+}
 ```
 
-This pattern ensures consistent organization in the generated Terraform Registry documentation.
+This helper function automatically:
+1. Uses the documentation section as the service grouping before the `---` separator
+2. Places your resource description after the separator
+3. Adds a formatted list of required API scopes for the resource
+
 
 ### Single-line Diagnostics with Ellipsis
 
@@ -313,4 +334,3 @@ if resp.Diagnostics.HasError() {
 ```
 
 This pattern is essential for complex resources where multiple API calls are needed to fully configure them. By setting the ID in state as soon as possible, you ensure that even if subsequent operations fail and the apply errors out, Terraform can still attempt to delete the partially created resources during a destroy operation.
-
