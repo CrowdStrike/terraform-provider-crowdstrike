@@ -195,8 +195,7 @@ func (r *hostGroupResource) Create(
 	resp *resource.CreateResponse,
 ) {
 	var plan hostGroupResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -292,8 +291,7 @@ func (r *hostGroupResource) Read(
 	resp *resource.ReadResponse,
 ) {
 	var state hostGroupResourceModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -330,10 +328,8 @@ func (r *hostGroupResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	// Retrieve values from plan
 	var plan hostGroupResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -419,14 +415,14 @@ func (r *hostGroupResource) Delete(
 	resp *resource.DeleteResponse,
 ) {
 	var state hostGroupResourceModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// some cxs may not have all modules so they will get a 403
 	// storing errors in tempDiags and only throw them after a failed 409 delete
+	// https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues/24
 	var tempDiags diag.Diagnostics
 
 	// all assinged policies must be removed before we are able to delete the host group
@@ -435,8 +431,7 @@ func (r *hostGroupResource) Delete(
 	tempDiags.Append(r.purgePreventionPolicies(ctx, state.ID.ValueString())...)
 	tempDiags.Append(r.purgeResponsePolicies(ctx, state.ID.ValueString())...)
 
-	// removal of assigned policies return before the host group is ready to be deleted
-	// adding a simple sleep.
+	// Wait for policy removals to propagate before deleting the host group
 	time.Sleep(10 * time.Second)
 
 	_, err := r.client.HostGroup.DeleteHostGroups(
@@ -451,7 +446,7 @@ func (r *hostGroupResource) Delete(
 			resp.Diagnostics.Append(tempDiags...)
 			resp.Diagnostics.AddError(
 				"Error deleting CrowdStrike host group",
-				"Please ensure you have the correct api scopes or remove all assigned policies manually (firewall policies, prevention policies, etc) and try again. "+err.Error(),
+				"Please ensure you have the correct API scopes or remove all assigned policies manually (firewall, prevention, etc.) and try again. "+err.Error(),
 			)
 		} else {
 			resp.Diagnostics.AddError(
@@ -459,7 +454,6 @@ func (r *hostGroupResource) Delete(
 				"Could not delete host group, unexpected error: "+err.Error(),
 			)
 		}
-		return
 	}
 }
 
