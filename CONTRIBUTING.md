@@ -15,6 +15,7 @@ This guide covers both the practical aspects of setting up and contributing to t
   - [Resource Schema Patterns](#resource-schema-patterns)
   - [Validation](#validation)
   - [Error Handling](#error-handling)
+  - [Logging with tflog](#logging-with-tflog)
   - [Resource Registration](#resource-registration)
 - [Testing](#testing)
 - [Debugging](#debugging)
@@ -134,6 +135,61 @@ This section explains the architectural decisions, idioms, and patterns that gui
 ### Error Handling
 
 - **Actionable Errors:** Error messages should be actionable and user-focused, especially for common issues like insufficient API scopes.
+
+### Logging with tflog
+
+The Terraform Plugin Framework provides a structured logging system called `tflog` that should be used for logging information during provider execution:
+
+- **Import and Setup:**
+  ```go
+  import "github.com/hashicorp/terraform-plugin-log/tflog"
+  
+  // In your code
+  ctx = tflog.SetField(ctx, "resource_id", id)
+  ```
+
+- **Log Levels:**
+  - `tflog.Trace()`: Most detailed, for very granular debugging information
+  - `tflog.Debug()`: For information useful during development and debugging
+  - `tflog.Info()`: For general operational information
+  - `tflog.Warn()`: For potentially problematic situations that don't prevent execution
+  - `tflog.Error()`: For errors that don't necessarily halt execution
+
+- **Structured Logging:** Prefer structured fields over string interpolation:
+  ```go
+  // Good
+  tflog.Debug(ctx, "Processing resource", map[string]interface{}{
+      "id": id,
+      "name": name,
+  })
+  
+  // Avoid
+  tflog.Debug(ctx, fmt.Sprintf("Processing resource with id %s and name %s", id, name))
+  ```
+
+- **Context Fields:** Use context to attach fields that will appear in all subsequent logs:
+  ```go
+  ctx = tflog.SetField(ctx, "resource_id", id)
+  // All logs using this ctx will include the resource_id field
+  ```
+
+- **Sensitive Data:** Never log credentials or sensitive information:
+  ```go
+  // Use MaskLogString for sensitive values that appear in logs
+  tflog.Debug(ctx, "Using configuration", map[string]interface{}{
+      "endpoint": endpoint,
+      "token": tflog.MaskLogString(token),
+  })
+  ```
+
+- **Viewing Logs:** Users can see these logs by setting the `TF_LOG` environment variable:
+  ```bash
+  # For all logs
+  TF_LOG=TRACE terraform apply
+  
+  # Provider-specific logs
+  TF_LOG_PROVIDER=TRACE terraform apply
+  ```
 
 ### Resource Registration
 
