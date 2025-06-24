@@ -6,6 +6,8 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -39,6 +41,18 @@ type {{.CamelCaseName}}ResourceModel struct {
 	ID          types.String `tfsdk:"id"`
 	LastUpdated types.String `tfsdk:"last_updated"`
   // TODO: Define resource model
+}
+
+func (m *{{.CamelCaseName}}ResourceModel) wrap(
+	ctx context.Context,
+	// api response object
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	// m.ID = types.StringValue(*apiresponse.ID)
+	// etc
+
+	return diags
 }
 
 func (r *{{.CamelCaseName}}Resource) Configure(
@@ -103,15 +117,14 @@ func (r *{{.CamelCaseName}}Resource) Create(
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-  var newState {{.CamelCaseName}}ResourceModel
-
 	var plan {{.CamelCaseName}}ResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, &newState)...)
+	// resp.Diagnostics.Append(plan.wrap(ctx, *apiresponse)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *{{.CamelCaseName}}Resource) Read(
@@ -119,15 +132,14 @@ func (r *{{.CamelCaseName}}Resource) Read(
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-  var newState {{.CamelCaseName}}ResourceModel
-
 	var state {{.CamelCaseName}}ResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, &newState)...)
+	// resp.Diagnostics.Append(state.wrap(ctx, *apiresponse)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *{{.CamelCaseName}}Resource) Update(
@@ -135,19 +147,24 @@ func (r *{{.CamelCaseName}}Resource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-  var newState {{.CamelCaseName}}ResourceModel
-
 	var plan {{.CamelCaseName}}ResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, newState)...)
+	// resp.Diagnostics.Append(plan.wrap(ctx, *apiresponse)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
 func (r *{{.CamelCaseName}}Resource) Delete(
 	ctx context.Context,
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
-) {}
+) {
+	var state {{.CamelCaseName}}ResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+}
 
 func (r *{{.CamelCaseName}}Resource) ImportState(
 	ctx context.Context,
