@@ -21,6 +21,10 @@ This guide covers both the practical aspects of setting up and contributing to t
   - [Testing](#testing)
   - [Debugging](#debugging)
   - [Code Patterns](#code-patterns)
+    - [Model Wrapping with .wrap Method](#model-wrapping-with-wrap-method)
+    - [Schema Description Formatting](#schema-description-formatting)
+    - [Single-line Diagnostics with Ellipsis](#single-line-diagnostics-with-ellipsis)
+    - [Early State Updates](#early-state-updates)
 
 ## Prerequisites
 
@@ -203,96 +207,110 @@ This prints detailed logs, including raw API calls from gofalcon, which is helpf
 
 This section provides concrete examples of the code patterns that should be followed when contributing to the CrowdStrike Terraform Provider.
 
-  - **API Response Conversion:** Implement a `.wrap()` method on your resource models to convert API responses to Terraform model data. This pattern ensures consistent handling of API data and separation of concerns.
-  ```go
-  // wrap transforms API response values to their terraform model values.
-  func (d *preventionPolicyAttachmentResourceModel) wrap(
-      ctx context.Context,
-      policy models.PreventionPolicyV1,
-  ) diag.Diagnostics {
-      var diags diag.Diagnostics
-      
-      d.ID = types.StringValue(*policy.ID)
-      
-      // Convert API types to Terraform types
-      hostGroupSet, diag := hostgroups.ConvertHostGroupsToSet(ctx, policy.Groups)
-      diags.Append(diag...)
-      if diags.HasError() {
-          return diags
-      }
-      if !d.HostGroups.IsNull() || len(hostGroupSet.Elements()) != 0 {
-          d.HostGroups = hostGroupSet
-      }
-      
-      // More field conversions...
-      
-      return diags
-  }
-  
-  // Usage in resource methods
-  func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-      var state resourceModel
-      resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-      if resp.Diagnostics.HasError() {
-          return
-      }
-      
-      // Get data from API
-      policy, diags := getPolicy(ctx, r.client, state.ID.ValueString())
-      resp.Diagnostics.Append(diags...)
-      if resp.Diagnostics.HasError() {
-          return
-      }
-      
-      // Update state with API response
-      resp.Diagnostics.Append(state.wrap(ctx, *policy)...)
-      resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-  }
-  ```
+### Model Wrapping with .wrap Method
 
+Implement a `.wrap()` method on your resource models to convert API responses to Terraform model data. This pattern ensures consistent handling of API data and separation of concerns:
 
-  - **Service Grouping in Documentation:** Schema descriptions must follow a specific format to be correctly processed by the documentation generator. The text before the `---` separator indicates the service grouping (e.g., "Falcon Cloud Security") which helps organize resources in the Terraform registry:
-  ```go
-  MarkdownDescription: fmt.Sprintf(
-      "Falcon Cloud Security --- This data source provides information about AWS accounts in Falcon.\n\n%s",
-      scopes.GenerateScopeDescription(cloudSecurityScopes),
-  ),
-  ```
+```go
+// wrap transforms API response values to their terraform model values.
+func (d *preventionPolicyAttachmentResourceModel) wrap(
+    ctx context.Context,
+    policy models.PreventionPolicyV1,
+) diag.Diagnostics {
+    var diags diag.Diagnostics
+    
+    d.ID = types.StringValue(*policy.ID)
+    
+    // Convert API types to Terraform types
+    hostGroupSet, diag := hostgroups.ConvertHostGroupsToSet(ctx, policy.Groups)
+    diags.Append(diag...)
+    if diags.HasError() {
+        return diags
+    }
+    if !d.HostGroups.IsNull() || len(hostGroupSet.Elements()) != 0 {
+        d.HostGroups = hostGroupSet
+    }
+    
+    // More field conversions...
+    
+    return diags
+}
 
-  - **Single-line Diagnostics with Ellipsis:** The preferred pattern in this codebase is to append diagnostics from state operations in a single line using the ellipsis operator (`...`):
-  ```go
-  // Preferred pattern - Get state in a single line
-  var state HostGroupResourceModel
-  resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-  
-  // Preferred pattern - Set state directly
-  resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
-  
-  // Not Preferred - Avoid separating the operation from diagnostics collection
-  diags := resp.State.Set(ctx, &model)
-  resp.Diagnostics.Append(diags...)
-  ```
+// Usage in resource methods
+func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+    var state resourceModel
+    resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+    if resp.Diagnostics.HasError() {
+        return
+    }
+    
+    // Get data from API
+    policy, diags := getPolicy(ctx, r.client, state.ID.ValueString())
+    resp.Diagnostics.Append(diags...)
+    if resp.Diagnostics.HasError() {
+        return
+    }
+    
+    // Update state with API response
+    resp.Diagnostics.Append(state.wrap(ctx, *policy)...)
+    resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+}
+```
 
-  - **Early State Updates:** When creating resources, set any information required for deletion as early as possible in the Create method. This ensures that even if subsequent operations fail, Terraform can still track and clean up the resource:
-  ```go
-  // Create the resource via API
-  createResponse, err := r.client.CreateResource(&params)
-  if err != nil {
-      resp.Diagnostics.AddError("Failed to create resource", err.Error())
-      return
-  }
-  
-  // IMPORTANT: Set the ID early, immediately after creation succeeds
-  plan.ID = types.StringValue(*createResponse.Payload.Resources[0].ID)
-  
-  // Store this ID in state ASAP so Terraform can track the resource
-  resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)...)
-  if resp.Diagnostics.HasError() {
-      return
-  }
-  
-  // Now continue with additional operations that might fail
-  // If these fail, Terraform will still have the ID to attempt cleanup
-  ```
+### Schema Description Formatting
 
-Following these patterns ensures consistency across the codebase and helps prevent common issues like orphaned resources and nil pointer exceptions.
+Schema descriptions must follow a specific format to be correctly processed by the documentation generator. The text before the `---` separator indicates the service grouping (e.g., "Falcon Cloud Security") which helps organize resources in the Terraform registry:
+
+```go
+MarkdownDescription: fmt.Sprintf(
+    "Falcon Cloud Security --- This data source provides information about AWS accounts in Falcon.\n\n%s",
+    scopes.GenerateScopeDescription(cloudSecurityScopes),
+),
+```
+
+This pattern ensures consistent organization in the generated Terraform Registry documentation.
+
+### Single-line Diagnostics with Ellipsis
+
+The preferred pattern in this codebase is to append diagnostics from state operations in a single line using the ellipsis operator (`...`):
+
+```go
+// Preferred pattern - Get state in a single line
+var state HostGroupResourceModel
+resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+
+// Preferred pattern - Set state directly
+resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
+
+// Not Preferred - Avoid separating the operation from diagnostics collection
+diags := resp.State.Set(ctx, &model)
+resp.Diagnostics.Append(diags...)
+```
+
+### Early State Updates
+
+When creating resources, set any information required for deletion as early as possible in the Create method. This ensures that even if subsequent operations fail, Terraform can still track and clean up the resource:
+
+```go
+// Create the resource via API
+createResponse, err := r.client.CreateResource(&params)
+if err != nil {
+    resp.Diagnostics.AddError("Failed to create resource", err.Error())
+    return
+}
+
+// IMPORTANT: Set the ID early, immediately after creation succeeds
+plan.ID = types.StringValue(*createResponse.Payload.Resources[0].ID)
+
+// Store this ID in state ASAP so Terraform can track the resource
+resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)...)
+if resp.Diagnostics.HasError() {
+    return
+}
+
+// Now continue with additional operations that might fail
+// If these fail, Terraform will still have the ID to attempt cleanup
+```
+
+This pattern is essential for complex resources where multiple API calls are needed to fully configure them. By setting the ID in state as soon as possible, you ensure that even if subsequent operations fail and the apply errors out, Terraform can still attempt to delete the partially created resources during a destroy operation.
+
