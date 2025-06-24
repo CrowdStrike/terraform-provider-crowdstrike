@@ -1,4 +1,4 @@
-package provider
+package hostgroups
 
 import (
 	"context"
@@ -37,9 +37,9 @@ var (
 )
 
 var (
-	hgDynamic    = "dynamic"
-	hgStatic     = "static"
-	hgStaticByID = "staticByID"
+	HgDynamic    = "dynamic"
+	HgStatic     = "static"
+	HgStaticByID = "staticByID"
 )
 
 // NewHostGroupResource is a helper function to simplify the provider implementation.
@@ -52,8 +52,8 @@ type hostGroupResource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-// hostGroupResourceModel maps the resource schema data.
-type hostGroupResourceModel struct {
+// HostGroupResourceModel maps the resource schema data.
+type HostGroupResourceModel struct {
 	ID             types.String `tfsdk:"id"`
 	Name           types.String `tfsdk:"name"`
 	AssignmentRule types.String `tfsdk:"assignment_rule"`
@@ -176,7 +176,7 @@ func (r *hostGroupResource) Schema(
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf(hgDynamic, hgStatic, hgStaticByID),
+					stringvalidator.OneOf(HgDynamic, HgStatic, HgStaticByID),
 				},
 			},
 			"description": schema.StringAttribute{
@@ -196,13 +196,13 @@ func (r *hostGroupResource) Create(
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-	var plan hostGroupResourceModel
+	var plan HostGroupResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	assignmentRule, diags := generateAssignmentRule(ctx, plan)
+	assignmentRule, diags := GenerateAssignmentRule(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -221,7 +221,7 @@ func (r *hostGroupResource) Create(
 		},
 	}
 
-	if plan.GroupType.ValueString() == hgDynamic {
+	if plan.GroupType.ValueString() == HgDynamic {
 		hostGroupParams.Body.Resources[0].AssignmentRule = assignmentRule
 	}
 
@@ -241,7 +241,7 @@ func (r *hostGroupResource) Create(
 			)
 		}
 
-		if strings.Contains(err.Error(), "500") && plan.GroupType.ValueString() == hgDynamic {
+		if strings.Contains(err.Error(), "500") && plan.GroupType.ValueString() == HgDynamic {
 			errMsg = fmt.Sprintf(
 				"Could not create host group (%s): Returned error code 500, this could be caused by invalid assignment_rule.\n\n%s",
 				plan.Name.ValueString(),
@@ -264,7 +264,7 @@ func (r *hostGroupResource) Create(
 	plan.GroupType = types.StringValue(hostGroupResource.GroupType)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
-	if plan.GroupType.ValueString() != hgDynamic {
+	if plan.GroupType.ValueString() != HgDynamic {
 		hgUpdate, err := r.updateHostGroup(ctx, plan, assignmentRule)
 
 		if err != nil {
@@ -278,7 +278,7 @@ func (r *hostGroupResource) Create(
 		hostGroupResource = hgUpdate.Payload.Resources[0]
 	}
 
-	diags.Append(assignAssignmentRule(ctx, hostGroupResource.AssignmentRule, &plan)...)
+	diags.Append(AssignAssignmentRule(ctx, hostGroupResource.AssignmentRule, &plan)...)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 	}
@@ -292,7 +292,7 @@ func (r *hostGroupResource) Read(
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-	var state hostGroupResourceModel
+	var state HostGroupResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -319,7 +319,7 @@ func (r *hostGroupResource) Read(
 	state.Name = types.StringValue(*hostGroupResource.Name)
 	state.Description = types.StringValue(*hostGroupResource.Description)
 	state.GroupType = types.StringValue(hostGroupResource.GroupType)
-	resp.Diagnostics.Append(assignAssignmentRule(ctx, hostGroupResource.AssignmentRule, &state)...)
+	resp.Diagnostics.Append(AssignAssignmentRule(ctx, hostGroupResource.AssignmentRule, &state)...)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -330,13 +330,13 @@ func (r *hostGroupResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	var plan hostGroupResourceModel
+	var plan HostGroupResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	assignmentRule, diags := generateAssignmentRule(ctx, plan)
+	assignmentRule, diags := GenerateAssignmentRule(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -358,7 +358,7 @@ func (r *hostGroupResource) Update(
 			)
 		}
 
-		if strings.Contains(err.Error(), "500") && plan.GroupType.ValueString() == hgDynamic {
+		if strings.Contains(err.Error(), "500") && plan.GroupType.ValueString() == HgDynamic {
 			errMsg = fmt.Sprintf(
 				"Could not update host group (%s): Returned error code 500, this could be caused by invalid assignment_rule. \n\n %s",
 				plan.Name.ValueString(),
@@ -376,7 +376,7 @@ func (r *hostGroupResource) Update(
 	plan.ID = types.StringValue(*hostGroupResource.ID)
 	plan.Name = types.StringValue(*hostGroupResource.Name)
 	plan.Description = types.StringValue(*hostGroupResource.Description)
-	resp.Diagnostics.Append(assignAssignmentRule(ctx, hostGroupResource.AssignmentRule, &plan)...)
+	resp.Diagnostics.Append(AssignAssignmentRule(ctx, hostGroupResource.AssignmentRule, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -388,7 +388,7 @@ func (r *hostGroupResource) Update(
 
 func (r *hostGroupResource) updateHostGroup(
 	ctx context.Context,
-	plan hostGroupResourceModel,
+	plan HostGroupResourceModel,
 	assignmentRule string,
 ) (*host_group.UpdateHostGroupsOK, error) {
 	hostGroupParams := host_group.UpdateHostGroupsParams{
@@ -416,7 +416,7 @@ func (r *hostGroupResource) Delete(
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-	var state hostGroupResourceModel
+	var state HostGroupResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -704,14 +704,14 @@ func (r *hostGroupResource) ValidateConfig(
 	req resource.ValidateConfigRequest,
 	resp *resource.ValidateConfigResponse,
 ) {
-	var config hostGroupResourceModel
+	var config HostGroupResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	switch config.GroupType.ValueString() {
-	case hgDynamic:
+	case HgDynamic:
 		if config.AssignmentRule.IsNull() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("assignment_rule"),
@@ -735,7 +735,7 @@ func (r *hostGroupResource) ValidateConfig(
 				"The host_ids attribute can only be used with a staticByID host group.",
 			)
 		}
-	case hgStatic:
+	case HgStatic:
 		if config.Hostnames.IsNull() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("hostnames"),
@@ -760,7 +760,7 @@ func (r *hostGroupResource) ValidateConfig(
 			)
 		}
 
-	case hgStaticByID:
+	case HgStaticByID:
 		if config.HostIDs.IsNull() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("host_ids"),
@@ -787,11 +787,11 @@ func (r *hostGroupResource) ValidateConfig(
 	}
 }
 
-// assignAssignmentRule takes an assignment_rule from the API and assigns it to the correct attribute.
-func assignAssignmentRule(
+// AssignAssignmentRule takes an assignment_rule from the API and assigns it to the correct attribute.
+func AssignAssignmentRule(
 	ctx context.Context,
 	assignmentRule string,
-	config *hostGroupResourceModel,
+	config *HostGroupResourceModel,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -806,7 +806,7 @@ func assignAssignmentRule(
 
 	groupType := config.GroupType.ValueString()
 
-	if groupType == hgDynamic {
+	if groupType == HgDynamic {
 		config.AssignmentRule = types.StringValue(assignmentRule)
 		return diags
 	}
@@ -824,7 +824,7 @@ func assignAssignmentRule(
 		hostnames = cleanMatches(matches[2])
 	}
 
-	if groupType == hgStatic {
+	if groupType == HgStatic {
 		hostnameSet, err := types.SetValueFrom(ctx, types.StringType, hostnames)
 		diags.Append(err...)
 		if diags.HasError() {
@@ -834,7 +834,7 @@ func assignAssignmentRule(
 		if config.Hostnames.IsNull() {
 			config.Hostnames = emptySet
 		}
-	} else if groupType == hgStaticByID {
+	} else if groupType == HgStaticByID {
 		hostIDSet, err := types.SetValueFrom(ctx, types.StringType, deviceIDs)
 		diags.Append(err...)
 		if diags.HasError() {
@@ -865,18 +865,18 @@ func cleanMatches(m string) []string {
 	return result
 }
 
-// generateAssignmentRule returns a valid assignment rule based on the host group type.
-func generateAssignmentRule(
+// GenerateAssignmentRule returns a valid assignment rule based on the host group type.
+func GenerateAssignmentRule(
 	ctx context.Context,
-	config hostGroupResourceModel,
+	config HostGroupResourceModel,
 ) (string, diag.Diagnostics) {
 	defaultAssignmentRule := "device_id:[''],hostname:['']"
 	var diags diag.Diagnostics
 
 	switch config.GroupType.ValueString() {
-	case hgDynamic:
+	case HgDynamic:
 		return config.AssignmentRule.ValueString(), diags
-	case hgStatic:
+	case HgStatic:
 		if len(config.Hostnames.Elements()) > 0 {
 			var hostnames []string
 			diags.Append(config.Hostnames.ElementsAs(ctx, &hostnames, false)...)
@@ -891,7 +891,7 @@ func generateAssignmentRule(
 			)
 			return assignmentRule, diags
 		}
-	case hgStaticByID:
+	case HgStaticByID:
 		if len(config.HostIDs.Elements()) > 0 {
 			var hostIDs []string
 			diags.Append(config.HostIDs.ElementsAs(ctx, &hostIDs, false)...)

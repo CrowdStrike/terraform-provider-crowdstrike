@@ -12,6 +12,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
+	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -234,7 +235,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		sensorupdatepolicy.NewDefaultSensorUpdatePolicyResource,
 		sensorupdatepolicy.NewSensorUpdatePolicyHostGroupAttachmentResource,
 		sensorupdatepolicy.NewSensorUpdatePolicyPrecedenceResource,
-		NewHostGroupResource,
+		hostgroups.NewHostGroupResource,
 		preventionpolicy.NewPreventionPolicyWindowsResource,
 		preventionpolicy.NewDefaultPreventionPolicyMacResource,
 		preventionpolicy.NewDefaultPreventionPolicyLinuxResource,
