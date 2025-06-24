@@ -1,4 +1,4 @@
-package provider
+package hostgroups
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/response_policies"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/retry"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -24,6 +25,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -35,10 +37,38 @@ var (
 )
 
 var (
-	hgDynamic    = "dynamic"
-	hgStatic     = "static"
-	hgStaticByID = "staticByID"
+	HgDynamic    = "dynamic"
+	HgStatic     = "static"
+	HgStaticByID = "staticByID"
 )
+
+var apiScopes = []scopes.Scope{
+	{
+		Name:  "Host groups",
+		Read:  true,
+		Write: true,
+	},
+	{
+		Name:  "Firewall management",
+		Read:  true,
+		Write: true,
+	},
+	{
+		Name:  "Prevention policies",
+		Read:  true,
+		Write: true,
+	},
+	{
+		Name:  "Response policies",
+		Read:  true,
+		Write: true,
+	},
+	{
+		Name:  "Sensor update policies",
+		Read:  true,
+		Write: true,
+	},
+}
 
 // NewHostGroupResource is a helper function to simplify the provider implementation.
 func NewHostGroupResource() resource.Resource {
@@ -50,8 +80,8 @@ type hostGroupResource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-// hostGroupResourceModel maps the resource schema data.
-type hostGroupResourceModel struct {
+// HostGroupResourceModel maps the resource schema data.
+type HostGroupResourceModel struct {
 	ID             types.String `tfsdk:"id"`
 	Name           types.String `tfsdk:"name"`
 	AssignmentRule types.String `tfsdk:"assignment_rule"`
@@ -98,34 +128,6 @@ func (r *hostGroupResource) Metadata(
 	resp.TypeName = req.ProviderTypeName + "_host_group"
 }
 
-var apiScopes = []scopes.Scope{
-	{
-		Name:  "Host groups",
-		Read:  true,
-		Write: true,
-	},
-	{
-		Name:  "Firewall management",
-		Read:  true,
-		Write: true,
-	},
-	{
-		Name:  "Prevention policies",
-		Read:  true,
-		Write: true,
-	},
-	{
-		Name:  "Response policies",
-		Read:  true,
-		Write: true,
-	},
-	{
-		Name:  "Sensor update policies",
-		Read:  true,
-		Write: true,
-	},
-}
-
 // Schema defines the schema for the resource.
 func (r *hostGroupResource) Schema(
 	_ context.Context,
@@ -137,52 +139,49 @@ func (r *hostGroupResource) Schema(
 			"Host Group --- This resource allows you to manage host groups in the CrowdStrike Falcon Platform.\n\n%s",
 			scopes.GenerateScopeDescription(apiScopes),
 		),
-		Description: "The resource `crowdstrike_host_group` allows management of host groups in the CrowdStrike Falcon platform.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				Computed:    true,
-				Description: "Identifier for the host group.",
-
+				Computed:            true,
+				MarkdownDescription: "The unique identifier for the host group.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"last_updated": schema.StringAttribute{
-				Computed:    true,
-				Description: "Timestamp of the last Terraform update of the resource.",
+				Computed:            true,
+				MarkdownDescription: "The RFC850 timestamp of the last update to this resource by Terraform.",
 			},
 			"name": schema.StringAttribute{
-				Required:    true,
-				Description: "Name of the host group.",
+				Required:            true,
+				MarkdownDescription: "The display name for the host group.",
 			},
 			"assignment_rule": schema.StringAttribute{
-				Optional:    true,
-				Description: "The assignment rule for dynamic host groups.",
+				Optional:            true,
+				MarkdownDescription: "The assignment rule used for dynamic host groups. Required if `type` is `dynamic`.",
 			},
 			"hostnames": schema.SetAttribute{
-				Optional:    true,
-				Description: "List of hostnames to add to a static host group.",
-				ElementType: types.StringType,
+				Optional:            true,
+				MarkdownDescription: "A set of hostnames to include in a static host group. Required if `type` is `static`.",
+				ElementType:         types.StringType,
 			},
 			"host_ids": schema.SetAttribute{
-				Optional:    true,
-				Description: "List of host ids to add to a staticByID host group.",
-				ElementType: types.StringType,
+				Optional:            true,
+				MarkdownDescription: "A set of host IDs to include in a staticByID host group. Required if `type` is `staticByID`.",
+				ElementType:         types.StringType,
 			},
 			"type": schema.StringAttribute{
-				Required: true,
-				// todo: make this case insensitive
-				Description: "The host group type, case sensitive. (dynamic, static, staticByID)",
+				Required:            true,
+				MarkdownDescription: "The type of host group. Valid values: `dynamic`, `static`, `staticByID`. This value is case sensitive.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf(hgDynamic, hgStatic, hgStaticByID),
+					stringvalidator.OneOf(HgDynamic, HgStatic, HgStaticByID),
 				},
 			},
 			"description": schema.StringAttribute{
-				Required:    true,
-				Description: "Description of the host group.",
+				Required:            true,
+				MarkdownDescription: "A description for the host group.",
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
@@ -197,15 +196,13 @@ func (r *hostGroupResource) Create(
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-
-	var plan hostGroupResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	var plan HostGroupResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	assignmentRule, diags := generateAssignmentRule(ctx, plan)
+	assignmentRule, diags := GenerateAssignmentRule(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -224,7 +221,7 @@ func (r *hostGroupResource) Create(
 		},
 	}
 
-	if plan.GroupType.ValueString() == hgDynamic {
+	if plan.GroupType.ValueString() == HgDynamic {
 		hostGroupParams.Body.Resources[0].AssignmentRule = assignmentRule
 	}
 
@@ -238,22 +235,21 @@ func (r *hostGroupResource) Create(
 		)
 		if strings.Contains(err.Error(), "409") {
 			errMsg = fmt.Sprintf(
-				"Could not create host group (%s): A host group already exists with that name. \n\n %s",
+				"Could not create host group (%s): A host group already exists with that name.\n\n%s",
 				plan.Name.ValueString(),
 				err.Error(),
 			)
 		}
 
-		if strings.Contains(err.Error(), "500") && plan.GroupType.ValueString() == hgDynamic {
+		if strings.Contains(err.Error(), "500") && plan.GroupType.ValueString() == HgDynamic {
 			errMsg = fmt.Sprintf(
-				"Could not create host group (%s): Returned error code 500, this could be caused by invalid assignment_rule. \n\n %s",
+				"Could not create host group (%s): Returned error code 500, this could be caused by invalid assignment_rule.\n\n%s",
 				plan.Name.ValueString(),
 				err.Error(),
 			)
 		}
 
-		resp.Diagnostics.AddError("Error creating scheduled exclusion", errMsg)
-
+		resp.Diagnostics.AddError("Error creating host group", errMsg)
 		return
 	}
 
@@ -268,13 +264,13 @@ func (r *hostGroupResource) Create(
 	plan.GroupType = types.StringValue(hostGroupResource.GroupType)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
-	if plan.GroupType.ValueString() != hgDynamic {
+	if plan.GroupType.ValueString() != HgDynamic {
 		hgUpdate, err := r.updateHostGroup(ctx, plan, assignmentRule)
 
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error assigning hosts to host group",
-				"Could not assign hosts to host group with ID: "+plan.ID.ValueString()+": "+err.Error(),
+				fmt.Sprintf("Could not assign hosts to host group with ID: %s: %s", plan.ID.ValueString(), err.Error()),
 			)
 			return
 		}
@@ -282,15 +278,12 @@ func (r *hostGroupResource) Create(
 		hostGroupResource = hgUpdate.Payload.Resources[0]
 	}
 
-	diags.Append(assignAssignmentRule(ctx, hostGroupResource.AssignmentRule, &plan)...)
+	diags.Append(AssignAssignmentRule(ctx, hostGroupResource.AssignmentRule, &plan)...)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -299,9 +292,8 @@ func (r *hostGroupResource) Read(
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-	var state hostGroupResourceModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	var state HostGroupResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -327,14 +319,9 @@ func (r *hostGroupResource) Read(
 	state.Name = types.StringValue(*hostGroupResource.Name)
 	state.Description = types.StringValue(*hostGroupResource.Description)
 	state.GroupType = types.StringValue(hostGroupResource.GroupType)
-	resp.Diagnostics.Append(assignAssignmentRule(ctx, hostGroupResource.AssignmentRule, &state)...)
+	resp.Diagnostics.Append(AssignAssignmentRule(ctx, hostGroupResource.AssignmentRule, &state)...)
 
-	// Set refreshed state
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
@@ -343,15 +330,13 @@ func (r *hostGroupResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	// Retrieve values from plan
-	var plan hostGroupResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	var plan HostGroupResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	assignmentRule, diags := generateAssignmentRule(ctx, plan)
+	assignmentRule, diags := GenerateAssignmentRule(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -373,7 +358,7 @@ func (r *hostGroupResource) Update(
 			)
 		}
 
-		if strings.Contains(err.Error(), "500") && plan.GroupType.ValueString() == hgDynamic {
+		if strings.Contains(err.Error(), "500") && plan.GroupType.ValueString() == HgDynamic {
 			errMsg = fmt.Sprintf(
 				"Could not update host group (%s): Returned error code 500, this could be caused by invalid assignment_rule. \n\n %s",
 				plan.Name.ValueString(),
@@ -391,23 +376,19 @@ func (r *hostGroupResource) Update(
 	plan.ID = types.StringValue(*hostGroupResource.ID)
 	plan.Name = types.StringValue(*hostGroupResource.Name)
 	plan.Description = types.StringValue(*hostGroupResource.Description)
-	resp.Diagnostics.Append(assignAssignmentRule(ctx, hostGroupResource.AssignmentRule, &plan)...)
+	resp.Diagnostics.Append(AssignAssignmentRule(ctx, hostGroupResource.AssignmentRule, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	plan.GroupType = types.StringValue(hostGroupResource.GroupType)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
 func (r *hostGroupResource) updateHostGroup(
 	ctx context.Context,
-	plan hostGroupResourceModel,
+	plan HostGroupResourceModel,
 	assignmentRule string,
 ) (*host_group.UpdateHostGroupsOK, error) {
 	hostGroupParams := host_group.UpdateHostGroupsParams{
@@ -435,15 +416,15 @@ func (r *hostGroupResource) Delete(
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-	var state hostGroupResourceModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	var state HostGroupResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// some cxs may not have all modules so they will get a 403
 	// storing errors in tempDiags and only throw them after a failed 409 delete
+	// https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues/24
 	var tempDiags diag.Diagnostics
 
 	// all assinged policies must be removed before we are able to delete the host group
@@ -452,31 +433,36 @@ func (r *hostGroupResource) Delete(
 	tempDiags.Append(r.purgePreventionPolicies(ctx, state.ID.ValueString())...)
 	tempDiags.Append(r.purgeResponsePolicies(ctx, state.ID.ValueString())...)
 
-	// removal of assigned policies return before the host group is ready to be deleted
-	// adding a simple sleep.
-	time.Sleep(10 * time.Second)
+	// Poll delete until the host group is ready to be removed after unassigning policies.
+	deleteFn := func() error {
+		tflog.Debug(ctx, "Attempting to delete host group", map[string]any{"id": state.ID.ValueString()})
+		_, err := r.client.HostGroup.DeleteHostGroups(
+			&host_group.DeleteHostGroupsParams{
+				Context: ctx,
+				Ids:     []string{state.ID.ValueString()},
+			},
+		)
+		if err == nil {
+			tflog.Debug(ctx, "Successfully deleted host group", map[string]any{"id": state.ID.ValueString()})
+		}
+		return err
+	}
+	const pollInterval = 2 * time.Second
+	const pollTimeout = 15 * time.Second
+	deleteErr := retry.RetryUntilNoError(ctx, pollTimeout, pollInterval, deleteFn)
 
-	_, err := r.client.HostGroup.DeleteHostGroups(
-		&host_group.DeleteHostGroupsParams{
-			Context: ctx,
-			Ids:     []string{state.ID.ValueString()},
-		},
-	)
-
-	if err != nil {
-		if strings.Contains(err.Error(), "409") {
-			resp.Diagnostics.Append(tempDiags...)
+	if deleteErr != nil {
+		if strings.Contains(deleteErr.Error(), "409") {
 			resp.Diagnostics.AddError(
 				"Error deleting CrowdStrike host group",
-				"Please ensure you have the correct api scopes or remove all assigned policies manually (firewall policies, prevention policies, etc) and try again. "+err.Error(),
+				"Host group could not be deleted because assigned policies (firewall, prevention, sensor update, or response) could not be removed, likely due to insufficient API scopes. Please ensure your API credentials have the necessary scopes to remove these assigned policies, or remove them manually, then try again. Error: "+deleteErr.Error(),
 			)
 		} else {
 			resp.Diagnostics.AddError(
 				"Error deleting CrowdStrike host group",
-				"Could not delete host group, unexpected error: "+err.Error(),
+				"Could not delete host group, unexpected error: "+deleteErr.Error(),
 			)
 		}
-		return
 	}
 }
 
@@ -717,14 +703,14 @@ func (r *hostGroupResource) ValidateConfig(
 	req resource.ValidateConfigRequest,
 	resp *resource.ValidateConfigResponse,
 ) {
-	var config hostGroupResourceModel
+	var config HostGroupResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	switch config.GroupType.ValueString() {
-	case hgDynamic:
+	case HgDynamic:
 		if config.AssignmentRule.IsNull() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("assignment_rule"),
@@ -748,7 +734,7 @@ func (r *hostGroupResource) ValidateConfig(
 				"The host_ids attribute can only be used with a staticByID host group.",
 			)
 		}
-	case hgStatic:
+	case HgStatic:
 		if config.Hostnames.IsNull() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("hostnames"),
@@ -773,7 +759,7 @@ func (r *hostGroupResource) ValidateConfig(
 			)
 		}
 
-	case hgStaticByID:
+	case HgStaticByID:
 		if config.HostIDs.IsNull() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("host_ids"),
@@ -800,11 +786,11 @@ func (r *hostGroupResource) ValidateConfig(
 	}
 }
 
-// assignAssignmentRule takes an assignment_rule from the API and assigns it to the correct attribute.
-func assignAssignmentRule(
+// AssignAssignmentRule takes an assignment_rule from the API and assigns it to the correct attribute.
+func AssignAssignmentRule(
 	ctx context.Context,
 	assignmentRule string,
-	config *hostGroupResourceModel,
+	config *HostGroupResourceModel,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -819,7 +805,7 @@ func assignAssignmentRule(
 
 	groupType := config.GroupType.ValueString()
 
-	if groupType == hgDynamic {
+	if groupType == HgDynamic {
 		config.AssignmentRule = types.StringValue(assignmentRule)
 		return diags
 	}
@@ -837,7 +823,7 @@ func assignAssignmentRule(
 		hostnames = cleanMatches(matches[2])
 	}
 
-	if groupType == hgStatic {
+	if groupType == HgStatic {
 		hostnameSet, err := types.SetValueFrom(ctx, types.StringType, hostnames)
 		diags.Append(err...)
 		if diags.HasError() {
@@ -847,7 +833,7 @@ func assignAssignmentRule(
 		if config.Hostnames.IsNull() {
 			config.Hostnames = emptySet
 		}
-	} else if groupType == hgStaticByID {
+	} else if groupType == HgStaticByID {
 		hostIDSet, err := types.SetValueFrom(ctx, types.StringType, deviceIDs)
 		diags.Append(err...)
 		if diags.HasError() {
@@ -878,18 +864,18 @@ func cleanMatches(m string) []string {
 	return result
 }
 
-// generateAssignmentRule returns a valid assignment rule based on the host group type.
-func generateAssignmentRule(
+// GenerateAssignmentRule returns a valid assignment rule based on the host group type.
+func GenerateAssignmentRule(
 	ctx context.Context,
-	config hostGroupResourceModel,
+	config HostGroupResourceModel,
 ) (string, diag.Diagnostics) {
 	defaultAssignmentRule := "device_id:[''],hostname:['']"
 	var diags diag.Diagnostics
 
 	switch config.GroupType.ValueString() {
-	case hgDynamic:
+	case HgDynamic:
 		return config.AssignmentRule.ValueString(), diags
-	case hgStatic:
+	case HgStatic:
 		if len(config.Hostnames.Elements()) > 0 {
 			var hostnames []string
 			diags.Append(config.Hostnames.ElementsAs(ctx, &hostnames, false)...)
@@ -904,7 +890,7 @@ func generateAssignmentRule(
 			)
 			return assignmentRule, diags
 		}
-	case hgStaticByID:
+	case HgStaticByID:
 		if len(config.HostIDs.Elements()) > 0 {
 			var hostIDs []string
 			diags.Append(config.HostIDs.ElementsAs(ctx, &hostIDs, false)...)

@@ -1,13 +1,16 @@
-package provider
+package hostgroups_test
 
 import (
 	"fmt"
 	"slices"
 	"testing"
 
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
+	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+
+	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 )
 
 func TestGenerateAssignmentRule(t *testing.T) {
@@ -22,33 +25,33 @@ func TestGenerateAssignmentRule(t *testing.T) {
 		{
 			name:                      "dynamic",
 			expectedAPIAssignmentRule: "tags:'SensorGroupingTags/cloud-lab'+os_version:'Amazon Linux 2'",
-			groupType:                 hgDynamic,
+			groupType:                 hostgroups.HgDynamic,
 			assignmentRule:            "tags:'SensorGroupingTags/cloud-lab'+os_version:'Amazon Linux 2'",
 		},
 		{
 			name:                      "static",
 			expectedAPIAssignmentRule: "device_id:[''],hostname:['MY-HOST-1','MY-HOST-2','MY-HOST-3']",
-			groupType:                 hgStatic,
+			groupType:                 hostgroups.HgStatic,
 			hostnames:                 []string{"MY-HOST-1", "MY-HOST-2", "MY-HOST-3"},
 		},
 		{
 			name:                      "staticByID",
 			expectedAPIAssignmentRule: "device_id:['DEVICE','DEVICE2'],hostname:['']",
-			groupType:                 hgStaticByID,
+			groupType:                 hostgroups.HgStaticByID,
 			hostIDs:                   []string{"DEVICE", "DEVICE2"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config := hostGroupResourceModel{
+			config := hostgroups.HostGroupResourceModel{
 				GroupType: types.StringValue(tt.groupType),
 			}
 
 			switch tt.groupType {
-			case hgDynamic:
+			case hostgroups.HgDynamic:
 				config.AssignmentRule = types.StringValue(tt.assignmentRule)
-				apiAssignmentRule, diags := generateAssignmentRule(t.Context(), config)
+				apiAssignmentRule, diags := hostgroups.GenerateAssignmentRule(t.Context(), config)
 				if diags.HasError() {
 					t.Errorf("unexpected error: %v", diags)
 				}
@@ -60,13 +63,13 @@ func TestGenerateAssignmentRule(t *testing.T) {
 						tt.expectedAPIAssignmentRule,
 					)
 				}
-			case hgStatic:
+			case hostgroups.HgStatic:
 				hostnames, diags := types.SetValueFrom(t.Context(), types.StringType, tt.hostnames)
 				if diags.HasError() {
 					t.Errorf("unexpected error: %v", diags)
 				}
 				config.Hostnames = hostnames
-				apiAssignmentRule, diags := generateAssignmentRule(t.Context(), config)
+				apiAssignmentRule, diags := hostgroups.GenerateAssignmentRule(t.Context(), config)
 				if diags.HasError() {
 					t.Errorf("unexpected error: %v", diags)
 				}
@@ -78,13 +81,13 @@ func TestGenerateAssignmentRule(t *testing.T) {
 						tt.expectedAPIAssignmentRule,
 					)
 				}
-			case hgStaticByID:
+			case hostgroups.HgStaticByID:
 				hostIDs, diags := types.SetValueFrom(t.Context(), types.StringType, tt.hostIDs)
 				if diags.HasError() {
 					t.Errorf("unexpected error: %v", diags)
 				}
 				config.HostIDs = hostIDs
-				apiAssignmentRule, diags := generateAssignmentRule(t.Context(), config)
+				apiAssignmentRule, diags := hostgroups.GenerateAssignmentRule(t.Context(), config)
 				if diags.HasError() {
 					t.Errorf("unexpected error: %v", diags)
 				}
@@ -113,48 +116,48 @@ func TestAssignAssignmentRule(t *testing.T) {
 		{
 			name:                   "dynamic",
 			apiAssignmentRule:      "tags:'SensorGroupingTags/cloud-lab'+os_version:'Amazon Linux 2'",
-			groupType:              hgDynamic,
+			groupType:              hostgroups.HgDynamic,
 			expectedAssignmentRule: "tags:'SensorGroupingTags/cloud-lab'+os_version:'Amazon Linux 2'",
 		},
 		{
 			name:              "static",
 			apiAssignmentRule: "device_id:['DEVICE','DEVICE2'],hostname:['MY HOST-1', 'MY-HOST-2','MY-HOST-3','']",
-			groupType:         hgStatic,
+			groupType:         hostgroups.HgStatic,
 			expectedHostnames: []string{"MY HOST-1", "MY-HOST-2", "MY-HOST-3"},
 		},
 		{
 			name:              "staticEmpty",
 			apiAssignmentRule: "device_id:['DEVICE','DEVICE2'],hostname:['']",
-			groupType:         hgStatic,
+			groupType:         hostgroups.HgStatic,
 			expectedHostnames: []string{},
 		},
 
 		{
 			name:              "staticByID",
 			apiAssignmentRule: "device_id:['DEVICE HOST','DEVICE2',  'DEVICE-3', ''],hostname:['MY HOST-1', 'MY-HOST-2','MY-HOST-3']",
-			groupType:         hgStaticByID,
+			groupType:         hostgroups.HgStaticByID,
 			expectedHostIDs:   []string{"DEVICE HOST", "DEVICE2", "DEVICE-3"},
 		},
 		{
 			name:              "staticByIDEmpty",
 			apiAssignmentRule: "device_id:[''],hostname:['MY-HOST-1', 'MY-HOST-2', 'MY-HOST-3']",
-			groupType:         hgStaticByID,
+			groupType:         hostgroups.HgStaticByID,
 			expectedHostIDs:   []string{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config := hostGroupResourceModel{
+			config := hostgroups.HostGroupResourceModel{
 				GroupType: types.StringValue(tt.groupType),
 			}
-			diags := assignAssignmentRule(t.Context(), tt.apiAssignmentRule, &config)
+			diags := hostgroups.AssignAssignmentRule(t.Context(), tt.apiAssignmentRule, &config)
 			if diags.HasError() {
 				t.Errorf("unexpected error: %v", diags)
 			}
 
 			switch tt.groupType {
-			case hgDynamic:
+			case hostgroups.HgDynamic:
 				if config.AssignmentRule.ValueString() != tt.expectedAssignmentRule {
 					t.Errorf(
 						"config.AssignmentRule = %v, want %v",
@@ -162,7 +165,7 @@ func TestAssignAssignmentRule(t *testing.T) {
 						tt.expectedAssignmentRule,
 					)
 				}
-			case hgStatic:
+			case hostgroups.HgStatic:
 				var hostnames []string
 				diags := config.Hostnames.ElementsAs(t.Context(), &hostnames, false)
 				if diags.HasError() {
@@ -176,7 +179,7 @@ func TestAssignAssignmentRule(t *testing.T) {
 						tt.expectedHostnames,
 					)
 				}
-			case hgStaticByID:
+			case hostgroups.HgStaticByID:
 				var hostIDs []string
 				diags := config.HostIDs.ElementsAs(t.Context(), &hostIDs, false)
 				if diags.HasError() {
@@ -196,14 +199,14 @@ func TestAssignAssignmentRule(t *testing.T) {
 }
 
 func TestAccHostGroupResource(t *testing.T) {
-	rName := acctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
 	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: providerConfig + fmt.Sprintf(`
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_host_group" "test" {
   name            = "%s"
   description     = "made with terraform"
@@ -252,7 +255,7 @@ resource "crowdstrike_host_group" "test" {
 			},
 			// Update and Read testing
 			{
-				Config: providerConfig + fmt.Sprintf(`
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_host_group" "test" {
   name            = "%s-updated"
   description     = "made with terraform updated"
@@ -294,7 +297,7 @@ resource "crowdstrike_host_group" "test" {
 			},
 			// if no assignment_rule is passed we don't manage the value
 			{
-				Config: providerConfig + fmt.Sprintf(`
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_host_group" "test" {
   name            = "%s-updated"
   description     = "made with terraform updated"
@@ -336,7 +339,7 @@ resource "crowdstrike_host_group" "test" {
 			},
 			// remove assignment_rule
 			{
-				Config: providerConfig + fmt.Sprintf(`
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_host_group" "test" {
   name            = "%s-updated"
   description     = "made with terraform updated"

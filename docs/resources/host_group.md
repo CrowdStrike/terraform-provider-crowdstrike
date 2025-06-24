@@ -70,20 +70,20 @@ output "host_group" {
 
 ### Required
 
-- `description` (String) Description of the host group.
-- `name` (String) Name of the host group.
-- `type` (String) The host group type, case sensitive. (dynamic, static, staticByID)
+- `description` (String) A description for the host group.
+- `name` (String) The display name for the host group.
+- `type` (String) The type of host group. Valid values: `dynamic`, `static`, `staticByID`. This value is case sensitive.
 
 ### Optional
 
-- `assignment_rule` (String) The assignment rule for dynamic host groups.
-- `host_ids` (Set of String) List of host ids to add to a staticByID host group.
-- `hostnames` (Set of String) List of hostnames to add to a static host group.
+- `assignment_rule` (String) The assignment rule used for dynamic host groups. Required if `type` is `dynamic`.
+- `host_ids` (Set of String) A set of host IDs to include in a staticByID host group. Required if `type` is `staticByID`.
+- `hostnames` (Set of String) A set of hostnames to include in a static host group. Required if `type` is `static`.
 
 ### Read-Only
 
-- `id` (String) Identifier for the host group.
-- `last_updated` (String) Timestamp of the last Terraform update of the resource.
+- `id` (String) The unique identifier for the host group.
+- `last_updated` (String) The RFC850 timestamp of the last update to this resource by Terraform.
 
 ## Import
 
