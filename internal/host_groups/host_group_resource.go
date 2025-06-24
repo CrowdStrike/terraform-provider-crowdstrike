@@ -434,7 +434,6 @@ func (r *hostGroupResource) Delete(
 	tempDiags.Append(r.purgeResponsePolicies(ctx, state.ID.ValueString())...)
 
 	// Poll delete until the host group is ready to be removed after unassigning policies.
-
 	deleteFn := func() error {
 		tflog.Debug(ctx, "Attempting to delete host group", map[string]any{"id": state.ID.ValueString()})
 		_, err := r.client.HostGroup.DeleteHostGroups(
