@@ -28,7 +28,7 @@ var (
 )
 
 var (
-	docuementationSection       string         = "Prevention Policy"
+	documentationSection        string         = "Prevention Policy"
 	resourceMarkdownDescription string         = "This resource allows managing the host groups and ioa rule groups attached to a prevention policy. This resource takes exclusive ownership over the host groups and ioa rule groups assigned to a prevention policy. If you want to fully create or manage a prevention policy please use the `prevention_policy_*` resource for the platform you want to manage."
 	requiredScopes              []scopes.Scope = apiScopes
 )
@@ -118,7 +118,7 @@ func (r *preventionPolicyAttachmentResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
-			docuementationSection,
+			documentationSection,
 			resourceMarkdownDescription,
 			requiredScopes,
 		),
