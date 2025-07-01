@@ -57,7 +57,7 @@ func TestAccPreventionPolicyWindowsResource(t *testing.T) {
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
+		PreCheck:                 func() { acctest.PreCheck(t, acctest.RequireHostGroupID, acctest.RequireIOARuleGroupID) },
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{

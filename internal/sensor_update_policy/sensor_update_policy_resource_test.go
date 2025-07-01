@@ -233,7 +233,7 @@ func TestAccSensorUpdatePolicyResourceWithHostGroup(t *testing.T) {
 	hostGroupID, _ := os.LookupEnv("HOST_GROUP_ID")
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
+		PreCheck:                 func() { acctest.PreCheck(t, acctest.RequireHostGroupID) },
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
