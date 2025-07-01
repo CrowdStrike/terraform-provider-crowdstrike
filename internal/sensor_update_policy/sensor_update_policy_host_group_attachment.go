@@ -26,7 +26,7 @@ var (
 )
 
 var (
-	docuementationSection       string         = "Sensor Update Policy"
+	documentationSection        string         = "Sensor Update Policy"
 	resourceMarkdownDescription string         = "This resource allows managing the host groups attached to a sensor update policy. This resource takes exclusive ownership over the host groups assigned to a sensor update policy. If you want to fully create or manage a sensor update policy please use the `sensor_update_policy` resource."
 	requiredScopes              []scopes.Scope = []scopes.Scope{
 		{
@@ -115,7 +115,7 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
-			docuementationSection,
+			documentationSection,
 			resourceMarkdownDescription,
 			requiredScopes,
 		),
