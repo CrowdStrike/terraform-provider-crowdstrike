@@ -8,6 +8,7 @@ import (
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
@@ -30,21 +31,26 @@ type policyConfig struct {
 }
 
 // String implements the Stringer interface and generates Terraform configuration from policyConfig.
-func (config policyConfig) String() string {
+func (config *policyConfig) String() string {
 	var hostGroupResources string
 	var hostGroupsBlock string
+
+	randomSuffix := sdkacctest.RandString(8)
+	config.Name = fmt.Sprintf("%s-%s", config.Name, randomSuffix)
 
 	if config.HostGroupCount > 0 {
 		var hostGroupRefs []string
 		for i := 0; i < config.HostGroupCount; i++ {
+			hostGroupName := fmt.Sprintf("hg-%s-%d", randomSuffix, i)
+
 			hostGroupResources += fmt.Sprintf(`
 resource "crowdstrike_host_group" "hg_%d" {
-  name        = "%s-%d"
+  name        = "%s"
   description = "Test host group %d for content update policy"
   type        = "static"
   hostnames   = ["test-host%d-1", "test-host%d-2"]
 }
-`, i, config.Name, i, i, i, i)
+`, i, hostGroupName, i, i, i)
 			hostGroupRefs = append(hostGroupRefs, fmt.Sprintf("crowdstrike_host_group.hg_%d.id", i))
 		}
 
@@ -234,6 +240,7 @@ func TestAccContentUpdatePolicyResource_Basic(t *testing.T) {
 }
 
 func TestAccContentUpdatePolicyResource_HostGroups(t *testing.T) {
+
 	testCases := []struct {
 		name   string
 		config policyConfig
@@ -326,6 +333,7 @@ func TestAccContentUpdatePolicyResource_HostGroups(t *testing.T) {
 }
 
 func TestAccContentUpdatePolicyResource_RingConfigurations(t *testing.T) {
+
 	testCases := []struct {
 		name   string
 		config policyConfig
@@ -439,6 +447,7 @@ func TestAccContentUpdatePolicyResource_RingConfigurations(t *testing.T) {
 }
 
 func TestAccContentUpdatePolicyResource_StateTransitions(t *testing.T) {
+
 	testCases := []struct {
 		name   string
 		config policyConfig
@@ -526,6 +535,7 @@ func TestAccContentUpdatePolicyResource_StateTransitions(t *testing.T) {
 }
 
 func TestAccContentUpdatePolicyResource_Validation(t *testing.T) {
+
 	validationTests := []struct {
 		name        string
 		config      policyConfig
@@ -642,6 +652,7 @@ func TestAccContentUpdatePolicyResource_Validation(t *testing.T) {
 }
 
 func TestAccContentUpdatePolicyResource_FieldBoundaries(t *testing.T) {
+
 	testCases := []struct {
 		name   string
 		config policyConfig
