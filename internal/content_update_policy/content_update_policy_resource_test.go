@@ -135,11 +135,7 @@ func (config policyConfig) TestChecks() resource.TestCheckFunc {
 	checks = append(checks, config.VulnerabilityManagement.generateChecks("vulnerability_management")...)
 	checks = append(checks, config.RapidResponse.generateChecks("rapid_response")...)
 
-	if config.HostGroupCount > 0 {
-		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_content_update_policy.test", "host_groups.#", fmt.Sprintf("%d", config.HostGroupCount)))
-	} else {
-		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_content_update_policy.test", "host_groups.#", "0"))
-	}
+	checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_content_update_policy.test", "host_groups.#", fmt.Sprintf("%d", config.HostGroupCount)))
 
 	return resource.ComposeAggregateTestCheckFunc(checks...)
 }
