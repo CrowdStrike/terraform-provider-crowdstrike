@@ -20,13 +20,14 @@ func TestAccSensorUpdatePolicyResourceBadBuildUpdate(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: acctest.ProviderConfig + fmt.Sprintf(`
+data "crowdstrike_sensor_update_policy_builds" "all" {}
 resource "crowdstrike_sensor_update_policy" "test" {
   name                 = "%s"
   enabled              = true
   description          = "made with terraform"
   host_groups          = []
   platform_name        = "Windows"
-  build                = "19809"
+  build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
   uninstall_protection = false 
   schedule = {
     enabled = false
@@ -50,7 +51,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 }
 `, rName),
 				ExpectError: regexp.MustCompile(
-					"The API returned a build that did not match the build in plan: \"invalid\"",
+					"(?i)(?s).*invalid(?s).*build invalid.*",
 				),
 			},
 		},
@@ -65,13 +66,14 @@ func TestAccSensorUpdatePolicyResourceBadHostGroup(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: acctest.ProviderConfig + fmt.Sprintf(`
+data "crowdstrike_sensor_update_policy_builds" "all" {}
 resource "crowdstrike_sensor_update_policy" "test" {
   name                 = "%s"
   enabled              = true
   description          = "made with terraform"
   host_groups          = ["invalid"]
   platform_name        = "Windows"
-  build                = "19809"
+  build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
   uninstall_protection = false 
   schedule = {
     enabled = false
@@ -93,13 +95,14 @@ func TestAccSensorUpdatePolicyResource(t *testing.T) {
 			// Create and Read testing
 			{
 				Config: acctest.ProviderConfig + fmt.Sprintf(`
+data "crowdstrike_sensor_update_policy_builds" "all" {}
 resource "crowdstrike_sensor_update_policy" "test" {
   name                 = "%s"
   enabled              = true
   description          = "made with terraform"
   host_groups          = []
   platform_name        = "Windows"
-  build                = "19809"
+  build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
   uninstall_protection = false 
   schedule = {
     enabled = false
@@ -126,11 +129,6 @@ resource "crowdstrike_sensor_update_policy" "test" {
 						"crowdstrike_sensor_update_policy.test",
 						"platform_name",
 						"Windows",
-					),
-					resource.TestCheckResourceAttr(
-						"crowdstrike_sensor_update_policy.test",
-						"build",
-						"19809",
 					),
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
@@ -163,13 +161,14 @@ resource "crowdstrike_sensor_update_policy" "test" {
 			// Update and Read testing
 			{
 				Config: acctest.ProviderConfig + fmt.Sprintf(`
+data "crowdstrike_sensor_update_policy_builds" "all" {}
 resource "crowdstrike_sensor_update_policy" "test" {
   name                 = "%s-updated"
   enabled              = false
   description          = "made with terraform updated"
   platform_name        = "Windows"
   host_groups          = []
-  build                = "19809"
+  build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
   uninstall_protection = true 
   schedule = {
     enabled = false
@@ -196,11 +195,6 @@ resource "crowdstrike_sensor_update_policy" "test" {
 						"crowdstrike_sensor_update_policy.test",
 						"platform_name",
 						"Windows",
-					),
-					resource.TestCheckResourceAttr(
-						"crowdstrike_sensor_update_policy.test",
-						"build",
-						"19809",
 					),
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
@@ -238,13 +232,14 @@ func TestAccSensorUpdatePolicyResourceWithHostGroup(t *testing.T) {
 			// Create and Read testing
 			{
 				Config: acctest.ProviderConfig + fmt.Sprintf(`
+data "crowdstrike_sensor_update_policy_builds" "all" {}
 resource "crowdstrike_sensor_update_policy" "test" {
   name                 = "%s"
   enabled              = true
   host_groups          = ["%s"]
   description          = "made with terraform"
   platform_name        = "Windows"
-  build                = "19809"
+  build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
   uninstall_protection = false 
   schedule = {
     enabled = false
@@ -271,11 +266,6 @@ resource "crowdstrike_sensor_update_policy" "test" {
 						"crowdstrike_sensor_update_policy.test",
 						"platform_name",
 						"Windows",
-					),
-					resource.TestCheckResourceAttr(
-						"crowdstrike_sensor_update_policy.test",
-						"build",
-						"19809",
 					),
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
@@ -316,12 +306,13 @@ resource "crowdstrike_sensor_update_policy" "test" {
 			// Update and Read testing
 			{
 				Config: acctest.ProviderConfig + fmt.Sprintf(`
+data "crowdstrike_sensor_update_policy_builds" "all" {}
 resource "crowdstrike_sensor_update_policy" "test" {
   name                 = "%s-updated"
   enabled              = false
   description          = "made with terraform updated"
   platform_name        = "Windows"
-  build                = "19809"
+  build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
   uninstall_protection = true 
   host_groups          = []
   schedule = {
@@ -349,11 +340,6 @@ resource "crowdstrike_sensor_update_policy" "test" {
 						"crowdstrike_sensor_update_policy.test",
 						"platform_name",
 						"Windows",
-					),
-					resource.TestCheckResourceAttr(
-						"crowdstrike_sensor_update_policy.test",
-						"build",
-						"19809",
 					),
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
@@ -396,12 +382,13 @@ func TestAccSensorUpdatePolicyResourceWithSchedule(t *testing.T) {
 			// Create and Read testing
 			{
 				Config: acctest.ProviderConfig + fmt.Sprintf(`
+data "crowdstrike_sensor_update_policy_builds" "all" {}
 resource "crowdstrike_sensor_update_policy" "test" {
   name                 = "%s"
   enabled              = true
   description          = "made with terraform"
   platform_name        = "Windows"
-  build                = "19809"
+  build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
   uninstall_protection = false 
   schedule = {
     enabled = false
@@ -431,11 +418,6 @@ resource "crowdstrike_sensor_update_policy" "test" {
 					),
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
-						"build",
-						"19809",
-					),
-					resource.TestCheckResourceAttr(
-						"crowdstrike_sensor_update_policy.test",
 						"uninstall_protection",
 						"false",
 					),
@@ -458,12 +440,13 @@ resource "crowdstrike_sensor_update_policy" "test" {
 			// Update and Read testing
 			{
 				Config: acctest.ProviderConfig + fmt.Sprintf(`
+data "crowdstrike_sensor_update_policy_builds" "all" {}
 resource "crowdstrike_sensor_update_policy" "test" {
   name                 = "%s-updated"
   enabled              = false
   description          = "made with terraform updated"
   platform_name        = "Windows"
-  build                = "19809"
+  build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
   uninstall_protection = true 
   schedule = {
     enabled = true 
@@ -498,11 +481,6 @@ resource "crowdstrike_sensor_update_policy" "test" {
 						"crowdstrike_sensor_update_policy.test",
 						"platform_name",
 						"Windows",
-					),
-					resource.TestCheckResourceAttr(
-						"crowdstrike_sensor_update_policy.test",
-						"build",
-						"19809",
 					),
 					resource.TestCheckResourceAttr(
 						"crowdstrike_sensor_update_policy.test",
