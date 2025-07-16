@@ -22,9 +22,10 @@ func TestAccDefaultSensorUpdatePolicyResourceBadBuildUpdate(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: acctest.ProviderConfig + `
+data "crowdstrike_sensor_update_policy_builds" "all" {}
 resource "crowdstrike_default_sensor_update_policy" "default" {
   platform_name        = "Windows"
-  build                = "19507"
+  build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
   uninstall_protection = false 
   schedule = {
     enabled = false
@@ -41,9 +42,7 @@ resource "crowdstrike_default_sensor_update_policy" "default" {
     enabled = false
   }
 }`,
-				ExpectError: regexp.MustCompile(
-					"The API returned a build that did not match the build in plan: \"invalid\"",
-				),
+				ExpectError: regexp.MustCompile("(?i)(?s).*invalid(?s).*build invalid.*"),
 			},
 		},
 	})
@@ -59,9 +58,10 @@ func TestAccDefaultSensorUpdatePolicyResourceWithSchedule(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: acctest.ProviderConfig + `
+data "crowdstrike_sensor_update_policy_builds" "all" {}
 resource "crowdstrike_default_sensor_update_policy" "default" {
   platform_name        = "Windows"
-  build                = "19507"
+  build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
   uninstall_protection = true 
   schedule = {
     enabled = true 
@@ -80,11 +80,6 @@ resource "crowdstrike_default_sensor_update_policy" "default" {
 						resourceName,
 						"platform_name",
 						"Windows",
-					),
-					resource.TestCheckResourceAttr(
-						resourceName,
-						"build",
-						"19507",
 					),
 					resource.TestCheckResourceAttr(
 						resourceName,

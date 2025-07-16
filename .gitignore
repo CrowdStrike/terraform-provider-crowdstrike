@@ -23,9 +23,11 @@ website/node_modules
 .idea
 *.iml
 *.test
-*.iml
+*.
+.clinerules/
 
 website/vendor
+.clineignore
 
 # Test exclusions
 !command/test-fixtures/**/*.tfstate
