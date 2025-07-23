@@ -38,12 +38,12 @@ data "crowdstrike_sensor_update_policy_builds" "all" {}
 
 resource "crowdstrike_sensor_update_policy" "example" {
   name                 = "example_prevention_policy"
-  enabled              = true
+  enabled              = false
   description          = "made with terraform"
-  platform_name        = "Linux"
-  build                = data.crowdstrike_sensor_update_policy_builds.all.linux.n1.build
-  build_arm64          = data.crowdstrike_sensor_update_policy_builds.all.linux_arm64.n1.build
-  uninstall_protection = true
+  platform_name        = "Windows"
+  build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
+  uninstall_protection = false
+  host_groups          = ["host_group_id"]
   schedule = {
     enabled  = true
     timezone = "Etc/UTC"
