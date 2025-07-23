@@ -273,7 +273,7 @@ func (r *defaultSensorUpdatePolicyResource) Schema(
 			"uninstall_protection": schema.BoolAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "Enable uninstall protection. Windows and Mac only.",
+				Description: "Enable uninstall protection.",
 				Default:     booldefault.StaticBool(false),
 			},
 			"schedule": schema.SingleNestedAttribute{
@@ -480,16 +480,6 @@ func (r *defaultSensorUpdatePolicyResource) ValidateConfig(
 			path.Root("build_arm64"),
 			"Attribute build_arm64 missing",
 			"Attribute build_arm64 is required when platform_name is linux.",
-		)
-
-		return
-	}
-
-	if config.UninstallProtection.ValueBool() && platform == "linux" {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("uninstall_protection"),
-			"Linux doesn't support uninstall protection",
-			"Uninstall protection is not supported by linux sensor update policies. Set to false or remove attribute.",
 		)
 
 		return
