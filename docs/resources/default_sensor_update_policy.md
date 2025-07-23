@@ -71,7 +71,7 @@ output "sensor_policy" {
 ### Optional
 
 - `build_arm64` (String) Sensor arm64 build to use for the default sensor update policy (Linux only). Required if platform_name is Linux.
-- `uninstall_protection` (Boolean) Enable uninstall protection. Windows and Mac only.
+- `uninstall_protection` (Boolean) Enable uninstall protection.
 
 ### Read-Only
 
