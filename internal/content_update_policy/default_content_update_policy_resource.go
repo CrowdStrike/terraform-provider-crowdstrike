@@ -10,7 +10,6 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/content_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
-	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -168,16 +167,12 @@ func (r *defaultContentUpdatePolicyResource) Schema(
 					"ring_assignment": schema.StringAttribute{
 						Required:    true,
 						Description: "Ring assignment for the content category (ga, ea, pause).",
-						Validators: []validator.String{
-							stringvalidator.OneOf(validRingAssignments...),
-						},
+						Validators:  ringAssignmentValidators()["ring_assignment"],
 					},
 					"delay_hours": schema.Int64Attribute{
 						Optional:    true,
 						Description: "Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.",
-						Validators: []validator.Int64{
-							int64validator.OneOf(validDelayHours...),
-						},
+						Validators:  delayHoursValidators(),
 					},
 				},
 			},
@@ -188,16 +183,12 @@ func (r *defaultContentUpdatePolicyResource) Schema(
 					"ring_assignment": schema.StringAttribute{
 						Required:    true,
 						Description: "Ring assignment for the content category (ga, ea). Note: 'pause' is not allowed for system_critical.",
-						Validators: []validator.String{
-							stringvalidator.OneOf(validSystemCriticalRingAssignments...),
-						},
+						Validators:  ringAssignmentValidators()["system_critical"],
 					},
 					"delay_hours": schema.Int64Attribute{
 						Optional:    true,
 						Description: "Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.",
-						Validators: []validator.Int64{
-							int64validator.OneOf(validDelayHours...),
-						},
+						Validators:  delayHoursValidators(),
 					},
 				},
 			},
@@ -208,16 +199,12 @@ func (r *defaultContentUpdatePolicyResource) Schema(
 					"ring_assignment": schema.StringAttribute{
 						Required:    true,
 						Description: "Ring assignment for the content category (ga, ea, pause).",
-						Validators: []validator.String{
-							stringvalidator.OneOf(validRingAssignments...),
-						},
+						Validators:  ringAssignmentValidators()["ring_assignment"],
 					},
 					"delay_hours": schema.Int64Attribute{
 						Optional:    true,
 						Description: "Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.",
-						Validators: []validator.Int64{
-							int64validator.OneOf(validDelayHours...),
-						},
+						Validators:  delayHoursValidators(),
 					},
 				},
 			},
@@ -228,16 +215,12 @@ func (r *defaultContentUpdatePolicyResource) Schema(
 					"ring_assignment": schema.StringAttribute{
 						Required:    true,
 						Description: "Ring assignment for the content category (ga, ea, pause).",
-						Validators: []validator.String{
-							stringvalidator.OneOf(validRingAssignments...),
-						},
+						Validators:  ringAssignmentValidators()["ring_assignment"],
 					},
 					"delay_hours": schema.Int64Attribute{
 						Optional:    true,
 						Description: "Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.",
-						Validators: []validator.Int64{
-							int64validator.OneOf(validDelayHours...),
-						},
+						Validators:  delayHoursValidators(),
 					},
 				},
 			},
