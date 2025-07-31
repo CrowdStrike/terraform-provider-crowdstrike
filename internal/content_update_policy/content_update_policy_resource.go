@@ -3,7 +3,6 @@ package contentupdatepolicy
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
@@ -37,22 +36,6 @@ var (
 	_ resource.ResourceWithImportState    = &contentPolicyResource{}
 	_ resource.ResourceWithValidateConfig = &contentPolicyResource{}
 )
-
-// Valid ring assignments.
-var validRingAssignments = []string{
-	"ga",    // general availability
-	"ea",    // early access
-	"pause", // pause updates
-}
-
-// Valid ring assignments for system_critical (no pause allowed).
-var validSystemCriticalRingAssignments = []string{
-	"ga", // general availability
-	"ea", // early access
-}
-
-// Valid delay hours for GA ring.
-var validDelayHours = []int64{0, 1, 2, 4, 8, 12, 24, 48, 72}
 
 // NewContentPolicyResource is a helper function to simplify the provider implementation.
 func NewContentPolicyResource() resource.Resource {
@@ -198,44 +181,17 @@ func (d *contentPolicyResourceModel) wrap(
 		d.HostGroups = hostGroupSet
 	}
 
-	if policy.Settings != nil && policy.Settings.RingAssignmentSettings != nil {
-		for _, setting := range policy.Settings.RingAssignmentSettings {
-			ringAssignment := ringAssignmentModel{
-				RingAssignment: types.StringValue(*setting.RingAssignment),
-			}
-
-			if *setting.RingAssignment == "ga" {
-				delayHours := int64(0)
-				if setting.DelayHours != nil {
-					if delayStr := *setting.DelayHours; delayStr != "" {
-						if delay, err := strconv.ParseInt(delayStr, 10, 64); err == nil {
-							delayHours = delay
-						}
-					}
-				}
-				ringAssignment.DelayHours = types.Int64Value(delayHours)
-			} else {
-				ringAssignment.DelayHours = types.Int64Null()
-			}
-
-			objValue, diag := types.ObjectValueFrom(ctx, ringAssignment.AttributeTypes(), ringAssignment)
-			diags.Append(diag...)
-			if diags.HasError() {
-				return diags
-			}
-
-			switch *setting.ID {
-			case "sensor_operations":
-				d.SensorOperations = objValue
-			case "system_critical":
-				d.SystemCritical = objValue
-			case "vulnerability_management":
-				d.VulnerabilityManagement = objValue
-			case "rapid_response_al_bl_listing":
-				d.RapidResponse = objValue
-			}
-		}
+	// Use shared function to populate ring assignments
+	sensorOps, systemCrit, vulnMgmt, rapidResp, ringDiags := populateRingAssignments(ctx, policy)
+	diags.Append(ringDiags...)
+	if diags.HasError() {
+		return diags
 	}
+
+	d.SensorOperations = sensorOps
+	d.SystemCritical = systemCrit
+	d.VulnerabilityManagement = vulnMgmt
+	d.RapidResponse = rapidResp
 
 	return diags
 }
@@ -523,7 +479,7 @@ func (r *contentPolicyResource) Create(
 	}
 
 	if plan.Enabled.ValueBool() {
-		err := r.updatePolicyEnabledState(ctx, plan.ID.ValueString(), true)
+		err := updatePolicyEnabledState(ctx, r.client, plan.ID.ValueString(), true)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error enabling content update policy",
@@ -754,7 +710,7 @@ func (r *contentPolicyResource) Update(
 	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 
 	if plan.Enabled.ValueBool() != state.Enabled.ValueBool() {
-		err := r.updatePolicyEnabledState(ctx, plan.ID.ValueString(), plan.Enabled.ValueBool())
+		err := updatePolicyEnabledState(ctx, r.client, plan.ID.ValueString(), plan.Enabled.ValueBool())
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error changing content update policy enabled state",
@@ -786,7 +742,7 @@ func (r *contentPolicyResource) Delete(
 		return
 	}
 
-	err := r.updatePolicyEnabledState(ctx, state.ID.ValueString(), false)
+	err := updatePolicyEnabledState(ctx, r.client, state.ID.ValueString(), false)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			tflog.Warn(
@@ -894,30 +850,6 @@ func (r *contentPolicyResource) ValidateConfig(
 	}
 }
 
-// updatePolicyEnabledState enables or disables a content update policy.
-func (r *contentPolicyResource) updatePolicyEnabledState(
-	ctx context.Context,
-	policyID string,
-	enabled bool,
-) error {
-	actionName := "disable"
-	if enabled {
-		actionName = "enable"
-	}
-
-	_, err := r.client.ContentUpdatePolicies.PerformContentUpdatePoliciesAction(
-		&content_update_policies.PerformContentUpdatePoliciesActionParams{
-			Context:    ctx,
-			ActionName: actionName,
-			Body: &models.MsaEntityActionRequestV2{
-				Ids: []string{policyID},
-			},
-		},
-	)
-
-	return err
-}
-
 // updateHostGroups will remove or add a slice of host groups to a content update policy.
 func (r *contentPolicyResource) updateHostGroups(
 	ctx context.Context,
@@ -961,38 +893,4 @@ func (r *contentPolicyResource) updateHostGroups(
 	)
 
 	return err
-}
-
-// getContentUpdatePolicy retrieves a content update policy by ID.
-func getContentUpdatePolicy(
-	ctx context.Context,
-	client *client.CrowdStrikeAPISpecification,
-	policyID string,
-) (*models.ContentUpdatePolicyV1, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	res, err := client.ContentUpdatePolicies.GetContentUpdatePolicies(
-		&content_update_policies.GetContentUpdatePoliciesParams{
-			Context: ctx,
-			Ids:     []string{policyID},
-		},
-	)
-
-	if err != nil {
-		diags.AddError(
-			"Error reading content update policy",
-			"Could not read content update policy: "+policyID+": "+err.Error(),
-		)
-		return nil, diags
-	}
-
-	if len(res.Payload.Resources) == 0 {
-		diags.AddError(
-			"Content update policy not found",
-			fmt.Sprintf("Content update policy with ID %s not found", policyID),
-		)
-		return nil, diags
-	}
-
-	return res.Payload.Resources[0], diags
 }

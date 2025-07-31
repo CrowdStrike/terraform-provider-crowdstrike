@@ -251,6 +251,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		fcs.NewCloudAzureTenantEventhubSettingsResource,
 		fcs.NewCloudAzureTenantResource,
 		contentupdatepolicy.NewContentPolicyResource,
+		contentupdatepolicy.NewDefaultContentUpdatePolicyResource,
 	}
 }
 
