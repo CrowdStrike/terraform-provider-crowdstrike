@@ -34,6 +34,7 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
+# Basic default content update policy
 resource "crowdstrike_default_content_update_policy" "default" {
   description = "Default content update policy for CrowdStrike environment"
 
@@ -58,6 +59,30 @@ resource "crowdstrike_default_content_update_policy" "default" {
   }
 }
 
+resource "crowdstrike_default_content_update_policy" "default" {
+  description = "Default content update policy"
+
+  sensor_operations = {
+    ring_assignment = "ga"
+    delay_hours     = 72
+  }
+
+  system_critical = {
+    ring_assignment        = "ga"
+    delay_hours            = 48
+    pinned_content_version = data.crowdstrike_content_category_versions.available.system_critical[0]
+  }
+
+  vulnerability_management = {
+    ring_assignment = "ga"
+    delay_hours     = 24
+  }
+
+  rapid_response = {
+    ring_assignment        = "ea"
+    pinned_content_version = data.crowdstrike_content_category_versions.available.rapid_response[0]
+  }
+}
 
 output "default_content_policy" {
   value       = crowdstrike_default_content_update_policy.default
@@ -91,6 +116,7 @@ Required:
 Optional:
 
 - `delay_hours` (Number) Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.
+- `pinned_content_version` (String) Pin content category to a specific version. When set, the content category will not automatically update to newer versions.
 
 
 <a id="nestedatt--sensor_operations"></a>
@@ -103,6 +129,7 @@ Required:
 Optional:
 
 - `delay_hours` (Number) Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.
+- `pinned_content_version` (String) Pin content category to a specific version. When set, the content category will not automatically update to newer versions.
 
 
 <a id="nestedatt--system_critical"></a>
@@ -115,6 +142,7 @@ Required:
 Optional:
 
 - `delay_hours` (Number) Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.
+- `pinned_content_version` (String) Pin content category to a specific version. When set, the content category will not automatically update to newer versions.
 
 
 <a id="nestedatt--vulnerability_management"></a>
@@ -127,6 +155,7 @@ Required:
 Optional:
 
 - `delay_hours` (Number) Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.
+- `pinned_content_version` (String) Pin content category to a specific version. When set, the content category will not automatically update to newer versions.
 
 ## Import
 
