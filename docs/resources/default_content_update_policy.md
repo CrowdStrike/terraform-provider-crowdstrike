@@ -1,6 +1,6 @@
 ---
 page_title: "crowdstrike_default_content_update_policy Resource - crowdstrike"
-subcategory: "Default Content Update Policy"
+subcategory: "Content Update Policy"
 description: |-
   This resource allows management of the default content update policy in the CrowdStrike Falcon platform. Destruction of this resource will not delete the default content update policy or remove any configured settings.
   API Scopes

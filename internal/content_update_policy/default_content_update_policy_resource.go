@@ -130,7 +130,7 @@ func (r *defaultContentUpdatePolicyResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: fmt.Sprintf(
-			"Default Content Update Policy --- This resource allows management of the default content update policy in the CrowdStrike Falcon platform. Destruction of this resource *will not* delete the default content update policy or remove any configured settings.\n\n%s",
+			"Content Update Policy --- This resource allows management of the default content update policy in the CrowdStrike Falcon platform. Destruction of this resource *will not* delete the default content update policy or remove any configured settings.\n\n%s",
 			scopes.GenerateScopeDescription(
 				[]scopes.Scope{
 					{
