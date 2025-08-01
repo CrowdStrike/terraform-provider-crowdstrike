@@ -1,4 +1,4 @@
-package contentupdatepolicy
+package contentupdatepolicy_test
 
 import (
 	"testing"
