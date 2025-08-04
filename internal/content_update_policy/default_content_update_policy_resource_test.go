@@ -187,7 +187,7 @@ func TestAccDefaultContentUpdatePolicyResource_Basic(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
-			tfversion.SkipBelow(version.Must(version.NewVersion("1.9.3"))),
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
 		},
 		Steps: func() []resource.TestStep {
 			var steps []resource.TestStep
@@ -311,7 +311,7 @@ func TestAccDefaultContentUpdatePolicyResource_PinnedContentVersionUpdates(t *te
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
-			tfversion.SkipBelow(version.Must(version.NewVersion("1.9.3"))),
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
 		},
 		Steps: func() []resource.TestStep {
 			var steps []resource.TestStep
@@ -432,7 +432,7 @@ func TestAccDefaultContentUpdatePolicyResource_PinnedContentVersionValidationErr
 				PreCheck:                 func() { acctest.PreCheck(t) },
 				ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 				TerraformVersionChecks: []tfversion.TerraformVersionCheck{
-					tfversion.SkipBelow(version.Must(version.NewVersion("1.9.3"))),
+					tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
 				},
 				Steps: []resource.TestStep{
 					// Start with clean initial state to ensure no pinned versions exist
@@ -522,7 +522,7 @@ func TestAccDefaultContentUpdatePolicyResource_PinnedContentVersionValidTransiti
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
-			tfversion.SkipBelow(version.Must(version.NewVersion("1.9.3"))),
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
 		},
 		Steps: func() []resource.TestStep {
 			var steps []resource.TestStep
@@ -620,7 +620,7 @@ func TestAccDefaultContentUpdatePolicyResource_PinnedContentVersion(t *testing.T
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
-			tfversion.SkipBelow(version.Must(version.NewVersion("1.9.3"))),
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
 		},
 		Steps: func() []resource.TestStep {
 			var steps []resource.TestStep
@@ -703,7 +703,7 @@ func TestAccDefaultContentUpdatePolicyResource_AllGA(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
-			tfversion.SkipBelow(version.Must(version.NewVersion("1.9.3"))),
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
 		},
 		Steps: func() []resource.TestStep {
 			var steps []resource.TestStep
@@ -752,7 +752,7 @@ func TestAccDefaultContentUpdatePolicyResource_AllEA(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
-			tfversion.SkipBelow(version.Must(version.NewVersion("1.9.3"))),
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
 		},
 		Steps: func() []resource.TestStep {
 			var steps []resource.TestStep
@@ -812,7 +812,7 @@ func TestAccDefaultContentUpdatePolicyResource_DelayHoursBoundaries(t *testing.T
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
-			tfversion.SkipBelow(version.Must(version.NewVersion("1.9.3"))),
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
 		},
 		Steps: func() []resource.TestStep {
 			var steps []resource.TestStep
@@ -971,7 +971,7 @@ func TestAccDefaultContentUpdatePolicyResource_Validation(t *testing.T) {
 				PreCheck:                 func() { acctest.PreCheck(t) },
 				ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 				TerraformVersionChecks: []tfversion.TerraformVersionCheck{
-					tfversion.SkipBelow(version.Must(version.NewVersion("1.9.3"))),
+					tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
 				},
 				Steps: []resource.TestStep{
 					{
@@ -1053,7 +1053,7 @@ func TestAccDefaultContentUpdatePolicyResource_RingTransitions(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
-			tfversion.SkipBelow(version.Must(version.NewVersion("1.9.3"))),
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
 		},
 		Steps: func() []resource.TestStep {
 			var steps []resource.TestStep
