@@ -3,15 +3,17 @@ package sensorvisibilityexclusion
 import (
 	"context"
 	"fmt"
-	"time"
+	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_visibility_exclusions"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -65,6 +67,86 @@ type SensorVisibilityExclusionResourceModel struct {
 	CreatedOn                  types.String `tfsdk:"created_on"`
 	CreatedBy                  types.String `tfsdk:"created_by"`
 	LastUpdated                types.String `tfsdk:"last_updated"`
+}
+
+// getSensorVisibilityExclusion retrieves a sensor visibility exclusion from the API.
+func (r *sensorVisibilityExclusionResource) getSensorVisibilityExclusion(
+	ctx context.Context,
+	exclusionID string,
+) (*models.SvExclusionsSVExclusionV1, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	params := sensor_visibility_exclusions.NewGetSensorVisibilityExclusionsV1ParamsWithContext(ctx)
+	params.SetIds([]string{exclusionID})
+
+	tflog.Debug(ctx, "Calling CrowdStrike API to get sensor visibility exclusion", map[string]any{
+		"exclusion_id": exclusionID,
+	})
+
+	getResp, err := r.client.SensorVisibilityExclusions.GetSensorVisibilityExclusionsV1(params)
+	if err != nil {
+		diags.AddError(
+			"Unable to Read Sensor Visibility Exclusion",
+			"An error occurred while reading the sensor visibility exclusion. "+
+				"Original Error: "+err.Error(),
+		)
+		return nil, diags
+	}
+
+	if getResp == nil || getResp.Payload == nil || len(getResp.Payload.Resources) == 0 {
+		diags.AddError(
+			"Sensor Visibility Exclusion Not Found",
+			"The sensor visibility exclusion was not found or the API returned no resources.",
+		)
+		return nil, diags
+	}
+
+	return getResp.Payload.Resources[0], diags
+}
+
+// wrap transforms the API response data to Terraform model values.
+// This follows the same pattern as content_update_policy's wrap method.
+func (m *SensorVisibilityExclusionResourceModel) wrap(
+	ctx context.Context,
+	exclusion *models.SvExclusionsSVExclusionV1,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	m.ID = types.StringPointerValue(exclusion.ID)
+	m.Value = types.StringPointerValue(exclusion.Value)
+	m.RegexpValue = types.StringPointerValue(exclusion.RegexpValue)
+	m.ValueHash = types.StringPointerValue(exclusion.ValueHash)
+	m.AppliedGlobally = types.BoolPointerValue(exclusion.AppliedGlobally)
+	m.LastModified = types.StringValue(exclusion.LastModified.String())
+	m.ModifiedBy = types.StringPointerValue(exclusion.ModifiedBy)
+	m.CreatedOn = types.StringValue(exclusion.CreatedOn.String())
+	m.CreatedBy = types.StringPointerValue(exclusion.CreatedBy)
+
+	if exclusion.Groups != nil && !*exclusion.AppliedGlobally {
+		tflog.Debug(ctx, "Mapping host groups to state", map[string]any{
+			"groups_from_api":  exclusion.Groups,
+			"applied_globally": *exclusion.AppliedGlobally,
+		})
+		groupsSet, groupsDiags := hostgroups.ConvertHostGroupsToSet(ctx, exclusion.Groups)
+		diags.Append(groupsDiags...)
+		if diags.HasError() {
+			tflog.Error(ctx, "Failed to convert groups to terraform set", map[string]any{
+				"groups": exclusion.Groups,
+			})
+			return diags
+		}
+		m.HostGroups = groupsSet
+		m.ApplyGlobally = types.BoolValue(false)
+	} else {
+		tflog.Debug(ctx, "Exclusion is applied globally, setting apply_globally to true", map[string]any{
+			"groups_nil":       exclusion.Groups == nil,
+			"applied_globally": exclusion.AppliedGlobally != nil && *exclusion.AppliedGlobally,
+		})
+		m.ApplyGlobally = types.BoolValue(true)
+		m.HostGroups = types.SetNull(types.StringType)
+	}
+
+	return diags
 }
 
 // Configure adds the provider configured client to the resource.
@@ -327,52 +409,38 @@ func (r *sensorVisibilityExclusionResource) Create(
 		return
 	}
 
-	exclusion := createResp.Payload.Resources[0]
+	createdExclusion := createResp.Payload.Resources[0]
 
 	tflog.Info(ctx, "Successfully created sensor visibility exclusion", map[string]any{
-		"exclusion_id":     *exclusion.ID,
-		"exclusion_value":  *exclusion.Value,
-		"regexp_value":     *exclusion.RegexpValue,
-		"value_hash":       *exclusion.ValueHash,
-		"applied_globally": *exclusion.AppliedGlobally,
-		"created_by":       *exclusion.CreatedBy,
-		"created_on":       exclusion.CreatedOn.String(),
+		"exclusion_id":     *createdExclusion.ID,
+		"exclusion_value":  *createdExclusion.Value,
+		"regexp_value":     *createdExclusion.RegexpValue,
+		"value_hash":       *createdExclusion.ValueHash,
+		"applied_globally": *createdExclusion.AppliedGlobally,
+		"created_by":       *createdExclusion.CreatedBy,
+		"created_on":       createdExclusion.CreatedOn.String(),
 	})
 
-	plan.ID = types.StringValue(*exclusion.ID)
-	plan.Value = types.StringValue(*exclusion.Value)
-	plan.RegexpValue = types.StringValue(*exclusion.RegexpValue)
-	plan.ValueHash = types.StringValue(*exclusion.ValueHash)
-	plan.AppliedGlobally = types.BoolValue(*exclusion.AppliedGlobally)
-	plan.LastModified = types.StringValue(exclusion.LastModified.String())
-	plan.ModifiedBy = types.StringValue(*exclusion.ModifiedBy)
-	plan.CreatedOn = types.StringValue(exclusion.CreatedOn.String())
-	plan.CreatedBy = types.StringValue(*exclusion.CreatedBy)
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
-
-	if exclusion.Groups != nil && !*exclusion.AppliedGlobally {
-		tflog.Debug(ctx, "Mapping host groups to state", map[string]any{
-			"groups_from_api":  exclusion.Groups,
-			"applied_globally": *exclusion.AppliedGlobally,
+	// Get the exclusion to ensure we have the correct type for the wrap method
+	exclusion, exclusionDiags := r.getSensorVisibilityExclusion(ctx, *createdExclusion.ID)
+	resp.Diagnostics.Append(exclusionDiags...)
+	if resp.Diagnostics.HasError() {
+		tflog.Error(ctx, "Failed to get exclusion after creation", map[string]any{
+			"exclusion_id": *createdExclusion.ID,
 		})
-		groupsSet, diags := hostgroups.ConvertHostGroupsToSet(ctx, exclusion.Groups)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			tflog.Error(ctx, "Failed to convert groups to terraform set", map[string]any{
-				"groups": exclusion.Groups,
-			})
-			return
-		}
-		plan.HostGroups = groupsSet
-		plan.ApplyGlobally = types.BoolValue(false)
-	} else {
-		tflog.Debug(ctx, "Exclusion is applied globally, setting apply_globally to true", map[string]any{
-			"groups_nil":       exclusion.Groups == nil,
-			"applied_globally": exclusion.AppliedGlobally != nil && *exclusion.AppliedGlobally,
-		})
-		plan.ApplyGlobally = types.BoolValue(true)
-		plan.HostGroups = types.SetNull(types.StringType)
+		return
 	}
+
+	// Use the centralized wrap method
+	resp.Diagnostics.Append(plan.wrap(ctx, exclusion)...)
+	if resp.Diagnostics.HasError() {
+		tflog.Error(ctx, "Failed to map API response to model", map[string]any{
+			"exclusion_id": *exclusion.ID,
+		})
+		return
+	}
+
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 
 	tflog.Debug(ctx, "Setting final state for sensor visibility exclusion")
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -404,44 +472,23 @@ func (r *sensorVisibilityExclusionResource) Read(
 		"exclusion_id": exclusionID,
 	})
 
-	params := sensor_visibility_exclusions.NewGetSensorVisibilityExclusionsV1ParamsWithContext(ctx)
-	params.SetIds([]string{exclusionID})
-
-	tflog.Debug(ctx, "Calling CrowdStrike API to read sensor visibility exclusion", map[string]any{
-		"exclusion_id": exclusionID,
-	})
-
-	getResp, err := r.client.SensorVisibilityExclusions.GetSensorVisibilityExclusionsV1(params)
-	if err != nil {
-		tflog.Error(ctx, "API call failed for sensor visibility exclusion read", map[string]any{
+	exclusion, diags := r.getSensorVisibilityExclusion(ctx, exclusionID)
+	if diags.HasError() {
+		for _, diag := range diags {
+			if strings.Contains(diag.Summary(), "not found") {
+				tflog.Warn(ctx, "Sensor visibility exclusion not found, removing from state", map[string]any{
+					"exclusion_id": exclusionID,
+				})
+				resp.State.RemoveResource(ctx)
+				return
+			}
+		}
+		tflog.Error(ctx, "Failed to get sensor visibility exclusion", map[string]any{
 			"exclusion_id": exclusionID,
-			"error":        err.Error(),
 		})
-		resp.Diagnostics.AddError(
-			"Unable to Read Sensor Visibility Exclusion",
-			"An error occurred while reading the sensor visibility exclusion. "+
-				"Original Error: "+err.Error(),
-		)
+		resp.Diagnostics.Append(diags...)
 		return
 	}
-
-	if getResp == nil || getResp.Payload == nil || len(getResp.Payload.Resources) == 0 {
-		tflog.Warn(
-			ctx,
-			"Sensor visibility exclusion not found, removing from state",
-			map[string]any{
-				"exclusion_id": exclusionID,
-				"response_nil": getResp == nil,
-				"payload_nil":  getResp != nil && getResp.Payload == nil,
-				"resources_empty": getResp != nil && getResp.Payload != nil &&
-					len(getResp.Payload.Resources) == 0,
-			},
-		)
-		resp.State.RemoveResource(ctx)
-		return
-	}
-
-	exclusion := getResp.Payload.Resources[0]
 
 	tflog.Debug(ctx, "Successfully retrieved sensor visibility exclusion from API", map[string]any{
 		"exclusion_id":     *exclusion.ID,
@@ -455,38 +502,13 @@ func (r *sensorVisibilityExclusionResource) Read(
 		"created_by":       *exclusion.CreatedBy,
 	})
 
-	state.ID = types.StringValue(*exclusion.ID)
-	state.Value = types.StringValue(*exclusion.Value)
-	state.RegexpValue = types.StringValue(*exclusion.RegexpValue)
-	state.ValueHash = types.StringValue(*exclusion.ValueHash)
-	state.AppliedGlobally = types.BoolValue(*exclusion.AppliedGlobally)
-	state.LastModified = types.StringValue(exclusion.LastModified.String())
-	state.ModifiedBy = types.StringValue(*exclusion.ModifiedBy)
-	state.CreatedOn = types.StringValue(exclusion.CreatedOn.String())
-	state.CreatedBy = types.StringValue(*exclusion.CreatedBy)
-
-	if exclusion.Groups != nil && !*exclusion.AppliedGlobally {
-		tflog.Debug(ctx, "Mapping host groups from API response to state", map[string]any{
-			"groups_from_api":  exclusion.Groups,
-			"applied_globally": *exclusion.AppliedGlobally,
+	// Use the centralized wrap method
+	resp.Diagnostics.Append(state.wrap(ctx, exclusion)...)
+	if resp.Diagnostics.HasError() {
+		tflog.Error(ctx, "Failed to map API response to model", map[string]any{
+			"exclusion_id": *exclusion.ID,
 		})
-		groupsSet, diags := hostgroups.ConvertHostGroupsToSet(ctx, exclusion.Groups)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			tflog.Error(ctx, "Failed to convert API groups to terraform set", map[string]any{
-				"groups": exclusion.Groups,
-			})
-			return
-		}
-		state.HostGroups = groupsSet
-		state.ApplyGlobally = types.BoolValue(false)
-	} else {
-		tflog.Debug(ctx, "Exclusion is applied globally, setting apply_globally to true", map[string]any{
-			"groups_nil":       exclusion.Groups == nil,
-			"applied_globally": exclusion.AppliedGlobally != nil && *exclusion.AppliedGlobally,
-		})
-		state.ApplyGlobally = types.BoolValue(true)
-		state.HostGroups = types.SetNull(types.StringType)
+		return
 	}
 
 	tflog.Debug(ctx, "Setting updated state for sensor visibility exclusion")
@@ -617,55 +639,38 @@ func (r *sensorVisibilityExclusionResource) Update(
 		return
 	}
 
-	exclusion := updateResp.Payload.Resources[0]
+	updatedExclusion := updateResp.Payload.Resources[0]
 
 	tflog.Info(ctx, "Successfully updated sensor visibility exclusion", map[string]any{
-		"exclusion_id":     *exclusion.ID,
-		"exclusion_value":  *exclusion.Value,
-		"regexp_value":     *exclusion.RegexpValue,
-		"value_hash":       *exclusion.ValueHash,
-		"applied_globally": *exclusion.AppliedGlobally,
-		"modified_by":      *exclusion.ModifiedBy,
-		"last_modified":    exclusion.LastModified.String(),
+		"exclusion_id":     *updatedExclusion.ID,
+		"exclusion_value":  *updatedExclusion.Value,
+		"regexp_value":     *updatedExclusion.RegexpValue,
+		"value_hash":       *updatedExclusion.ValueHash,
+		"applied_globally": *updatedExclusion.AppliedGlobally,
+		"modified_by":      *updatedExclusion.ModifiedBy,
+		"last_modified":    updatedExclusion.LastModified.String(),
 	})
 
-	plan.ID = types.StringValue(*exclusion.ID)
-	plan.Value = types.StringValue(*exclusion.Value)
-	plan.RegexpValue = types.StringValue(*exclusion.RegexpValue)
-	plan.ValueHash = types.StringValue(*exclusion.ValueHash)
-	plan.AppliedGlobally = types.BoolValue(*exclusion.AppliedGlobally)
-	plan.LastModified = types.StringValue(exclusion.LastModified.String())
-	plan.ModifiedBy = types.StringValue(*exclusion.ModifiedBy)
-	plan.CreatedOn = types.StringValue(exclusion.CreatedOn.String())
-	plan.CreatedBy = types.StringValue(*exclusion.CreatedBy)
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
-
-	if exclusion.Groups != nil && !*exclusion.AppliedGlobally {
-		tflog.Debug(ctx, "Mapping updated host groups to state", map[string]any{
-			"exclusion_id":     exclusionID,
-			"groups_from_api":  exclusion.Groups,
-			"applied_globally": *exclusion.AppliedGlobally,
+	// Get the exclusion to ensure we have the correct type for the wrap method
+	exclusion, exclusionDiags := r.getSensorVisibilityExclusion(ctx, *updatedExclusion.ID)
+	resp.Diagnostics.Append(exclusionDiags...)
+	if resp.Diagnostics.HasError() {
+		tflog.Error(ctx, "Failed to get exclusion after update", map[string]any{
+			"exclusion_id": *updatedExclusion.ID,
 		})
-		groupsSet, diags := hostgroups.ConvertHostGroupsToSet(ctx, exclusion.Groups)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			tflog.Error(ctx, "Failed to convert updated groups to terraform set", map[string]any{
-				"exclusion_id": exclusionID,
-				"groups":       exclusion.Groups,
-			})
-			return
-		}
-		plan.HostGroups = groupsSet
-		plan.ApplyGlobally = types.BoolValue(false)
-	} else {
-		tflog.Debug(ctx, "Exclusion is applied globally after update, setting apply_globally to true", map[string]any{
-			"exclusion_id":     exclusionID,
-			"groups_nil":       exclusion.Groups == nil,
-			"applied_globally": exclusion.AppliedGlobally != nil && *exclusion.AppliedGlobally,
-		})
-		plan.ApplyGlobally = types.BoolValue(true)
-		plan.HostGroups = types.SetNull(types.StringType)
+		return
 	}
+
+	// Use the centralized wrap method
+	resp.Diagnostics.Append(plan.wrap(ctx, exclusion)...)
+	if resp.Diagnostics.HasError() {
+		tflog.Error(ctx, "Failed to map API response to model", map[string]any{
+			"exclusion_id": *exclusion.ID,
+		})
+		return
+	}
+
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 
 	tflog.Debug(ctx, "Setting updated state for sensor visibility exclusion")
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
