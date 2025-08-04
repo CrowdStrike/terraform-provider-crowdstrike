@@ -253,11 +253,14 @@ func (r *sensorVisibilityExclusionResource) Create(
 		"host_groups_configured":        !plan.HostGroups.IsNull() && !plan.HostGroups.IsUnknown(),
 	})
 
-	hasApplyGlobally := !plan.ApplyGlobally.IsNull() && plan.ApplyGlobally.ValueBool()
-	hasHostGroups := !plan.HostGroups.IsNull() && !plan.HostGroups.IsUnknown()
-
 	var groups []string
-	if hasHostGroups {
+	if plan.ApplyGlobally.ValueBool() {
+		groups = []string{"all"}
+		tflog.Debug(ctx, "Applying exclusion globally due to apply_globally=true", map[string]any{
+			"groups": groups,
+		})
+	} else {
+		// Extract host groups from plan
 		var groupsList []string
 		resp.Diagnostics.Append(plan.HostGroups.ElementsAs(ctx, &groupsList, false)...)
 		if resp.Diagnostics.HasError() {
@@ -271,11 +274,6 @@ func (r *sensorVisibilityExclusionResource) Create(
 		tflog.Debug(ctx, "Using specific host groups for exclusion", map[string]any{
 			"groups_count": len(groups),
 			"groups":       groups,
-		})
-	} else if hasApplyGlobally {
-		groups = []string{"all"}
-		tflog.Debug(ctx, "Applying exclusion globally due to apply_globally=true", map[string]any{
-			"groups": groups,
 		})
 	}
 
@@ -527,11 +525,15 @@ func (r *sensorVisibilityExclusionResource) Update(
 	})
 
 	// Determine host groups based on apply_globally flag
-	hasApplyGlobally := !plan.ApplyGlobally.IsNull() && plan.ApplyGlobally.ValueBool()
-	hasHostGroups := !plan.HostGroups.IsNull() && !plan.HostGroups.IsUnknown()
-
 	var groups []string
-	if hasHostGroups {
+	if plan.ApplyGlobally.ValueBool() {
+		groups = []string{"all"}
+		tflog.Debug(ctx, "Applying exclusion globally due to apply_globally=true", map[string]any{
+			"exclusion_id": exclusionID,
+			"groups":       groups,
+		})
+	} else {
+		// Extract host groups from plan
 		var groupsList []string
 		resp.Diagnostics.Append(plan.HostGroups.ElementsAs(ctx, &groupsList, false)...)
 		if resp.Diagnostics.HasError() {
@@ -546,12 +548,6 @@ func (r *sensorVisibilityExclusionResource) Update(
 		tflog.Debug(ctx, "Using specific host groups for exclusion update", map[string]any{
 			"exclusion_id": exclusionID,
 			"groups_count": len(groups),
-			"groups":       groups,
-		})
-	} else if hasApplyGlobally {
-		groups = []string{"all"}
-		tflog.Debug(ctx, "Applying exclusion globally due to apply_globally=true", map[string]any{
-			"exclusion_id": exclusionID,
 			"groups":       groups,
 		})
 	}
