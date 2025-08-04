@@ -11,6 +11,8 @@ import (
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -109,6 +111,7 @@ func (r *sensorVisibilityExclusionResource) getSensorVisibilityExclusion(
 func (m *SensorVisibilityExclusionResourceModel) wrap(
 	ctx context.Context,
 	exclusion *models.SvExclusionsSVExclusionV1,
+	validateHostGroups bool,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -116,34 +119,62 @@ func (m *SensorVisibilityExclusionResourceModel) wrap(
 	m.Value = types.StringPointerValue(exclusion.Value)
 	m.RegexpValue = types.StringPointerValue(exclusion.RegexpValue)
 	m.ValueHash = types.StringPointerValue(exclusion.ValueHash)
+	m.ApplyGlobally = types.BoolPointerValue(exclusion.AppliedGlobally)
 	m.AppliedGlobally = types.BoolPointerValue(exclusion.AppliedGlobally)
 	m.LastModified = types.StringValue(exclusion.LastModified.String())
 	m.ModifiedBy = types.StringPointerValue(exclusion.ModifiedBy)
 	m.CreatedOn = types.StringValue(exclusion.CreatedOn.String())
 	m.CreatedBy = types.StringPointerValue(exclusion.CreatedBy)
 
-	if exclusion.Groups != nil && !*exclusion.AppliedGlobally {
-		tflog.Debug(ctx, "Mapping host groups to state", map[string]any{
-			"groups_from_api":  exclusion.Groups,
-			"applied_globally": *exclusion.AppliedGlobally,
+	// Convert API groups to terraform set
+	groupsSet, groupsDiags := hostgroups.ConvertHostGroupsToSet(ctx, exclusion.Groups)
+	diags.Append(groupsDiags...)
+	if diags.HasError() {
+		tflog.Error(ctx, "Failed to convert groups to terraform set", map[string]any{
+			"groups": exclusion.Groups,
 		})
-		groupsSet, groupsDiags := hostgroups.ConvertHostGroupsToSet(ctx, exclusion.Groups)
-		diags.Append(groupsDiags...)
-		if diags.HasError() {
-			tflog.Error(ctx, "Failed to convert groups to terraform set", map[string]any{
-				"groups": exclusion.Groups,
-			})
-			return diags
+		return diags
+	}
+
+	if validateHostGroups {
+		exclusionGroups := make([]string, 0, len(exclusion.Groups))
+		modelGroups := make([]string, 0, len(m.HostGroups.Elements()))
+
+		if len(exclusion.Groups) > 0 {
+			for _, hostGroup := range exclusion.Groups {
+				exclusionGroups = append(exclusionGroups, *hostGroup.ID)
+			}
 		}
+
+		diags.Append(m.HostGroups.ElementsAs(ctx, &modelGroups, true)...)
+
+		if modelGroups == nil {
+			modelGroups = []string{}
+		}
+
+		if exclusionGroups == nil {
+			exclusionGroups = []string{}
+		}
+
+		less := func(a, b string) bool { return a < b }
+		hostGroupDiff := cmp.Diff(exclusionGroups, modelGroups, cmpopts.SortSlices(less))
+		if hostGroupDiff != "" {
+			summary := "Apply ran without issue, but sensor visibility exclusion is still missing host groups. This usually happens when an invalid host group is provided."
+
+			if len(exclusionGroups) > 0 {
+				summary = fmt.Sprintf(
+					"%s\n\nThe following host groups are valid and assigned to the sensor visibility exclusion:\n\n%s",
+					summary,
+					strings.Join(exclusionGroups, "\n"),
+				)
+			}
+			diags.AddAttributeError(path.Root("host_groups"), "Host group mismatch", summary)
+		}
+	}
+
+	// allow host_groups to stay null instead of defaulting to an empty set when there are no host groups
+	if !m.HostGroups.IsNull() || len(groupsSet.Elements()) != 0 {
 		m.HostGroups = groupsSet
-		m.ApplyGlobally = types.BoolValue(false)
-	} else {
-		tflog.Debug(ctx, "Exclusion is applied globally, setting apply_globally to true", map[string]any{
-			"groups_nil":       exclusion.Groups == nil,
-			"applied_globally": exclusion.AppliedGlobally != nil && *exclusion.AppliedGlobally,
-		})
-		m.ApplyGlobally = types.BoolValue(true)
-		m.HostGroups = types.SetNull(types.StringType)
 	}
 
 	return diags
@@ -379,10 +410,6 @@ func (r *sensorVisibilityExclusionResource) Create(
 	tflog.Debug(ctx, "Calling CrowdStrike API to create sensor visibility exclusion")
 	createResp, err := r.client.SensorVisibilityExclusions.CreateSVExclusionsV1(params)
 	if err != nil {
-		tflog.Error(ctx, "API call failed for sensor visibility exclusion creation", map[string]any{
-			"error":           err.Error(),
-			"exclusion_value": plan.Value.ValueString(),
-		})
 		resp.Diagnostics.AddError(
 			"Unable to Create Sensor Visibility Exclusion",
 			"An error occurred while creating the sensor visibility exclusion. "+
@@ -432,7 +459,7 @@ func (r *sensorVisibilityExclusionResource) Create(
 	}
 
 	// Use the centralized wrap method
-	resp.Diagnostics.Append(plan.wrap(ctx, exclusion)...)
+	resp.Diagnostics.Append(plan.wrap(ctx, exclusion, true)...)
 	if resp.Diagnostics.HasError() {
 		tflog.Error(ctx, "Failed to map API response to model", map[string]any{
 			"exclusion_id": *exclusion.ID,
@@ -503,7 +530,7 @@ func (r *sensorVisibilityExclusionResource) Read(
 	})
 
 	// Use the centralized wrap method
-	resp.Diagnostics.Append(state.wrap(ctx, exclusion)...)
+	resp.Diagnostics.Append(state.wrap(ctx, exclusion, false)...)
 	if resp.Diagnostics.HasError() {
 		tflog.Error(ctx, "Failed to map API response to model", map[string]any{
 			"exclusion_id": *exclusion.ID,
@@ -612,6 +639,7 @@ func (r *sensorVisibilityExclusionResource) Update(
 			"exclusion_id": exclusionID,
 			"error":        err.Error(),
 		})
+
 		resp.Diagnostics.AddError(
 			"Unable to Update Sensor Visibility Exclusion",
 			"An error occurred while updating the sensor visibility exclusion. "+
@@ -662,7 +690,7 @@ func (r *sensorVisibilityExclusionResource) Update(
 	}
 
 	// Use the centralized wrap method
-	resp.Diagnostics.Append(plan.wrap(ctx, exclusion)...)
+	resp.Diagnostics.Append(plan.wrap(ctx, exclusion, true)...)
 	if resp.Diagnostics.HasError() {
 		tflog.Error(ctx, "Failed to map API response to model", map[string]any{
 			"exclusion_id": *exclusion.ID,
