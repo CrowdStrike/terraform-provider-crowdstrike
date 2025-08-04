@@ -14,5 +14,6 @@ provider "crowdstrike" {
 resource "crowdstrike_sensor_visibility_exclusion" "group_exclusion" {
   value       = "C:\\MyApp\\*"
   comment     = "Exclude MyApp directory for development hosts"
-  host_groups = ["all"]
+  host_groups = []
+  apply_globally = true
 }

@@ -146,7 +146,9 @@ func (r *sensorVisibilityExclusionResource) Schema(
 			},
 			"apply_globally": schema.BoolAttribute{
 				Optional:            true,
+				Computed:            true,
 				MarkdownDescription: "Whether to apply the exclusion globally to all host groups. Cannot be used together with `host_groups`.",
+				Default:             booldefault.StaticBool(false),
 			},
 			"host_groups": schema.SetAttribute{
 				Optional:            true,
@@ -208,8 +210,8 @@ func (r *sensorVisibilityExclusionResource) ValidateConfig(
 	}
 
 	// Validate that either apply_globally is true OR host_groups is provided, but not both
-	hasApplyGlobally := !config.ApplyGlobally.IsNull() && config.ApplyGlobally.ValueBool()
-	hasHostGroups := !config.HostGroups.IsNull()
+	hasApplyGlobally := config.ApplyGlobally.ValueBool()
+	hasHostGroups := len(config.HostGroups.Elements()) > 0
 
 	if hasApplyGlobally && hasHostGroups {
 		resp.Diagnostics.AddAttributeError(
@@ -310,11 +312,16 @@ func (r *sensorVisibilityExclusionResource) Create(
 	}
 
 	if createResp == nil || createResp.Payload == nil || len(createResp.Payload.Resources) == 0 {
-		tflog.Error(ctx, "API returned empty or invalid response for sensor visibility exclusion creation", map[string]any{
-			"response_nil":    createResp == nil,
-			"payload_nil":     createResp != nil && createResp.Payload == nil,
-			"resources_empty": createResp != nil && createResp.Payload != nil && len(createResp.Payload.Resources) == 0,
-		})
+		tflog.Error(
+			ctx,
+			"API returned empty or invalid response for sensor visibility exclusion creation",
+			map[string]any{
+				"response_nil": createResp == nil,
+				"payload_nil":  createResp != nil && createResp.Payload == nil,
+				"resources_empty": createResp != nil && createResp.Payload != nil &&
+					len(createResp.Payload.Resources) == 0,
+			},
+		)
 		resp.Diagnostics.AddError(
 			"Unable to Create Sensor Visibility Exclusion",
 			"An error occurred while creating the sensor visibility exclusion. No resource was returned.",
@@ -421,12 +428,17 @@ func (r *sensorVisibilityExclusionResource) Read(
 	}
 
 	if getResp == nil || getResp.Payload == nil || len(getResp.Payload.Resources) == 0 {
-		tflog.Warn(ctx, "Sensor visibility exclusion not found, removing from state", map[string]any{
-			"exclusion_id":    exclusionID,
-			"response_nil":    getResp == nil,
-			"payload_nil":     getResp != nil && getResp.Payload == nil,
-			"resources_empty": getResp != nil && getResp.Payload != nil && len(getResp.Payload.Resources) == 0,
-		})
+		tflog.Warn(
+			ctx,
+			"Sensor visibility exclusion not found, removing from state",
+			map[string]any{
+				"exclusion_id": exclusionID,
+				"response_nil": getResp == nil,
+				"payload_nil":  getResp != nil && getResp.Payload == nil,
+				"resources_empty": getResp != nil && getResp.Payload != nil &&
+					len(getResp.Payload.Resources) == 0,
+			},
+		)
 		resp.State.RemoveResource(ctx)
 		return
 	}
@@ -561,14 +573,22 @@ func (r *sensorVisibilityExclusionResource) Update(
 		"request_is_descendant_process": updateReq.IsDescendantProcess,
 	})
 
-	params := sensor_visibility_exclusions.NewUpdateSensorVisibilityExclusionsV1ParamsWithContext(ctx)
+	params := sensor_visibility_exclusions.NewUpdateSensorVisibilityExclusionsV1ParamsWithContext(
+		ctx,
+	)
 	params.SetBody(updateReq)
 
-	tflog.Debug(ctx, "Calling CrowdStrike API to update sensor visibility exclusion", map[string]any{
-		"exclusion_id": exclusionID,
-	})
+	tflog.Debug(
+		ctx,
+		"Calling CrowdStrike API to update sensor visibility exclusion",
+		map[string]any{
+			"exclusion_id": exclusionID,
+		},
+	)
 
-	updateResp, err := r.client.SensorVisibilityExclusions.UpdateSensorVisibilityExclusionsV1(params)
+	updateResp, err := r.client.SensorVisibilityExclusions.UpdateSensorVisibilityExclusionsV1(
+		params,
+	)
 	if err != nil {
 		tflog.Error(ctx, "API call failed for sensor visibility exclusion update", map[string]any{
 			"exclusion_id": exclusionID,
@@ -583,12 +603,17 @@ func (r *sensorVisibilityExclusionResource) Update(
 	}
 
 	if updateResp == nil || updateResp.Payload == nil || len(updateResp.Payload.Resources) == 0 {
-		tflog.Error(ctx, "API returned empty or invalid response for sensor visibility exclusion update", map[string]any{
-			"exclusion_id":    exclusionID,
-			"response_nil":    updateResp == nil,
-			"payload_nil":     updateResp != nil && updateResp.Payload == nil,
-			"resources_empty": updateResp != nil && updateResp.Payload != nil && len(updateResp.Payload.Resources) == 0,
-		})
+		tflog.Error(
+			ctx,
+			"API returned empty or invalid response for sensor visibility exclusion update",
+			map[string]any{
+				"exclusion_id": exclusionID,
+				"response_nil": updateResp == nil,
+				"payload_nil":  updateResp != nil && updateResp.Payload == nil,
+				"resources_empty": updateResp != nil && updateResp.Payload != nil &&
+					len(updateResp.Payload.Resources) == 0,
+			},
+		)
 		resp.Diagnostics.AddError(
 			"Unable to Update Sensor Visibility Exclusion",
 			"An error occurred while updating the sensor visibility exclusion. No resource was returned.",
@@ -677,14 +702,22 @@ func (r *sensorVisibilityExclusionResource) Delete(
 		"exclusion_value": state.Value.ValueString(),
 	})
 
-	params := sensor_visibility_exclusions.NewDeleteSensorVisibilityExclusionsV1ParamsWithContext(ctx)
+	params := sensor_visibility_exclusions.NewDeleteSensorVisibilityExclusionsV1ParamsWithContext(
+		ctx,
+	)
 	params.SetIds([]string{exclusionID})
 
-	tflog.Debug(ctx, "Calling CrowdStrike API to delete sensor visibility exclusion", map[string]any{
-		"exclusion_id": exclusionID,
-	})
+	tflog.Debug(
+		ctx,
+		"Calling CrowdStrike API to delete sensor visibility exclusion",
+		map[string]any{
+			"exclusion_id": exclusionID,
+		},
+	)
 
-	deleteResp, err := r.client.SensorVisibilityExclusions.DeleteSensorVisibilityExclusionsV1(params)
+	deleteResp, err := r.client.SensorVisibilityExclusions.DeleteSensorVisibilityExclusionsV1(
+		params,
+	)
 	if err != nil {
 		tflog.Error(ctx, "API call failed for sensor visibility exclusion deletion", map[string]any{
 			"exclusion_id": exclusionID,
