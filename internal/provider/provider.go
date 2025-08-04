@@ -16,6 +16,7 @@ import (
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
+	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/function"
@@ -252,6 +253,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		fcs.NewCloudAzureTenantResource,
 		contentupdatepolicy.NewContentPolicyResource,
 		contentupdatepolicy.NewDefaultContentUpdatePolicyResource,
+		sensorvisibilityexclusion.NewSensorVisibilityExclusionResource,
 	}
 }
 
