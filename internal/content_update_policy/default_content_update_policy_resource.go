@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/content_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -19,6 +20,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
@@ -28,6 +30,7 @@ var (
 	_ resource.ResourceWithConfigure      = &defaultContentUpdatePolicyResource{}
 	_ resource.ResourceWithImportState    = &defaultContentUpdatePolicyResource{}
 	_ resource.ResourceWithValidateConfig = &defaultContentUpdatePolicyResource{}
+	_ resource.ResourceWithModifyPlan     = &defaultContentUpdatePolicyResource{}
 )
 
 // NewDefaultContentUpdatePolicyResource is a helper function to simplify the provider implementation.
@@ -50,20 +53,56 @@ type defaultContentUpdatePolicyResourceModel struct {
 	RapidResponse           types.Object `tfsdk:"rapid_response"`
 	LastUpdated             types.String `tfsdk:"last_updated"`
 
-	settings *contentUpdatePolicySettings `tfsdk:"-"`
+	// Direct access - no intermediate wrapper
+	sensorOperationsSettings        *ringAssignmentModel `tfsdk:"-"`
+	systemCriticalSettings          *ringAssignmentModel `tfsdk:"-"`
+	vulnerabilityManagementSettings *ringAssignmentModel `tfsdk:"-"`
+	rapidResponseSettings           *ringAssignmentModel `tfsdk:"-"`
 }
 
 // extract extracts the Go values from their terraform wrapped values.
 func (d *defaultContentUpdatePolicyResourceModel) extract(ctx context.Context) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	d.settings, diags = extractRingAssignments(
-		ctx,
-		d.SensorOperations,
-		d.SystemCritical,
-		d.VulnerabilityManagement,
-		d.RapidResponse,
-	)
+	// Extract sensor operations
+	if !d.SensorOperations.IsNull() {
+		var sensorOperations ringAssignmentModel
+		sensorOpsDiags := d.SensorOperations.As(ctx, &sensorOperations, basetypes.ObjectAsOptions{})
+		diags.Append(sensorOpsDiags...)
+		if !sensorOpsDiags.HasError() {
+			d.sensorOperationsSettings = &sensorOperations
+		}
+	}
+
+	// Extract system critical
+	if !d.SystemCritical.IsNull() {
+		var systemCritical ringAssignmentModel
+		systemCritDiags := d.SystemCritical.As(ctx, &systemCritical, basetypes.ObjectAsOptions{})
+		diags.Append(systemCritDiags...)
+		if !systemCritDiags.HasError() {
+			d.systemCriticalSettings = &systemCritical
+		}
+	}
+
+	// Extract vulnerability management
+	if !d.VulnerabilityManagement.IsNull() {
+		var vulnerabilityManagement ringAssignmentModel
+		vulnMgmtDiags := d.VulnerabilityManagement.As(ctx, &vulnerabilityManagement, basetypes.ObjectAsOptions{})
+		diags.Append(vulnMgmtDiags...)
+		if !vulnMgmtDiags.HasError() {
+			d.vulnerabilityManagementSettings = &vulnerabilityManagement
+		}
+	}
+
+	// Extract rapid response
+	if !d.RapidResponse.IsNull() {
+		var rapidResponse ringAssignmentModel
+		rapidRespDiags := d.RapidResponse.As(ctx, &rapidResponse, basetypes.ObjectAsOptions{})
+		diags.Append(rapidRespDiags...)
+		if !rapidRespDiags.HasError() {
+			d.rapidResponseSettings = &rapidResponse
+		}
+	}
 
 	return diags
 }
@@ -78,10 +117,70 @@ func (d *defaultContentUpdatePolicyResourceModel) wrap(
 	d.ID = types.StringValue(*policy.ID)
 	d.Description = types.StringPointerValue(policy.Description)
 
-	d.SensorOperations, d.SystemCritical, d.VulnerabilityManagement, d.RapidResponse, diags = populateRingAssignments(
-		ctx,
-		policy,
-	)
+	// Update ring assignments using the settings from the API response
+	if policy.Settings != nil && policy.Settings.RingAssignmentSettings != nil {
+		for _, setting := range policy.Settings.RingAssignmentSettings {
+			switch *setting.ID {
+			case "sensor_operations":
+				if d.sensorOperationsSettings == nil {
+					d.sensorOperationsSettings = &ringAssignmentModel{}
+					if !d.SensorOperations.IsNull() {
+						d.SensorOperations.As(ctx, d.sensorOperationsSettings, basetypes.ObjectAsOptions{})
+					}
+				}
+				d.sensorOperationsSettings.wrap(setting)
+			case "system_critical":
+				if d.systemCriticalSettings == nil {
+					d.systemCriticalSettings = &ringAssignmentModel{}
+					if !d.SystemCritical.IsNull() {
+						d.SystemCritical.As(ctx, d.systemCriticalSettings, basetypes.ObjectAsOptions{})
+					}
+				}
+				d.systemCriticalSettings.wrap(setting)
+			case "vulnerability_management":
+				if d.vulnerabilityManagementSettings == nil {
+					d.vulnerabilityManagementSettings = &ringAssignmentModel{}
+					if !d.VulnerabilityManagement.IsNull() {
+						d.VulnerabilityManagement.As(ctx, d.vulnerabilityManagementSettings, basetypes.ObjectAsOptions{})
+					}
+				}
+				d.vulnerabilityManagementSettings.wrap(setting)
+			case "rapid_response_al_bl_listing":
+				if d.rapidResponseSettings == nil {
+					d.rapidResponseSettings = &ringAssignmentModel{}
+					if !d.RapidResponse.IsNull() {
+						d.RapidResponse.As(ctx, d.rapidResponseSettings, basetypes.ObjectAsOptions{})
+					}
+				}
+				d.rapidResponseSettings.wrap(setting)
+			}
+		}
+	}
+
+	// Convert ring assignment models to terraform objects
+	if d.systemCriticalSettings != nil {
+		systemCriticalObj, systemCriticalDiags := utils.ConvertModelToTerraformObject(ctx, d.systemCriticalSettings)
+		d.SystemCritical = systemCriticalObj
+		diags.Append(systemCriticalDiags...)
+	}
+
+	if d.sensorOperationsSettings != nil {
+		sensorOperationsObj, sensorOperationsDiags := utils.ConvertModelToTerraformObject(ctx, d.sensorOperationsSettings)
+		d.SensorOperations = sensorOperationsObj
+		diags.Append(sensorOperationsDiags...)
+	}
+
+	if d.rapidResponseSettings != nil {
+		rapidResponseObj, rapidResponseDiags := utils.ConvertModelToTerraformObject(ctx, d.rapidResponseSettings)
+		d.RapidResponse = rapidResponseObj
+		diags.Append(rapidResponseDiags...)
+	}
+
+	if d.vulnerabilityManagementSettings != nil {
+		vulnerabilityMgmtObj, vulnerabilityMgmtDiags := utils.ConvertModelToTerraformObject(ctx, d.vulnerabilityManagementSettings)
+		d.VulnerabilityManagement = vulnerabilityMgmtObj
+		diags.Append(vulnerabilityMgmtDiags...)
+	}
 
 	return diags
 }
@@ -174,6 +273,10 @@ func (r *defaultContentUpdatePolicyResource) Schema(
 						Description: "Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.",
 						Validators:  delayHoursValidators(),
 					},
+					"pinned_content_version": schema.StringAttribute{
+						Optional:    true,
+						Description: "Pin content category to a specific version. When set, the content category will not automatically update to newer versions.",
+					},
 				},
 			},
 			"system_critical": schema.SingleNestedAttribute{
@@ -189,6 +292,10 @@ func (r *defaultContentUpdatePolicyResource) Schema(
 						Optional:    true,
 						Description: "Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.",
 						Validators:  delayHoursValidators(),
+					},
+					"pinned_content_version": schema.StringAttribute{
+						Optional:    true,
+						Description: "Pin content category to a specific version. When set, the content category will not automatically update to newer versions.",
 					},
 				},
 			},
@@ -206,6 +313,10 @@ func (r *defaultContentUpdatePolicyResource) Schema(
 						Description: "Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.",
 						Validators:  delayHoursValidators(),
 					},
+					"pinned_content_version": schema.StringAttribute{
+						Optional:    true,
+						Description: "Pin content category to a specific version. When set, the content category will not automatically update to newer versions.",
+					},
 				},
 			},
 			"rapid_response": schema.SingleNestedAttribute{
@@ -222,6 +333,10 @@ func (r *defaultContentUpdatePolicyResource) Schema(
 						Description: "Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.",
 						Validators:  delayHoursValidators(),
 					},
+					"pinned_content_version": schema.StringAttribute{
+						Optional:    true,
+						Description: "Pin content category to a specific version. When set, the content category will not automatically update to newer versions.",
+					},
 				},
 			},
 		},
@@ -234,7 +349,7 @@ func (r *defaultContentUpdatePolicyResource) Create(
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-	tflog.Debug(ctx, "Starting default content update policy create operation")
+	tflog.Trace(ctx, "Starting default content update policy create")
 
 	var plan defaultContentUpdatePolicyResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -251,9 +366,6 @@ func (r *defaultContentUpdatePolicyResource) Create(
 	}
 
 	plan.ID = types.StringValue(*policy.ID)
-	tflog.Debug(ctx, "Found default content update policy", map[string]any{
-		"policy_id": *policy.ID,
-	})
 
 	resp.Diagnostics.Append(
 		resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)...)
@@ -261,8 +373,68 @@ func (r *defaultContentUpdatePolicyResource) Create(
 		return
 	}
 
-	// Update the policy with the planned configuration
-	tflog.Debug(ctx, "Updating default content update policy with planned configuration")
+	var currentSensorOps, currentSystemCrit, currentVulnMgmt, currentRapidResp *ringAssignmentModel
+
+	if policy.Settings != nil && policy.Settings.RingAssignmentSettings != nil {
+		for _, setting := range policy.Settings.RingAssignmentSettings {
+			ringModel := &ringAssignmentModel{
+				RingAssignment: types.StringValue(*setting.RingAssignment),
+			}
+
+			if setting.PinnedContentVersion != nil && *setting.PinnedContentVersion != "" {
+				ringModel.PinnedContentVersion = types.StringValue(*setting.PinnedContentVersion)
+			} else {
+				ringModel.PinnedContentVersion = types.StringNull()
+			}
+
+			switch *setting.ID {
+			case "sensor_operations":
+				currentSensorOps = ringModel
+			case "system_critical":
+				currentSystemCrit = ringModel
+			case "vulnerability_management":
+				currentVulnMgmt = ringModel
+			case "rapid_response_al_bl_listing":
+				currentRapidResp = ringModel
+			}
+		}
+	}
+
+	var plannedSensorOps, plannedSystemCrit, plannedVulnMgmt, plannedRapidResp ringAssignmentModel
+	if plan.sensorOperationsSettings != nil {
+		plannedSensorOps = *plan.sensorOperationsSettings
+	}
+	if plan.systemCriticalSettings != nil {
+		plannedSystemCrit = *plan.systemCriticalSettings
+	}
+	if plan.vulnerabilityManagementSettings != nil {
+		plannedVulnMgmt = *plan.vulnerabilityManagementSettings
+	}
+	if plan.rapidResponseSettings != nil {
+		plannedRapidResp = *plan.rapidResponseSettings
+	}
+
+	err := managePinnedContentVersions(
+		ctx,
+		r.client,
+		plan.ID.ValueString(),
+		currentSensorOps,
+		currentSystemCrit,
+		currentVulnMgmt,
+		currentRapidResp,
+		plannedSensorOps,
+		plannedSystemCrit,
+		plannedVulnMgmt,
+		plannedRapidResp,
+	)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error setting pinned content versions",
+			"Could not set pinned content versions, unexpected error: "+err.Error(),
+		)
+		return
+	}
+
 	policy, diags = r.updateDefaultPolicy(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -275,8 +447,6 @@ func (r *defaultContentUpdatePolicyResource) Create(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	tflog.Debug(ctx, "Default content update policy create operation completed successfully")
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -285,27 +455,21 @@ func (r *defaultContentUpdatePolicyResource) Read(
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
+	tflog.Trace(ctx, "Starting default content update policy read")
+
 	var state defaultContentUpdatePolicyResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	tflog.Debug(ctx, "Reading default content update policy", map[string]any{
+	tflog.Debug(ctx, "Retrieving default content update policy", map[string]interface{}{
 		"policy_id": state.ID.ValueString(),
 	})
-
 	policy, diags := getContentUpdatePolicy(ctx, r.client, state.ID.ValueString())
 	if diags.HasError() {
 		for _, diag := range diags {
 			if strings.Contains(diag.Summary(), "not found") {
-				tflog.Warn(
-					ctx,
-					fmt.Sprintf(
-						"default content update policy %s not found, removing from state",
-						state.ID,
-					),
-				)
 				resp.State.RemoveResource(ctx)
 				return
 			}
@@ -313,10 +477,6 @@ func (r *defaultContentUpdatePolicyResource) Read(
 		resp.Diagnostics.Append(diags...)
 		return
 	}
-
-	tflog.Debug(ctx, "Successfully retrieved default content update policy", map[string]any{
-		"policy_id": state.ID.ValueString(),
-	})
 
 	resp.Diagnostics.Append(state.wrap(ctx, *policy)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -331,6 +491,8 @@ func (r *defaultContentUpdatePolicyResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
+	tflog.Trace(ctx, "Starting default content update policy update")
+
 	var plan defaultContentUpdatePolicyResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(plan.extract(ctx)...)
@@ -338,13 +500,63 @@ func (r *defaultContentUpdatePolicyResource) Update(
 		return
 	}
 
-	tflog.Debug(
+	var state defaultContentUpdatePolicyResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(state.extract(ctx)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Handle pinned content versions FIRST to avoid API conflicts with ring assignment changes
+	var stateSensorOps, stateSystemCrit, stateVulnMgmt, stateRapidResp ringAssignmentModel
+	var plannedSensorOps, plannedSystemCrit, plannedVulnMgmt, plannedRapidResp ringAssignmentModel
+
+	if state.sensorOperationsSettings != nil {
+		stateSensorOps = *state.sensorOperationsSettings
+	}
+	if state.systemCriticalSettings != nil {
+		stateSystemCrit = *state.systemCriticalSettings
+	}
+	if state.vulnerabilityManagementSettings != nil {
+		stateVulnMgmt = *state.vulnerabilityManagementSettings
+	}
+	if state.rapidResponseSettings != nil {
+		stateRapidResp = *state.rapidResponseSettings
+	}
+
+	if plan.sensorOperationsSettings != nil {
+		plannedSensorOps = *plan.sensorOperationsSettings
+	}
+	if plan.systemCriticalSettings != nil {
+		plannedSystemCrit = *plan.systemCriticalSettings
+	}
+	if plan.vulnerabilityManagementSettings != nil {
+		plannedVulnMgmt = *plan.vulnerabilityManagementSettings
+	}
+	if plan.rapidResponseSettings != nil {
+		plannedRapidResp = *plan.rapidResponseSettings
+	}
+
+	err := managePinnedContentVersions(
 		ctx,
-		"Starting default content update policy update operation",
-		map[string]any{
-			"policy_id": plan.ID.ValueString(),
-		},
+		r.client,
+		plan.ID.ValueString(),
+		&stateSensorOps,
+		&stateSystemCrit,
+		&stateVulnMgmt,
+		&stateRapidResp,
+		plannedSensorOps,
+		plannedSystemCrit,
+		plannedVulnMgmt,
+		plannedRapidResp,
 	)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error updating pinned content versions",
+			"Could not update pinned content versions, unexpected error: "+err.Error(),
+		)
+		return
+	}
 
 	policy, diags := r.updateDefaultPolicy(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -359,8 +571,6 @@ func (r *defaultContentUpdatePolicyResource) Update(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	tflog.Debug(ctx, "Default content update policy update operation completed successfully")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
@@ -369,10 +579,6 @@ func (r *defaultContentUpdatePolicyResource) Delete(
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-	tflog.Debug(
-		ctx,
-		"Default content update policy delete operation - resource will be removed from state only (cannot delete default policy)",
-	)
 	// We can not delete the default content update policy, so we will just remove it from state.
 }
 
@@ -399,61 +605,140 @@ func (r *defaultContentUpdatePolicyResource) ValidateConfig(
 		return
 	}
 
-	if config.settings.sensorOperations != nil {
-		if config.settings.sensorOperations.RingAssignment.ValueString() != "ga" &&
-			!config.settings.sensorOperations.DelayHours.IsNull() {
+	if config.sensorOperationsSettings != nil {
+		if config.sensorOperationsSettings.RingAssignment.ValueString() != "ga" &&
+			!config.sensorOperationsSettings.DelayHours.IsNull() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("sensor_operations").AtName("delay_hours"),
 				"Invalid delay_hours configuration",
 				fmt.Sprintf(
 					"delay_hours can only be set when ring_assignment is 'ga'. sensor_operations has ring_assignment '%s' but delay_hours is set.",
-					config.settings.sensorOperations.RingAssignment.ValueString(),
+					config.sensorOperationsSettings.RingAssignment.ValueString(),
 				),
 			)
 		}
 	}
 
-	if config.settings.systemCritical != nil {
-		if config.settings.systemCritical.RingAssignment.ValueString() != "ga" &&
-			!config.settings.systemCritical.DelayHours.IsNull() {
+	if config.systemCriticalSettings != nil {
+		if config.systemCriticalSettings.RingAssignment.ValueString() != "ga" &&
+			!config.systemCriticalSettings.DelayHours.IsNull() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("system_critical").AtName("delay_hours"),
 				"Invalid delay_hours configuration",
 				fmt.Sprintf(
 					"delay_hours can only be set when ring_assignment is 'ga'. system_critical has ring_assignment '%s' but delay_hours is set.",
-					config.settings.systemCritical.RingAssignment.ValueString(),
+					config.systemCriticalSettings.RingAssignment.ValueString(),
 				),
 			)
 		}
 	}
 
-	if config.settings.vulnerabilityManagement != nil {
-		if config.settings.vulnerabilityManagement.RingAssignment.ValueString() != "ga" &&
-			!config.settings.vulnerabilityManagement.DelayHours.IsNull() {
+	if config.vulnerabilityManagementSettings != nil {
+		if config.vulnerabilityManagementSettings.RingAssignment.ValueString() != "ga" &&
+			!config.vulnerabilityManagementSettings.DelayHours.IsNull() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("vulnerability_management").AtName("delay_hours"),
 				"Invalid delay_hours configuration",
 				fmt.Sprintf(
 					"delay_hours can only be set when ring_assignment is 'ga'. vulnerability_management has ring_assignment '%s' but delay_hours is set.",
-					config.settings.vulnerabilityManagement.RingAssignment.ValueString(),
+					config.vulnerabilityManagementSettings.RingAssignment.ValueString(),
 				),
 			)
 		}
 	}
 
-	if config.settings.rapidResponse != nil {
-		if config.settings.rapidResponse.RingAssignment.ValueString() != "ga" &&
-			!config.settings.rapidResponse.DelayHours.IsNull() {
+	if config.rapidResponseSettings != nil {
+		if config.rapidResponseSettings.RingAssignment.ValueString() != "ga" &&
+			!config.rapidResponseSettings.DelayHours.IsNull() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("rapid_response").AtName("delay_hours"),
 				"Invalid delay_hours configuration",
 				fmt.Sprintf(
 					"delay_hours can only be set when ring_assignment is 'ga'. rapid_response has ring_assignment '%s' but delay_hours is set.",
-					config.settings.rapidResponse.RingAssignment.ValueString(),
+					config.rapidResponseSettings.RingAssignment.ValueString(),
 				),
 			)
 		}
 	}
+}
+
+// ModifyPlan runs during the plan phase to validate changes between current state and planned configuration.
+func (r *defaultContentUpdatePolicyResource) ModifyPlan(
+	ctx context.Context,
+	req resource.ModifyPlanRequest,
+	resp *resource.ModifyPlanResponse,
+) {
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan defaultContentUpdatePolicyResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(plan.extract(ctx)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var state defaultContentUpdatePolicyResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(state.extract(ctx)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var stateSensorOps, stateSystemCrit, stateVulnMgmt, stateRapidResp ringAssignmentModel
+	var planSensorOps, planSystemCrit, planVulnMgmt, planRapidResp ringAssignmentModel
+
+	if state.sensorOperationsSettings != nil {
+		stateSensorOps = *state.sensorOperationsSettings
+	}
+	if state.systemCriticalSettings != nil {
+		stateSystemCrit = *state.systemCriticalSettings
+	}
+	if state.vulnerabilityManagementSettings != nil {
+		stateVulnMgmt = *state.vulnerabilityManagementSettings
+	}
+	if state.rapidResponseSettings != nil {
+		stateRapidResp = *state.rapidResponseSettings
+	}
+
+	if plan.sensorOperationsSettings != nil {
+		planSensorOps = *plan.sensorOperationsSettings
+	}
+	if plan.systemCriticalSettings != nil {
+		planSystemCrit = *plan.systemCriticalSettings
+	}
+	if plan.vulnerabilityManagementSettings != nil {
+		planVulnMgmt = *plan.vulnerabilityManagementSettings
+	}
+	if plan.rapidResponseSettings != nil {
+		planRapidResp = *plan.rapidResponseSettings
+	}
+
+	validationDiags := validateContentUpdatePolicyModifyPlan(
+		ctx,
+		stateSensorOps,
+		stateSystemCrit,
+		stateVulnMgmt,
+		stateRapidResp,
+		planSensorOps,
+		planSystemCrit,
+		planVulnMgmt,
+		planRapidResp,
+	)
+	resp.Diagnostics.Append(validationDiags...)
 }
 
 func (r *defaultContentUpdatePolicyResource) updateDefaultPolicy(
@@ -462,15 +747,28 @@ func (r *defaultContentUpdatePolicyResource) updateDefaultPolicy(
 ) (*models.ContentUpdatePolicyV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	ringAssignmentSettings := buildRingAssignmentSettings(config.settings)
+	// Build ring assignment settings using individual fields
+	var sensorOps, systemCrit, vulnMgmt, rapidResp ringAssignmentModel
 
-	tflog.Debug(
+	if config.sensorOperationsSettings != nil {
+		sensorOps = *config.sensorOperationsSettings
+	}
+	if config.systemCriticalSettings != nil {
+		systemCrit = *config.systemCriticalSettings
+	}
+	if config.vulnerabilityManagementSettings != nil {
+		vulnMgmt = *config.vulnerabilityManagementSettings
+	}
+	if config.rapidResponseSettings != nil {
+		rapidResp = *config.rapidResponseSettings
+	}
+
+	ringAssignmentSettings := buildRingAssignmentSettings(
 		ctx,
-		"Building ring assignment settings for default policy update",
-		map[string]any{
-			"policy_id":     config.ID.ValueString(),
-			"setting_count": len(ringAssignmentSettings),
-		},
+		sensorOps,
+		systemCrit,
+		vulnMgmt,
+		rapidResp,
 	)
 
 	policyParams := content_update_policies.UpdateContentUpdatePoliciesParams{
@@ -488,7 +786,6 @@ func (r *defaultContentUpdatePolicyResource) updateDefaultPolicy(
 		},
 	}
 
-	tflog.Debug(ctx, "Calling UpdateContentUpdatePolicies API for default policy")
 	res, err := r.client.ContentUpdatePolicies.UpdateContentUpdatePolicies(&policyParams)
 
 	if err != nil {
@@ -501,10 +798,6 @@ func (r *defaultContentUpdatePolicyResource) updateDefaultPolicy(
 
 	policy := res.Payload.Resources[0]
 
-	tflog.Debug(ctx, "Successfully updated default content update policy", map[string]any{
-		"policy_id": *policy.ID,
-	})
-
 	return policy, diags
 }
 
@@ -515,15 +808,6 @@ func (r *defaultContentUpdatePolicyResource) getDefaultPolicy(
 
 	sort := "precedence.desc"
 	filter := "name.raw:'platform_default'"
-
-	tflog.Debug(
-		ctx,
-		"Querying content update policies to find default policy",
-		map[string]any{
-			"sort":   sort,
-			"filter": filter,
-		},
-	)
 
 	res, err := r.client.ContentUpdatePolicies.QueryCombinedContentUpdatePolicies(
 		&content_update_policies.QueryCombinedContentUpdatePoliciesParams{
@@ -553,12 +837,6 @@ func (r *defaultContentUpdatePolicyResource) getDefaultPolicy(
 
 	// Sort by ascending precedence, so the default policy (lowest precedence) is first
 	defaultPolicy := res.Payload.Resources[0]
-
-	tflog.Debug(ctx, "Found default content update policy", map[string]any{
-		"policy_id":      *defaultPolicy.ID,
-		"policy_name":    *defaultPolicy.Name,
-		"total_policies": len(res.Payload.Resources),
-	})
 
 	return defaultPolicy, diags
 }

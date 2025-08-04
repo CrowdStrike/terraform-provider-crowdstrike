@@ -10,6 +10,7 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
+# Basic default content update policy
 resource "crowdstrike_default_content_update_policy" "default" {
   description = "Default content update policy for CrowdStrike environment"
 
@@ -33,7 +34,6 @@ resource "crowdstrike_default_content_update_policy" "default" {
     delay_hours     = 0
   }
 }
-
 
 output "default_content_policy" {
   value       = crowdstrike_default_content_update_policy.default

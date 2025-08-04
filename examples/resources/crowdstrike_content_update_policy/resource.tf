@@ -96,22 +96,22 @@ resource "crowdstrike_content_update_policy" "conservative" {
 
   sensor_operations = {
     ring_assignment = "ga"
-    delay_hours     = 72 # 3 day delay
+    delay_hours     = 72
   }
 
   system_critical = {
     ring_assignment = "ga"
-    delay_hours     = 48 # 2 day delay
+    delay_hours     = 48
   }
 
   vulnerability_management = {
     ring_assignment = "ga"
-    delay_hours     = 24 # 1 day delay
+    delay_hours     = 24
   }
 
   rapid_response = {
     ring_assignment = "ga"
-    delay_hours     = 0 # No delay for rapid response
+    delay_hours     = 0
   }
 }
 
@@ -140,4 +140,35 @@ resource "crowdstrike_content_update_policy" "early_access" {
   host_groups = [
     crowdstrike_host_group.test.id
   ]
+}
+
+# Data source to fetch available content category versions
+data "crowdstrike_content_category_versions" "available" {}
+
+# Content update policy with pinned content versions for stability
+resource "crowdstrike_content_update_policy" "pinned_versions" {
+  name        = "Pinned Content Versions Policy"
+  description = "Policy with specific content versions pinned for stability"
+  enabled     = true
+
+  sensor_operations = {
+    ring_assignment        = "ea"
+    pinned_content_version = data.crowdstrike_content_category_versions.available.sensor_operations[0]
+  }
+
+  system_critical = {
+    ring_assignment = "ga"
+    delay_hours     = 24
+  }
+
+  vulnerability_management = {
+    ring_assignment        = "ga"
+    delay_hours            = 12
+    pinned_content_version = data.crowdstrike_content_category_versions.available.vulnerability_management[0]
+  }
+
+  rapid_response = {
+    ring_assignment        = "ga"
+    pinned_content_version = data.crowdstrike_content_category_versions.available.rapid_response[0]
+  }
 }

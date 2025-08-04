@@ -120,22 +120,22 @@ resource "crowdstrike_content_update_policy" "conservative" {
 
   sensor_operations = {
     ring_assignment = "ga"
-    delay_hours     = 72 # 3 day delay
+    delay_hours     = 72
   }
 
   system_critical = {
     ring_assignment = "ga"
-    delay_hours     = 48 # 2 day delay
+    delay_hours     = 48
   }
 
   vulnerability_management = {
     ring_assignment = "ga"
-    delay_hours     = 24 # 1 day delay
+    delay_hours     = 24
   }
 
   rapid_response = {
     ring_assignment = "ga"
-    delay_hours     = 0 # No delay for rapid response
+    delay_hours     = 0
   }
 }
 
@@ -164,6 +164,37 @@ resource "crowdstrike_content_update_policy" "early_access" {
   host_groups = [
     crowdstrike_host_group.test.id
   ]
+}
+
+# Data source to fetch available content category versions
+data "crowdstrike_content_category_versions" "available" {}
+
+# Content update policy with pinned content versions for stability
+resource "crowdstrike_content_update_policy" "pinned_versions" {
+  name        = "Pinned Content Versions Policy"
+  description = "Policy with specific content versions pinned for stability"
+  enabled     = true
+
+  sensor_operations = {
+    ring_assignment        = "ea"
+    pinned_content_version = data.crowdstrike_content_category_versions.available.sensor_operations[0]
+  }
+
+  system_critical = {
+    ring_assignment = "ga"
+    delay_hours     = 24
+  }
+
+  vulnerability_management = {
+    ring_assignment        = "ga"
+    delay_hours            = 12
+    pinned_content_version = data.crowdstrike_content_category_versions.available.vulnerability_management[0]
+  }
+
+  rapid_response = {
+    ring_assignment        = "ga"
+    pinned_content_version = data.crowdstrike_content_category_versions.available.rapid_response[0]
+  }
 }
 ```
 
@@ -199,6 +230,7 @@ Required:
 Optional:
 
 - `delay_hours` (Number) Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.
+- `pinned_content_version` (String) Pin content category to a specific version. When set, the content category will not automatically update to newer versions.
 
 
 <a id="nestedatt--sensor_operations"></a>
@@ -211,6 +243,7 @@ Required:
 Optional:
 
 - `delay_hours` (Number) Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.
+- `pinned_content_version` (String) Pin content category to a specific version. When set, the content category will not automatically update to newer versions.
 
 
 <a id="nestedatt--system_critical"></a>
@@ -223,6 +256,7 @@ Required:
 Optional:
 
 - `delay_hours` (Number) Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.
+- `pinned_content_version` (String) Pin content category to a specific version. When set, the content category will not automatically update to newer versions.
 
 
 <a id="nestedatt--vulnerability_management"></a>
@@ -235,6 +269,7 @@ Required:
 Optional:
 
 - `delay_hours` (Number) Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.
+- `pinned_content_version` (String) Pin content category to a specific version. When set, the content category will not automatically update to newer versions.
 
 ## Import
 
