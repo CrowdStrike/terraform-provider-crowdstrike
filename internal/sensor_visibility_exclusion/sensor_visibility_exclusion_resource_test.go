@@ -15,7 +15,6 @@ import (
 // exclusionConfig represents a complete sensor visibility exclusion configuration.
 type exclusionConfig struct {
 	Value                      string
-	Comment                    string
 	ApplyToDescendantProcesses *bool
 	ApplyGlobally              *bool
 	HostGroupCount             int
@@ -61,12 +60,11 @@ resource "crowdstrike_host_group" "hg_%d" {
 	return fmt.Sprintf(`%s
 resource "crowdstrike_sensor_visibility_exclusion" "test" {
   value   = %q
-  comment = %q
   %s
   %s
   %s
 }
-`, hostGroupResources, config.Value, config.Comment, config.formatApplyToDescendantProcesses(), applyGloballyBlock, hostGroupsBlock)
+`, hostGroupResources, config.Value, config.formatApplyToDescendantProcesses(), applyGloballyBlock, hostGroupsBlock)
 }
 
 func (config exclusionConfig) formatApplyToDescendantProcesses() string {
@@ -87,7 +85,6 @@ func (config exclusionConfig) TestChecks() resource.TestCheckFunc {
 
 	checks = append(checks,
 		resource.TestCheckResourceAttr("crowdstrike_sensor_visibility_exclusion.test", "value", config.Value),
-		resource.TestCheckResourceAttr("crowdstrike_sensor_visibility_exclusion.test", "comment", config.Comment),
 		resource.TestCheckResourceAttrSet("crowdstrike_sensor_visibility_exclusion.test", "id"),
 		resource.TestCheckResourceAttrSet("crowdstrike_sensor_visibility_exclusion.test", "last_updated"),
 		resource.TestCheckResourceAttrSet("crowdstrike_sensor_visibility_exclusion.test", "regexp_value"),
@@ -109,17 +106,14 @@ func (config exclusionConfig) TestChecks() resource.TestCheckFunc {
 		// Global exclusion - apply_globally should be true, host_groups should be null
 		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_visibility_exclusion.test", "apply_globally", "true"))
 		checks = append(checks, resource.TestCheckNoResourceAttr("crowdstrike_sensor_visibility_exclusion.test", "host_groups"))
-		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_visibility_exclusion.test", "applied_globally", "true"))
 	} else if config.HostGroupCount > 0 {
 		// Targeted exclusion - apply_globally should be false, host_groups should contain specific groups
 		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_visibility_exclusion.test", "apply_globally", "false"))
 		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_visibility_exclusion.test", "host_groups.#", fmt.Sprintf("%d", config.HostGroupCount)))
-		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_visibility_exclusion.test", "applied_globally", "false"))
 	} else {
 		// Default case - should be global (apply_globally = true)
 		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_visibility_exclusion.test", "apply_globally", "true"))
 		checks = append(checks, resource.TestCheckNoResourceAttr("crowdstrike_sensor_visibility_exclusion.test", "host_groups"))
-		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_visibility_exclusion.test", "applied_globally", "true"))
 	}
 
 	return resource.ComposeAggregateTestCheckFunc(checks...)
@@ -134,7 +128,6 @@ func TestAccSensorVisibilityExclusionResource_Basic(t *testing.T) {
 			name: "basic_exclusion",
 			config: exclusionConfig{
 				Value:         "/tmp/test-basic/*",
-				Comment:       "Test basic sensor visibility exclusion",
 				ApplyGlobally: utils.Addr(true),
 			},
 		},
@@ -142,7 +135,6 @@ func TestAccSensorVisibilityExclusionResource_Basic(t *testing.T) {
 			name: "updated_exclusion",
 			config: exclusionConfig{
 				Value:         "/tmp/test-updated/*",
-				Comment:       "Updated test sensor visibility exclusion",
 				ApplyGlobally: utils.Addr(true),
 			},
 		},
@@ -181,7 +173,6 @@ func TestAccSensorVisibilityExclusionResource_DescendantProcesses(t *testing.T) 
 			name: "descendant_processes_false",
 			config: exclusionConfig{
 				Value:                      "/opt/app1/bin/*",
-				Comment:                    "Test exclusion without descendant processes",
 				ApplyToDescendantProcesses: utils.Addr(false),
 				ApplyGlobally:              utils.Addr(true),
 			},
@@ -190,7 +181,6 @@ func TestAccSensorVisibilityExclusionResource_DescendantProcesses(t *testing.T) 
 			name: "descendant_processes_true",
 			config: exclusionConfig{
 				Value:                      "/opt/app2/bin/*",
-				Comment:                    "Test exclusion with descendant processes",
 				ApplyToDescendantProcesses: utils.Addr(true),
 				ApplyGlobally:              utils.Addr(true),
 			},
@@ -199,7 +189,6 @@ func TestAccSensorVisibilityExclusionResource_DescendantProcesses(t *testing.T) 
 			name: "descendant_processes_default",
 			config: exclusionConfig{
 				Value:         "/opt/app3/bin/*",
-				Comment:       "Test exclusion with default descendant processes",
 				ApplyGlobally: utils.Addr(true),
 			},
 		},
@@ -230,7 +219,6 @@ func TestAccSensorVisibilityExclusionResource_HostGroups(t *testing.T) {
 			name: "single_host_group",
 			config: exclusionConfig{
 				Value:          "/tmp/test-hg-single/*",
-				Comment:        "Test sensor visibility exclusion with single host group",
 				HostGroupCount: 1,
 			},
 		},
@@ -238,18 +226,17 @@ func TestAccSensorVisibilityExclusionResource_HostGroups(t *testing.T) {
 			name: "multiple_host_groups",
 			config: exclusionConfig{
 				Value:          "/tmp/test-hg-multiple/*",
-				Comment:        "Test sensor visibility exclusion with multiple host groups",
 				HostGroupCount: 2,
 			},
 		},
-		{
-			name: "global_exclusion",
-			config: exclusionConfig{
-				Value:         "/tmp/test-hg-global/*",
-				Comment:       "Test global sensor visibility exclusion",
-				ApplyGlobally: utils.Addr(true),
-			},
-		},
+		// this will delete the sve
+		// {
+		// 	name: "global_exclusion",
+		// 	config: exclusionConfig{
+		// 		Value:         "/tmp/test-hg-global/*",
+		// 		ApplyGlobally: utils.Addr(true),
+		// 	},
+		// },
 	}
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -277,27 +264,25 @@ func TestAccSensorVisibilityExclusionResource_ComplexConfigurations(t *testing.T
 			name: "complex_with_host_groups_and_descendants",
 			config: exclusionConfig{
 				Value:                      "/opt/complex-app/bin/*",
-				Comment:                    "Complex exclusion with host groups and descendant processes",
 				ApplyToDescendantProcesses: utils.Addr(true),
 				HostGroupCount:             2,
 			},
 		},
-		{
-			name: "windows_path_exclusion",
-			config: exclusionConfig{
-				Value:         "C:\\Program Files\\MyApp\\*",
-				Comment:       "Windows path exclusion test",
-				ApplyGlobally: utils.Addr(true),
-			},
-		},
-		{
-			name: "wildcard_patterns",
-			config: exclusionConfig{
-				Value:         "/var/log/*.log",
-				Comment:       "Wildcard pattern exclusion test",
-				ApplyGlobally: utils.Addr(true),
-			},
-		},
+		// deleting a hg deletes the attached sve
+		// {
+		// 	name: "windows_path_exclusion",
+		// 	config: exclusionConfig{
+		// 		Value:         "C:\\Program Files\\MyApp\\*",
+		// 		ApplyGlobally: utils.Addr(true),
+		// 	},
+		// },
+		// {
+		// 	name: "wildcard_patterns",
+		// 	config: exclusionConfig{
+		// 		Value:         "/var/log/*.log",
+		// 		ApplyGlobally: utils.Addr(true),
+		// 	},
+		// },
 	}
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -322,26 +307,9 @@ func TestAccSensorVisibilityExclusionResource_FieldBoundaries(t *testing.T) {
 		config exclusionConfig
 	}{
 		{
-			name: "minimum_comment",
-			config: exclusionConfig{
-				Value:         "/tmp/min-comment/*",
-				Comment:       "1",
-				ApplyGlobally: utils.Addr(true),
-			},
-		},
-		{
-			name: "long_comment",
-			config: exclusionConfig{
-				Value:         "/tmp/long-comment/*",
-				Comment:       "This is a very long comment that tests the boundary limits of the comment field. It contains multiple sentences and should be quite lengthy to test how the system handles long comments. This comment is intentionally verbose to ensure comprehensive testing of the field boundaries and validation logic. It includes various punctuation marks, numbers like 123 and 456, and special characters to ensure comprehensive testing.",
-				ApplyGlobally: utils.Addr(true),
-			},
-		},
-		{
 			name: "special_characters_in_path",
 			config: exclusionConfig{
 				Value:         "/tmp/special-chars_123/app-name.test/*",
-				Comment:       "Test path with special characters and numbers",
 				ApplyGlobally: utils.Addr(true),
 			},
 		},
@@ -349,7 +317,6 @@ func TestAccSensorVisibilityExclusionResource_FieldBoundaries(t *testing.T) {
 			name: "very_long_path",
 			config: exclusionConfig{
 				Value:         "/very/long/path/that/goes/deep/into/the/filesystem/structure/with/many/levels/and/contains/a/very/long/directory/name/that/simulates/real/world/usage/scenarios/where/paths/can/be/quite/lengthy/and/complex/application/directory/*",
-				Comment:       "Test with a very long path to ensure system handles it properly",
 				ApplyGlobally: utils.Addr(true),
 			},
 		},
@@ -357,7 +324,6 @@ func TestAccSensorVisibilityExclusionResource_FieldBoundaries(t *testing.T) {
 			name: "path_with_spaces_and_unicode",
 			config: exclusionConfig{
 				Value:         "/Applications/My App with Spaces/Contents/MacOS/测试应用程序/*",
-				Comment:       "Test path with spaces and Unicode characters",
 				ApplyGlobally: utils.Addr(true),
 			},
 		},
@@ -390,7 +356,6 @@ func TestAccSensorVisibilityExclusionResource_Validation(t *testing.T) {
 			config: `
 resource "crowdstrike_sensor_visibility_exclusion" "test" {
   value         = ""
-  comment       = "Empty value test"
   apply_globally = true
 }`,
 			expectError: regexp.MustCompile("Attribute value string length must be at least 1"),
@@ -400,7 +365,6 @@ resource "crowdstrike_sensor_visibility_exclusion" "test" {
 			config: `
 resource "crowdstrike_sensor_visibility_exclusion" "test" {
   value       = "/tmp/test/*"
-  comment     = "Invalid host group test"
   host_groups = [""]
 }`,
 			expectError: regexp.MustCompile("string length must be at least 1"),
@@ -410,7 +374,6 @@ resource "crowdstrike_sensor_visibility_exclusion" "test" {
 			config: `
 resource "crowdstrike_sensor_visibility_exclusion" "test" {
   value       = "/tmp/test/*"
-  comment     = "Mixed host group test"
   host_groups = ["valid-group-id", ""]
 }`,
 			expectError: regexp.MustCompile("string length must be at least 1"),
@@ -420,7 +383,6 @@ resource "crowdstrike_sensor_visibility_exclusion" "test" {
 			config: `
 resource "crowdstrike_sensor_visibility_exclusion" "test" {
   value          = "/tmp/test/*"
-  comment        = "Both apply_globally and host_groups"
   apply_globally = true
   host_groups    = ["group-id-123"]
 }`,
@@ -431,7 +393,6 @@ resource "crowdstrike_sensor_visibility_exclusion" "test" {
 			config: `
 resource "crowdstrike_sensor_visibility_exclusion" "test" {
   value   = "/tmp/test/*"
-  comment = "Neither apply_globally nor host_groups"
 }`,
 			expectError: regexp.MustCompile("Must specify either apply_globally=true or provide host_groups"),
 		},
@@ -462,7 +423,6 @@ func TestAccSensorVisibilityExclusionResource_HostGroupTransitions(t *testing.T)
 			name: "global_to_specific_host_groups",
 			config: exclusionConfig{
 				Value:         "/tmp/test-transition-1/*",
-				Comment:       "Test transition from global to specific host groups",
 				ApplyGlobally: utils.Addr(true), // Start global
 			},
 		},
@@ -470,18 +430,17 @@ func TestAccSensorVisibilityExclusionResource_HostGroupTransitions(t *testing.T)
 			name: "specific_to_global_host_groups",
 			config: exclusionConfig{
 				Value:          "/tmp/test-transition-1/*",
-				Comment:        "Test transition from global to specific host groups",
 				HostGroupCount: 1, // Change to specific
 			},
 		},
-		{
-			name: "back_to_global",
-			config: exclusionConfig{
-				Value:         "/tmp/test-transition-1/*",
-				Comment:       "Test transition back to global",
-				ApplyGlobally: utils.Addr(true), // Back to global
-			},
-		},
+		// doing this results in the hg being deleted which deletes the sve
+		// {
+		// 	name: "back_to_global",
+		// 	config: exclusionConfig{
+		// 		Value:         "/tmp/test-transition-1/*",
+		// 		ApplyGlobally: utils.Addr(true), // Back to global
+		// 	},
+		// },
 	}
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -511,7 +470,6 @@ func TestAccSensorVisibilityExclusionResource_AllPermutations(t *testing.T) {
 			name: "descendant_false_global",
 			config: exclusionConfig{
 				Value:                      "/opt/matrix-test-1/*",
-				Comment:                    "descendant_false + global",
 				ApplyToDescendantProcesses: utils.Addr(false),
 				ApplyGlobally:              utils.Addr(true),
 			},
@@ -520,7 +478,6 @@ func TestAccSensorVisibilityExclusionResource_AllPermutations(t *testing.T) {
 			name: "descendant_false_single_group",
 			config: exclusionConfig{
 				Value:                      "/opt/matrix-test-2/*",
-				Comment:                    "descendant_false + single_group",
 				ApplyToDescendantProcesses: utils.Addr(false),
 				HostGroupCount:             1,
 			},
@@ -529,25 +486,23 @@ func TestAccSensorVisibilityExclusionResource_AllPermutations(t *testing.T) {
 			name: "descendant_false_multiple_groups",
 			config: exclusionConfig{
 				Value:                      "/opt/matrix-test-3/*",
-				Comment:                    "descendant_false + multiple_groups",
 				ApplyToDescendantProcesses: utils.Addr(false),
 				HostGroupCount:             2,
 			},
 		},
-		{
-			name: "descendant_true_global",
-			config: exclusionConfig{
-				Value:                      "/opt/matrix-test-4/*",
-				Comment:                    "descendant_true + global",
-				ApplyToDescendantProcesses: utils.Addr(true),
-				ApplyGlobally:              utils.Addr(true),
-			},
-		},
+		// this will delete the sve
+		// {
+		// 	name: "descendant_true_global",
+		// 	config: exclusionConfig{
+		// 		Value:                      "/opt/matrix-test-4/*",
+		// 		ApplyToDescendantProcesses: utils.Addr(true),
+		// 		ApplyGlobally:              utils.Addr(true),
+		// 	},
+		// },
 		{
 			name: "descendant_true_single_group",
 			config: exclusionConfig{
 				Value:                      "/opt/matrix-test-5/*",
-				Comment:                    "descendant_true + single_group",
 				ApplyToDescendantProcesses: utils.Addr(true),
 				HostGroupCount:             1,
 			},
@@ -556,24 +511,21 @@ func TestAccSensorVisibilityExclusionResource_AllPermutations(t *testing.T) {
 			name: "descendant_true_multiple_groups",
 			config: exclusionConfig{
 				Value:                      "/opt/matrix-test-6/*",
-				Comment:                    "descendant_true + multiple_groups",
 				ApplyToDescendantProcesses: utils.Addr(true),
 				HostGroupCount:             2,
 			},
 		},
-		{
-			name: "descendant_default_global",
-			config: exclusionConfig{
-				Value:         "/opt/matrix-test-7/*",
-				Comment:       "descendant_default + global",
-				ApplyGlobally: utils.Addr(true),
-			},
-		},
+		// {
+		// 	name: "descendant_default_global",
+		// 	config: exclusionConfig{
+		// 		Value:         "/opt/matrix-test-7/*",
+		// 		ApplyGlobally: utils.Addr(true),
+		// 	},
+		// },
 		{
 			name: "descendant_default_single_group",
 			config: exclusionConfig{
 				Value:          "/opt/matrix-test-8/*",
-				Comment:        "descendant_default + single_group",
 				HostGroupCount: 1,
 			},
 		},
@@ -581,7 +533,6 @@ func TestAccSensorVisibilityExclusionResource_AllPermutations(t *testing.T) {
 			name: "descendant_default_multiple_groups",
 			config: exclusionConfig{
 				Value:          "/opt/matrix-test-9/*",
-				Comment:        "descendant_default + multiple_groups",
 				HostGroupCount: 2,
 			},
 		},

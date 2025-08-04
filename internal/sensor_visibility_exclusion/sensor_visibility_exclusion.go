@@ -58,12 +58,10 @@ type SensorVisibilityExclusionResourceModel struct {
 	ID                         types.String `tfsdk:"id"`
 	Value                      types.String `tfsdk:"value"`
 	ApplyToDescendantProcesses types.Bool   `tfsdk:"apply_to_descendant_processes"`
-	Comment                    types.String `tfsdk:"comment"`
 	ApplyGlobally              types.Bool   `tfsdk:"apply_globally"`
 	HostGroups                 types.Set    `tfsdk:"host_groups"`
 	RegexpValue                types.String `tfsdk:"regexp_value"`
 	ValueHash                  types.String `tfsdk:"value_hash"`
-	AppliedGlobally            types.Bool   `tfsdk:"applied_globally"`
 	LastModified               types.String `tfsdk:"last_modified"`
 	ModifiedBy                 types.String `tfsdk:"modified_by"`
 	CreatedOn                  types.String `tfsdk:"created_on"`
@@ -120,11 +118,11 @@ func (m *SensorVisibilityExclusionResourceModel) wrap(
 	m.RegexpValue = types.StringPointerValue(exclusion.RegexpValue)
 	m.ValueHash = types.StringPointerValue(exclusion.ValueHash)
 	m.ApplyGlobally = types.BoolPointerValue(exclusion.AppliedGlobally)
-	m.AppliedGlobally = types.BoolPointerValue(exclusion.AppliedGlobally)
 	m.LastModified = types.StringValue(exclusion.LastModified.String())
 	m.ModifiedBy = types.StringPointerValue(exclusion.ModifiedBy)
 	m.CreatedOn = types.StringValue(exclusion.CreatedOn.String())
 	m.CreatedBy = types.StringPointerValue(exclusion.CreatedBy)
+	m.ApplyToDescendantProcesses = types.BoolPointerValue(&exclusion.IsDescendantProcess)
 
 	// Convert API groups to terraform set
 	groupsSet, groupsDiags := hostgroups.ConvertHostGroupsToSet(ctx, exclusion.Groups)
@@ -253,10 +251,6 @@ func (r *sensorVisibilityExclusionResource) Schema(
 				Default:             booldefault.StaticBool(false),
 				MarkdownDescription: "Whether to apply the exclusion to all descendant processes spawned from the specified path. Defaults to `false`.",
 			},
-			"comment": schema.StringAttribute{
-				Optional:            true,
-				MarkdownDescription: "A comment or description for the exclusion.",
-			},
 			"apply_globally": schema.BoolAttribute{
 				Optional:            true,
 				Computed:            true,
@@ -280,10 +274,6 @@ func (r *sensorVisibilityExclusionResource) Schema(
 			"value_hash": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The hash of the exclusion value.",
-			},
-			"applied_globally": schema.BoolAttribute{
-				Computed:            true,
-				MarkdownDescription: "Whether the exclusion is applied globally or to specific host groups.",
 			},
 			"last_modified": schema.StringAttribute{
 				Computed:            true,
@@ -360,7 +350,6 @@ func (r *sensorVisibilityExclusionResource) Create(
 
 	tflog.Info(ctx, "Starting sensor visibility exclusion creation", map[string]any{
 		"value":                         plan.Value.ValueString(),
-		"comment":                       plan.Comment.ValueString(),
 		"apply_to_descendant_processes": plan.ApplyToDescendantProcesses.ValueBool(),
 		"apply_globally":                plan.ApplyGlobally.ValueBool(),
 		"host_groups_configured":        !plan.HostGroups.IsNull() && !plan.HostGroups.IsUnknown(),
@@ -392,7 +381,7 @@ func (r *sensorVisibilityExclusionResource) Create(
 
 	createReq := &models.SvExclusionsCreateReqV1{
 		Value:               plan.Value.ValueString(),
-		Comment:             plan.Comment.ValueString(),
+		Comment:             "created by terraform crowdstrike provider",
 		Groups:              groups,
 		IsDescendantProcess: plan.ApplyToDescendantProcesses.ValueBool(),
 	}
@@ -567,7 +556,6 @@ func (r *sensorVisibilityExclusionResource) Update(
 	tflog.Info(ctx, "Starting sensor visibility exclusion update", map[string]any{
 		"exclusion_id":                  exclusionID,
 		"value":                         plan.Value.ValueString(),
-		"comment":                       plan.Comment.ValueString(),
 		"apply_to_descendant_processes": plan.ApplyToDescendantProcesses.ValueBool(),
 		"apply_globally":                plan.ApplyGlobally.ValueBool(),
 		"host_groups_configured":        !plan.HostGroups.IsNull() && !plan.HostGroups.IsUnknown(),
@@ -605,7 +593,7 @@ func (r *sensorVisibilityExclusionResource) Update(
 	updateReq := &models.SvExclusionsUpdateReqV1{
 		ID:                  &id,
 		Value:               plan.Value.ValueString(),
-		Comment:             plan.Comment.ValueString(),
+		Comment:             "updated by terraform crowdstrike provider",
 		Groups:              groups,
 		IsDescendantProcess: plan.ApplyToDescendantProcesses.ValueBool(),
 	}
