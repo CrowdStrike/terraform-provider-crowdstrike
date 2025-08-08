@@ -14,6 +14,7 @@ import (
 
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 )
 
 // sensorUpdatePolicyConfig represents a complete policy configuration for testing.
@@ -123,7 +124,11 @@ func (config sensorUpdatePolicyConfig) BuildValue() string {
 	if config.Build == "" {
 		return `""`
 	}
-	return fmt.Sprintf("data.crowdstrike_sensor_update_policy_builds.all.%s.%s.build", strings.ToLower(config.PlatformName), config.Build)
+	return fmt.Sprintf(
+		"data.crowdstrike_sensor_update_policy_builds.all.%s.%s.build",
+		strings.ToLower(config.PlatformName),
+		config.Build,
+	)
 }
 
 // BuildArm64Value returns the ARM64 build value for Linux.
@@ -131,7 +136,10 @@ func (config sensorUpdatePolicyConfig) BuildArm64Value() string {
 	if config.BuildArm64 == "" {
 		return `""`
 	}
-	return fmt.Sprintf("data.crowdstrike_sensor_update_policy_builds.all.linux_arm64.%s.build", config.BuildArm64)
+	return fmt.Sprintf(
+		"data.crowdstrike_sensor_update_policy_builds.all.linux_arm64.%s.build",
+		config.BuildArm64,
+	)
 }
 
 // ScheduleBlock returns the formatted schedule block.
@@ -152,14 +160,18 @@ func (config sensorUpdatePolicyConfig) ScheduleBlock() string {
 			if i > 0 {
 				scheduleStr += ","
 			}
-			scheduleStr += fmt.Sprintf("\n     {\n       days       = [%s]\n       start_time = %q\n       end_time   = %q\n     }",
+			scheduleStr += fmt.Sprintf(
+				"\n     {\n       days       = [%s]\n       start_time = %q\n       end_time   = %q\n     }",
 				strings.Join(func() []string {
 					quoted := make([]string, len(block.Days))
 					for i, day := range block.Days {
 						quoted[i] = fmt.Sprintf("%q", day)
 					}
 					return quoted
-				}(), ", "), block.StartTime, block.EndTime)
+				}(), ", "),
+				block.StartTime,
+				block.EndTime,
+			)
 		}
 		scheduleStr += "\n   ]"
 	}
@@ -175,60 +187,145 @@ func (config sensorUpdatePolicyConfig) resourceName() string {
 func (config sensorUpdatePolicyConfig) TestChecks() resource.TestCheckFunc {
 	var checks []resource.TestCheckFunc
 
-	checks = append(checks,
-		resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "name", config.Name),
-		resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "description", config.Description),
-		resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "platform_name", config.PlatformName),
+	checks = append(
+		checks,
+		resource.TestCheckResourceAttr(
+			"crowdstrike_sensor_update_policy.test",
+			"name",
+			config.Name,
+		),
+		resource.TestCheckResourceAttr(
+			"crowdstrike_sensor_update_policy.test",
+			"description",
+			config.Description,
+		),
+		resource.TestCheckResourceAttr(
+			"crowdstrike_sensor_update_policy.test",
+			"platform_name",
+			config.PlatformName,
+		),
 		resource.TestCheckResourceAttrSet("crowdstrike_sensor_update_policy.test", "id"),
 		resource.TestCheckResourceAttrSet("crowdstrike_sensor_update_policy.test", "last_updated"),
 	)
 
 	if config.Enabled != nil {
-		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "enabled", fmt.Sprintf("%t", *config.Enabled)))
+		checks = append(
+			checks,
+			resource.TestCheckResourceAttr(
+				"crowdstrike_sensor_update_policy.test",
+				"enabled",
+				fmt.Sprintf("%t", *config.Enabled),
+			),
+		)
 	} else {
 		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "enabled", "true"))
 	}
 
 	if config.Build == "" {
-		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "build", ""))
+		checks = append(
+			checks,
+			resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "build", ""),
+		)
 	} else {
 		checks = append(checks, resource.TestCheckResourceAttrSet("crowdstrike_sensor_update_policy.test", "build"))
 	}
 
 	if config.PlatformName == "Linux" {
 		if config.BuildArm64 == "" {
-			checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "build_arm64", ""))
+			checks = append(
+				checks,
+				resource.TestCheckResourceAttr(
+					"crowdstrike_sensor_update_policy.test",
+					"build_arm64",
+					"",
+				),
+			)
 		} else {
 			checks = append(checks, resource.TestCheckResourceAttrSet("crowdstrike_sensor_update_policy.test", "build_arm64"))
 		}
 	}
 
 	if config.UninstallProtection != nil {
-		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "uninstall_protection", fmt.Sprintf("%t", *config.UninstallProtection)))
+		checks = append(
+			checks,
+			resource.TestCheckResourceAttr(
+				"crowdstrike_sensor_update_policy.test",
+				"uninstall_protection",
+				fmt.Sprintf("%t", *config.UninstallProtection),
+			),
+		)
 	} else {
 		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "uninstall_protection", "false"))
 	}
 
-	checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "host_groups.#", fmt.Sprintf("%d", config.HostGroupCount)))
+	checks = append(
+		checks,
+		resource.TestCheckResourceAttr(
+			"crowdstrike_sensor_update_policy.test",
+			"host_groups.#",
+			fmt.Sprintf("%d", config.HostGroupCount),
+		),
+	)
 
-	checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "schedule.enabled", fmt.Sprintf("%t", config.Schedule.Enabled)))
+	checks = append(
+		checks,
+		resource.TestCheckResourceAttr(
+			"crowdstrike_sensor_update_policy.test",
+			"schedule.enabled",
+			fmt.Sprintf("%t", config.Schedule.Enabled),
+		),
+	)
 
 	if config.Schedule.Enabled {
 		if config.Schedule.Timezone != nil {
-			checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "schedule.timezone", *config.Schedule.Timezone))
+			checks = append(
+				checks,
+				resource.TestCheckResourceAttr(
+					"crowdstrike_sensor_update_policy.test",
+					"schedule.timezone",
+					*config.Schedule.Timezone,
+				),
+			)
 		}
 
-		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "schedule.time_blocks.#", fmt.Sprintf("%d", len(config.Schedule.TimeBlocks))))
+		checks = append(
+			checks,
+			resource.TestCheckResourceAttr(
+				"crowdstrike_sensor_update_policy.test",
+				"schedule.time_blocks.#",
+				fmt.Sprintf("%d", len(config.Schedule.TimeBlocks)),
+			),
+		)
 
 		for i, block := range config.Schedule.TimeBlocks {
-			checks = append(checks,
-				resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", fmt.Sprintf("schedule.time_blocks.%d.days.#", i), fmt.Sprintf("%d", len(block.Days))),
-				resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", fmt.Sprintf("schedule.time_blocks.%d.start_time", i), block.StartTime),
-				resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", fmt.Sprintf("schedule.time_blocks.%d.end_time", i), block.EndTime),
+			checks = append(
+				checks,
+				resource.TestCheckResourceAttr(
+					"crowdstrike_sensor_update_policy.test",
+					fmt.Sprintf("schedule.time_blocks.%d.days.#", i),
+					fmt.Sprintf("%d", len(block.Days)),
+				),
+				resource.TestCheckResourceAttr(
+					"crowdstrike_sensor_update_policy.test",
+					fmt.Sprintf("schedule.time_blocks.%d.start_time", i),
+					block.StartTime,
+				),
+				resource.TestCheckResourceAttr(
+					"crowdstrike_sensor_update_policy.test",
+					fmt.Sprintf("schedule.time_blocks.%d.end_time", i),
+					block.EndTime,
+				),
 			)
 
 			for j, day := range block.Days {
-				checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", fmt.Sprintf("schedule.time_blocks.%d.days.%d", i, j), day))
+				checks = append(
+					checks,
+					resource.TestCheckResourceAttr(
+						"crowdstrike_sensor_update_policy.test",
+						fmt.Sprintf("schedule.time_blocks.%d.days.%d", i, j),
+						day,
+					),
+				)
 			}
 		}
 	}
@@ -379,6 +476,7 @@ func TestAccSensorUpdatePolicyResource_PlatformReplace(t *testing.T) {
 	testCases := []struct {
 		name   string
 		config sensorUpdatePolicyConfig
+		action plancheck.ResourceActionType
 	}{
 		{
 			name: "windows_empty_build",
@@ -393,6 +491,7 @@ func TestAccSensorUpdatePolicyResource_PlatformReplace(t *testing.T) {
 					Enabled: false,
 				},
 			},
+			action: plancheck.ResourceActionCreate,
 		},
 		{
 			name: "linux_empty_builds",
@@ -408,6 +507,7 @@ func TestAccSensorUpdatePolicyResource_PlatformReplace(t *testing.T) {
 					Enabled: false,
 				},
 			},
+			action: plancheck.ResourceActionReplace,
 		},
 		{
 			name: "mac_empty_build",
@@ -422,6 +522,7 @@ func TestAccSensorUpdatePolicyResource_PlatformReplace(t *testing.T) {
 					Enabled: false,
 				},
 			},
+			action: plancheck.ResourceActionReplace,
 		},
 	}
 
@@ -434,6 +535,14 @@ func TestAccSensorUpdatePolicyResource_PlatformReplace(t *testing.T) {
 				steps = append(steps, resource.TestStep{
 					Config: tc.config.String(),
 					Check:  tc.config.TestChecks(),
+					ConfigPlanChecks: resource.ConfigPlanChecks{
+						PreApply: []plancheck.PlanCheck{
+							plancheck.ExpectResourceAction(
+								tc.config.resourceName(),
+								tc.action,
+							),
+						},
+					},
 				})
 			}
 			return steps
