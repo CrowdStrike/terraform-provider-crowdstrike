@@ -33,10 +33,8 @@ github.com/bufbuild/protocompile v0.4.0 h1:LbFKd2XowZvQ/kajzguUp2DC9UEIQhIq77fZZ
 github.com/bufbuild/protocompile v0.4.0/go.mod h1:3v93+mbWn/v3xzN+31nwkJfrEpAUwp+BagBSZWx+TP8=
 github.com/cloudflare/circl v1.3.7 h1:qlCDlTPz2n9fu58M0Nh1J/JzcFpfgkFHHX3O35r5vcU=
 github.com/cloudflare/circl v1.3.7/go.mod h1:sRTcRWXGLrKw6yIGJ+l7amYJFfAXbZG0kBSc8r4zxgA=
-github.com/crowdstrike/gofalcon v0.16.1-0.20250804101237-64be39f9d95a h1:01FFMkKqFyT7Msl3lyJGSNCdbG4FlbrHD9EriN5HVFg=
-github.com/crowdstrike/gofalcon v0.16.1-0.20250804101237-64be39f9d95a/go.mod h1:a12GB+md+hRSgVCb3Pv6CakeTIsDIUCIVWRlJelIhY0=
-github.com/crowdstrike/gofalcon v0.16.1-0.20250804102221-fdf4f69dfe10 h1:FkRCunL8AoddQ5o9mHNbAAfHLzAiqi/yfRVyAZJjj+Q=
-github.com/crowdstrike/gofalcon v0.16.1-0.20250804102221-fdf4f69dfe10/go.mod h1:a12GB+md+hRSgVCb3Pv6CakeTIsDIUCIVWRlJelIhY0=
+github.com/crowdstrike/gofalcon v0.16.1-0.20250808215757-f7af1c9fff2b h1:L4jy4oOyM3rHv7RkfkJy8v+wCPs85TnI8VMKBcBtxVU=
+github.com/crowdstrike/gofalcon v0.16.1-0.20250808215757-f7af1c9fff2b/go.mod h1:a12GB+md+hRSgVCb3Pv6CakeTIsDIUCIVWRlJelIhY0=
 github.com/cyphar/filepath-securejoin v0.2.4 h1:Ugdm7cg7i6ZK6x3xDF1oEu1nfkyfH53EtKeQYTC3kyg=
 github.com/cyphar/filepath-securejoin v0.2.4/go.mod h1:aPGpWjXOXUn2NCNjFvBE6aRxGGx79pTxQpKOJNYHHl4=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
