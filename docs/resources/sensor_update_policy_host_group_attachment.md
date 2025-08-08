@@ -2,7 +2,7 @@
 page_title: "crowdstrike_sensor_update_policy_host_group_attachment Resource - crowdstrike"
 subcategory: "Sensor Update Policy"
 description: |-
-  This resource allows managing the host groups attached to a sensor update policy. This resource takes exclusive ownership over the host groups assigned to a sensor update policy. If you want to fully create or manage a sensor update policy please use the sensor_update_policy resource.
+  This resource allows managing the host groups attached to a sensor update policy. This resource takes exclusive ownership over the host groups assigned to a sensor update policy. If you want to fully create or manage a sensor update policy please use the crowdstrike_sensor_update_policy resource.
   API Scopes
   The following API scopes are required:
   Sensor update policies | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_sensor_update_policy_host_group_attachment (Resource)
 
-This resource allows managing the host groups attached to a sensor update policy. This resource takes exclusive ownership over the host groups assigned to a sensor update policy. If you want to fully create or manage a sensor update policy please use the `sensor_update_policy` resource.
+This resource allows managing the host groups attached to a sensor update policy. This resource takes exclusive ownership over the host groups assigned to a sensor update policy. If you want to fully create or manage a sensor update policy please use the `crowdstrike_sensor_update_policy` resource.
 
 ## API Scopes
 

@@ -168,11 +168,9 @@ func (config sensorUpdatePolicyConfig) resourceName() string {
 	return "crowdstrike_sensor_update_policy.test"
 }
 
-// TestChecks generates all appropriate test checks based on the policy configuration.
 func (config sensorUpdatePolicyConfig) TestChecks() resource.TestCheckFunc {
 	var checks []resource.TestCheckFunc
 
-	// Basic attribute checks
 	checks = append(checks,
 		resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "name", config.Name),
 		resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "description", config.Description),
@@ -181,21 +179,18 @@ func (config sensorUpdatePolicyConfig) TestChecks() resource.TestCheckFunc {
 		resource.TestCheckResourceAttrSet("crowdstrike_sensor_update_policy.test", "last_updated"),
 	)
 
-	// Enabled check
 	if config.Enabled != nil {
 		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "enabled", fmt.Sprintf("%t", *config.Enabled)))
 	} else {
 		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "enabled", "true"))
 	}
 
-	// Build checks
 	if config.Build == "" {
 		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "build", ""))
 	} else {
 		checks = append(checks, resource.TestCheckResourceAttrSet("crowdstrike_sensor_update_policy.test", "build"))
 	}
 
-	// Linux ARM64 build check
 	if config.PlatformName == "Linux" {
 		if config.BuildArm64 == "" {
 			checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "build_arm64", ""))
@@ -204,17 +199,14 @@ func (config sensorUpdatePolicyConfig) TestChecks() resource.TestCheckFunc {
 		}
 	}
 
-	// Uninstall protection check
 	if config.UninstallProtection != nil {
 		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "uninstall_protection", fmt.Sprintf("%t", *config.UninstallProtection)))
 	} else {
 		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "uninstall_protection", "false"))
 	}
 
-	// Host groups check
 	checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "host_groups.#", fmt.Sprintf("%d", config.HostGroupCount)))
 
-	// Schedule checks
 	checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_update_policy.test", "schedule.enabled", fmt.Sprintf("%t", config.Schedule.Enabled)))
 
 	if config.Schedule.Enabled {
@@ -362,10 +354,8 @@ func TestAccSensorUpdatePolicyResource_EmptyStringBuilds(t *testing.T) {
 					Check:  tc.config.TestChecks(),
 				})
 
-				// Prepare ImportStateVerifyIgnore based on configuration
 				ignoreFields := []string{"last_updated"}
 				if tc.config.PlatformName == "Linux" && tc.config.BuildArm64 == "" {
-					// Empty build_arm64 values are not preserved during import
 					ignoreFields = append(ignoreFields, "build_arm64")
 				}
 
@@ -528,7 +518,7 @@ func TestAccSensorUpdatePolicyResource_LinuxPlatform(t *testing.T) {
 					Timezone: utils.Addr("Etc/UTC"),
 					TimeBlocks: []timeBlockConfig{
 						{
-							Days:      []string{"friday", "monday"}, // API returns days in alphabetical order
+							Days:      []string{"friday", "monday"},
 							StartTime: "02:00",
 							EndTime:   "06:00",
 						},
@@ -549,10 +539,8 @@ func TestAccSensorUpdatePolicyResource_LinuxPlatform(t *testing.T) {
 					Check:  tc.config.TestChecks(),
 				})
 
-				// Prepare ImportStateVerifyIgnore based on configuration
 				ignoreFields := []string{"last_updated"}
 				if tc.config.PlatformName == "Linux" && tc.config.BuildArm64 == "" {
-					// Empty build_arm64 values are not preserved during import
 					ignoreFields = append(ignoreFields, "build_arm64")
 				}
 
