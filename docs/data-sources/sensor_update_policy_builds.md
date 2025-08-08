@@ -5,7 +5,7 @@ description: |-
   This data source provides information about the latest sensor builds for each platform.
   API Scopes
   The following API scopes are required:
-  Sensor update policies | Write
+  Sensor update policies | Read
 ---
 
 # crowdstrike_sensor_update_policy_builds (Data Source)
@@ -16,7 +16,7 @@ This data source provides information about the latest sensor builds for each pl
 
 The following API scopes are required:
 
-- Sensor update policies | Write
+- Sensor update policies | Read
 
 
 ## Example Usage
