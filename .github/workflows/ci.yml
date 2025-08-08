@@ -1,4 +1,4 @@
-name: ci 
+name: ci
 
 on:
   pull_request_target:
@@ -92,4 +92,3 @@ jobs:
           HOST_GROUP_ID: ${{ secrets.HOST_GROUP_ID }}
           IOA_RULE_GROUP_ID: ${{ secrets.IOA_RULE_GROUP_ID }}
         run: go test -v -cover ./internal/... -parallel 1
- 

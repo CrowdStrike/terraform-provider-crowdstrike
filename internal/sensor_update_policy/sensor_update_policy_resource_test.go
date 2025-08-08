@@ -28,7 +28,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   host_groups          = []
   platform_name        = "Windows"
   build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
-  uninstall_protection = false 
+  uninstall_protection = false
   schedule = {
     enabled = false
   }
@@ -44,7 +44,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   host_groups          = []
   platform_name        = "Windows"
   build                = "invalid"
-  uninstall_protection = false 
+  uninstall_protection = false
   schedule = {
     enabled = false
   }
@@ -74,7 +74,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   host_groups          = ["invalid"]
   platform_name        = "Windows"
   build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
-  uninstall_protection = false 
+  uninstall_protection = false
   schedule = {
     enabled = false
   }
@@ -103,7 +103,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   host_groups          = []
   platform_name        = "Windows"
   build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
-  uninstall_protection = false 
+  uninstall_protection = false
   schedule = {
     enabled = false
   }
@@ -169,7 +169,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   platform_name        = "Windows"
   host_groups          = []
   build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
-  uninstall_protection = true 
+  uninstall_protection = true
   schedule = {
     enabled = false
   }
@@ -240,7 +240,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   description          = "made with terraform"
   platform_name        = "Windows"
   build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
-  uninstall_protection = false 
+  uninstall_protection = false
   schedule = {
     enabled = false
   }
@@ -313,7 +313,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   description          = "made with terraform updated"
   platform_name        = "Windows"
   build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
-  uninstall_protection = true 
+  uninstall_protection = true
   host_groups          = []
   schedule = {
     enabled = false
@@ -389,7 +389,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   description          = "made with terraform"
   platform_name        = "Windows"
   build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
-  uninstall_protection = false 
+  uninstall_protection = false
   schedule = {
     enabled = false
   }
@@ -447,9 +447,9 @@ resource "crowdstrike_sensor_update_policy" "test" {
   description          = "made with terraform updated"
   platform_name        = "Windows"
   build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
-  uninstall_protection = true 
+  uninstall_protection = true
   schedule = {
-    enabled = true 
+    enabled = true
     timezone = "Etc/UTC"
     time_blocks = [
      {

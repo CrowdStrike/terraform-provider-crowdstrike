@@ -1,11 +1,9 @@
-# Visit https://golangci-lint.run/ for usage documentation
-# and information on other useful linters
+---
 issues:
   max-per-linter: 0
   max-same-issues: 0
-
+  fix: true
 linters:
-  disable-all: true
   enable:
     - durationcheck
     - errcheck
@@ -19,7 +17,7 @@ linters:
     - nilerr
     - predeclared
     - staticcheck
-    - usetesting 
+    - usetesting
     - unconvert
     - unparam
     - unused

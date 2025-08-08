@@ -1,0 +1,47 @@
+repos:
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v1.64.4
+    hooks:
+      - id: golangci-lint
+
+  - repo: local
+    hooks:
+      - id: go-mod-tidy
+        name: go mod tidy
+        entry: sh -c 'cd "$(dirname "$1")" && go mod tidy' --
+        language: system
+        files: ^go\.(mod|sum)$
+        pass_filenames: true
+
+      - id: go-generate
+        name: go generate
+        entry: go generate ./...
+        language: system
+        files: ^(examples/.*|internal/.*\.go)$
+        pass_filenames: false
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.100.0
+    hooks:
+      - id: terraform_fmt
+        args:
+          - --args=-recursive
+      - id: terraform_validate
+        args:
+          - --args=-json
+        files: ^examples/resources/.*\.tf$
+        exclude: ^examples/provider/
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: detect-private-key
+      - id: detect-aws-credentials
