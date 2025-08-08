@@ -90,7 +90,9 @@ func (config *sensorUpdatePolicyConfig) String() string {
 
 		tmpl := template.Must(template.New("hostgroup").Parse(hostGroupTemplate))
 		var buf bytes.Buffer
-		tmpl.Execute(&buf, tmplData)
+		if err := tmpl.Execute(&buf, tmplData); err != nil {
+			panic(fmt.Sprintf("failed to execute host group template: %v", err))
+		}
 		hostGroupResources += buf.String()
 
 		hostGroupRefs = append(hostGroupRefs, fmt.Sprintf("crowdstrike_host_group.hg_%d.id", i))
@@ -109,12 +111,14 @@ func (config *sensorUpdatePolicyConfig) String() string {
 
 	tmpl := template.Must(template.New("policy").Parse(sensorUpdatePolicyTemplate))
 	var buf bytes.Buffer
-	tmpl.Execute(&buf, templateData)
+	if err := tmpl.Execute(&buf, templateData); err != nil {
+		panic(fmt.Sprintf("failed to execute policy template: %v", err))
+	}
 
 	return acctest.ProviderConfig + buf.String()
 }
 
-// BuildValue returns the build value for the template
+// BuildValue returns the build value for the template.
 func (config sensorUpdatePolicyConfig) BuildValue() string {
 	if config.Build == "" {
 		return `""`
@@ -122,7 +126,7 @@ func (config sensorUpdatePolicyConfig) BuildValue() string {
 	return fmt.Sprintf("data.crowdstrike_sensor_update_policy_builds.all.%s.%s.build", strings.ToLower(config.PlatformName), config.Build)
 }
 
-// BuildArm64Value returns the ARM64 build value for Linux
+// BuildArm64Value returns the ARM64 build value for Linux.
 func (config sensorUpdatePolicyConfig) BuildArm64Value() string {
 	if config.BuildArm64 == "" {
 		return `""`
@@ -130,7 +134,7 @@ func (config sensorUpdatePolicyConfig) BuildArm64Value() string {
 	return fmt.Sprintf("data.crowdstrike_sensor_update_policy_builds.all.linux_arm64.%s.build", config.BuildArm64)
 }
 
-// ScheduleBlock returns the formatted schedule block
+// ScheduleBlock returns the formatted schedule block.
 func (config sensorUpdatePolicyConfig) ScheduleBlock() string {
 	if !config.Schedule.Enabled && len(config.Schedule.TimeBlocks) == 0 {
 		return "schedule = {\n    enabled = false\n  }"
