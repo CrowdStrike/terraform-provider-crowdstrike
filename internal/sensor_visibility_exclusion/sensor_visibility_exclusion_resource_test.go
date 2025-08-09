@@ -29,12 +29,13 @@ func (config *exclusionConfig) String() string {
 	randomSuffix := sdkacctest.RandString(8)
 
 	// Validate configuration - either apply_globally should be true OR host groups should be provided
-	if config.ApplyGlobally != nil && *config.ApplyGlobally {
+	switch {
+	case config.ApplyGlobally != nil && *config.ApplyGlobally:
 		if config.HostGroupCount > 0 {
 			panic("Cannot have both apply_globally=true and host groups")
 		}
 		applyGloballyBlock = "apply_globally = true"
-	} else if config.HostGroupCount > 0 {
+	case config.HostGroupCount > 0:
 		var hostGroupRefs []string
 		for i := 0; i < config.HostGroupCount; i++ {
 			hostGroupName := fmt.Sprintf("hg-%s-%d", randomSuffix, i)
@@ -52,7 +53,7 @@ resource "crowdstrike_host_group" "hg_%d" {
 
 		hostGroupsBlock = fmt.Sprintf(`
   host_groups = [%s]`, strings.Join(hostGroupRefs, ", "))
-	} else {
+	default:
 		// Default to apply_globally = true if neither is specified
 		applyGloballyBlock = "apply_globally = true"
 	}
@@ -102,15 +103,16 @@ func (config exclusionConfig) TestChecks() resource.TestCheckFunc {
 	}
 
 	// Check apply_globally and host_groups based on configuration
-	if config.ApplyGlobally != nil && *config.ApplyGlobally {
+	switch {
+	case config.ApplyGlobally != nil && *config.ApplyGlobally:
 		// Global exclusion - apply_globally should be true, host_groups should be null
 		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_visibility_exclusion.test", "apply_globally", "true"))
 		checks = append(checks, resource.TestCheckNoResourceAttr("crowdstrike_sensor_visibility_exclusion.test", "host_groups"))
-	} else if config.HostGroupCount > 0 {
+	case config.HostGroupCount > 0:
 		// Targeted exclusion - apply_globally should be false, host_groups should contain specific groups
 		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_visibility_exclusion.test", "apply_globally", "false"))
 		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_visibility_exclusion.test", "host_groups.#", fmt.Sprintf("%d", config.HostGroupCount)))
-	} else {
+	default:
 		// Default case - should be global (apply_globally = true)
 		checks = append(checks, resource.TestCheckResourceAttr("crowdstrike_sensor_visibility_exclusion.test", "apply_globally", "true"))
 		checks = append(checks, resource.TestCheckNoResourceAttr("crowdstrike_sensor_visibility_exclusion.test", "host_groups"))

@@ -22,3 +22,9 @@ linters:
     - unparam
     - unused
     - govet
+    - gocyclo
+    - errchkjson
+    - gocritic
+    - goimports
+    - contextcheck
+    - importas

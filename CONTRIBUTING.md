@@ -113,7 +113,7 @@ This installs the hooks defined in `.pre-commit-config.yaml` to run automaticall
 pre-commit run
 
 # Run hooks on all files
-pre-commit run --all-files
+pre-commit run -a
 ```
 
 ### What the Hooks Do
