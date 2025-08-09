@@ -14,6 +14,12 @@ This guide covers both the practical aspects of setting up and contributing to t
     - [Setup](#setup)
     - [Usage](#usage)
     - [What the Hooks Do](#what-the-hooks-do)
+  - [Commit Message Standards (Optional)](#commit-message-standards-optional)
+    - [Format](#format)
+    - [Types](#types)
+    - [Scopes](#scopes)
+    - [Guidelines](#guidelines)
+    - [Examples](#examples)
   - [Development Workflow](#development-workflow)
     - [Creating a New Resource](#creating-a-new-resource)
     - [File Structure](#file-structure)
@@ -125,6 +131,67 @@ pre-commit run -a
 - **General quality:** Hooks for general code quality.
 
 **Performance:** Hooks are designed to be fast and efficient, only running on relevant file changes.
+
+## Commit Message Standards (Optional)
+
+Follow these commit message conventions for consistency. Since we use squash merges, maintainers will ensure final messages follow these standards.
+
+### Format
+
+```
+<type>(<scope>): <description> (#PR)
+
+[optional body]
+[optional footer]
+```
+
+### Types
+
+- `feat`: New features/resources
+- `fix`: Bug fixes  
+- `refactor`: Code refactoring
+- `test`: Test additions/changes
+- `chore`: Maintenance tasks
+
+### Scopes
+
+- `<resource_name>`: Resource names (drop `crowdstrike_` prefix)
+- `provider`: Core provider functionality
+- `docs`: Documentation updates
+- `tools`: Development tooling
+- `ci`: CI/CD pipeline changes
+- `deps`: Dependency updates
+- `tests`: Test-specific changes
+
+### Guidelines
+
+- **Imperative mood**: Use "add" not "added", "fix" not "fixed"
+- **Lowercase**: Start description with lowercase letter after the colon
+- **Length**: Keep subject line under 72 characters
+- **Issue reference**: Include issue number in footer when applicable
+- **Be specific**: Clearly describe what changed, not how
+
+### Examples
+
+```bash
+# Resource changes
+feat(sensor_visibility_exclusion): add new resource
+fix(default_sensor_update_policy): require replace on updates
+feat(prevention_policy_attachment): add new resource
+
+# System changes  
+chore(deps): bump gofalcon to v0.13.4
+fix(docs): default content update policy categorization
+chore(ci): add pre-commit hooks configuration
+
+# Multi-line example
+feat(host_group): add advanced filtering support
+
+Add support for complex filtering expressions in host group queries.
+This enables more precise host targeting for policy assignments.
+
+Closes #145
+```
 
 ## Development Workflow
 
