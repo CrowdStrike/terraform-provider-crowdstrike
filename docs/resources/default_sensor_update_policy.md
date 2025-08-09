@@ -64,13 +64,13 @@ output "sensor_policy" {
 
 ### Required
 
-- `build` (String) Sensor build to use for the default sensor update policy.
-- `platform_name` (String) Chooses which default sensor update policy to manage. (Windows, Mac, Linux)
+- `build` (String) Sensor build to use for the default sensor update policy. Use an empty string to turn off sensor version updates.
+- `platform_name` (String) Chooses which default sensor update policy to manage. (Windows, Mac, Linux). Changing this value will require replacing the resource.
 - `schedule` (Attributes) Prohibit sensor updates during a set of time blocks. (see [below for nested schema](#nestedatt--schedule))
 
 ### Optional
 
-- `build_arm64` (String) Sensor arm64 build to use for the default sensor update policy (Linux only). Required if platform_name is Linux.
+- `build_arm64` (String) Sensor arm64 build to use for the default sensor update policy (Linux only). Required if platform_name is Linux. Use an empty string to turn off sensor version updates.
 - `uninstall_protection` (Boolean) Enable uninstall protection.
 
 ### Read-Only
