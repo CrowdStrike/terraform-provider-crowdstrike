@@ -257,17 +257,20 @@ func (r *defaultSensorUpdatePolicyResource) Schema(
 			},
 			"build": schema.StringAttribute{
 				Required:    true,
-				Description: "Sensor build to use for the default sensor update policy.",
+				Description: "Sensor build to use for the default sensor update policy. Use an empty string to turn off sensor version updates.",
 			},
 			"build_arm64": schema.StringAttribute{
 				Optional:    true,
-				Description: "Sensor arm64 build to use for the default sensor update policy (Linux only). Required if platform_name is Linux.",
+				Description: "Sensor arm64 build to use for the default sensor update policy (Linux only). Required if platform_name is Linux. Use an empty string to turn off sensor version updates.",
 			},
 			"platform_name": schema.StringAttribute{
 				Required:    true,
-				Description: "Chooses which default sensor update policy to manage. (Windows, Mac, Linux)",
+				Description: "Chooses which default sensor update policy to manage. (Windows, Mac, Linux). Changing this value will require replacing the resource.",
 				Validators: []validator.String{
 					stringvalidator.OneOfCaseInsensitive("Windows", "Linux", "Mac"),
+				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"uninstall_protection": schema.BoolAttribute{
@@ -477,7 +480,7 @@ func (r *defaultSensorUpdatePolicyResource) ValidateConfig(
 
 	if platform == "linux" && config.BuildArm64.IsNull() {
 		resp.Diagnostics.AddAttributeError(
-			path.Root("build_arm64"),
+			path.Root("platform_name"),
 			"Attribute build_arm64 missing",
 			"Attribute build_arm64 is required when platform_name is linux.",
 		)
