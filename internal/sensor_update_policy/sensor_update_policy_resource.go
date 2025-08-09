@@ -146,6 +146,7 @@ func (d *sensorUpdatePolicyResourceModel) wrap(
 			),
 		)
 	}
+
 	d.Build = types.StringValue(*policy.Settings.Build)
 
 	if d.PlatformName.IsNull() {
@@ -306,18 +307,21 @@ func (r *sensorUpdatePolicyResource) Schema(
 			},
 			"build": schema.StringAttribute{
 				Required:    true,
-				Description: "Sensor build to use for the sensor update policy.",
+				Description: "Sensor build to use for the sensor update policy. Use an empty string to turn off sensor version updates.",
 			},
 			"build_arm64": schema.StringAttribute{
 				Optional:    true,
-				Description: "Sensor arm64 build to use for the sensor update policy (Linux only). Required if platform_name is Linux.",
+				Description: "Sensor arm64 build to use for the sensor update policy (Linux only). Required if platform_name is Linux. Use an empty string to turn off sensor version updates.",
 			},
 			// todo: make this case insensitive
 			"platform_name": schema.StringAttribute{
 				Required:    true,
-				Description: "Platform for the sensor update policy to manage. (Windows, Mac, Linux)",
+				Description: "Platform for the sensor update policy to manage. (Windows, Mac, Linux). Changing this value will require replacing the resource.",
 				Validators: []validator.String{
 					stringvalidator.OneOf("Windows", "Linux", "Mac"),
+				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"enabled": schema.BoolAttribute{
@@ -419,7 +423,8 @@ func (r *sensorUpdatePolicyResource) Create(
 		},
 	}
 
-	if strings.ToLower(plan.PlatformName.ValueString()) == "linux" {
+	if strings.ToLower(plan.PlatformName.ValueString()) == "linux" &&
+		plan.BuildArm64.ValueString() != "" {
 		variants := []*models.SensorUpdateBuildReqV1{
 			{
 				Build:    plan.BuildArm64.ValueStringPointer(),
@@ -456,7 +461,6 @@ func (r *sensorUpdatePolicyResource) Create(
 
 	res, err := r.client.SensorUpdatePolicies.CreateSensorUpdatePoliciesV2(&policyParams)
 
-	// todo: if we should handle scope and timeout errors instead of giving a vague error
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating sensor update policy",
@@ -861,7 +865,7 @@ func (r *sensorUpdatePolicyResource) ValidateConfig(
 
 	if platform == "linux" && config.BuildArm64.IsNull() {
 		resp.Diagnostics.AddAttributeError(
-			path.Root("build_arm64"),
+			path.Root("platform_name"),
 			"Attribute build_arm64 missing",
 			"Attribute build_arm64 is required when platform_name is linux.",
 		)

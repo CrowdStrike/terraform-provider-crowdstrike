@@ -1,6 +1,6 @@
 ---
 page_title: "crowdstrike_content_category_versions Data Source - crowdstrike"
-subcategory: "Content Update Policies"
+subcategory: "Content Update Policy"
 description: |-
   This data source provides information about available content category versions for pinning in content update policies.
   API Scopes

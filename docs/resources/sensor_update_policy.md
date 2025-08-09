@@ -67,14 +67,14 @@ output "sensor_policy" {
 
 ### Required
 
-- `build` (String) Sensor build to use for the sensor update policy.
+- `build` (String) Sensor build to use for the sensor update policy. Use an empty string to turn off sensor version updates.
 - `name` (String) Name of the sensor update policy.
-- `platform_name` (String) Platform for the sensor update policy to manage. (Windows, Mac, Linux)
+- `platform_name` (String) Platform for the sensor update policy to manage. (Windows, Mac, Linux). Changing this value will require replacing the resource.
 - `schedule` (Attributes) Prohibit sensor updates during a set of time blocks. (see [below for nested schema](#nestedatt--schedule))
 
 ### Optional
 
-- `build_arm64` (String) Sensor arm64 build to use for the sensor update policy (Linux only). Required if platform_name is Linux.
+- `build_arm64` (String) Sensor arm64 build to use for the sensor update policy (Linux only). Required if platform_name is Linux. Use an empty string to turn off sensor version updates.
 - `description` (String) Description of the sensor update policy.
 - `enabled` (Boolean) Enable the sensor update policy.
 - `host_groups` (Set of String) Host Group ids to attach to the sensor update policy.

@@ -53,7 +53,7 @@ func (d *contentCategoryVersionsDataSource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: fmt.Sprintf(
-			"Content Update Policies --- This data source provides information about available content category versions for pinning in content update policies.\n\n%s",
+			"Content Update Policy --- This data source provides information about available content category versions for pinning in content update policies.\n\n%s",
 			scopes.GenerateScopeDescription(
 				[]scopes.Scope{
 					{
