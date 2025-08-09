@@ -14,7 +14,7 @@ func testAccPreventionPolicyWindowsConfig_basic(rName string, enabled bool) stri
 	return acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_prevention_policy_windows" "test" {
   name                      = "%s"
-  enabled                   = %t 
+  enabled                   = %t
   host_groups               = []
   ioa_rule_groups           = []
   description               = "made with terraform"
@@ -38,7 +38,7 @@ resource "crowdstrike_prevention_policy_windows" "test" {
   name                      = "%s"
   host_groups               = ["%s"]
   ioa_rule_groups           = ["%s"]
-  enabled                   = %t 
+  enabled                   = %t
   description               = "made with terraform"
   additional_user_mode_data = true
   cloud_anti_malware_microsoft_office_files = {

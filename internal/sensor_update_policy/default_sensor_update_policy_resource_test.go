@@ -26,7 +26,7 @@ data "crowdstrike_sensor_update_policy_builds" "all" {}
 resource "crowdstrike_default_sensor_update_policy" "default" {
   platform_name        = "Windows"
   build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
-  uninstall_protection = false 
+  uninstall_protection = false
   schedule = {
     enabled = false
   }
@@ -37,7 +37,7 @@ resource "crowdstrike_default_sensor_update_policy" "default" {
 resource "crowdstrike_default_sensor_update_policy" "default" {
   platform_name        = "Windows"
   build                = "invalid"
-  uninstall_protection = false 
+  uninstall_protection = false
   schedule = {
     enabled = false
   }
@@ -62,9 +62,9 @@ data "crowdstrike_sensor_update_policy_builds" "all" {}
 resource "crowdstrike_default_sensor_update_policy" "default" {
   platform_name        = "Windows"
   build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
-  uninstall_protection = true 
+  uninstall_protection = true
   schedule = {
-    enabled = true 
+    enabled = true
     timezone = "Etc/UTC"
     time_blocks = [
      {

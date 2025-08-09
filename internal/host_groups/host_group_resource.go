@@ -823,7 +823,8 @@ func AssignAssignmentRule(
 		hostnames = cleanMatches(matches[2])
 	}
 
-	if groupType == HgStatic {
+	switch groupType {
+	case HgStatic:
 		hostnameSet, err := types.SetValueFrom(ctx, types.StringType, hostnames)
 		diags.Append(err...)
 		if diags.HasError() {
@@ -833,7 +834,7 @@ func AssignAssignmentRule(
 		if config.Hostnames.IsNull() {
 			config.Hostnames = emptySet
 		}
-	} else if groupType == HgStaticByID {
+	case HgStaticByID:
 		hostIDSet, err := types.SetValueFrom(ctx, types.StringType, deviceIDs)
 		diags.Append(err...)
 		if diags.HasError() {

@@ -14,7 +14,7 @@ First obtain the ID of the resources you want to import. You can obtain the ID b
 
 For example, if the URL is `https://falcon.us-2.crowdstrike.com/hosts/groups-new/edit/7e053217c9cf449fbb503429a0501e87` then the ID is `7e053217c9cf449fbb503429a0501e87`.
 
-Create a `imports.tf` file and add a block for each resource you want to import. 
+Create a `imports.tf` file and add a block for each resource you want to import.
 
 ```terraform
 terraform {
@@ -87,7 +87,7 @@ Once done you are ready to run `terraform plan/apply`. This will import the reso
 
 This example will be importing a single CrowdStrike Host Group named `import_example`.
 
-First create a terraform file that will contain the imported resource, or use an existing file. In the terraform file create a resource block for the resource you want to import. 
+First create a terraform file that will contain the imported resource, or use an existing file. In the terraform file create a resource block for the resource you want to import.
 ```terraform
 terraform {
   required_providers {
@@ -136,7 +136,7 @@ Running the following command will output what terraform thinks the resource sho
 terraform state show crowdstrike_host_group.import_example
 ```
 
-You can copy the configuration and paste it into the resource block in the terraform file. 
+You can copy the configuration and paste it into the resource block in the terraform file.
 
 ```terraform
 # crowdstrike_host_group.import_example:
@@ -149,10 +149,10 @@ resource "crowdstrike_host_group" "import_example" {
 }
 ```
 
-Remove the `id` field from the configuration as it is not needed. 
+Remove the `id` field from the configuration as it is not needed.
 
 Now run `terraform plan`
 
 ![plan_finished](./images/plan_finished.png)
 
-If the output shows no changes, your configuration now matches the remote state. If you have errors or changes you can make the necessary modifications to the configuration and run `terraform plan` again until the output shows what you expect.   
+If the output shows no changes, your configuration now matches the remote state. If you have errors or changes you can make the necessary modifications to the configuration and run `terraform plan` again until the output shows what you expect.  
