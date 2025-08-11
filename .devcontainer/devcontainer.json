@@ -1,0 +1,20 @@
+{
+	"name": "Go",
+	"image": "mcr.microsoft.com/devcontainers/go:latest",
+	"features": {
+		"ghcr.io/guiyomh/features/golangci-lint:0": {
+			"version": "latest"
+		},
+		"ghcr.io/devcontainers-extra/features/pre-commit:2": {
+			"version": "latest"
+		},
+	},
+	"postCreateCommand": "wget -O - https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg && echo \"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(grep -oP '(?<=UBUNTU_CODENAME=).*' /etc/os-release || lsb_release -cs) main\" | sudo tee /etc/apt/sources.list.d/hashicorp.list && sudo apt update && sudo apt install terraform",
+	"containerEnv": {
+		"FALCON_CLIENT_ID": "${localEnv:FALCON_CLIENT_ID}",
+		"FALCON_CLIENT_SECRET": "${localEnv:FALCON_CLIENT_SECRET}",
+		"FALCON_CLOUD": "${localEnv:FALCON_CLOUD}",
+		"FALCON_CID": "${localEnv:FALCON_CID}",
+		"TF_ACC": "1"
+	}
+}
