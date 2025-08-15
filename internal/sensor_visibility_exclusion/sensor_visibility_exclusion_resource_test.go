@@ -12,6 +12,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
+// generateTestPath creates a unique path using a template with %s placeholder
+func generateTestPath(template string) string {
+	randomID := sdkacctest.RandString(8)
+	return fmt.Sprintf(template, randomID)
+}
+
 // exclusionConfig represents a complete sensor visibility exclusion configuration.
 type exclusionConfig struct {
 	Value                      string
@@ -129,14 +135,14 @@ func TestAccSensorVisibilityExclusionResource_Basic(t *testing.T) {
 		{
 			name: "basic_exclusion",
 			config: exclusionConfig{
-				Value:         "/tmp/test-basic/*",
+				Value:         generateTestPath("/tmp/tf-acc-basic-%s/*"),
 				ApplyGlobally: utils.Addr(true),
 			},
 		},
 		{
 			name: "updated_exclusion",
 			config: exclusionConfig{
-				Value:         "/tmp/test-updated/*",
+				Value:         generateTestPath("/tmp/tf-acc-updated-%s/*"),
 				ApplyGlobally: utils.Addr(true),
 			},
 		},
@@ -174,7 +180,7 @@ func TestAccSensorVisibilityExclusionResource_DescendantProcesses(t *testing.T) 
 		{
 			name: "descendant_processes_false",
 			config: exclusionConfig{
-				Value:                      "/opt/app1/bin/*",
+				Value:                      generateTestPath("/opt/tf-acc-app1-bin-%s/*"),
 				ApplyToDescendantProcesses: utils.Addr(false),
 				ApplyGlobally:              utils.Addr(true),
 			},
@@ -182,7 +188,7 @@ func TestAccSensorVisibilityExclusionResource_DescendantProcesses(t *testing.T) 
 		{
 			name: "descendant_processes_true",
 			config: exclusionConfig{
-				Value:                      "/opt/app2/bin/*",
+				Value:                      generateTestPath("/opt/tf-acc-app2-bin-%s/*"),
 				ApplyToDescendantProcesses: utils.Addr(true),
 				ApplyGlobally:              utils.Addr(true),
 			},
@@ -190,7 +196,7 @@ func TestAccSensorVisibilityExclusionResource_DescendantProcesses(t *testing.T) 
 		{
 			name: "descendant_processes_default",
 			config: exclusionConfig{
-				Value:         "/opt/app3/bin/*",
+				Value:         generateTestPath("/opt/tf-acc-app3-bin-%s/*"),
 				ApplyGlobally: utils.Addr(true),
 			},
 		},
@@ -220,14 +226,14 @@ func TestAccSensorVisibilityExclusionResource_HostGroups(t *testing.T) {
 		{
 			name: "single_host_group",
 			config: exclusionConfig{
-				Value:          "/tmp/test-hg-single/*",
+				Value:          generateTestPath("/tmp/tf-acc-hg-single-%s/*"),
 				HostGroupCount: 1,
 			},
 		},
 		{
 			name: "multiple_host_groups",
 			config: exclusionConfig{
-				Value:          "/tmp/test-hg-multiple/*",
+				Value:          generateTestPath("/tmp/tf-acc-hg-multiple-%s/*"),
 				HostGroupCount: 2,
 			},
 		},
@@ -235,7 +241,7 @@ func TestAccSensorVisibilityExclusionResource_HostGroups(t *testing.T) {
 		// {
 		// 	name: "global_exclusion",
 		// 	config: exclusionConfig{
-		// 		Value:         "/tmp/test-hg-global/*",
+		// 		Value:         generateTestPath("hg-global"),
 		// 		ApplyGlobally: utils.Addr(true),
 		// 	},
 		// },
@@ -265,7 +271,7 @@ func TestAccSensorVisibilityExclusionResource_ComplexConfigurations(t *testing.T
 		{
 			name: "complex_with_host_groups_and_descendants",
 			config: exclusionConfig{
-				Value:                      "/opt/complex-app/bin/*",
+				Value:                      generateTestPath("/opt/tf-acc-complex-app-bin-%s/*"),
 				ApplyToDescendantProcesses: utils.Addr(true),
 				HostGroupCount:             2,
 			},
@@ -274,14 +280,14 @@ func TestAccSensorVisibilityExclusionResource_ComplexConfigurations(t *testing.T
 		// {
 		// 	name: "windows_path_exclusion",
 		// 	config: exclusionConfig{
-		// 		Value:         "C:\\Program Files\\MyApp\\*",
+		// 		Value:         generateTestPathWithBase("C:\\Program Files", "MyApp"),
 		// 		ApplyGlobally: utils.Addr(true),
 		// 	},
 		// },
 		// {
 		// 	name: "wildcard_patterns",
 		// 	config: exclusionConfig{
-		// 		Value:         "/var/log/*.log",
+		// 		Value:         generateTestPathWithBase("/var/log", "patterns.log"),
 		// 		ApplyGlobally: utils.Addr(true),
 		// 	},
 		// },
@@ -311,21 +317,21 @@ func TestAccSensorVisibilityExclusionResource_FieldBoundaries(t *testing.T) {
 		{
 			name: "special_characters_in_path",
 			config: exclusionConfig{
-				Value:         "/tmp/special-chars_123/app-name.test/*",
+				Value:         generateTestPath("/tmp/tf-acc-special-chars_123/app-name-%s.test/*"),
 				ApplyGlobally: utils.Addr(true),
 			},
 		},
 		{
 			name: "very_long_path",
 			config: exclusionConfig{
-				Value:         "/very/long/path/that/goes/deep/into/the/filesystem/structure/with/many/levels/and/contains/a/very/long/directory/name/that/simulates/real/world/usage/scenarios/where/paths/can/be/quite/lengthy/and/complex/application/directory/*",
+				Value:         generateTestPath("/tmp/tf-acc-very/long/path/that/goes/deep/into/the/filesystem/structure/with/many/levels/and/contains/a/very/long/directory/name/that/simulates/real/world/usage/scenarios/where/paths/can/be/quite/lengthy/and/complex/application/directory-%s/*"),
 				ApplyGlobally: utils.Addr(true),
 			},
 		},
 		{
 			name: "path_with_spaces_and_unicode",
 			config: exclusionConfig{
-				Value:         "/Applications/My App with Spaces/Contents/MacOS/测试应用程序/*",
+				Value:         generateTestPath("/tmp/tf-acc-Applications/My App with Spaces/Contents/MacOS/测试应用程序-%s/*"),
 				ApplyGlobally: utils.Addr(true),
 			},
 		},
@@ -364,38 +370,38 @@ resource "crowdstrike_sensor_visibility_exclusion" "test" {
 		},
 		{
 			name: "invalid_host_group_format",
-			config: `
+			config: fmt.Sprintf(`
 resource "crowdstrike_sensor_visibility_exclusion" "test" {
-  value       = "/tmp/test/*"
+  value       = %q
   host_groups = [""]
-}`,
+}`, generateTestPath("/tmp/tf-acc-validation-test-%s/*")),
 			expectError: regexp.MustCompile("string length must be at least 1"),
 		},
 		{
 			name: "mixed_valid_invalid_host_groups",
-			config: `
+			config: fmt.Sprintf(`
 resource "crowdstrike_sensor_visibility_exclusion" "test" {
-  value       = "/tmp/test/*"
+  value       = %q
   host_groups = ["valid-group-id", ""]
-}`,
+}`, generateTestPath("/tmp/tf-acc-validation-mixed-%s/*")),
 			expectError: regexp.MustCompile("string length must be at least 1"),
 		},
 		{
 			name: "both_apply_globally_and_host_groups",
-			config: `
+			config: fmt.Sprintf(`
 resource "crowdstrike_sensor_visibility_exclusion" "test" {
-  value          = "/tmp/test/*"
+  value          = %q
   apply_globally = true
   host_groups    = ["group-id-123"]
-}`,
+}`, generateTestPath("/tmp/tf-acc-validation-both-%s/*")),
 			expectError: regexp.MustCompile("Cannot specify both apply_globally=true and host_groups"),
 		},
 		{
 			name: "neither_apply_globally_nor_host_groups",
-			config: `
+			config: fmt.Sprintf(`
 resource "crowdstrike_sensor_visibility_exclusion" "test" {
-  value   = "/tmp/test/*"
-}`,
+  value   = %q
+}`, generateTestPath("/tmp/tf-acc-validation-neither-%s/*")),
 			expectError: regexp.MustCompile("Must specify either apply_globally=true or provide host_groups"),
 		},
 	}
@@ -417,6 +423,10 @@ resource "crowdstrike_sensor_visibility_exclusion" "test" {
 }
 
 func TestAccSensorVisibilityExclusionResource_HostGroupTransitions(t *testing.T) {
+	// Generate a single random path that will be used across all test steps
+	// This simulates the same exclusion being modified across configurations
+	transitionPath := generateTestPath("/tmp/tf-acc-transition-%s/*")
+
 	testCases := []struct {
 		name   string
 		config exclusionConfig
@@ -424,14 +434,14 @@ func TestAccSensorVisibilityExclusionResource_HostGroupTransitions(t *testing.T)
 		{
 			name: "global_to_specific_host_groups",
 			config: exclusionConfig{
-				Value:         "/tmp/test-transition-1/*",
+				Value:         transitionPath,
 				ApplyGlobally: utils.Addr(true), // Start global
 			},
 		},
 		{
 			name: "specific_to_global_host_groups",
 			config: exclusionConfig{
-				Value:          "/tmp/test-transition-1/*",
+				Value:          transitionPath,
 				HostGroupCount: 1, // Change to specific
 			},
 		},
@@ -439,7 +449,7 @@ func TestAccSensorVisibilityExclusionResource_HostGroupTransitions(t *testing.T)
 		// {
 		// 	name: "back_to_global",
 		// 	config: exclusionConfig{
-		// 		Value:         "/tmp/test-transition-1/*",
+		// 		Value:         transitionPath,
 		// 		ApplyGlobally: utils.Addr(true), // Back to global
 		// 	},
 		// },
@@ -471,7 +481,7 @@ func TestAccSensorVisibilityExclusionResource_AllPermutations(t *testing.T) {
 		{
 			name: "descendant_false_global",
 			config: exclusionConfig{
-				Value:                      "/opt/matrix-test-1/*",
+				Value:                      generateTestPath("/opt/tf-acc-matrix-test-1-%s/*"),
 				ApplyToDescendantProcesses: utils.Addr(false),
 				ApplyGlobally:              utils.Addr(true),
 			},
@@ -479,7 +489,7 @@ func TestAccSensorVisibilityExclusionResource_AllPermutations(t *testing.T) {
 		{
 			name: "descendant_false_single_group",
 			config: exclusionConfig{
-				Value:                      "/opt/matrix-test-2/*",
+				Value:                      generateTestPath("/opt/tf-acc-matrix-test-2-%s/*"),
 				ApplyToDescendantProcesses: utils.Addr(false),
 				HostGroupCount:             1,
 			},
@@ -487,7 +497,7 @@ func TestAccSensorVisibilityExclusionResource_AllPermutations(t *testing.T) {
 		{
 			name: "descendant_false_multiple_groups",
 			config: exclusionConfig{
-				Value:                      "/opt/matrix-test-3/*",
+				Value:                      generateTestPath("/opt/tf-acc-matrix-test-3-%s/*"),
 				ApplyToDescendantProcesses: utils.Addr(false),
 				HostGroupCount:             2,
 			},
@@ -496,7 +506,7 @@ func TestAccSensorVisibilityExclusionResource_AllPermutations(t *testing.T) {
 		// {
 		// 	name: "descendant_true_global",
 		// 	config: exclusionConfig{
-		// 		Value:                      "/opt/matrix-test-4/*",
+		// 		Value:                      generateTestPath("/opt/tf-acc-matrix-test-4-%s/*"),
 		// 		ApplyToDescendantProcesses: utils.Addr(true),
 		// 		ApplyGlobally:              utils.Addr(true),
 		// 	},
@@ -504,7 +514,7 @@ func TestAccSensorVisibilityExclusionResource_AllPermutations(t *testing.T) {
 		{
 			name: "descendant_true_single_group",
 			config: exclusionConfig{
-				Value:                      "/opt/matrix-test-5/*",
+				Value:                      generateTestPath("/opt/tf-acc-matrix-test-5-%s/*"),
 				ApplyToDescendantProcesses: utils.Addr(true),
 				HostGroupCount:             1,
 			},
@@ -512,7 +522,7 @@ func TestAccSensorVisibilityExclusionResource_AllPermutations(t *testing.T) {
 		{
 			name: "descendant_true_multiple_groups",
 			config: exclusionConfig{
-				Value:                      "/opt/matrix-test-6/*",
+				Value:                      generateTestPath("/opt/tf-acc-matrix-test-6-%s/*"),
 				ApplyToDescendantProcesses: utils.Addr(true),
 				HostGroupCount:             2,
 			},
@@ -520,21 +530,21 @@ func TestAccSensorVisibilityExclusionResource_AllPermutations(t *testing.T) {
 		// {
 		// 	name: "descendant_default_global",
 		// 	config: exclusionConfig{
-		// 		Value:         "/opt/matrix-test-7/*",
+		// 		Value:         generateTestPath("/opt/tf-acc-matrix-test-7-%s/*"),
 		// 		ApplyGlobally: utils.Addr(true),
 		// 	},
 		// },
 		{
 			name: "descendant_default_single_group",
 			config: exclusionConfig{
-				Value:          "/opt/matrix-test-8/*",
+				Value:          generateTestPath("/opt/tf-acc-matrix-test-8-%s/*"),
 				HostGroupCount: 1,
 			},
 		},
 		{
 			name: "descendant_default_multiple_groups",
 			config: exclusionConfig{
-				Value:          "/opt/matrix-test-9/*",
+				Value:          generateTestPath("/opt/tf-acc-matrix-test-9-%s/*"),
 				HostGroupCount: 2,
 			},
 		},
