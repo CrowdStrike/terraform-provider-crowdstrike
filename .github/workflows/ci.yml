@@ -89,6 +89,7 @@ jobs:
           TF_ACC: "1"
           FALCON_CLIENT_ID: ${{ secrets.FALCON_CLIENT_ID }}
           FALCON_CLIENT_SECRET: ${{ secrets.FALCON_CLIENT_SECRET }}
+          FALCON_CLOUD: ${{ secrets.FALCON_CLOUD }}
           HOST_GROUP_ID: ${{ secrets.HOST_GROUP_ID }}
           IOA_RULE_GROUP_ID: ${{ secrets.IOA_RULE_GROUP_ID }}
         run: go test -v -cover ./internal/... -parallel 1
