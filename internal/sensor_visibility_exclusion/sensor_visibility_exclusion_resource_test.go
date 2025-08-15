@@ -317,21 +317,21 @@ func TestAccSensorVisibilityExclusionResource_FieldBoundaries(t *testing.T) {
 		{
 			name: "special_characters_in_path",
 			config: exclusionConfig{
-				Value:         "/tmp/special-chars_123/app-name.test/*",
+				Value:         generateTestPath("/tmp/tf-acc-special-chars_123/app-name-%s.test/*"),
 				ApplyGlobally: utils.Addr(true),
 			},
 		},
 		{
 			name: "very_long_path",
 			config: exclusionConfig{
-				Value:         "/very/long/path/that/goes/deep/into/the/filesystem/structure/with/many/levels/and/contains/a/very/long/directory/name/that/simulates/real/world/usage/scenarios/where/paths/can/be/quite/lengthy/and/complex/application/directory/*",
+				Value:         generateTestPath("/tmp/tf-acc-very/long/path/that/goes/deep/into/the/filesystem/structure/with/many/levels/and/contains/a/very/long/directory/name/that/simulates/real/world/usage/scenarios/where/paths/can/be/quite/lengthy/and/complex/application/directory-%s/*"),
 				ApplyGlobally: utils.Addr(true),
 			},
 		},
 		{
 			name: "path_with_spaces_and_unicode",
 			config: exclusionConfig{
-				Value:         "/Applications/My App with Spaces/Contents/MacOS/测试应用程序/*",
+				Value:         generateTestPath("/tmp/tf-acc-Applications/My App with Spaces/Contents/MacOS/测试应用程序-%s/*"),
 				ApplyGlobally: utils.Addr(true),
 			},
 		},
@@ -370,38 +370,38 @@ resource "crowdstrike_sensor_visibility_exclusion" "test" {
 		},
 		{
 			name: "invalid_host_group_format",
-			config: `
+			config: fmt.Sprintf(`
 resource "crowdstrike_sensor_visibility_exclusion" "test" {
-  value       = "/tmp/test/*"
+  value       = %q
   host_groups = [""]
-}`,
+}`, generateTestPath("/tmp/tf-acc-validation-test-%s/*")),
 			expectError: regexp.MustCompile("string length must be at least 1"),
 		},
 		{
 			name: "mixed_valid_invalid_host_groups",
-			config: `
+			config: fmt.Sprintf(`
 resource "crowdstrike_sensor_visibility_exclusion" "test" {
-  value       = "/tmp/test/*"
+  value       = %q
   host_groups = ["valid-group-id", ""]
-}`,
+}`, generateTestPath("/tmp/tf-acc-validation-mixed-%s/*")),
 			expectError: regexp.MustCompile("string length must be at least 1"),
 		},
 		{
 			name: "both_apply_globally_and_host_groups",
-			config: `
+			config: fmt.Sprintf(`
 resource "crowdstrike_sensor_visibility_exclusion" "test" {
-  value          = "/tmp/test/*"
+  value          = %q
   apply_globally = true
   host_groups    = ["group-id-123"]
-}`,
+}`, generateTestPath("/tmp/tf-acc-validation-both-%s/*")),
 			expectError: regexp.MustCompile("Cannot specify both apply_globally=true and host_groups"),
 		},
 		{
 			name: "neither_apply_globally_nor_host_groups",
-			config: `
+			config: fmt.Sprintf(`
 resource "crowdstrike_sensor_visibility_exclusion" "test" {
-  value   = "/tmp/test/*"
-}`,
+  value   = %q
+}`, generateTestPath("/tmp/tf-acc-validation-neither-%s/*")),
 			expectError: regexp.MustCompile("Must specify either apply_globally=true or provide host_groups"),
 		},
 	}
