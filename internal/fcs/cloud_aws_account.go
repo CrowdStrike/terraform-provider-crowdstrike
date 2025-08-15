@@ -450,25 +450,22 @@ func (r *cloudAWSAccountResource) Schema(
 				},
 			},
 			"eventbus_name": schema.StringAttribute{
-				Computed:    true,
-				Description: "The name of the Amazon EventBridge used by CrowdStrike to forward messages",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
+				Computed:      true,
+				Description:   "The name of the Amazon EventBridge used by CrowdStrike to forward messages",
+				PlanModifiers: []planmodifier.String{},
+				Optional:      true,
 			},
 			"eventbus_arn": schema.StringAttribute{
-				Computed:    true,
-				Description: "The ARN of the Amazon EventBridge used by CrowdStrike to forward messages",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
+				Computed:      true,
+				Description:   "The ARN of the Amazon EventBridge used by CrowdStrike to forward messages",
+				PlanModifiers: []planmodifier.String{},
+				Optional:      true,
 			},
 			"cloudtrail_bucket_name": schema.StringAttribute{
-				Computed:    true,
-				Description: "The name of the CloudTrail S3 bucket used for real-time visibility",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
+				Computed:      true,
+				Description:   "The name of the CloudTrail S3 bucket used for real-time visibility",
+				PlanModifiers: []planmodifier.String{},
+				Optional:      true,
 			},
 			"dspm_role_arn": schema.StringAttribute{
 				Computed:    true,

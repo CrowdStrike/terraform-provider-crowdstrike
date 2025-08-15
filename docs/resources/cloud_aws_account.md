@@ -69,8 +69,11 @@ resource "crowdstrike_cloud_aws_account" "org" {
 
 - `account_type` (String) The AWS account type. Value is 'commercial' for Commercial cloud accounts. For GovCloud environments, value can be either 'commercial' or 'gov' depending on the account type
 - `asset_inventory` (Attributes) (see [below for nested schema](#nestedatt--asset_inventory))
+- `cloudtrail_bucket_name` (String) The name of the CloudTrail S3 bucket used for real-time visibility
 - `deployment_method` (String) How the account was deployed. Valid values are 'terraform-native' and 'terraform-cft'
 - `dspm` (Attributes) (see [below for nested schema](#nestedatt--dspm))
+- `eventbus_arn` (String) The ARN of the Amazon EventBridge used by CrowdStrike to forward messages
+- `eventbus_name` (String) The name of the Amazon EventBridge used by CrowdStrike to forward messages
 - `idp` (Attributes) (see [below for nested schema](#nestedatt--idp))
 - `organization_id` (String) The AWS Organization ID (starts with `o-`). When specified, accounts within the organization will be registered. If `target_ous` is empty, all accounts in the organization will be registered. The `account_id` must be the organization's management account ID.
 - `realtime_visibility` (Attributes) (see [below for nested schema](#nestedatt--realtime_visibility))
@@ -81,11 +84,8 @@ resource "crowdstrike_cloud_aws_account" "org" {
 
 ### Read-Only
 
-- `cloudtrail_bucket_name` (String) The name of the CloudTrail S3 bucket used for real-time visibility
 - `dspm_role_arn` (String) The ARN of the IAM role to be used by CrowdStrike Data Security Posture Management
 - `dspm_role_name` (String) The name of the IAM role to be used by CrowdStrike Data Security Posture Management
-- `eventbus_arn` (String) The ARN of the Amazon EventBridge used by CrowdStrike to forward messages
-- `eventbus_name` (String) The name of the Amazon EventBridge used by CrowdStrike to forward messages
 - `external_id` (String) The external ID used to assume the AWS IAM role
 - `iam_role_arn` (String) The ARN of the AWS IAM role used to access this AWS account
 - `iam_role_name` (String) The name of the AWS IAM role used to access this AWS account

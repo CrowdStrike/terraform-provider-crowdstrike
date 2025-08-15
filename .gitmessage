@@ -6,7 +6,7 @@
 
 # --- TYPES ---
 # feat:     New features/resources
-# fix:      Bug fixes  
+# fix:      Bug fixes
 # refactor: Code refactoring
 # test:     Test additions/changes
 # chore:    Maintenance tasks
@@ -28,5 +28,5 @@
 
 # --- EXAMPLES ---
 # feat(sensor_visibility_exclusion): add new resource (#121)
-# fix(default_sensor_update_policy): require replace on updates (#128)  
+# fix(default_sensor_update_policy): require replace on updates (#128)
 # chore(deps): bump gofalcon to v0.13.4 (#74)
