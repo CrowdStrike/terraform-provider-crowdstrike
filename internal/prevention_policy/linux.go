@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
@@ -42,8 +43,8 @@ type preventionPolicyLinuxResourceModel struct {
 	HostGroups                         types.Set    `tfsdk:"host_groups"`
 	RuleGroups                         types.Set    `tfsdk:"ioa_rule_groups"`
 	LastUpdated                        types.String `tfsdk:"last_updated"`
-	CloudAntiMalware                   *mlSlider    `tfsdk:"cloud_anti_malware"`
-	OnSensorMLSlider                   *mlSlider    `tfsdk:"sensor_anti_malware"`
+	CloudAntiMalware                   types.Object `tfsdk:"cloud_anti_malware"`
+	OnSensorMLSlider                   types.Object `tfsdk:"sensor_anti_malware"`
 	UnknownDetectionRelatedExecutables types.Bool   `tfsdk:"upload_unknown_detection_related_executables"`
 	UnknownExecutables                 types.Bool   `tfsdk:"upload_unknown_executables"`
 	ScriptBasedExecutionMonitoring     types.Bool   `tfsdk:"script_based_execution_monitoring"`
@@ -122,7 +123,12 @@ func (r *preventionPolicyLinuxResource) Create(
 		return
 	}
 
-	preventionSettings := r.generatePreventionSettings(plan)
+	preventionSettings, diagsGen := r.generatePreventionSettings(ctx, plan)
+	resp.Diagnostics.Append(diagsGen...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	res, diags := createPreventionPolicy(
 		ctx,
 		r.client,
@@ -166,7 +172,10 @@ func (r *preventionPolicyLinuxResource) Create(
 		plan.Enabled = types.BoolValue(*preventionPolicy.Enabled)
 	}
 
-	r.assignPreventionSettings(&plan, preventionPolicy.PreventionSettings)
+	resp.Diagnostics.Append(r.assignPreventionSettings(ctx, &plan, preventionPolicy.PreventionSettings)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	emptySet, diags := types.SetValueFrom(ctx, types.StringType, []string{})
 	resp.Diagnostics.Append(diags...)
@@ -227,7 +236,10 @@ func (r *preventionPolicyLinuxResource) Read(
 	state.Name = types.StringValue(*policy.Name)
 	state.Description = types.StringValue(*policy.Description)
 	state.Enabled = types.BoolValue(*policy.Enabled)
-	r.assignPreventionSettings(&state, policy.PreventionSettings)
+	resp.Diagnostics.Append(r.assignPreventionSettings(ctx, &state, policy.PreventionSettings)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	resp.Diagnostics.Append(r.assignHostGroups(ctx, &state, policy.Groups)...)
 	if resp.Diagnostics.HasError() {
@@ -281,7 +293,11 @@ func (r *preventionPolicyLinuxResource) Update(
 		return
 	}
 
-	preventionSettings := r.generatePreventionSettings(plan)
+	preventionSettings, diagsGen := r.generatePreventionSettings(ctx, plan)
+	resp.Diagnostics.Append(diagsGen...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	preventionPolicy, diags := updatePreventionPolicy(
 		ctx,
@@ -303,7 +319,10 @@ func (r *preventionPolicyLinuxResource) Update(
 	plan.Description = types.StringValue(*preventionPolicy.Description)
 	plan.Name = types.StringValue(*preventionPolicy.Name)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
-	r.assignPreventionSettings(&plan, preventionPolicy.PreventionSettings)
+	resp.Diagnostics.Append(r.assignPreventionSettings(ctx, &plan, preventionPolicy.PreventionSettings)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	if plan.Enabled.ValueBool() != state.Enabled.ValueBool() {
 		actionResp, diags := updatePolicyEnabledState(
@@ -390,20 +409,26 @@ func (r *preventionPolicyLinuxResource) ValidateConfig(
 	resp.Diagnostics.Append(utils.ValidateEmptyIDs(ctx, config.HostGroups, "host_groups")...)
 	resp.Diagnostics.Append(utils.ValidateEmptyIDs(ctx, config.RuleGroups, "ioa_rule_groups")...)
 
-	if config.CloudAntiMalware != nil {
-		resp.Diagnostics.Append(
-			validateMlSlider(
-				"cloud_anti_malware",
-				*config.CloudAntiMalware,
-			)...)
+	if !config.CloudAntiMalware.IsNull() {
+		var slider mlSlider
+		if diagsSlider := config.CloudAntiMalware.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
+			resp.Diagnostics.Append(
+				validateMlSlider(
+					"cloud_anti_malware",
+					slider,
+				)...)
+		}
 	}
 
-	if config.OnSensorMLSlider != nil {
-		resp.Diagnostics.Append(
-			validateMlSlider(
-				"sensor_anti_malware",
-				*config.OnSensorMLSlider,
-			)...)
+	if !config.OnSensorMLSlider.IsNull() {
+		var slider mlSlider
+		if diagsSlider := config.OnSensorMLSlider.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
+			resp.Diagnostics.Append(
+				validateMlSlider(
+					"sensor_anti_malware",
+					slider,
+				)...)
+		}
 	}
 }
 
@@ -445,9 +470,11 @@ func (r *preventionPolicyLinuxResource) assignHostGroups(
 
 // assignPreventionSettings assigns the prevention settings returned from the api into the resource model.
 func (r *preventionPolicyLinuxResource) assignPreventionSettings(
+	ctx context.Context,
 	state *preventionPolicyLinuxResourceModel,
 	categories []*models.PreventionCategoryRespV1,
-) {
+) diag.Diagnostics {
+	var diags diag.Diagnostics
 	toggleSettings, mlSliderSettings, _ := mapPreventionSettings(categories)
 
 	// toggle settings
@@ -480,15 +507,34 @@ func (r *preventionPolicyLinuxResource) assignPreventionSettings(
 	)
 
 	// mlslider settings
-	state.CloudAntiMalware = mlSliderSettings["CloudAntiMalware"]
-	state.OnSensorMLSlider = mlSliderSettings["OnSensorMLSlider"]
+	if slider, ok := mlSliderSettings["CloudAntiMalware"]; ok {
+		objValue, diagsObj := types.ObjectValueFrom(ctx, mlSlider{}.AttributeTypes(), slider)
+		diags.Append(diagsObj...)
+		if diags.HasError() {
+			return diags
+		}
+		state.CloudAntiMalware = objValue
+	}
+
+	if slider, ok := mlSliderSettings["OnSensorMLSlider"]; ok {
+		objValue, diagsObj := types.ObjectValueFrom(ctx, mlSlider{}.AttributeTypes(), slider)
+		diags.Append(diagsObj...)
+		if diags.HasError() {
+			return diags
+		}
+		state.OnSensorMLSlider = objValue
+	}
+
+	return diags
 }
 
 // generatePreventionSettings maps plan prevention settings to api params for create and update.
 func (r *preventionPolicyLinuxResource) generatePreventionSettings(
+	ctx context.Context,
 	config preventionPolicyLinuxResourceModel,
-) []*models.PreventionSettingReqV1 {
+) ([]*models.PreventionSettingReqV1, diag.Diagnostics) {
 	preventionSettings := []*models.PreventionSettingReqV1{}
+	var diags diag.Diagnostics
 
 	toggleSettings := map[string]types.Bool{
 		"UnknownDetectionRelatedExecutables": config.UnknownDetectionRelatedExecutables,
@@ -510,9 +556,26 @@ func (r *preventionPolicyLinuxResource) generatePreventionSettings(
 		"ExtendedCommandLineVisibility":      config.ExtendedCommandLineVisibility,
 	}
 
-	mlSliderSettings := map[string]mlSlider{
-		"CloudAntiMalware": *config.CloudAntiMalware,
-		"OnSensorMLSlider": *config.OnSensorMLSlider,
+	mlSliderSettings := map[string]mlSlider{}
+
+	if !config.CloudAntiMalware.IsNull() {
+		var slider mlSlider
+		diagsSlider := config.CloudAntiMalware.As(ctx, &slider, basetypes.ObjectAsOptions{})
+		diags.Append(diagsSlider...)
+		if diags.HasError() {
+			return preventionSettings, diags
+		}
+		mlSliderSettings["CloudAntiMalware"] = slider
+	}
+
+	if !config.OnSensorMLSlider.IsNull() {
+		var slider mlSlider
+		diagsSlider := config.OnSensorMLSlider.As(ctx, &slider, basetypes.ObjectAsOptions{})
+		diags.Append(diagsSlider...)
+		if diags.HasError() {
+			return preventionSettings, diags
+		}
+		mlSliderSettings["OnSensorMLSlider"] = slider
 	}
 
 	for k, v := range toggleSettings {
@@ -536,5 +599,5 @@ func (r *preventionPolicyLinuxResource) generatePreventionSettings(
 		})
 	}
 
-	return preventionSettings
+	return preventionSettings, diags
 }

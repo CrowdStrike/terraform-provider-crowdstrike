@@ -178,9 +178,22 @@ type mlSlider struct {
 	Prevention types.String `tfsdk:"prevention"`
 }
 
+func (m mlSlider) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"detection":  types.StringType,
+		"prevention": types.StringType,
+	}
+}
+
 // detectionMlSlider a mlsider setting with only detection for a prevention policy.
 type detectionMlSlider struct {
 	Detection types.String `tfsdk:"detection"`
+}
+
+func (d detectionMlSlider) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"detection": types.StringType,
+	}
 }
 
 // apiToggle a toggle setting type used for calling CrowdStrike APIs.
