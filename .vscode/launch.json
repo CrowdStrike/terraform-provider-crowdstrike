@@ -9,7 +9,7 @@
             "program": "${workspaceFolder}",
             "env": {},
             "args": [
-                "-debug",
+                "-debug"
             ]
         }
     ]

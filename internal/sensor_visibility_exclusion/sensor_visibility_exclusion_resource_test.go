@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-// generateTestPath creates a unique path using a template with %s placeholder
+// generateTestPath creates a unique path using a template with %s placeholder.
 func generateTestPath(template string) string {
 	randomID := sdkacctest.RandString(8)
 	return fmt.Sprintf(template, randomID)

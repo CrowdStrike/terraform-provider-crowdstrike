@@ -537,7 +537,7 @@ func (r *defaultSensorUpdatePolicyResource) ValidateConfig(
 			usedDays := make(map[string]interface{})
 
 			var timeBlockList []timeBlock
-			resp.Diagnostics.Append(config.schedule.TimeBlocks.ElementsAs(context.Background(), &timeBlockList, false)...)
+			resp.Diagnostics.Append(config.schedule.TimeBlocks.ElementsAs(ctx, &timeBlockList, false)...)
 			if resp.Diagnostics.HasError() {
 				return
 			}
