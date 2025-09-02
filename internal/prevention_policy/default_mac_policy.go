@@ -443,10 +443,18 @@ func (r *defaultPreventionPolicyMacResource) ValidateConfig(
 
 	resp.Diagnostics.Append(
 		validateRequiredAttribute(
-			config.QuarantineOnWrite.ValueBool(),
-			(config.NextGenAV.ValueBool() && config.DetectOnWrite.ValueBool()),
+			config.QuarantineOnWrite,
+			config.NextGenAV,
 			"quarantine_on_write",
-			"quarantine and detect_on_write",
+			"quarantine",
+		)...)
+
+	resp.Diagnostics.Append(
+		validateRequiredAttribute(
+			config.QuarantineOnWrite,
+			config.DetectOnWrite,
+			"quarantine_on_write",
+			"detect_on_write",
 		)...)
 
 	if !config.CloudAntiMalware.IsNull() {

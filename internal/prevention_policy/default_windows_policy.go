@@ -649,115 +649,138 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 
 	resp.Diagnostics.Append(
 		validateRequiredAttribute(
-			config.ProcessHollowing.ValueBool(),
-			config.AdditionalUserModeData.ValueBool(),
+			config.ProcessHollowing,
+			config.AdditionalUserModeData,
 			"code_injection",
 			"additional_user_mode_data",
 		)...)
 
 	resp.Diagnostics.Append(
 		validateRequiredAttribute(
-			config.ForceASLR.ValueBool(),
-			config.AdditionalUserModeData.ValueBool(),
+			config.ForceASLR,
+			config.AdditionalUserModeData,
 			"force_aslr",
 			"additional_user_mode_data",
 		)...)
 
 	resp.Diagnostics.Append(
 		validateRequiredAttribute(
-			config.ForceDEP.ValueBool(),
-			config.AdditionalUserModeData.ValueBool(),
+			config.ForceDEP,
+			config.AdditionalUserModeData,
 			"force_dep",
 			"additional_user_mode_data",
 		)...)
 
 	resp.Diagnostics.Append(
 		validateRequiredAttribute(
-			config.HeapSprayPreallocation.ValueBool(),
-			config.AdditionalUserModeData.ValueBool(),
+			config.HeapSprayPreallocation,
+			config.AdditionalUserModeData,
 			"heap_spray_preallocation",
 			"additional_user_mode_data",
 		)...)
 
 	resp.Diagnostics.Append(
 		validateRequiredAttribute(
-			config.NullPageAllocation.ValueBool(),
-			config.AdditionalUserModeData.ValueBool(),
+			config.NullPageAllocation,
+			config.AdditionalUserModeData,
 			"null_page_allocation",
 			"additional_user_mode_data",
 		)...)
 
 	resp.Diagnostics.Append(
 		validateRequiredAttribute(
-			config.CredentialDumping.ValueBool(),
-			config.AdditionalUserModeData.ValueBool(),
+			config.CredentialDumping,
+			config.AdditionalUserModeData,
 			"credential_dumping",
 			"additional_user_mode_data",
 		)...)
 
 	resp.Diagnostics.Append(
 		validateRequiredAttribute(
-			config.SEHOverwriteProtection.ValueBool(),
-			config.AdditionalUserModeData.ValueBool(),
+			config.SEHOverwriteProtection,
+			config.AdditionalUserModeData,
 			"seh_overwrite_protection",
 			"additional_user_mode_data",
 		)...)
 
 	resp.Diagnostics.Append(
 		validateRequiredAttribute(
-			config.EngineProtectionV2.ValueBool(),
-			config.InterpreterProtection.ValueBool(),
+			config.EngineProtectionV2,
+			config.InterpreterProtection,
 			"engine_full_visibility",
 			"interpreter_only",
 		)...)
 
 	resp.Diagnostics.Append(
 		validateRequiredAttribute(
-			config.CPUMemoryScan.ValueBool(),
-			config.MemoryScan.ValueBool(),
+			config.CPUMemoryScan,
+			config.MemoryScan,
 			"memory_scanning_scan_with_cpu",
 			"memory_scanning",
 		)...)
 
 	resp.Diagnostics.Append(
 		validateRequiredAttribute(
-			config.VolumeShadowCopyProtect.ValueBool(),
-			config.VolumeShadowCopyAudit.ValueBool(),
+			config.VolumeShadowCopyProtect,
+			config.VolumeShadowCopyAudit,
 			"volume_shadow_copy_protect",
 			"volume_shadow_copy_audit",
 		)...)
 
 	resp.Diagnostics.Append(
 		validateRequiredAttribute(
-			config.VulnerableDriverProtection.ValueBool(),
-			config.SuspiciousKernelDrivers.ValueBool(),
+			config.VulnerableDriverProtection,
+			config.SuspiciousKernelDrivers,
 			"vulnerable_driver_protection",
 			"driver_load_prevention",
 		)...)
 
 	resp.Diagnostics.Append(
 		validateRequiredAttribute(
-			config.QuarantineOnWrite.ValueBool(),
-			(config.NextGenAV.ValueBool() && config.DetectOnWrite.ValueBool()),
+			config.QuarantineOnWrite,
+			config.NextGenAV,
 			"quarantine_on_write",
-			"quarantine_and_security_center_registration and detect_on_write",
-		)...)
-
-	resp.Diagnostics.Append(
-		validateRequiredAttribute(
-			config.ScriptBasedExecutionMonitoring.ValueBool(),
-			config.NextGenAV.ValueBool(),
-			"script_based_execution_monitoring",
 			"quarantine_and_security_center_registration",
 		)...)
 
 	resp.Diagnostics.Append(
 		validateRequiredAttribute(
-			config.MaliciousPowershell.ValueBool(),
-			(config.InterpreterProtection.ValueBool() || config.ScriptBasedExecutionMonitoring.ValueBool()),
+			config.QuarantineOnWrite,
+			config.DetectOnWrite,
+			"quarantine_on_write",
+			"detect_on_write",
+		)...)
+
+	resp.Diagnostics.Append(
+		validateRequiredAttribute(
+			config.ScriptBasedExecutionMonitoring,
+			config.NextGenAV,
+			"script_based_execution_monitoring",
+			"quarantine_and_security_center_registration",
+		)...)
+
+	interpDiags := validateRequiredAttribute(
+		config.MaliciousPowershell,
+		config.InterpreterProtection,
+		"suspicious_scripts_and_commands",
+		"interpreter_only",
+	)
+
+	scriptDiags := validateRequiredAttribute(
+		config.MaliciousPowershell,
+		config.ScriptBasedExecutionMonitoring,
+		"suspicious_scripts_and_commands",
+		"script_based_execution_monitoring",
+	)
+
+	if interpDiags.HasError() && scriptDiags.HasError() {
+		resp.Diagnostics.Append(validateRequiredAttribute(
+			config.MaliciousPowershell,
+			types.BoolValue(false),
 			"suspicious_scripts_and_commands",
 			"interpreter_only or script_based_execution_monitoring",
 		)...)
+	}
 
 	if config.USBInsertionTriggeredScan.ValueBool() {
 		sensorDetection := "DISABLED"

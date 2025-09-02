@@ -84,7 +84,7 @@ resource "crowdstrike_default_prevention_policy_windows" "default" {
 func TestAccDefaultPreventionPolicyWindowsResource_unknown(t *testing.T) {
 	resourceName := "crowdstrike_default_prevention_policy_windows.default"
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
@@ -119,7 +119,7 @@ func TestAccDefaultPreventionPolicyWindowsResource(t *testing.T) {
 	resourceName := "crowdstrike_default_prevention_policy_windows.test"
 	ruleGroupID, _ := os.LookupEnv("IOA_RULE_GROUP_ID")
 
-	resource.ParallelTest(t, resource.TestCase{
+	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t, acctest.RequireIOARuleGroupID) },
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
