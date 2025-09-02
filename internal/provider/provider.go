@@ -200,7 +200,7 @@ func (p *CrowdStrikeProvider) Configure(
 		ClientId:          clientId,
 		ClientSecret:      clientSecret,
 		UserAgentOverride: fmt.Sprintf("terraform-provider-crowdstrike/%s", p.version),
-		Context:           ctx,
+		Context:           context.Background(),
 		HostOverride:      os.Getenv("HOST_OVERRIDE"),
 		TransportDecorator: falcon.TransportDecorator(func(r http.RoundTripper) http.RoundTripper {
 			return logging.NewLoggingHTTPTransport(r)
