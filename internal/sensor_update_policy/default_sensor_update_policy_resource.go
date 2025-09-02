@@ -64,6 +64,7 @@ func (d *defaultSensorUpdatePolicyResourceModel) extract(ctx context.Context) di
 	var diags diag.Diagnostics
 	if !d.Schedule.IsNull() {
 		d.schedule = &policySchedule{}
+		d.schedule.TimeBlocks = types.SetNull(types.ObjectType{AttrTypes: timeBlock{}.AttributeTypes()})
 		diags = d.Schedule.As(ctx, d.schedule, basetypes.ObjectAsOptions{})
 	}
 
@@ -136,14 +137,16 @@ func (d *defaultSensorUpdatePolicyResourceModel) wrap(
 		d.UninstallProtection = types.BoolValue(false)
 	}
 
+	policySchedule := policySchedule{}
+	policySchedule.TimeBlocks = types.SetNull(types.ObjectType{AttrTypes: timeBlock{}.AttributeTypes()})
+
 	if policy.Settings.Scheduler != nil {
-		d.schedule = &policySchedule{}
-		d.schedule.Enabled = types.BoolValue(*policy.Settings.Scheduler.Enabled)
+		policySchedule.Enabled = types.BoolValue(*policy.Settings.Scheduler.Enabled)
 
 		// ignore the timzezone and time_blocks if the schedule is DISABLED
 		// this allows terraform import to work correctly
-		if d.schedule.Enabled.ValueBool() {
-			d.schedule.Timezone = types.StringValue(*policy.Settings.Scheduler.Timezone)
+		if policySchedule.Enabled.ValueBool() {
+			policySchedule.Timezone = types.StringValue(*policy.Settings.Scheduler.Timezone)
 
 			if policy.Settings.Scheduler.Schedules != nil {
 				if len(policy.Settings.Scheduler.Schedules) > 0 {
@@ -179,22 +182,19 @@ func (d *defaultSensorUpdatePolicyResourceModel) wrap(
 					if diags.HasError() {
 						return diags
 					}
-					d.schedule.TimeBlocks = timeBlocks
+					policySchedule.TimeBlocks = timeBlocks
 				}
 			}
 		}
 	}
 
-	if d.schedule != nil {
-		policyScheduleObj, diag := types.ObjectValueFrom(
-			ctx,
-			d.schedule.AttributeTypes(),
-			d.schedule,
-		)
-		d.Schedule = policyScheduleObj
-		diags.Append(diag...)
-
-	}
+	policyScheduleObj, diag := types.ObjectValueFrom(
+		ctx,
+		policySchedule.AttributeTypes(),
+		policySchedule,
+	)
+	d.Schedule = policyScheduleObj
+	diags.Append(diag...)
 
 	return diags
 }
