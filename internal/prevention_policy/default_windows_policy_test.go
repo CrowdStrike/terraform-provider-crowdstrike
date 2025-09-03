@@ -88,7 +88,7 @@ func TestAccDefaultPreventionPolicyWindowsResource_unknown(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
-			tfversion.SkipBelow(version.Must(version.NewVersion("1.9.3"))),
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
 		},
 		Steps: []resource.TestStep{
 			{
