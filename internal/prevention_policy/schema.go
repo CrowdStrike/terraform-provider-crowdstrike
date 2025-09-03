@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -21,6 +22,10 @@ import (
 // validateMlSlider returns whether or not the mlslider is valid.
 func validateMlSlider(attribute string, slider mlSlider) diag.Diagnostics {
 	diags := diag.Diagnostics{}
+
+	if !utils.IsKnown(slider.Detection) || !utils.IsKnown(slider.Prevention) {
+		return diags
+	}
 
 	detectionLevel := slider.Detection.ValueString()
 	preventionLevel := slider.Prevention.ValueString()
@@ -43,14 +48,18 @@ func validateMlSlider(attribute string, slider mlSlider) diag.Diagnostics {
 
 // validateRequiredAttribute validates that a required attribute is set.
 func validateRequiredAttribute(
-	attrValue bool,
-	otherAttrValue bool,
+	attrValue types.Bool,
+	otherAttrValue types.Bool,
 	attr string,
 	otherAttr string,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	if attrValue && !otherAttrValue {
+	if !utils.IsKnown(attrValue) || !utils.IsKnown(otherAttrValue) {
+		return diags
+	}
+
+	if attrValue.ValueBool() && !otherAttrValue.ValueBool() {
 		diags.AddAttributeError(
 			path.Root(attr),
 			fmt.Sprint("requirements not met to enable ", attr),
@@ -178,9 +187,22 @@ type mlSlider struct {
 	Prevention types.String `tfsdk:"prevention"`
 }
 
+func (m mlSlider) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"detection":  types.StringType,
+		"prevention": types.StringType,
+	}
+}
+
 // detectionMlSlider a mlsider setting with only detection for a prevention policy.
 type detectionMlSlider struct {
 	Detection types.String `tfsdk:"detection"`
+}
+
+func (d detectionMlSlider) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"detection": types.StringType,
+	}
 }
 
 // apiToggle a toggle setting type used for calling CrowdStrike APIs.

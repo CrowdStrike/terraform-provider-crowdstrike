@@ -1224,3 +1224,127 @@ resource "crowdstrike_sensor_update_policy" "test" {
 		},
 	})
 }
+
+// regression test to handle unknown states https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues/136
+func TestAccSensorUpdatePolicyResourceWithSchedule_unknown(t *testing.T) {
+	resourceName := "crowdstrike_sensor_update_policy.test"
+	randomSuffix := sdkacctest.RandString(8)
+	rName := fmt.Sprintf("tf-acc-%s", randomSuffix)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
+variable "schedule" {
+  type = object({
+    enabled     = bool
+    timezone   = string
+    time_blocks = list(object({
+      days       = list(string)
+      start_time = string
+      end_time   = string
+    }))
+  })
+
+  default = {
+    enabled     = true
+    timezone   = "Etc/UTC"
+    time_blocks = [
+      {
+        days       = ["sunday", "wednesday"]
+        start_time = "11:40"
+        end_time   = "17:40"
+      }
+    ]
+  }
+}
+
+data "crowdstrike_sensor_update_policy_builds" "all" {}
+resource "crowdstrike_sensor_update_policy" "test" {
+  name                 = "%s"
+  platform_name        = "Windows"
+  description          = ""
+  build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
+  uninstall_protection = true
+  schedule = {
+    enabled = var.schedule.enabled
+    timezone = var.schedule.timezone
+    time_blocks = var.schedule.time_blocks
+  }
+}`, rName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"name",
+						rName,
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"platform_name",
+						"Windows",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"uninstall_protection",
+						"true",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"schedule.enabled",
+						"true",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"schedule.timezone",
+						"Etc/UTC",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"schedule.time_blocks.#",
+						"1",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"schedule.time_blocks.0.days.#",
+						"2",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"schedule.time_blocks.0.days.0",
+						"sunday",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"schedule.time_blocks.0.days.1",
+						"wednesday",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"schedule.time_blocks.0.start_time",
+						"11:40",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"schedule.time_blocks.0.end_time",
+						"17:40",
+					),
+					resource.TestCheckResourceAttrSet(
+						resourceName,
+						"id",
+					),
+					resource.TestCheckResourceAttrSet(
+						resourceName,
+						"last_updated",
+					),
+				),
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"last_updated"},
+			},
+		},
+	})
+}

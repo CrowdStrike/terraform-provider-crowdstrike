@@ -122,7 +122,7 @@ var linuxArm64Varient = "LinuxArm64"
 type policySchedule struct {
 	Enabled    types.Bool   `tfsdk:"enabled"`
 	Timezone   types.String `tfsdk:"timezone"`
-	TimeBlocks []timeBlock  `tfsdk:"time_blocks"`
+	TimeBlocks types.Set    `tfsdk:"time_blocks"`
 }
 
 func (p policySchedule) AttributeTypes() map[string]attr.Type {
@@ -169,17 +169,28 @@ func validTime(startTimeStr string, endTimeStr string) (bool, error) {
 // createUpdateSchedules handles the logic to create a models.PolicySensorUpdateSchedule.
 func createUpdateSchedules(
 	ctx context.Context,
-	timeBlocks []timeBlock,
+	timeBlocks types.Set,
 ) ([]*models.PolicySensorUpdateSchedule, diag.Diagnostics) {
 	updateSchedules := []*models.PolicySensorUpdateSchedule{}
 	diags := diag.Diagnostics{}
 
-	for _, b := range timeBlocks {
+	if timeBlocks.IsNull() || timeBlocks.IsUnknown() {
+		return updateSchedules, diags
+	}
+
+	var timeBlockList []timeBlock
+	diags.Append(timeBlocks.ElementsAs(ctx, &timeBlockList, false)...)
+
+	if diags.HasError() {
+		return updateSchedules, diags
+	}
+
+	for _, b := range timeBlockList {
 		bCopy := b
 		days := []string{}
 		daysInt64 := []int64{}
 
-		diags = bCopy.Days.ElementsAs(ctx, &days, false)
+		diags.Append(bCopy.Days.ElementsAs(ctx, &days, false)...)
 
 		if diags.HasError() {
 			return updateSchedules, diags

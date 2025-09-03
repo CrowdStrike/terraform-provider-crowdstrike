@@ -49,6 +49,83 @@ resource "crowdstrike_prevention_policy_windows" "test" {
 `, rName, hostGroupID, ruleGroupID, enabled)
 }
 
+// regression test to handle unknown states https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues/136
+func testAccPreventionPolicyWindowsConfig_unknown(rName string, enabled bool) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+variable "extended_user_mode_data" {
+  type = object({
+    detection = string
+  })
+  description = "Extended user mode data settings."
+  default = {
+    detection = "MODERATE"
+  }
+}
+
+variable "cloud_anti_malware_microsoft_office_files" {
+  type = object({
+    detection = string
+    prevention = string
+  })
+  description = "Cloud anti-malware settings for Microsoft Office files."
+  default = {
+    detection = "MODERATE"
+    prevention = "MODERATE"
+  }
+}
+
+locals {
+  anti_malware_settings = {
+    extended_user_mode_data = var.extended_user_mode_data
+    cloud_anti_malware_microsoft_office_files = var.cloud_anti_malware_microsoft_office_files
+  }
+}
+
+resource "crowdstrike_prevention_policy_windows" "test" {
+  name 			  = "%s"
+  enabled 	      = %t
+  description     = "Made with terraform"
+  ioa_rule_groups = []
+  host_groups     = []
+  extended_user_mode_data = local.anti_malware_settings.extended_user_mode_data
+  cloud_anti_malware_microsoft_office_files = local.anti_malware_settings.cloud_anti_malware_microsoft_office_files
+}`, rName, enabled)
+}
+
+func TestAccPreventionPolicyWindowsResource_unknown(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	resourceName := "crowdstrike_prevention_policy_windows.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccPreventionPolicyWindowsConfig_unknown(rName, true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", rName),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "true"),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"extended_user_mode_data.detection",
+						"MODERATE",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"cloud_anti_malware_microsoft_office_files.detection",
+						"MODERATE",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"cloud_anti_malware_microsoft_office_files.prevention",
+						"MODERATE",
+					),
+				),
+			},
+		},
+	})
+}
+
 func TestAccPreventionPolicyWindowsResource(t *testing.T) {
 	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
 	resourceName := "crowdstrike_prevention_policy_windows.test"

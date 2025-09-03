@@ -70,6 +70,7 @@ func (d *sensorUpdatePolicyResourceModel) extract(ctx context.Context) diag.Diag
 	var diags diag.Diagnostics
 	if !d.Schedule.IsNull() {
 		d.schedule = &policySchedule{}
+		d.schedule.TimeBlocks = types.SetNull(types.ObjectType{AttrTypes: timeBlock{}.AttributeTypes()})
 		diags = d.Schedule.As(ctx, d.schedule, basetypes.ObjectAsOptions{})
 	}
 
@@ -182,18 +183,20 @@ func (d *sensorUpdatePolicyResourceModel) wrap(
 		d.UninstallProtection = types.BoolValue(false)
 	}
 
+	policySchedule := policySchedule{}
+	policySchedule.TimeBlocks = types.SetNull(types.ObjectType{AttrTypes: timeBlock{}.AttributeTypes()})
+
 	if policy.Settings.Scheduler != nil {
-		d.schedule = &policySchedule{}
-		d.schedule.Enabled = types.BoolValue(*policy.Settings.Scheduler.Enabled)
+		policySchedule.Enabled = types.BoolValue(*policy.Settings.Scheduler.Enabled)
 
 		// ignore the timzezone and time_blocks if the schedule is DISABLED
 		// this allows terraform import to work correctly
-		if d.schedule.Enabled.ValueBool() {
-			d.schedule.Timezone = types.StringValue(*policy.Settings.Scheduler.Timezone)
+		if policySchedule.Enabled.ValueBool() {
+			policySchedule.Timezone = types.StringValue(*policy.Settings.Scheduler.Timezone)
 
 			if policy.Settings.Scheduler.Schedules != nil {
 				if len(policy.Settings.Scheduler.Schedules) > 0 {
-					d.schedule.TimeBlocks = []timeBlock{}
+					timeBlockObjects := []timeBlock{}
 
 					for _, s := range policy.Settings.Scheduler.Schedules {
 						sCopy := s
@@ -204,32 +207,40 @@ func (d *sensorUpdatePolicyResourceModel) wrap(
 							daysStr = append(daysStr, int64ToDay[dCopy])
 						}
 
-						days, diags := types.SetValueFrom(ctx, types.StringType, daysStr)
-						diags.Append(diags...)
+						days, diagsDay := types.SetValueFrom(ctx, types.StringType, daysStr)
+						diags.Append(diagsDay...)
 						if diags.HasError() {
 							return diags
 						}
-						d.schedule.TimeBlocks = append(d.schedule.TimeBlocks, timeBlock{
+						timeBlockObjects = append(timeBlockObjects, timeBlock{
 							Days:      days,
 							StartTime: types.StringValue(*sCopy.Start),
 							EndTime:   types.StringValue(*sCopy.End),
 						})
 					}
+
+					timeBlocks, diagsTimeBlocks := types.SetValueFrom(
+						ctx,
+						types.ObjectType{AttrTypes: timeBlock{}.AttributeTypes()},
+						timeBlockObjects,
+					)
+					diags.Append(diagsTimeBlocks...)
+					if diags.HasError() {
+						return diags
+					}
+					policySchedule.TimeBlocks = timeBlocks
 				}
 			}
 		}
 	}
 
-	if d.schedule != nil {
-		policyScheduleObj, diag := types.ObjectValueFrom(
-			ctx,
-			d.schedule.AttributeTypes(),
-			d.schedule,
-		)
-		d.Schedule = policyScheduleObj
-		diags.Append(diag...)
-
-	}
+	policyScheduleObj, diag := types.ObjectValueFrom(
+		ctx,
+		policySchedule.AttributeTypes(),
+		policySchedule,
+	)
+	d.Schedule = policyScheduleObj
+	diags.Append(diag...)
 
 	return diags
 }
@@ -447,7 +458,7 @@ func (r *sensorUpdatePolicyResource) Create(
 		updateSchedular.Enabled = plan.schedule.Enabled.ValueBoolPointer()
 		updateSchedular.Timezone = plan.schedule.Timezone.ValueStringPointer()
 
-		if len(plan.schedule.TimeBlocks) > 0 {
+		if !plan.schedule.TimeBlocks.IsNull() && len(plan.schedule.TimeBlocks.Elements()) > 0 {
 			updateSchedules, diags := createUpdateSchedules(ctx, plan.schedule.TimeBlocks)
 			resp.Diagnostics.Append(diags...)
 			if resp.Diagnostics.HasError() {
@@ -704,7 +715,7 @@ func (r *sensorUpdatePolicyResource) Update(
 		updateSchedular.Timezone = &defaultTimezone
 	}
 
-	if len(plan.schedule.TimeBlocks) > 0 {
+	if !plan.schedule.TimeBlocks.IsNull() && len(plan.schedule.TimeBlocks.Elements()) > 0 {
 		updateSchedules, diags := createUpdateSchedules(ctx, plan.schedule.TimeBlocks)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -873,85 +884,85 @@ func (r *sensorUpdatePolicyResource) ValidateConfig(
 		return
 	}
 
-	scheduleEnabled := config.schedule.Enabled.ValueBool()
+	if !config.schedule.Enabled.IsUnknown() {
+		scheduleEnabled := config.schedule.Enabled.ValueBool()
 
-	if !scheduleEnabled && !config.schedule.Timezone.IsNull() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("schedule"),
-			"Invalid schedule block: timezone provided",
-			"To implement idempotency timezone and time_blocks should not be provided when enabled is false.",
-		)
-
-		return
-	}
-
-	if !scheduleEnabled && len(config.schedule.TimeBlocks) > 0 {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("schedule"),
-			"Invalid schedule block: time_blocks provided",
-			"To implement idempotency timezone and time_blocks should not be provided when enabled is false.",
-		)
-
-		return
-	}
-
-	if scheduleEnabled {
-		if config.schedule.Timezone.IsUnknown() || config.schedule.Timezone.IsNull() {
+		if !scheduleEnabled && !config.schedule.Timezone.IsNull() {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("schedule"),
-				"missing required attribute",
-				"timezone is required when the schedule is set to enabled true.",
+				"Invalid schedule block: timezone provided",
+				"To implement idempotency timezone and time_blocks should not be provided when enabled is false.",
 			)
-			return
 		}
 
-		if len(config.schedule.TimeBlocks) == 0 {
+		if !scheduleEnabled && !config.schedule.TimeBlocks.IsNull() && len(config.schedule.TimeBlocks.Elements()) > 0 {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("schedule"),
-				"missing required attribute",
-				"time_blocks is required when the schedule is set to enabled true.",
+				"Invalid schedule block: time_blocks provided",
+				"To implement idempotency timezone and time_blocks should not be provided when enabled is false.",
 			)
-			return
 		}
-		usedDays := make(map[string]interface{})
 
-		for _, b := range config.schedule.TimeBlocks {
-			ok, err := validTime(b.StartTime.ValueString(), b.EndTime.ValueString())
-
-			if err != nil {
-				resp.Diagnostics.AddError(
-					"Unable to validate config",
-					"Error while validating start and end times for time_block: "+err.Error(),
-				)
-				return
-			}
-
-			if !ok {
+		if scheduleEnabled {
+			if config.schedule.Timezone.IsNull() {
 				resp.Diagnostics.AddAttributeError(
 					path.Root("schedule"),
-					"Invalid start_time or end_time",
-					"start_time and end_time should be at least 1 hour apart.",
+					"missing required attribute",
+					"timezone is required when the schedule is set to enabled true.",
 				)
+			}
+
+			if config.schedule.TimeBlocks.IsNull() || len(config.schedule.TimeBlocks.Elements()) == 0 {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("schedule"),
+					"missing required attribute",
+					"time_blocks is required when the schedule is set to enabled true.",
+				)
+			}
+			usedDays := make(map[string]interface{})
+
+			var timeBlockList []timeBlock
+			resp.Diagnostics.Append(config.schedule.TimeBlocks.ElementsAs(ctx, &timeBlockList, false)...)
+			if resp.Diagnostics.HasError() {
 				return
 			}
 
-			days := []string{}
-			resp.Diagnostics.Append(b.Days.ElementsAs(ctx, &days, false)...)
+			for _, b := range timeBlockList {
+				ok, err := validTime(b.StartTime.ValueString(), b.EndTime.ValueString())
 
-			for _, day := range days {
-				_, ok := usedDays[day]
-				if ok {
-					resp.Diagnostics.AddAttributeError(
-						path.Root("schedule"),
-						"Duplicate days in schedule",
-						fmt.Sprintf(
-							"Day %s declared in multiple time_blocks. Multiple time_blocks can't reference the same day.",
-							day,
-						),
+				if err != nil {
+					resp.Diagnostics.AddError(
+						"Unable to validate config",
+						"Error while validating start and end times for time_block: "+err.Error(),
 					)
 				}
 
-				usedDays[day] = nil
+				if !ok {
+					resp.Diagnostics.AddAttributeError(
+						path.Root("schedule"),
+						"Invalid start_time or end_time",
+						"start_time and end_time should be at least 1 hour apart.",
+					)
+				}
+
+				days := []string{}
+				resp.Diagnostics.Append(b.Days.ElementsAs(ctx, &days, false)...)
+
+				for _, day := range days {
+					_, ok := usedDays[day]
+					if ok {
+						resp.Diagnostics.AddAttributeError(
+							path.Root("schedule"),
+							"Duplicate days in schedule",
+							fmt.Sprintf(
+								"Day %s declared in multiple time_blocks. Multiple time_blocks can't reference the same day.",
+								day,
+							),
+						)
+					}
+
+					usedDays[day] = nil
+				}
 			}
 		}
 	}
