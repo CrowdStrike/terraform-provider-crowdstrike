@@ -10,9 +10,10 @@ import (
 	"os"
 
 	"github.com/crowdstrike/gofalcon/falcon"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
+	// "github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
+	fim "github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
+	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -246,16 +247,21 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		preventionpolicy.NewPreventionPolicyPrecedenceResource,
 		fim.NewFIMPolicyResource,
 		fim.NewFilevantageRuleGroupResource,
-		fcs.NewCloudAWSAccountResource,
-		fcs.NewCloudAzureTenantEventhubSettingsResource,
-		fcs.NewCloudAzureTenantResource,
+		itautomation.NewItAutomationTaskResource,
+		itautomation.NewItAutomationTaskGroupResource,
+		itautomation.NewItAutomationPolicyResource,
+		itautomation.NewItAutomationDefaultPolicyResource,
+		itautomation.NewItAutomationPolicyPrecedenceResource,
+		// fcs.NewCloudAWSAccountResource,
+		// fcs.NewCloudAzureTenantEventhubSettingsResource,
+		// fcs.NewCloudAzureTenantResource,
 	}
 }
 
 func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		sensorupdatepolicy.NewSensorUpdateBuildsDataSource,
-		fcs.NewCloudAwsAccountsDataSource,
+		// fcs.NewCloudAwsAccountsDataSource,
 	}
 }
 
