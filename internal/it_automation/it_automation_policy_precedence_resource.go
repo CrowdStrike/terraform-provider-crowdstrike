@@ -448,7 +448,7 @@ func (r *itAutomationPolicyPrecedenceResource) generateStrictPolicyOrder(
 		return nil, diags
 	}
 
-	// strict mode requires ALL policies for the platform to be specified
+	// strict mode requires all policies for the platform to be specified.
 	if len(managedPolicyIDs) != len(currentPrecedence) {
 		managedPolicyMap := make(map[string]bool)
 		for _, policyID := range managedPolicyIDs {
@@ -472,6 +472,6 @@ func (r *itAutomationPolicyPrecedenceResource) generateStrictPolicyOrder(
 		return nil, diags
 	}
 
-	// return the exact order specified by the user
+	// return the exact order specified by the user.
 	return managedPolicyIDs, diags
 }

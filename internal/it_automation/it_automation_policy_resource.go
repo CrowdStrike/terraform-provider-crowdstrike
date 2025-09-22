@@ -122,7 +122,7 @@ func (t *itAutomationPolicyResourceModel) wrap(
 		t.HostGroups = currentHostGroups
 	}
 
-	// process config blocks
+	// process config blocks.
 	t.Concurrency = nil
 	t.Execution = nil
 	t.Resources = nil
@@ -158,12 +158,10 @@ func (t *itAutomationPolicyResourceModel) wrap(
 		r := policy.Config.Resources
 		if r != nil {
 			t.Resources = &resourceConfigModel{}
-
-			// platform-specific resource handling
 			isMac := *policy.Target == "Mac"
 
 			if isMac {
-				// mac only supports cpu_scheduling_priority and memory_pressure_level
+				// mac only supports cpu_scheduling_priority and memory_pressure_level.
 				if r.CPUScheduling != "" {
 					t.Resources.CPUScheduling = types.StringValue(r.CPUScheduling)
 				}
@@ -171,7 +169,7 @@ func (t *itAutomationPolicyResourceModel) wrap(
 					t.Resources.MemoryPressureLevel = types.StringValue(r.MemoryPressureLevel)
 				}
 			} else {
-				// windows and linux support cpu_throttle, memory_allocation, and memory_allocation_unit
+				// windows and linux support cpu_throttle, memory_allocation, and memory_allocation_unit.
 				if r.CPUThrottle != 0 {
 					t.Resources.CPUThrottle = types.Int32Value(r.CPUThrottle)
 				}
@@ -297,21 +295,21 @@ func (r *itAutomationPolicyResource) Schema(
 				Description: "Configuration for concurrency settings.",
 				Attributes: map[string]schema.Attribute{
 					"concurrent_host_file_transfer_limit": schema.Int32Attribute{
-						Optional:    true,
+						Required:    true,
 						Description: "Maximum number of hosts that can transfer files simultaneously (1-5000).",
 						Validators: []validator.Int32{
 							int32validator.Between(1, 5000),
 						},
 					},
 					"concurrent_host_limit": schema.Int32Attribute{
-						Optional:    true,
+						Required:    true,
 						Description: "Maximum number of hosts that can run operations simultaneously (1-100000).",
 						Validators: []validator.Int32{
 							int32validator.Between(1, 100000),
 						},
 					},
 					"concurrent_task_limit": schema.Int32Attribute{
-						Optional:    true,
+						Required:    true,
 						Description: "Maximum number of tasks that can run in parallel (1-5).",
 						Validators: []validator.Int32{
 							int32validator.Between(1, 5),
@@ -323,23 +321,23 @@ func (r *itAutomationPolicyResource) Schema(
 				Description: "Configuration for execution settings.",
 				Attributes: map[string]schema.Attribute{
 					"enable_os_query": schema.BoolAttribute{
-						Optional:    true,
+						Required:    true,
 						Description: "Whether OSQuery functionality is enabled.",
 					},
 					"enable_python_execution": schema.BoolAttribute{
-						Optional:    true,
+						Required:    true,
 						Description: "Whether Python script execution is enabled.",
 					},
 					"enable_script_execution": schema.BoolAttribute{
-						Optional:    true,
+						Required:    true,
 						Description: "Whether script execution is enabled.",
 					},
 					"execution_timeout": schema.Int32Attribute{
-						Optional:    true,
+						Required:    true,
 						Description: "Maximum time a script can run before timing out.",
 					},
 					"execution_timeout_unit": schema.StringAttribute{
-						Optional:    true,
+						Required:    true,
 						Description: "Unit of time for execution timeout.",
 						Validators: []validator.String{
 							stringvalidator.OneOf("Minutes", "Hours"),
@@ -394,7 +392,6 @@ func createPolicyConfigFromModel(
 ) *models.ItautomationPolicyConfig {
 	config := &models.ItautomationPolicyConfig{}
 
-	// concurrency configuration
 	if plan.Concurrency != nil {
 		config.Concurrency = &models.ItautomationConcurrencyConfig{}
 		cc := plan.Concurrency
@@ -412,7 +409,6 @@ func createPolicyConfigFromModel(
 		}
 	}
 
-	// execution configuration
 	if plan.Execution != nil {
 		config.Execution = &models.ItautomationExecutionConfig{}
 		ec := plan.Execution
@@ -430,7 +426,6 @@ func createPolicyConfigFromModel(
 		}
 	}
 
-	// resources configuration
 	if plan.Resources != nil {
 		config.Resources = &models.ItautomationResourceConfig{}
 		rc := plan.Resources
@@ -512,31 +507,33 @@ func (r *itAutomationPolicyResource) Create(
 		}
 	}
 
-	if !plan.HostGroups.IsNull() || !plan.HostGroups.IsUnknown() {
+	if !plan.HostGroups.IsNull() && !plan.HostGroups.IsUnknown() {
 		hostGroups, diags := setToStringSlice(ctx, plan.HostGroups)
 		resp.Diagnostics.Append(diags...)
 		if diags.HasError() {
 			return
 		}
 
-		action := "assign"
+		if len(hostGroups) > 0 {
+			action := "assign"
 
-		body := &models.ItautomationUpdatePoliciesHostGroupsRequest{
-			Action:       &action,
-			HostGroupIds: hostGroups,
-			PolicyID:     policy.ID,
-		}
+			body := &models.ItautomationUpdatePoliciesHostGroupsRequest{
+				Action:       &action,
+				HostGroupIds: hostGroups,
+				PolicyID:     policy.ID,
+			}
 
-		params := &it_automation.ITAutomationUpdatePolicyHostGroupsParams{
-			Body: body,
-		}
+			params := &it_automation.ITAutomationUpdatePolicyHostGroupsParams{
+				Body: body,
+			}
 
-		_, err := r.client.ItAutomation.ITAutomationUpdatePolicyHostGroups(params)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating IT automation policy host groups",
-				"Could not update host groups for policy ID: "+*policy.ID+", error: "+err.Error(),
-			)
+			_, err := r.client.ItAutomation.ITAutomationUpdatePolicyHostGroups(params)
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Error updating IT automation policy host groups",
+					"Could not update host groups for policy ID: "+*policy.ID+", error: "+err.Error(),
+				)
+			}
 		}
 	}
 
@@ -571,7 +568,7 @@ func (r *itAutomationPolicyResource) Read(
 			if d.Summary() == policyNotFoundErrorSummary {
 				tflog.Warn(
 					ctx,
-					fmt.Sprintf("IT Automation Policy %s not found, removing from state", policyID),
+					fmt.Sprintf(notFoundRemoving, fmt.Sprintf("IT Automation Policy %s", policyID)),
 				)
 				resp.State.RemoveResource(ctx)
 				return
@@ -800,7 +797,7 @@ func (r *itAutomationPolicyResource) Delete(
 			strings.Contains(err.Error(), "404") {
 			tflog.Warn(
 				ctx,
-				fmt.Sprintf("IT automation policy %s not found, removing from state", policyID),
+				fmt.Sprintf(notFoundRemoving, fmt.Sprintf("IT automation policy %s", policyID)),
 				map[string]any{"error": err.Error()},
 			)
 			resp.State.RemoveResource(ctx)
@@ -850,10 +847,44 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 
 	isMac := config.Platform.ValueString() == "Mac"
 
+	if config.Concurrency == nil {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("concurrency"),
+			"Missing required block",
+			"concurrency block is required for all IT automation policies",
+		)
+	}
+
+	if config.Execution == nil {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("execution"),
+			"Missing required block",
+			"execution block is required for all IT automation policies",
+		)
+	}
+
 	if config.Resources != nil {
 		res := config.Resources
 
 		if isMac {
+			// require mac-specific resource fields.
+			if res.CPUScheduling.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("resources").AtName("cpu_scheduling_priority"),
+					"Missing required field",
+					"cpu_scheduling_priority is required for Mac policies",
+				)
+			}
+
+			if res.MemoryPressureLevel.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("resources").AtName("memory_pressure_level"),
+					"Missing required field",
+					"memory_pressure_level is required for Mac policies",
+				)
+			}
+
+			// forbid windows and linux specific fields on mac.
 			if !res.CPUThrottle.IsNull() {
 				resp.Diagnostics.AddAttributeError(
 					path.Root("resources").AtName("cpu_throttle"),
@@ -878,6 +909,32 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 				)
 			}
 		} else {
+			// require windows and linux resource fields.
+			if res.CPUThrottle.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("resources").AtName("cpu_throttle"),
+					"Missing required field",
+					fmt.Sprintf("cpu_throttle is required for %s policies", config.Platform.ValueString()),
+				)
+			}
+
+			if res.MemoryAllocation.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("resources").AtName("memory_allocation"),
+					"Missing required field",
+					fmt.Sprintf("memory_allocation is required for %s policies", config.Platform.ValueString()),
+				)
+			}
+
+			if res.MemoryAllocationUnit.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("resources").AtName("memory_allocation_unit"),
+					"Missing required field",
+					fmt.Sprintf("memory_allocation_unit is required for %s policies", config.Platform.ValueString()),
+				)
+			}
+
+			// forbid mac fields on windows and linux.
 			if !res.CPUScheduling.IsNull() {
 				resp.Diagnostics.AddAttributeError(
 					path.Root("resources").AtName("cpu_scheduling_priority"),
@@ -900,6 +957,13 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 				)
 			}
 		}
+	} else {
+		// require resources block for all platforms.
+		resp.Diagnostics.AddAttributeError(
+			path.Root("resources"),
+			"Missing required block",
+			"resources block is required for all IT automation policies",
+		)
 	}
 
 }

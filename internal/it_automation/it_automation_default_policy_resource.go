@@ -84,7 +84,7 @@ func (t *itAutomationDefaultPolicyResourceModel) wrap(
 		t.Platform = types.StringValue(*policy.Target)
 	}
 
-	// process config blocks
+	// process config blocks.
 	t.Concurrency = nil
 	t.Execution = nil
 	t.Resources = nil
@@ -121,10 +121,10 @@ func (t *itAutomationDefaultPolicyResourceModel) wrap(
 		if r != nil {
 			t.Resources = &resourceConfigModel{}
 
-			// platform-specific resource handling
+			// platform-specific resource handling.
 			isMac := *policy.Target == "Mac"
 
-			// mac supports only cpu_scheduling_priority and memory_pressure_level
+			// mac supports only cpu_scheduling_priority and memory_pressure_level.
 			if isMac {
 				if r.CPUScheduling != "" {
 					t.Resources.CPUScheduling = types.StringValue(r.CPUScheduling)
@@ -133,7 +133,7 @@ func (t *itAutomationDefaultPolicyResourceModel) wrap(
 					t.Resources.MemoryPressureLevel = types.StringValue(r.MemoryPressureLevel)
 				}
 			} else {
-				// windows and linux support cpu_throttle, memory_allocation, and memory_allocation_unit
+				// windows and linux support cpu_throttle, memory_allocation, and memory_allocation_unit.
 				if r.CPUThrottle != 0 {
 					t.Resources.CPUThrottle = types.Int32Value(r.CPUThrottle)
 				}
@@ -257,6 +257,9 @@ func (r *itAutomationDefaultPolicyResource) Schema(
 				Optional:    true,
 				Computed:    true,
 				Description: "Description of the default policy.",
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 			"is_enabled": schema.BoolAttribute{
 				Computed:    true,
@@ -268,21 +271,21 @@ func (r *itAutomationDefaultPolicyResource) Schema(
 				Description: "Configuration for concurrency settings.",
 				Attributes: map[string]schema.Attribute{
 					"concurrent_host_file_transfer_limit": schema.Int32Attribute{
-						Optional:    true,
+						Required:    true,
 						Description: "Maximum number of hosts that can transfer files simultaneously (1-5000).",
 						Validators: []validator.Int32{
 							int32validator.Between(1, 5000),
 						},
 					},
 					"concurrent_host_limit": schema.Int32Attribute{
-						Optional:    true,
+						Required:    true,
 						Description: "Maximum number of hosts that can run operations simultaneously (1-100000).",
 						Validators: []validator.Int32{
 							int32validator.Between(1, 100000),
 						},
 					},
 					"concurrent_task_limit": schema.Int32Attribute{
-						Optional:    true,
+						Required:    true,
 						Description: "Maximum number of tasks that can run in parallel (1-5).",
 						Validators: []validator.Int32{
 							int32validator.Between(1, 5),
@@ -294,23 +297,23 @@ func (r *itAutomationDefaultPolicyResource) Schema(
 				Description: "Configuration for execution settings.",
 				Attributes: map[string]schema.Attribute{
 					"enable_os_query": schema.BoolAttribute{
-						Optional:    true,
+						Required:    true,
 						Description: "Whether OSQuery functionality is enabled.",
 					},
 					"enable_python_execution": schema.BoolAttribute{
-						Optional:    true,
+						Required:    true,
 						Description: "Whether Python script execution is enabled.",
 					},
 					"enable_script_execution": schema.BoolAttribute{
-						Optional:    true,
+						Required:    true,
 						Description: "Whether script execution is enabled.",
 					},
 					"execution_timeout": schema.Int32Attribute{
-						Optional:    true,
+						Required:    true,
 						Description: "Maximum time a script can run before timing out.",
 					},
 					"execution_timeout_unit": schema.StringAttribute{
-						Optional:    true,
+						Required:    true,
 						Description: "Unit of time for execution timeout.",
 						Validators: []validator.String{
 							stringvalidator.OneOf("Minutes", "Hours"),
@@ -371,18 +374,18 @@ func (r *itAutomationDefaultPolicyResource) Create(
 		return
 	}
 
-	// find the default policy for this platform
+	// find the default policy for this platform.
 	policy, diags := r.getDefaultPolicyByPlatform(ctx, plan.Platform.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// set initial state from discovered policy
+	// set initial state from discovered policy.
 	plan.ID = types.StringValue(*policy.ID)
 	plan.LastUpdated = types.StringValue(time.Now().Format(timeFormat))
 
-	// apply any configuration changes
+	// apply any configuration changes.
 	if r.hasConfigChanges(&plan) {
 		err := r.updateDefaultPolicyConfig(ctx, &plan)
 		if err != nil {
@@ -393,7 +396,7 @@ func (r *itAutomationDefaultPolicyResource) Create(
 			return
 		}
 
-		// get updated policy after configuration changes
+		// get updated policy after configuration changes.
 		updatedPolicy, diags := getItAutomationPolicy(ctx, r.client, *policy.ID)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -402,7 +405,7 @@ func (r *itAutomationDefaultPolicyResource) Create(
 
 		resp.Diagnostics.Append(plan.wrap(*updatedPolicy)...)
 	} else {
-		// no configuration changes, wrap with existing policy
+		// no configuration changes, wrap with existing policy.
 		resp.Diagnostics.Append(plan.wrap(*policy)...)
 	}
 
@@ -430,7 +433,7 @@ func (r *itAutomationDefaultPolicyResource) Read(
 			if d.Summary() == policyNotFoundErrorSummary {
 				tflog.Warn(
 					ctx,
-					fmt.Sprintf("IT Automation Default Policy %s not found, removing from state", policyID),
+					fmt.Sprintf(notFoundRemoving, fmt.Sprintf("IT Automation Default Policy %s", policyID)),
 				)
 				resp.State.RemoveResource(ctx)
 				return
@@ -483,7 +486,7 @@ func (r *itAutomationDefaultPolicyResource) Delete(
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-	// default policies cannot be deleted, just remove from terraform state
+	// default policies cannot be deleted, just remove from terraform state.
 	tflog.Info(
 		ctx,
 		"Default policy cannot be deleted, removing from Terraform state only",
@@ -513,15 +516,47 @@ func (r *itAutomationDefaultPolicyResource) ValidateConfig(
 
 	isMac := config.Platform.ValueString() == "Mac"
 
+	if config.Concurrency == nil {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("concurrency"),
+			"Missing required block",
+			"concurrency block is required for all default policies",
+		)
+	}
+
+	if config.Execution == nil {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("execution"),
+			"Missing required block",
+			"execution block is required for all default policies",
+		)
+	}
+
 	if config.Resources != nil {
 		res := config.Resources
 
 		if isMac {
+			if res.CPUScheduling.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("resources").AtName("cpu_scheduling_priority"),
+					"Missing required field",
+					"cpu_scheduling_priority is required for Mac default policies",
+				)
+			}
+
+			if res.MemoryPressureLevel.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("resources").AtName("memory_pressure_level"),
+					"Missing required field",
+					"memory_pressure_level is required for Mac default policies",
+				)
+			}
+
 			if !res.CPUThrottle.IsNull() {
 				resp.Diagnostics.AddAttributeError(
 					path.Root("resources").AtName("cpu_throttle"),
 					"Invalid argument",
-					"cpu_throttle cannot be used with Mac policies",
+					"cpu_throttle cannot be used with Mac default policies",
 				)
 			}
 
@@ -529,7 +564,7 @@ func (r *itAutomationDefaultPolicyResource) ValidateConfig(
 				resp.Diagnostics.AddAttributeError(
 					path.Root("resources").AtName("memory_allocation"),
 					"Invalid argument",
-					"memory_allocation cannot be used with Mac policies",
+					"memory_allocation cannot be used with Mac default policies",
 				)
 			}
 
@@ -537,16 +572,40 @@ func (r *itAutomationDefaultPolicyResource) ValidateConfig(
 				resp.Diagnostics.AddAttributeError(
 					path.Root("resources").AtName("memory_allocation_unit"),
 					"Invalid argument",
-					"memory_allocation_unit cannot be used with Mac policies",
+					"memory_allocation_unit cannot be used with Mac default policies",
 				)
 			}
 		} else {
+			if res.CPUThrottle.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("resources").AtName("cpu_throttle"),
+					"Missing required field",
+					fmt.Sprintf("cpu_throttle is required for %s default policies", config.Platform.ValueString()),
+				)
+			}
+
+			if res.MemoryAllocation.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("resources").AtName("memory_allocation"),
+					"Missing required field",
+					fmt.Sprintf("memory_allocation is required for %s default policies", config.Platform.ValueString()),
+				)
+			}
+
+			if res.MemoryAllocationUnit.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("resources").AtName("memory_allocation_unit"),
+					"Missing required field",
+					fmt.Sprintf("memory_allocation_unit is required for %s default policies", config.Platform.ValueString()),
+				)
+			}
+
 			if !res.CPUScheduling.IsNull() {
 				resp.Diagnostics.AddAttributeError(
 					path.Root("resources").AtName("cpu_scheduling_priority"),
 					"Invalid argument",
 					fmt.Sprintf(
-						"cpu_scheduling_priority cannot be used with %s policies",
+						"cpu_scheduling_priority cannot be used with %s default policies",
 						config.Platform.ValueString(),
 					),
 				)
@@ -557,12 +616,18 @@ func (r *itAutomationDefaultPolicyResource) ValidateConfig(
 					path.Root("resources").AtName("memory_pressure_level"),
 					"Invalid argument",
 					fmt.Sprintf(
-						"memory_pressure_level cannot be used with %s policies",
+						"memory_pressure_level cannot be used with %s default policies",
 						config.Platform.ValueString(),
 					),
 				)
 			}
 		}
+	} else {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("resources"),
+			"Missing required block",
+			"resources block is required for all default policies",
+		)
 	}
 }
 
@@ -624,7 +689,6 @@ func createPolicyConfigFromModelDefault(
 		description = &desc
 	}
 
-	// concurrency configuration
 	if plan.Concurrency != nil {
 		config.Concurrency = &models.ItautomationConcurrencyConfig{}
 		cc := plan.Concurrency
@@ -642,7 +706,6 @@ func createPolicyConfigFromModelDefault(
 		}
 	}
 
-	// execution configuration
 	if plan.Execution != nil {
 		config.Execution = &models.ItautomationExecutionConfig{}
 		ec := plan.Execution
@@ -660,7 +723,6 @@ func createPolicyConfigFromModelDefault(
 		}
 	}
 
-	// resources configuration
 	if plan.Resources != nil {
 		config.Resources = &models.ItautomationResourceConfig{}
 		rc := plan.Resources

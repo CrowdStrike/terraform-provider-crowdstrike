@@ -14,10 +14,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// package constants
 const (
-	timeFormat      = time.RFC850
-	paginationLimit = 100
+	timeFormat          = time.RFC850
+	paginationLimit     = 100
+	AccessTypePublic    = "Public"
+	AccessTypeShared    = "Shared"
+	TaskTypeQuery       = "query"
+	TaskTypeAction      = "action"
+	TaskTypeRemediation = "remediation"
 )
 
 // stringSliceToSet converts a Go string slice to a Terraform Framework Set.
@@ -63,7 +67,16 @@ func setToStringSlice(ctx context.Context, set types.Set) ([]string, diag.Diagno
 	return result, diags
 }
 
-// setBoolPointer sets a boolean pointer field if the terraform field is not null
+// preserveStringField preserves configured field values over API values.
+func preserveStringField(apiVal *string, current types.String, target *types.String) {
+	if !current.IsNull() {
+		*target = current
+	} else if apiVal != nil && *apiVal != "" {
+		*target = types.StringValue(*apiVal)
+	}
+}
+
+// setBoolPointer sets a boolean pointer field if the terraform field is not null.
 func setBoolPointer(field types.Bool, target **bool) {
 	if !field.IsNull() {
 		val := field.ValueBool()
@@ -202,7 +215,6 @@ func getItAutomationPolicy(
 	}
 
 	ok, err := client.ItAutomation.ITAutomationGetPolicies(params)
-
 	if ok != nil && ok.Payload != nil && len(ok.Payload.Resources) > 0 {
 		policy = ok.Payload.Resources[0]
 		return policy, diags
@@ -248,7 +260,6 @@ func getItAutomationPolicies(
 	var precedence []string
 	var allPolicyIds []string
 
-	// paginate through all policy IDs
 	limit := int64(paginationLimit)
 	offset := int64(0)
 
@@ -273,12 +284,10 @@ func getItAutomationPolicies(
 			break
 		}
 
-		// collect policy IDs from this page
 		if len(ok.Payload.Resources) > 0 {
 			allPolicyIds = append(allPolicyIds, ok.Payload.Resources...)
 		}
 
-		// check if we've reached the last page
 		if len(ok.Payload.Resources) < int(limit) {
 			break
 		}

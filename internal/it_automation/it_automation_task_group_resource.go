@@ -65,7 +65,7 @@ func (t *itAutomationTaskGroupResourceModel) wrap(
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	// preserve current state for selective restoration
+	// preserve current state for selective restoration.
 	currentDescription := t.Description
 
 	t.ID = types.StringValue(*group.ID)
@@ -296,7 +296,7 @@ func (r *itAutomationTaskGroupResource) Read(
 			if d.Summary() == taskGroupNotFoundErrorSummary {
 				tflog.Warn(
 					ctx,
-					fmt.Sprintf("IT Automation Task Group %s not found, removing from state", groupID),
+					fmt.Sprintf(notFoundRemoving, fmt.Sprintf("IT Automation Task Group %s", groupID)),
 				)
 				resp.State.RemoveResource(ctx)
 				return
@@ -384,8 +384,6 @@ func (r *itAutomationTaskGroupResource) Update(
 	}
 
 	resp.Diagnostics.Append(plan.wrap(ctx, *updatedTask)...)
-
-	// Set last_updated timestamp as final operation (CRUD operations only)
 	plan.LastUpdated = types.StringValue(time.Now().Format(timeFormat))
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -423,7 +421,7 @@ func (r *itAutomationTaskGroupResource) Delete(
 		if isNotFoundError(err) {
 			tflog.Warn(
 				ctx,
-				fmt.Sprintf("IT automation task group %s not found, removing from state", state.ID.ValueString()),
+				fmt.Sprintf(notFoundRemoving, fmt.Sprintf("IT automation task group %s", state.ID.ValueString())),
 				map[string]any{"error": err.Error()},
 			)
 			resp.State.RemoveResource(ctx)
