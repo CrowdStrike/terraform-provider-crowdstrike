@@ -117,6 +117,8 @@ resource "crowdstrike_default_prevention_policy_windows" "default" {
   vulnerable_driver_protection                   = true
   windows_logon_bypass_sticky_keys               = true
   file_system_containment                        = true
+  wsl2_visibility                                = true
+  boot_configuration_database_protection         = true
 }
 
 output "default_prevention_policy_windows" {
@@ -139,6 +141,7 @@ output "default_prevention_policy_windows" {
 - `application_exploitation_activity` (Boolean) Whether to enable the setting. Creation of a process, such as a command prompt, from an exploited browser or browser flash plugin was blocked.
 - `backup_deletion` (Boolean) Whether to enable the setting. Deletion of backups often indicative of ransomware activity.
 - `bios_deep_visibility` (Boolean) Whether to enable the setting. Provides visibility into BIOS. Detects suspicious and unexpected images. Recommend testing to monitor system startup performance before full deployment.
+- `boot_configuration_database_protection` (Boolean) Whether to enable the setting. Block BCD registry operations that CrowdStrike analysts classify as suspicious. Focuses on dynamic IOAs, such as security config changes. The associated process may be killed. Requires suspicious_registry_operations to be enabled.
 - `chopper_webshell` (Boolean) Whether to enable the setting. Execution of a command shell was blocked and is indicative of the system hosting a Chopper web page.
 - `cloud_anti_malware` (Attributes) Use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware for your online hosts. (see [below for nested schema](#nestedatt--cloud_anti_malware))
 - `cloud_anti_malware_microsoft_office_files` (Attributes) Identifies potentially malicious macros in Microsoft Office files and, if prevention is enabled, either quarantines the file or removes the malicious macros before releasing the file back to the host (see [below for nested schema](#nestedatt--cloud_anti_malware_microsoft_office_files))
@@ -193,6 +196,7 @@ output "default_prevention_policy_windows" {
 - `volume_shadow_copy_protect` (Boolean) Whether to enable the setting. Prevent suspicious processes from deleting volume shadow copies. Requires volume_shadow_copy_audit.
 - `vulnerable_driver_protection` (Boolean) Whether to enable the setting. Quarantine and block the loading of newly written kernel drivers that CrowdStrike analysts have identified as vulnerable. Available on Windows 10 and Windows 2016 and later. Requires driver_load_prevention.
 - `windows_logon_bypass_sticky_keys` (Boolean) Whether to enable the setting. A command line process associated with Windows logon bypass was prevented from executing.
+- `wsl2_visibility` (Boolean) Whether to enable the setting. Provides visibility into WSL2 distributions by enabling a Falcon sensor plugin.
 
 ### Read-Only
 

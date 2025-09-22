@@ -420,6 +420,12 @@ func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 			"advanced_remediation": toggleAttribute(
 				"Perform advanced remediation for IOA detections to kill processes, quarantine files, remove scheduled tasks, and clear and delete ASEP registry values.",
 			),
+			"boot_configuration_database_protection": toggleAttribute(
+				"Block BCD registry operations that CrowdStrike analysts classify as suspicious. Focuses on dynamic IOAs, such as security config changes. The associated process may be killed. Requires suspicious_registry_operations to be enabled.",
+			),
+			"wsl2_visibility": toggleAttribute(
+				"Provides visibility into WSL2 distributions by enabling a Falcon sensor plugin.",
+			),
 		},
 	}
 
