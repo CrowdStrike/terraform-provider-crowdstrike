@@ -1,6 +1,3 @@
-// Copyright (c) HashiCorp, Inc.
-// SPDX-License-Identifier: MPL-2.0
-
 package provider
 
 import (
@@ -10,12 +7,14 @@ import (
 	"os"
 
 	"github.com/crowdstrike/gofalcon/falcon"
-	// "github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
-	fim "github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
+	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
+	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/function"
@@ -247,21 +246,27 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		preventionpolicy.NewPreventionPolicyPrecedenceResource,
 		fim.NewFIMPolicyResource,
 		fim.NewFilevantageRuleGroupResource,
+		fim.NewFilevantagePolicyPrecedenceResource,
+		fcs.NewCloudAWSAccountResource,
+		fcs.NewCloudAzureTenantEventhubSettingsResource,
+		fcs.NewCloudAzureTenantResource,
+		contentupdatepolicy.NewContentPolicyResource,
+		contentupdatepolicy.NewDefaultContentUpdatePolicyResource,
+		contentupdatepolicy.NewContentUpdatePolicyPrecedenceResource,
+		sensorvisibilityexclusion.NewSensorVisibilityExclusionResource,
 		itautomation.NewItAutomationTaskResource,
 		itautomation.NewItAutomationTaskGroupResource,
 		itautomation.NewItAutomationPolicyResource,
 		itautomation.NewItAutomationDefaultPolicyResource,
 		itautomation.NewItAutomationPolicyPrecedenceResource,
-		// fcs.NewCloudAWSAccountResource,
-		// fcs.NewCloudAzureTenantEventhubSettingsResource,
-		// fcs.NewCloudAzureTenantResource,
 	}
 }
 
 func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		sensorupdatepolicy.NewSensorUpdateBuildsDataSource,
-		// fcs.NewCloudAwsAccountsDataSource,
+		fcs.NewCloudAwsAccountsDataSource,
+		contentupdatepolicy.NewContentCategoryVersionsDataSource,
 	}
 }
 
