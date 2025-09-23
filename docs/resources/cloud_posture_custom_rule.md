@@ -36,18 +36,18 @@ provider "crowdstrike" {
 
 # Custom rule derived from a parent rule with specific modifications
 resource "crowdstrike_cloud_posture_custom_rule" "copy_rule" {
-  resource_type    = "AWS::EC2::Instance"
-  subdomain        = "IOM"
-  name             = "Test Terraform"
-  description      = "Test Terraform"
-  cloud_platform   = "AWS"
-  cloud_provider   = "AWS"
-  severity         = 1
-  remediation_info = <<-EOT
-    Step 1. Remediation step 1.|
-    Step 2. Remediation step 2.|
-    Step 3. Remediation step 3.
-EOT
+  resource_type  = "AWS::EC2::Instance"
+  subdomain      = "IOM"
+  name           = "Test Terraform"
+  description    = "Test Terraform"
+  cloud_platform = "AWS"
+  cloud_provider = "AWS"
+  severity       = 1
+  remediation_info = [
+    "Remediation step 1",
+    "Remediation step 2",
+    "Remediation step 3",
+  ]
   alert_info = [
     "First item in alert info",
     "Second item in alert info"
@@ -73,15 +73,16 @@ resource "crowdstrike_cloud_posture_custom_rule" "custom_rule" {
   cloud_platform = "AWS"
   cloud_provider = "AWS"
   attack_types = [
-    "this is an attack type"
+    "this is an attack type",
+    "this is another attack type"
   ]
-  remediation_info = <<-EOT
-    Step 1. Remediation step 1.|
-    Step 2. Remediation step 2.|
-    Step 3. Remediation step 3.
-EOT
-  severity         = 2
-  logic            = <<EOF
+  remediation_info = [
+    "Remediation step 1",
+    "Remediation step 2",
+    "Remediation step 3",
+  ]
+  severity = 2
+  logic    = <<EOF
 package crowdstrike
 default result = "pass"
 result = "fail" if {
