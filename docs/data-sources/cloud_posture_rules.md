@@ -64,6 +64,7 @@ data "crowdstrike_cloud_posture_rules" "specific" {
 Optional:
 
 - `alert_info` (List of String) A list of the alert logic and detection criteria for rule violations. Parent value will be used when parent_rule_id is defined.
+- `attack_types` (Set of String) Specific attack types associated with the rule.
 - `auto_remediable` (Boolean) Autoremediation enabled for rule
 - `cloud_platform` (String) Cloud platform for the policy rule.
 - `cloud_provider` (String) Cloud provider for the policy rule.

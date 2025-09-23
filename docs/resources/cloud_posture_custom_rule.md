@@ -115,7 +115,7 @@ EOF
 - `description` (String) Description of the policy rule.
 - `name` (String) Name of the policy rule.
 - `resource_type` (String) The full resource type. Format examples: AWS: AWS::IAM::CredentialReport, Azure: Microsoft.Compute/virtualMachines, GCP: container.googleapis.com/Cluster.
-- `subdomain` (String) Subdomain for the policy rule. Valid values are 'IOM' (Indicators of Misconfiguration) or 'IaC' (Indicators of Attack). IOM is only supported at this time.
+- `subdomain` (String) Subdomain for the policy rule. Valid values are 'IOM' (Indicators of Misconfiguration) or 'IaC' (Infrastructure as Code). IOM is only supported at this time.
 
 ### Optional
 
@@ -124,7 +124,7 @@ EOF
 - `controls` (Attributes Set) Security framework and compliance rule information. (see [below for nested schema](#nestedatt--controls))
 - `logic` (String) Rego logic for the rule. If this is not defined, then parent_rule_id must be defined.
 - `parent_rule_id` (String) UUID of the parent rule to inherit properties from. Required if logic is not specified.
-- `remediation_info` (String) Information about how to remediate issues detected by this rule.
+- `remediation_info` (List of String) Information about how to remediate issues detected by this rule.
 - `severity` (Number) Severity of the rule. Valid values are 0 (critical), 1 (high), 2 (medium), 3 (informational).
 
 ### Read-Only

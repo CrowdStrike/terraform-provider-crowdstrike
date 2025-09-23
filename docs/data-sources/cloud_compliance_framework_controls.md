@@ -76,11 +76,11 @@ Required:
 
 - `code` (String) The unique compliance framework rule code.
 - `name` (String) The name of the control.
-- `uuid` (String) The uuid of the control.
+- `uuid` (String) The uuid of the compliance control.
 
 Optional:
 
 - `authority` (String) This compliance authority for the framework
 - `benchmark` (String) The compliance benchmark within the framework.
-- `requirement` (String) The compliance framework rule code.
+- `requirement` (String) The compliance framework requirement.
 - `section` (String) The section within the compliance benchmark.
