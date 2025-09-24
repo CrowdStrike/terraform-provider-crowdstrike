@@ -93,4 +93,4 @@ jobs:
           FALCON_CLOUD: ${{ secrets.FALCON_CLOUD }}
           HOST_GROUP_ID: ${{ secrets.HOST_GROUP_ID }}
           IOA_RULE_GROUP_ID: ${{ secrets.IOA_RULE_GROUP_ID }}
-        run: go test -v -cover ./internal/... -parallel 1
+        run: go test -v -cover ./internal/... -parallel 10 -failfast

@@ -102,6 +102,8 @@ type preventionPolicyWindowsResourceModel struct {
 	CredentialDumping                         types.Bool   `tfsdk:"credential_dumping"`
 	AutomatedRemediation                      types.Bool   `tfsdk:"advanced_remediation"`
 	FileSystemContainmentEnabled              types.Bool   `tfsdk:"file_system_containment"`
+	BootConfigurationDatabaseProtection       types.Bool   `tfsdk:"boot_configuration_database_protection"`
+	WSL2Visibility                            types.Bool   `tfsdk:"wsl2_visibility"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -600,6 +602,14 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		}
 	}
 
+	resp.Diagnostics.Append(
+		validateRequiredAttribute(
+			config.BootConfigurationDatabaseProtection,
+			config.SuspiciousRegistryOperations,
+			"boot_configuration_database_protection",
+			"suspicious_registry_operations",
+		)...)
+
 	if !config.CloudAntiMalwareForMicrosoftOfficeFiles.IsNull() {
 		var slider mlSlider
 		if diagsSlider := config.CloudAntiMalwareForMicrosoftOfficeFiles.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
@@ -795,6 +805,10 @@ func (r *preventionPolicyWindowsResource) assignPreventionSettings(
 	state.FileSystemContainmentEnabled = defaultBoolFalse(
 		toggleSettings["FileSystemContainmentEnabled"],
 	)
+	state.BootConfigurationDatabaseProtection = defaultBoolFalse(
+		toggleSettings["BootConfigurationDatabaseProtection"],
+	)
+	state.WSL2Visibility = defaultBoolFalse(toggleSettings["WSL2Visibility"])
 
 	// mlslider settings
 	if detectionSlider, ok := detectionMlSliderSettings["ExtendedUserModeDataSlider"]; ok {
@@ -928,6 +942,8 @@ func (r *preventionPolicyWindowsResource) generatePreventionSettings(
 		"CredentialDumping":                         config.CredentialDumping,
 		"AutomatedRemediation":                      config.AutomatedRemediation,
 		"FileSystemContainmentEnabled":              config.FileSystemContainmentEnabled,
+		"BootConfigurationDatabaseProtection":       config.BootConfigurationDatabaseProtection,
+		"WSL2Visibility":                            config.WSL2Visibility,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}

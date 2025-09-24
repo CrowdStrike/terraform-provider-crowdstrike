@@ -93,6 +93,8 @@ resource "crowdstrike_default_prevention_policy_windows" "default" {
   vulnerable_driver_protection                   = true
   windows_logon_bypass_sticky_keys               = true
   file_system_containment                        = true
+  wsl2_visibility                                = true
+  boot_configuration_database_protection         = true
 }
 
 output "default_prevention_policy_windows" {

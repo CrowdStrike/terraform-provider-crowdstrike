@@ -95,6 +95,8 @@ type defaultPreventionPolicyWindowsResourceModel struct {
 	CredentialDumping                         types.Bool   `tfsdk:"credential_dumping"`
 	AutomatedRemediation                      types.Bool   `tfsdk:"advanced_remediation"`
 	FileSystemContainmentEnabled              types.Bool   `tfsdk:"file_system_containment"`
+	BootConfigurationDatabaseProtection       types.Bool   `tfsdk:"boot_configuration_database_protection"`
+	WSL2Visibility                            types.Bool   `tfsdk:"wsl2_visibility"`
 }
 
 // wrap transforms Go values to their terraform wrapped values.
@@ -175,6 +177,8 @@ func (m *defaultPreventionPolicyWindowsResourceModel) generatePreventionSettings
 		"CredentialDumping":                         m.CredentialDumping,
 		"AutomatedRemediation":                      m.AutomatedRemediation,
 		"FileSystemContainmentEnabled":              m.FileSystemContainmentEnabled,
+		"BootConfigurationDatabaseProtection":       m.BootConfigurationDatabaseProtection,
+		"WSL2Visibility":                            m.WSL2Visibility,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}
@@ -376,6 +380,10 @@ func (m *defaultPreventionPolicyWindowsResourceModel) assignPreventionSettings(
 	m.FileSystemContainmentEnabled = defaultBoolFalse(
 		toggleSettings["FileSystemContainmentEnabled"],
 	)
+	m.BootConfigurationDatabaseProtection = defaultBoolFalse(
+		toggleSettings["BootConfigurationDatabaseProtection"],
+	)
+	m.WSL2Visibility = defaultBoolFalse(toggleSettings["WSL2Visibility"])
 
 	// mlslider settings
 	if detectionSlider, ok := detectionMlSliderSettings["ExtendedUserModeDataSlider"]; ok {
@@ -808,6 +816,14 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 			)
 		}
 	}
+
+	resp.Diagnostics.Append(
+		validateRequiredAttribute(
+			config.BootConfigurationDatabaseProtection,
+			config.SuspiciousRegistryOperations,
+			"boot_configuration_database_protection",
+			"suspicious_registry_operations",
+		)...)
 
 	if !config.CloudAntiMalwareForMicrosoftOfficeFiles.IsNull() {
 		var slider mlSlider

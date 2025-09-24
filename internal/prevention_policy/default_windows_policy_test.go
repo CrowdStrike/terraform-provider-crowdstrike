@@ -3,6 +3,7 @@ package preventionpolicy_test
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
@@ -11,12 +12,26 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
+func testAccDefaultPreventionPolicyWindowsConfig_validationError() string {
+	return acctest.ProviderConfig + `
+resource "crowdstrike_default_prevention_policy_windows" "test" {
+  ioa_rule_groups                        = []
+  description                            = "validation error test"
+  suspicious_registry_operations         = false
+  boot_configuration_database_protection = true
+}`
+}
+
 func testAccDefaultPreventionPolicyWindowsConfig_basic() string {
 	return acctest.ProviderConfig + `
 resource "crowdstrike_default_prevention_policy_windows" "test" {
-  ioa_rule_groups           = []
-  description               = "made with terraform"
-  additional_user_mode_data = true
+  ioa_rule_groups                        = []
+  description                            = "made with terraform"
+  additional_user_mode_data              = true
+  suspicious_registry_operations         = true
+  boot_configuration_database_protection = true
+  wsl2_visibility                        = true
+  
   cloud_anti_malware_microsoft_office_files = {
     detection  = "MODERATE"
     prevention = "MODERATE"
@@ -24,17 +39,21 @@ resource "crowdstrike_default_prevention_policy_windows" "test" {
 }`
 }
 
-func testAccDefaultPreventionPolicyWindowsConfig_groups(
+func testAccDefaultPreventionPolicyWindowsConfig_update(
 	ruleGroupID string,
 ) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_default_prevention_policy_windows" "test" {
-  ioa_rule_groups           = ["%s"]
-  description               = "made with terraform"
-  additional_user_mode_data = true
+  ioa_rule_groups                        = ["%s"]
+  description                            = "updated with terraform"
+  additional_user_mode_data              = false
+  suspicious_registry_operations         = false
+  boot_configuration_database_protection = false
+  wsl2_visibility                        = false
+
   cloud_anti_malware_microsoft_office_files = {
     detection  = "MODERATE"
-    prevention = "MODERATE"
+    prevention = "DISABLED"
   }
 }
 `, ruleGroupID)
@@ -115,6 +134,22 @@ func TestAccDefaultPreventionPolicyWindowsResource_unknown(t *testing.T) {
 	})
 }
 
+func TestAccDefaultPreventionPolicyWindowsResource_validationError(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
+		},
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccDefaultPreventionPolicyWindowsConfig_validationError(),
+				ExpectError: regexp.MustCompile("Error: requirements not met to enable boot_configuration_database_protection"),
+			},
+		},
+	})
+}
+
 func TestAccDefaultPreventionPolicyWindowsResource(t *testing.T) {
 	resourceName := "crowdstrike_default_prevention_policy_windows.test"
 	ruleGroupID, _ := os.LookupEnv("IOA_RULE_GROUP_ID")
@@ -141,6 +176,26 @@ func TestAccDefaultPreventionPolicyWindowsResource(t *testing.T) {
 					),
 					resource.TestCheckResourceAttr(
 						resourceName,
+						"suspicious_registry_operations",
+						"true",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"suspicious_registry_operations",
+						"true",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"boot_configuration_database_protection",
+						"true",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"wsl2_visibility",
+						"true",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
 						"cloud_anti_malware_microsoft_office_files.detection",
 						"MODERATE",
 					),
@@ -160,10 +215,50 @@ func TestAccDefaultPreventionPolicyWindowsResource(t *testing.T) {
 				ImportStateVerifyIgnore: []string{"last_updated"},
 			},
 			{
-				Config: testAccDefaultPreventionPolicyWindowsConfig_groups(
+				Config: testAccDefaultPreventionPolicyWindowsConfig_update(
 					ruleGroupID,
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"description",
+						"updated with terraform",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"additional_user_mode_data",
+						"false",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"suspicious_registry_operations",
+						"false",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"suspicious_registry_operations",
+						"false",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"boot_configuration_database_protection",
+						"false",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"wsl2_visibility",
+						"false",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"cloud_anti_malware_microsoft_office_files.detection",
+						"MODERATE",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"cloud_anti_malware_microsoft_office_files.prevention",
+						"DISABLED",
+					),
 					resource.TestCheckResourceAttr(resourceName, "ioa_rule_groups.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "ioa_rule_groups.0", ruleGroupID),
 				),
