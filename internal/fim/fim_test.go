@@ -14,7 +14,7 @@ func testAccFilevantagePolicyConfig_basic(rName string, enabled bool) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_filevantage_policy" "test" {
   name                      = "%s"
-  enabled                   = %t 
+  enabled                   = %t
   platform_name             = "Windows"
   description               = "made with terraform"
 }
@@ -30,7 +30,7 @@ func testAccFilevantagePolicyConfig_groups(
 resource "crowdstrike_filevantage_policy" "test" {
   name                      = "%s"
   host_groups               = ["%s"]
-  enabled                   = %t 
+  enabled                   = %t
   platform_name             = "Windows"
   description               = "made with terraform"
 }
@@ -44,7 +44,7 @@ func TestAccFilevantagePolicyResource(t *testing.T) {
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
+		PreCheck:                 func() { acctest.PreCheck(t, acctest.RequireHostGroupID) },
 		Steps: []resource.TestStep{
 			{
 				Config: testAccFilevantagePolicyConfig_basic(rName, true),

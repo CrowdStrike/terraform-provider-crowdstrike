@@ -9,6 +9,17 @@ This guide covers both the practical aspects of setting up and contributing to t
   - [Prerequisites](#prerequisites)
   - [Setting Up the Environment](#setting-up-the-environment)
   - [Building the Provider](#building-the-provider)
+  - [Setting Up Pre-commit Hooks (Recommended)](#setting-up-pre-commit-hooks-recommended)
+    - [Installation](#installation)
+    - [Setup](#setup)
+    - [Usage](#usage)
+    - [What the Hooks Do](#what-the-hooks-do)
+  - [Commit Message Standards (Optional)](#commit-message-standards-optional)
+    - [Format](#format)
+    - [Types](#types)
+    - [Scopes](#scopes)
+    - [Guidelines](#guidelines)
+    - [Examples](#examples)
   - [Development Workflow](#development-workflow)
     - [Creating a New Resource](#creating-a-new-resource)
     - [File Structure](#file-structure)
@@ -30,6 +41,7 @@ This guide covers both the practical aspects of setting up and contributing to t
 
 - [Go 1.21+](https://go.dev/doc/install) installed and configured.
 - [Terraform v1.8+](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli) installed locally.
+- [pre-commit](https://pre-commit.com/#install) for code quality hooks (recommended).
 
 ## Setting Up the Environment
 
@@ -73,6 +85,113 @@ make build
 ```
 
 Run `make build` anytime new changes are added to the provider or you pull new code from the repository to update your local installation.
+
+## Setting Up Pre-commit Hooks (Recommended)
+
+Pre-commit hooks help ensure code quality and consistency by running automated checks before each commit. They catch common issues early and auto-fix many formatting problems.
+
+### Installation
+
+First, install pre-commit if you haven't already:
+
+```bash
+# https://pre-commit.com/#install
+pip install pre-commit
+```
+
+### Setup
+
+After cloning the repository, install the pre-commit hooks:
+
+```bash
+pre-commit install
+```
+
+This installs the hooks defined in `.pre-commit-config.yaml` to run automatically on each `git commit`. If you do not want the hooks to run automatically, you can do `pre-commit run` to run them manually.
+
+### Usage
+
+**Automatic:** If you have installed the pre-commit hooks, they will run automatically on each commit. If any hook fails or makes changes, the commit will be aborted. Review the changes and commit again.
+
+**Manual execution:**
+```bash
+# Run hooks on staged files only
+pre-commit run
+
+# Run hooks on all files
+pre-commit run -a
+```
+
+### What the Hooks Do
+
+- **Go linting & formatting:** `golangci-lint` runs comprehensive linting including formatting, static analysis, and style checks with auto-fix
+- **Module cleanup:** `go mod tidy` keeps dependencies clean
+- **Documentation:** `go generate` keeps docs up-to-date (only runs when files in examples/ or internal/ change)
+- **Terraform formatting:** `terraform fmt` formats .tf files
+- **General quality:** Hooks for general code quality.
+
+**Performance:** Hooks are designed to be fast and efficient, only running on relevant file changes.
+
+## Commit Message Standards (Optional)
+
+Follow these commit message conventions for consistency. Since we use squash merges, maintainers will ensure final messages follow these standards.
+
+### Format
+
+```
+<type>(<scope>): <description> (#PR)
+
+[optional body]
+[optional footer]
+```
+
+### Types
+
+- `feat`: New features/resources
+- `fix`: Bug fixes  
+- `refactor`: Code refactoring
+- `test`: Test additions/changes
+- `chore`: Maintenance tasks
+
+### Scopes
+
+- `<resource_name>`: Resource names (drop `crowdstrike_` prefix)
+- `provider`: Core provider functionality
+- `docs`: Documentation updates
+- `tools`: Development tooling
+- `ci`: CI/CD pipeline changes
+- `deps`: Dependency updates
+- `tests`: Test-specific changes
+
+### Guidelines
+
+- **Imperative mood**: Use "add" not "added", "fix" not "fixed"
+- **Lowercase**: Start description with lowercase letter after the colon
+- **Length**: Keep subject line under 72 characters
+- **Issue reference**: Include issue number in footer when applicable
+- **Be specific**: Clearly describe what changed, not how
+
+### Examples
+
+```bash
+# Resource changes
+feat(sensor_visibility_exclusion): add new resource
+fix(default_sensor_update_policy): require replace on updates
+feat(prevention_policy_attachment): add new resource
+
+# System changes  
+chore(deps): bump gofalcon to v0.13.4
+fix(docs): default content update policy categorization
+chore(ci): add pre-commit hooks configuration
+
+# Multi-line example
+feat(host_group): add advanced filtering support
+
+Add support for complex filtering expressions in host group queries.
+This enables more precise host targeting for policy assignments.
+
+Closes #145
+```
 
 ## Development Workflow
 
@@ -159,7 +278,7 @@ The Terraform Plugin Framework provides a structured logging system called `tflo
       "id": id,
       "name": name,
   })
-  
+
   // Avoid
   tflog.Debug(ctx, fmt.Sprintf("Processing resource with id %s and name %s", id, name))
   ```
@@ -183,7 +302,7 @@ The Terraform Plugin Framework provides a structured logging system called `tflo
   ```bash
   # For all logs
   TF_LOG=TRACE terraform apply
-  
+
   # Provider-specific logs
   TF_LOG_PROVIDER=TRACE terraform apply
   ```
@@ -218,9 +337,9 @@ func (d *preventionPolicyAttachmentResourceModel) wrap(
     policy models.PreventionPolicyV1,
 ) diag.Diagnostics {
     var diags diag.Diagnostics
-    
+
     d.ID = types.StringValue(*policy.ID)
-    
+
     // Convert API types to Terraform types
     hostGroupSet, diag := hostgroups.ConvertHostGroupsToSet(ctx, policy.Groups)
     diags.Append(diag...)
@@ -230,9 +349,9 @@ func (d *preventionPolicyAttachmentResourceModel) wrap(
     if !d.HostGroups.IsNull() || len(hostGroupSet.Elements()) != 0 {
         d.HostGroups = hostGroupSet
     }
-    
+
     // More field conversions...
-    
+
     return diags
 }
 
@@ -243,14 +362,14 @@ func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *res
     if resp.Diagnostics.HasError() {
         return
     }
-    
+
     // Get data from API
     policy, diags := getPolicy(ctx, r.client, state.ID.ValueString())
     resp.Diagnostics.Append(diags...)
     if resp.Diagnostics.HasError() {
         return
     }
-    
+
     // Update state with API response
     resp.Diagnostics.Append(state.wrap(ctx, *policy)...)
     resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)

@@ -1,7 +1,7 @@
 # Terraform CrowdStrike Provider
 
 The CrowdStrike provider enables terraform to manage CrowdStrike resources.
- 
+
 - [docs](./docs/) - Documentation for each resource.
 - [examples](./examples/) - Examples of each resource.
 - [issues](https://github.com/crowdstrike/terraform-provider-crowdstrike/issues) - Report issues or request the next set of resources.

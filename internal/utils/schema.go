@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // IsKnown returns true if an attribute value is known and not null.
@@ -181,4 +182,56 @@ func MissingElements(a, b []string) []string {
 	}
 
 	return missing
+}
+
+// SetInt64FromAPIIfNotZero sets an Int64 value from API response, keeping null if current is null and API value is 0.
+func SetInt64FromAPIIfNotZero(currentValue types.Int64, apiValue int64) types.Int64 {
+	if currentValue.IsNull() && apiValue == 0 {
+		return types.Int64Null()
+	}
+	return types.Int64Value(apiValue)
+}
+
+// SetStringFromAPIIfNotEmpty sets a String value from API response, keeping null if current is null and API value is "".
+func SetStringFromAPIIfNotEmpty(currentValue types.String, apiValue string) types.String {
+	if currentValue.IsNull() && apiValue == "" {
+		return types.StringNull()
+	}
+	return types.StringValue(apiValue)
+}
+
+// OptionalString converts a string pointer to types.String, returning null if pointer is nil or empty.
+func OptionalString(value *string) types.String {
+	if value != nil && *value != "" {
+		return types.StringPointerValue(value)
+	}
+	return types.StringNull()
+}
+
+// TerraformObjectConvertible is an interface for models that can be converted to Terraform objects.
+type TerraformObjectConvertible interface {
+	AttributeTypes() map[string]attr.Type
+}
+
+// ConvertModelToTerraformObject converts a model pointer to a Terraform object.
+// If the model is nil, returns a null object with the provided attribute types.
+func ConvertModelToTerraformObject[T TerraformObjectConvertible](
+	ctx context.Context,
+	model *T,
+) (types.Object, diag.Diagnostics) {
+	if model == nil {
+		var zero T
+		zeroObj := types.ObjectNull(zero.AttributeTypes())
+		return zeroObj, nil
+	}
+
+	obj, diags := types.ObjectValueFrom(ctx, (*model).AttributeTypes(), *model)
+	if diags.HasError() {
+		return types.ObjectNull((*model).AttributeTypes()), diags
+	}
+
+	tflog.Debug(ctx, "Successfully converted model to Terraform object", map[string]interface{}{
+		"object": obj.String(),
+	})
+	return obj, diags
 }

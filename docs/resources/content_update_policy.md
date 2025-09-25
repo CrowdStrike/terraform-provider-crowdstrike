@@ -1,0 +1,281 @@
+---
+page_title: "crowdstrike_content_update_policy Resource - crowdstrike"
+subcategory: "Content Update Policy"
+description: |-
+  This resource allows management of content update policies in the CrowdStrike Falcon platform. Content update policies control how and when CrowdStrike content updates are deployed to hosts.
+  API Scopes
+  The following API scopes are required:
+  Content update policies | Read & Write
+---
+
+# crowdstrike_content_update_policy (Resource)
+
+This resource allows management of content update policies in the CrowdStrike Falcon platform. Content update policies control how and when CrowdStrike content updates are deployed to hosts.
+
+## API Scopes
+
+The following API scopes are required:
+
+- Content update policies | Read & Write
+
+
+## Example Usage
+
+```terraform
+terraform {
+  required_providers {
+    crowdstrike = {
+      source = "registry.terraform.io/crowdstrike/crowdstrike"
+    }
+  }
+}
+
+provider "crowdstrike" {
+  cloud = "us-2"
+}
+
+# Basic content update policy
+resource "crowdstrike_content_update_policy" "example" {
+  name        = "Example Content Policy"
+  description = "Example content update policy for production hosts"
+  enabled     = true
+
+  sensor_operations = {
+    ring_assignment = "ga"
+    delay_hours     = 0
+  }
+
+  system_critical = {
+    ring_assignment = "ga"
+    delay_hours     = 24
+  }
+
+  vulnerability_management = {
+    ring_assignment = "ea"
+  }
+
+  rapid_response = {
+    ring_assignment = "pause"
+  }
+}
+
+# Host groups for examples
+resource "crowdstrike_host_group" "production" {
+  name        = "Production Servers"
+  description = "Production server host group"
+  type        = "static"
+  hostnames   = ["host1"]
+}
+
+resource "crowdstrike_host_group" "staging" {
+  name        = "Staging Servers"
+  description = "Staging server host group"
+  type        = "static"
+  hostnames   = ["host1"]
+}
+
+resource "crowdstrike_host_group" "test" {
+  name        = "Test Servers"
+  description = "Test server host group"
+  type        = "static"
+  hostnames   = ["host1"]
+}
+
+# Content update policy with host groups and different ring configurations
+resource "crowdstrike_content_update_policy" "with_host_groups" {
+  name        = "Content Policy with Host Groups"
+  description = "Content update policy assigned to specific host groups"
+  enabled     = false
+
+  sensor_operations = {
+    ring_assignment = "ga"
+    delay_hours     = 12
+  }
+
+  system_critical = {
+    ring_assignment = "ga"
+    delay_hours     = 24
+  }
+
+  vulnerability_management = {
+    ring_assignment = "ga"
+    delay_hours     = 0
+  }
+
+  rapid_response = {
+    ring_assignment = "ea"
+  }
+
+  host_groups = [
+    crowdstrike_host_group.production.id,
+    crowdstrike_host_group.staging.id
+  ]
+}
+
+# Conservative content update policy for critical systems
+resource "crowdstrike_content_update_policy" "conservative" {
+  name        = "Conservative Content Policy"
+  description = "Conservative policy with longer delays for critical systems"
+  enabled     = true
+
+  sensor_operations = {
+    ring_assignment = "ga"
+    delay_hours     = 72
+  }
+
+  system_critical = {
+    ring_assignment = "ga"
+    delay_hours     = 48
+  }
+
+  vulnerability_management = {
+    ring_assignment = "ga"
+    delay_hours     = 24
+  }
+
+  rapid_response = {
+    ring_assignment = "ga"
+    delay_hours     = 0
+  }
+}
+
+# Early access content update policy for test environments
+resource "crowdstrike_content_update_policy" "early_access" {
+  name        = "Early Access Test Policy"
+  description = "Early access policy for testing environments"
+  enabled     = true
+
+  sensor_operations = {
+    ring_assignment = "ea"
+  }
+
+  system_critical = {
+    ring_assignment = "ea"
+  }
+
+  vulnerability_management = {
+    ring_assignment = "ea"
+  }
+
+  rapid_response = {
+    ring_assignment = "ea"
+  }
+
+  host_groups = [
+    crowdstrike_host_group.test.id
+  ]
+}
+
+# Data source to fetch available content category versions
+data "crowdstrike_content_category_versions" "available" {}
+
+# Content update policy with pinned content versions for stability
+resource "crowdstrike_content_update_policy" "pinned_versions" {
+  name        = "Pinned Content Versions Policy"
+  description = "Policy with specific content versions pinned for stability"
+  enabled     = true
+
+  sensor_operations = {
+    ring_assignment        = "ea"
+    pinned_content_version = data.crowdstrike_content_category_versions.available.sensor_operations[0]
+  }
+
+  system_critical = {
+    ring_assignment = "ga"
+    delay_hours     = 24
+  }
+
+  vulnerability_management = {
+    ring_assignment        = "ga"
+    delay_hours            = 12
+    pinned_content_version = data.crowdstrike_content_category_versions.available.vulnerability_management[0]
+  }
+
+  rapid_response = {
+    ring_assignment        = "ga"
+    pinned_content_version = data.crowdstrike_content_category_versions.available.rapid_response[0]
+  }
+}
+```
+
+<!-- schema generated by tfplugindocs -->
+## Schema
+
+### Required
+
+- `description` (String) Description of the content update policy.
+- `name` (String) Name of the content update policy.
+- `rapid_response` (Attributes) Ring assignment settings for rapid response allow/block listing content category. (see [below for nested schema](#nestedatt--rapid_response))
+- `sensor_operations` (Attributes) Ring assignment settings for sensor operations content category. (see [below for nested schema](#nestedatt--sensor_operations))
+- `system_critical` (Attributes) Ring assignment settings for system critical content category. (see [below for nested schema](#nestedatt--system_critical))
+- `vulnerability_management` (Attributes) Ring assignment settings for vulnerability management content category. (see [below for nested schema](#nestedatt--vulnerability_management))
+
+### Optional
+
+- `enabled` (Boolean) Enable the content update policy.
+- `host_groups` (Set of String) Host Group IDs to attach to the content update policy.
+
+### Read-Only
+
+- `id` (String) Identifier for the content update policy.
+- `last_updated` (String) Timestamp of the last Terraform update of the resource.
+
+<a id="nestedatt--rapid_response"></a>
+### Nested Schema for `rapid_response`
+
+Required:
+
+- `ring_assignment` (String) Ring assignment for the content category (ga, ea, pause).
+
+Optional:
+
+- `delay_hours` (Number) Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.
+- `pinned_content_version` (String) Pin content category to a specific version. When set, the content category will not automatically update to newer versions.
+
+
+<a id="nestedatt--sensor_operations"></a>
+### Nested Schema for `sensor_operations`
+
+Required:
+
+- `ring_assignment` (String) Ring assignment for the content category (ga, ea, pause).
+
+Optional:
+
+- `delay_hours` (Number) Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.
+- `pinned_content_version` (String) Pin content category to a specific version. When set, the content category will not automatically update to newer versions.
+
+
+<a id="nestedatt--system_critical"></a>
+### Nested Schema for `system_critical`
+
+Required:
+
+- `ring_assignment` (String) Ring assignment for the content category (ga, ea). Note: 'pause' is not allowed for system_critical.
+
+Optional:
+
+- `delay_hours` (Number) Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.
+- `pinned_content_version` (String) Pin content category to a specific version. When set, the content category will not automatically update to newer versions.
+
+
+<a id="nestedatt--vulnerability_management"></a>
+### Nested Schema for `vulnerability_management`
+
+Required:
+
+- `ring_assignment` (String) Ring assignment for the content category (ga, ea, pause).
+
+Optional:
+
+- `delay_hours` (Number) Delay in hours when using 'ga' ring assignment. Valid values: 0, 1, 2, 4, 8, 12, 24, 48, 72. Only applicable when ring_assignment is 'ga'.
+- `pinned_content_version` (String) Pin content category to a specific version. When set, the content category will not automatically update to newer versions.
+
+## Import
+
+Import is supported using the following syntax:
+
+```shell
+# Content Update Policy resources can be imported using their policy ID, e.g.
+terraform import crowdstrike_content_update_policy.example 1234567890abcdef1234567890abcdef
+```

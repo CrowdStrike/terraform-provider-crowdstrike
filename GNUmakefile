@@ -8,7 +8,11 @@ testacc:
 localinstall:
 	go build -o terraform-provider-crowdstrike .
 	mv terraform-provider-crowdstrike ~/go/bin
-	
+
 build:
 	go install .
 
+# Lint with golangci-lint (same as CI)
+.PHONY: lint
+lint:
+	golangci-lint run ./...

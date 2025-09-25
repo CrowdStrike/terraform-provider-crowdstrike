@@ -19,79 +19,73 @@ type resource struct {
 	PackageName    string
 }
 
-func (r resource) generateImport(tpl *template.Template) {
+func (r resource) generateImport(tpl *template.Template) error {
 	filename := fmt.Sprintf("./examples/resources/crowdstrike_%s/import.sh", r.SnakeCaseName)
 
 	err := os.MkdirAll(filepath.Dir(filename), 0755)
 	if err != nil {
-		fmt.Printf("Error creating directories: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("error creating directories: %w", err)
 	}
 
 	file, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
-		fmt.Println("Error creating file:", err)
-		os.Exit(1)
+		return fmt.Errorf("error creating file: %w", err)
 	}
 	defer file.Close()
 
 	err = tpl.Execute(file, r)
 	if err != nil {
-		fmt.Println("Error creating file:", err)
-		os.Exit(1)
+		return fmt.Errorf("error executing template: %w", err)
 	}
 
 	fmt.Println("Generated:", filename)
+	return nil
 }
 
-func (r resource) generateExample(tpl *template.Template) {
+func (r resource) generateExample(tpl *template.Template) error {
 	filename := fmt.Sprintf("./examples/resources/crowdstrike_%s/resource.tf", r.SnakeCaseName)
 
 	err := os.MkdirAll(filepath.Dir(filename), 0755)
 	if err != nil {
-		fmt.Printf("Error creating directories: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("error creating directories: %w", err)
 	}
 
 	file, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
-		fmt.Println("Error creating file:", err)
-		os.Exit(1)
+		return fmt.Errorf("error creating file: %w", err)
 	}
 	defer file.Close()
 
 	err = tpl.Execute(file, r)
 	if err != nil {
-		fmt.Println("Error creating file:", err)
-		os.Exit(1)
+		return fmt.Errorf("error executing template: %w", err)
 	}
 
 	fmt.Println("Generated:", filename)
+	return nil
 }
 
-func (r resource) generateResource(tpl *template.Template) {
+func (r resource) generateResource(tpl *template.Template) error {
 	filename := fmt.Sprintf("./internal/%s/%s.go", r.SnakeCaseName, r.SnakeCaseName)
 
 	err := os.MkdirAll(filepath.Dir(filename), 0755)
 	if err != nil {
-		fmt.Printf("Error creating directories: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("error creating directories: %w", err)
 	}
 
 	file, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
-		fmt.Println("Error creating file:", err)
-		os.Exit(1)
+		return fmt.Errorf("error creating file: %w", err)
 	}
 	defer file.Close()
 
 	err = tpl.Execute(file, r)
 	if err != nil {
-		fmt.Println("Error creating file:", err)
-		os.Exit(1)
+		return fmt.Errorf("error executing template: %w", err)
 	}
 
 	fmt.Println("Generated:", filename)
+	return nil
 }
 
 func newResource(resourceName string) resource {
@@ -139,19 +133,28 @@ func main() {
 		fmt.Println("Error loading resource template:", err)
 		os.Exit(1)
 	}
-	resource.generateResource(tplResource)
+	if err := resource.generateResource(tplResource); err != nil {
+		fmt.Println("Error generating resource:", err)
+		os.Exit(1)
+	}
 
 	tplExample, err := template.ParseFiles("./tools/resource/example.tpl")
 	if err != nil {
 		fmt.Println("Error loading example template:", err)
 		os.Exit(1)
 	}
-	resource.generateExample(tplExample)
+	if err := resource.generateExample(tplExample); err != nil {
+		fmt.Println("Error generating example:", err)
+		os.Exit(1)
+	}
 
 	tplImport, err := template.ParseFiles("./tools/resource/import.tpl")
 	if err != nil {
 		fmt.Println("Error loading import template:", err)
 		os.Exit(1)
 	}
-	resource.generateImport(tplImport)
+	if err := resource.generateImport(tplImport); err != nil {
+		fmt.Println("Error generating import:", err)
+		os.Exit(1)
+	}
 }

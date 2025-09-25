@@ -34,7 +34,7 @@ func GenerateScopeDescription(scopes []Scope) string {
 			continue
 		}
 		if scope.Read {
-			sb.WriteString(fmt.Sprintf("- %s | Write\n", scope.Name))
+			sb.WriteString(fmt.Sprintf("- %s | Read\n", scope.Name))
 			continue
 		}
 	}

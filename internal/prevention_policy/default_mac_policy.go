@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 var (
@@ -34,9 +35,9 @@ type defaultPreventionPolicyMacResourceModel struct {
 	Description                        types.String `tfsdk:"description"`
 	RuleGroups                         types.Set    `tfsdk:"ioa_rule_groups"`
 	LastUpdated                        types.String `tfsdk:"last_updated"`
-	CloudAntiMalware                   *mlSlider    `tfsdk:"cloud_anti_malware"`
-	AdwarePUP                          *mlSlider    `tfsdk:"cloud_adware_and_pup"`
-	OnSensorMLSlider                   *mlSlider    `tfsdk:"sensor_anti_malware"`
+	CloudAntiMalware                   types.Object `tfsdk:"cloud_anti_malware"`
+	AdwarePUP                          types.Object `tfsdk:"cloud_adware_and_pup"`
+	OnSensorMLSlider                   types.Object `tfsdk:"sensor_anti_malware"`
 	EndUserNotifications               types.Bool   `tfsdk:"notify_end_users"`
 	UnknownDetectionRelatedExecutables types.Bool   `tfsdk:"upload_unknown_detection_related_executables"`
 	UnknownExecutables                 types.Bool   `tfsdk:"upload_unknown_executables"`
@@ -49,7 +50,7 @@ type defaultPreventionPolicyMacResourceModel struct {
 	PreventSuspiciousProcesses         types.Bool   `tfsdk:"prevent_suspicious_processes"`
 	IntelPrevention                    types.Bool   `tfsdk:"intelligence_sourced_threats"`
 	ChopperWebshell                    types.Bool   `tfsdk:"chopper_webshell"`
-	OnSensorMLAdwarePUPSlider          *mlSlider    `tfsdk:"sensor_adware_and_pup"`
+	OnSensorMLAdwarePUPSlider          types.Object `tfsdk:"sensor_adware_and_pup"`
 	XPCOMShell                         types.Bool   `tfsdk:"xpcom_shell"`
 	EmpyreBackdoor                     types.Bool   `tfsdk:"empyre_backdoor"`
 	KcPasswordDecoded                  types.Bool   `tfsdk:"kc_password_decoded"`
@@ -66,7 +67,7 @@ func (m *defaultPreventionPolicyMacResourceModel) wrap(
 	if *policy.Description != "" {
 		m.Description = types.StringValue(*policy.Description)
 	}
-	m.assignPreventionSettings(policy.PreventionSettings)
+	diags.Append(m.assignPreventionSettings(ctx, policy.PreventionSettings)...)
 	ruleGroupSet, diag := convertRuleGroupToSet(ctx, policy.IoaRuleGroups)
 	diags.Append(diag...)
 	if diags.HasError() {
@@ -77,8 +78,9 @@ func (m *defaultPreventionPolicyMacResourceModel) wrap(
 }
 
 // generatePreventionSettings maps plan prevention settings to api params for create and update.
-func (m *defaultPreventionPolicyMacResourceModel) generatePreventionSettings() []*models.PreventionSettingReqV1 {
+func (m *defaultPreventionPolicyMacResourceModel) generatePreventionSettings(ctx context.Context) ([]*models.PreventionSettingReqV1, diag.Diagnostics) {
 	preventionSettings := []*models.PreventionSettingReqV1{}
+	var diags diag.Diagnostics
 
 	toggleSettings := map[string]types.Bool{
 		"EndUserNotifications":               m.EndUserNotifications,
@@ -99,11 +101,46 @@ func (m *defaultPreventionPolicyMacResourceModel) generatePreventionSettings() [
 		"HashCollector":                      m.HashCollector,
 	}
 
-	mlSliderSettings := map[string]mlSlider{
-		"CloudAntiMalware":          *m.CloudAntiMalware,
-		"AdwarePUP":                 *m.AdwarePUP,
-		"OnSensorMLSlider":          *m.OnSensorMLSlider,
-		"OnSensorMLAdwarePUPSlider": *m.OnSensorMLAdwarePUPSlider,
+	mlSliderSettings := map[string]mlSlider{}
+
+	if !m.CloudAntiMalware.IsNull() {
+		var slider mlSlider
+		diagsSlider := m.CloudAntiMalware.As(ctx, &slider, basetypes.ObjectAsOptions{})
+		diags.Append(diagsSlider...)
+		if diags.HasError() {
+			return preventionSettings, diags
+		}
+		mlSliderSettings["CloudAntiMalware"] = slider
+	}
+
+	if !m.AdwarePUP.IsNull() {
+		var slider mlSlider
+		diagsSlider := m.AdwarePUP.As(ctx, &slider, basetypes.ObjectAsOptions{})
+		diags.Append(diagsSlider...)
+		if diags.HasError() {
+			return preventionSettings, diags
+		}
+		mlSliderSettings["AdwarePUP"] = slider
+	}
+
+	if !m.OnSensorMLSlider.IsNull() {
+		var slider mlSlider
+		diagsSlider := m.OnSensorMLSlider.As(ctx, &slider, basetypes.ObjectAsOptions{})
+		diags.Append(diagsSlider...)
+		if diags.HasError() {
+			return preventionSettings, diags
+		}
+		mlSliderSettings["OnSensorMLSlider"] = slider
+	}
+
+	if !m.OnSensorMLAdwarePUPSlider.IsNull() {
+		var slider mlSlider
+		diagsSlider := m.OnSensorMLAdwarePUPSlider.As(ctx, &slider, basetypes.ObjectAsOptions{})
+		diags.Append(diagsSlider...)
+		if diags.HasError() {
+			return preventionSettings, diags
+		}
+		mlSliderSettings["OnSensorMLAdwarePUPSlider"] = slider
 	}
 
 	for k, v := range toggleSettings {
@@ -127,14 +164,16 @@ func (m *defaultPreventionPolicyMacResourceModel) generatePreventionSettings() [
 		})
 	}
 
-	return preventionSettings
+	return preventionSettings, diags
 
 }
 
 // assignPreventionSettings assigns the prevention settings returned from the api into the resource model.
 func (m *defaultPreventionPolicyMacResourceModel) assignPreventionSettings(
+	ctx context.Context,
 	categories []*models.PreventionCategoryRespV1,
-) {
+) diag.Diagnostics {
+	var diags diag.Diagnostics
 	toggleSettings, mlSliderSettings, _ := mapPreventionSettings(categories)
 
 	// toggle settings
@@ -162,11 +201,43 @@ func (m *defaultPreventionPolicyMacResourceModel) assignPreventionSettings(
 	m.HashCollector = defaultBoolFalse(toggleSettings["HashCollector"])
 
 	// mlslider settings
-	m.CloudAntiMalware = mlSliderSettings["CloudAntiMalware"]
-	m.AdwarePUP = mlSliderSettings["AdwarePUP"]
-	m.OnSensorMLSlider = mlSliderSettings["OnSensorMLSlider"]
-	m.OnSensorMLAdwarePUPSlider = mlSliderSettings["OnSensorMLAdwarePUPSlider"]
+	if slider, ok := mlSliderSettings["CloudAntiMalware"]; ok {
+		objValue, diagsObj := types.ObjectValueFrom(ctx, mlSlider{}.AttributeTypes(), slider)
+		diags.Append(diagsObj...)
+		if diags.HasError() {
+			return diags
+		}
+		m.CloudAntiMalware = objValue
+	}
 
+	if slider, ok := mlSliderSettings["AdwarePUP"]; ok {
+		objValue, diagsObj := types.ObjectValueFrom(ctx, mlSlider{}.AttributeTypes(), slider)
+		diags.Append(diagsObj...)
+		if diags.HasError() {
+			return diags
+		}
+		m.AdwarePUP = objValue
+	}
+
+	if slider, ok := mlSliderSettings["OnSensorMLSlider"]; ok {
+		objValue, diagsObj := types.ObjectValueFrom(ctx, mlSlider{}.AttributeTypes(), slider)
+		diags.Append(diagsObj...)
+		if diags.HasError() {
+			return diags
+		}
+		m.OnSensorMLSlider = objValue
+	}
+
+	if slider, ok := mlSliderSettings["OnSensorMLAdwarePUPSlider"]; ok {
+		objValue, diagsObj := types.ObjectValueFrom(ctx, mlSlider{}.AttributeTypes(), slider)
+		diags.Append(diagsObj...)
+		if diags.HasError() {
+			return diags
+		}
+		m.OnSensorMLAdwarePUPSlider = objValue
+	}
+
+	return diags
 }
 
 func (r *defaultPreventionPolicyMacResource) Configure(
@@ -248,10 +319,16 @@ func (r *defaultPreventionPolicyMacResource) Create(
 		return
 	}
 
+	preventionSettings, diagsGen := plan.generatePreventionSettings(ctx)
+	resp.Diagnostics.Append(diagsGen...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	policy, diags = updatePreventionPolicy(
 		ctx,
 		r.client,
-		plan.generatePreventionSettings(),
+		preventionSettings,
 		plan.ID.ValueString(),
 		updatePreventionPolicyOptions{Description: plan.Description.ValueString()},
 	)
@@ -310,10 +387,16 @@ func (r *defaultPreventionPolicyMacResource) Update(
 		return
 	}
 
+	preventionSettings, diagsGen := plan.generatePreventionSettings(ctx)
+	resp.Diagnostics.Append(diagsGen...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	preventionPolicy, diags := updatePreventionPolicy(
 		ctx,
 		r.client,
-		plan.generatePreventionSettings(),
+		preventionSettings,
 		plan.ID.ValueString(),
 		updatePreventionPolicyOptions{Description: plan.Description.ValueString()},
 	)
@@ -360,41 +443,61 @@ func (r *defaultPreventionPolicyMacResource) ValidateConfig(
 
 	resp.Diagnostics.Append(
 		validateRequiredAttribute(
-			config.QuarantineOnWrite.ValueBool(),
-			(config.NextGenAV.ValueBool() && config.DetectOnWrite.ValueBool()),
+			config.QuarantineOnWrite,
+			config.NextGenAV,
 			"quarantine_on_write",
-			"quarantine and detect_on_write",
+			"quarantine",
 		)...)
 
-	if config.CloudAntiMalware != nil {
-		resp.Diagnostics.Append(
-			validateMlSlider(
-				"cloud_anti_malware",
-				*config.CloudAntiMalware,
-			)...)
+	resp.Diagnostics.Append(
+		validateRequiredAttribute(
+			config.QuarantineOnWrite,
+			config.DetectOnWrite,
+			"quarantine_on_write",
+			"detect_on_write",
+		)...)
+
+	if !config.CloudAntiMalware.IsNull() {
+		var slider mlSlider
+		if diagsSlider := config.CloudAntiMalware.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
+			resp.Diagnostics.Append(
+				validateMlSlider(
+					"cloud_anti_malware",
+					slider,
+				)...)
+		}
 	}
 
-	if config.AdwarePUP != nil {
-		resp.Diagnostics.Append(
-			validateMlSlider(
-				"cloud_adware_and_pup",
-				*config.AdwarePUP,
-			)...)
+	if !config.AdwarePUP.IsNull() {
+		var slider mlSlider
+		if diagsSlider := config.AdwarePUP.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
+			resp.Diagnostics.Append(
+				validateMlSlider(
+					"cloud_adware_and_pup",
+					slider,
+				)...)
+		}
 	}
 
-	if config.OnSensorMLSlider != nil {
-		resp.Diagnostics.Append(
-			validateMlSlider(
-				"sensor_anti_malware",
-				*config.OnSensorMLSlider,
-			)...)
+	if !config.OnSensorMLSlider.IsNull() {
+		var slider mlSlider
+		if diagsSlider := config.OnSensorMLSlider.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
+			resp.Diagnostics.Append(
+				validateMlSlider(
+					"sensor_anti_malware",
+					slider,
+				)...)
+		}
 	}
 
-	if config.OnSensorMLAdwarePUPSlider != nil {
-		resp.Diagnostics.Append(
-			validateMlSlider(
-				"sensor_adware_and_pup",
-				*config.OnSensorMLAdwarePUPSlider,
-			)...)
+	if !config.OnSensorMLAdwarePUPSlider.IsNull() {
+		var slider mlSlider
+		if diagsSlider := config.OnSensorMLAdwarePUPSlider.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
+			resp.Diagnostics.Append(
+				validateMlSlider(
+					"sensor_adware_and_pup",
+					slider,
+				)...)
+		}
 	}
 }

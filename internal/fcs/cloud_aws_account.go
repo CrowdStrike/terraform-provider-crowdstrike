@@ -695,7 +695,7 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 	if model.IDP != nil && model.IDP.Enabled.ValueBool() {
 		createAccount.CspEvents = true
 		productString := "idp"
-		createAccount.Products = []*models.RestAccountProductUpsertRequestExtV1{
+		createAccount.Products = []*models.RestAccountProductRequestExtV1{
 			{
 				Product:  &productString,
 				Features: []string{"default"},
@@ -1215,11 +1215,8 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 	model cloudAWSAccountModel,
 ) (*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	patchAccount := models.RestCloudAWSAccountCreateExtV1{
-		AccountID:          model.AccountID.ValueString(),
-		OrganizationID:     model.OrganizationID.ValueString(),
-		IsMaster:           model.OrganizationID.ValueString() != "",
-		AccountType:        model.AccountType.ValueString(),
+	patchAccount := models.RestAWSAccountPatchExtV1{
+		AccountID:          model.AccountID.ValueStringPointer(),
 		ResourceNamePrefix: model.ResourceNamePrefix.ValueString(),
 		ResourceNameSuffix: model.ResourceNameSuffix.ValueString(),
 	}
@@ -1227,7 +1224,7 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 		patchAccount.CspEvents = true
 	}
 	productString := "idp"
-	patchAccount.Products = []*models.RestAccountProductUpsertRequestExtV1{
+	patchAccount.Products = []*models.RestAccountProductRequestExtV1{
 		{
 			Product:  &productString,
 			Features: []string{},
@@ -1240,8 +1237,8 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 	res, status, err := r.client.CloudAwsRegistration.CloudRegistrationAwsUpdateAccount(
 		&cloud_aws_registration.CloudRegistrationAwsUpdateAccountParams{
 			Context: ctx,
-			Body: &models.RestAWSAccountCreateRequestExtv1{
-				Resources: []*models.RestCloudAWSAccountCreateExtV1{
+			Body: &models.RestAWSAccountPatchRequestExtV1{
+				Resources: []*models.RestAWSAccountPatchExtV1{
 					&patchAccount,
 				},
 			},

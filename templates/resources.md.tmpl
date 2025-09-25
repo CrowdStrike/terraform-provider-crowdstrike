@@ -2,13 +2,13 @@
 page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
 {{ if gt (len (split .Description " --- ")) 1 -}}
 subcategory: "{{ index (split .Description " --- ") 0 }}"
-{{- else -}} 
+{{- else -}}
 subcategory: ""
 {{- end }}
 description: |-
 {{ if gt (len (split .Description " --- ")) 1 -}}
 {{ index (split .Description " --- ") 1 | plainmarkdown | trimspace | prefixlines "  " }}
-{{- else -}} 
+{{- else -}}
 {{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
 {{- end }}
 ---

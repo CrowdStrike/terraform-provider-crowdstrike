@@ -24,7 +24,7 @@ var (
 )
 
 var (
-  docuementationSection       string         = "section" 
+  documentationSection       string         = "section"
   resourceMarkdownDescription string         = "<description>"
   requiredScopes              []scopes.Scope = []scopes.Scope{}
 )
@@ -95,7 +95,7 @@ func (r *{{.CamelCaseName}}Resource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: utils.MarkdownDescription(docuementationSection, resourceMarkdownDescription, requiredScopes),
+		MarkdownDescription: utils.MarkdownDescription(documentationSection, resourceMarkdownDescription, requiredScopes),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
@@ -107,7 +107,7 @@ func (r *{{.CamelCaseName}}Resource) Schema(
 			"last_updated": schema.StringAttribute{
 				Computed:    true,
 				Description: "Timestamp of the last Terraform update of the resource.",
-			},	
+			},
 		},
 	}
 }
@@ -182,4 +182,3 @@ func (r *{{.CamelCaseName}}Resource) ValidateConfig(
 	var config {{.CamelCaseName}}ResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 }
-

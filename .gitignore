@@ -23,9 +23,12 @@ website/node_modules
 .idea
 *.iml
 *.test
-*.iml
+*.
+.clinerules/
+terraform-provider-crowdstrike*
 
 website/vendor
+.clineignore
 
 # Test exclusions
 !command/test-fixtures/**/*.tfstate
@@ -33,3 +36,4 @@ website/vendor
 
 # Keep windows files with windows line endings
 *.winfile eol=crlf
+.terraform.lock.hcl
