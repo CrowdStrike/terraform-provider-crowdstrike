@@ -13,6 +13,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -21,6 +22,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
@@ -53,9 +55,9 @@ type scriptColumnModel struct {
 }
 
 type scriptColumnsModel struct {
-	Columns      []scriptColumnModel `tfsdk:"columns"`
-	Delimiter    types.String        `tfsdk:"delimiter"`
-	GroupResults types.Bool          `tfsdk:"group_results"`
+	Columns      types.List   `tfsdk:"columns"`
+	Delimiter    types.String `tfsdk:"delimiter"`
+	GroupResults types.Bool   `tfsdk:"group_results"`
 }
 
 type verificationStatementModel struct {
@@ -67,39 +69,39 @@ type verificationStatementModel struct {
 }
 
 type verificationConditionModel struct {
-	Operator   types.String                 `tfsdk:"operator"`
-	Statements []verificationStatementModel `tfsdk:"statements"`
+	Operator   types.String `tfsdk:"operator"`
+	Statements types.List   `tfsdk:"statements"`
 }
 
 // itAutomationTaskResourceModel is the resource model.
 type itAutomationTaskResourceModel struct {
-	ID                       types.String         `tfsdk:"id"`
-	LastUpdated              types.String         `tfsdk:"last_updated"`
-	EffectiveAccessType      types.String         `tfsdk:"effective_access_type"`
-	EffectiveAssignedUserIds types.Set            `tfsdk:"effective_assigned_user_ids"`
-	InTaskGroup              types.Bool           `tfsdk:"in_task_group"`
-	TaskGroupID              types.String         `tfsdk:"task_group_id"`
-	Name                     types.String         `tfsdk:"name"`
-	Description              types.String         `tfsdk:"description"`
-	AccessType               types.String         `tfsdk:"access_type"`
-	AssignedUserIds          types.Set            `tfsdk:"assigned_user_ids"`
-	OsQuery                  types.String         `tfsdk:"os_query"`
-	ScriptColumns            []scriptColumnsModel `tfsdk:"script_columns"`
-	Target                   types.String         `tfsdk:"target"`
-	Type                     types.String         `tfsdk:"type"`
-	LinuxScriptContent       types.String         `tfsdk:"linux_script_content"`
-	LinuxScriptLanguage      types.String         `tfsdk:"linux_script_language"`
-	MacScriptContent         types.String         `tfsdk:"mac_script_content"`
-	MacScriptLanguage        types.String         `tfsdk:"mac_script_language"`
-	WindowsScriptContent     types.String         `tfsdk:"windows_script_content"`
-	WindowsScriptLanguage    types.String         `tfsdk:"windows_script_language"`
+	ID                       types.String `tfsdk:"id"`
+	LastUpdated              types.String `tfsdk:"last_updated"`
+	EffectiveAccessType      types.String `tfsdk:"effective_access_type"`
+	EffectiveAssignedUserIds types.Set    `tfsdk:"effective_assigned_user_ids"`
+	InTaskGroup              types.Bool   `tfsdk:"in_task_group"`
+	TaskGroupID              types.String `tfsdk:"task_group_id"`
+	Name                     types.String `tfsdk:"name"`
+	Description              types.String `tfsdk:"description"`
+	AccessType               types.String `tfsdk:"access_type"`
+	AssignedUserIds          types.Set    `tfsdk:"assigned_user_ids"`
+	OsQuery                  types.String `tfsdk:"os_query"`
+	ScriptColumns            types.Object `tfsdk:"script_columns"`
+	Target                   types.String `tfsdk:"target"`
+	Type                     types.String `tfsdk:"type"`
+	LinuxScriptContent       types.String `tfsdk:"linux_script_content"`
+	LinuxScriptLanguage      types.String `tfsdk:"linux_script_language"`
+	MacScriptContent         types.String `tfsdk:"mac_script_content"`
+	MacScriptLanguage        types.String `tfsdk:"mac_script_language"`
+	WindowsScriptContent     types.String `tfsdk:"windows_script_content"`
+	WindowsScriptLanguage    types.String `tfsdk:"windows_script_language"`
 
 	// action task specific fields.
-	FileIds               types.Set                    `tfsdk:"file_ids"`
-	LinuxScriptFileId     types.String                 `tfsdk:"linux_script_file_id"`
-	MacScriptFileId       types.String                 `tfsdk:"mac_script_file_id"`
-	WindowsScriptFileId   types.String                 `tfsdk:"windows_script_file_id"`
-	VerificationCondition []verificationConditionModel `tfsdk:"verification_condition"`
+	FileIds               types.Set    `tfsdk:"file_ids"`
+	LinuxScriptFileId     types.String `tfsdk:"linux_script_file_id"`
+	MacScriptFileId       types.String `tfsdk:"mac_script_file_id"`
+	WindowsScriptFileId   types.String `tfsdk:"windows_script_file_id"`
+	VerificationCondition types.List   `tfsdk:"verification_condition"`
 }
 
 // convertType converts the type value to the Terraform or API expected values.
@@ -193,7 +195,8 @@ func (r *itAutomationTaskResource) constructUpdatePayload(
 	ctx context.Context,
 	currentTask *models.ItautomationTask,
 	plan *itAutomationTaskResourceModel,
-) *models.ItautomationUpdateTaskRequest {
+) (*models.ItautomationUpdateTaskRequest, diag.Diagnostics) {
+	var diags diag.Diagnostics
 	apiType := convertType(plan.Type.ValueString(), "api")
 	inTaskGroup := hasTaskGroupMembership(currentTask.Groups)
 
@@ -239,9 +242,14 @@ func (r *itAutomationTaskResource) constructUpdatePayload(
 		body.OsQuery = currentTask.OsQuery
 	}
 
-	if len(plan.ScriptColumns) > 0 {
+	if !plan.ScriptColumns.IsNull() {
 		outputParser := &models.ItautomationOutputParserConfig{}
-		scriptColumns := plan.ScriptColumns[0]
+
+		var scriptColumns scriptColumnsModel
+		diags.Append(plan.ScriptColumns.As(ctx, &scriptColumns, basetypes.ObjectAsOptions{})...)
+		if diags.HasError() {
+			return body, diags
+		}
 
 		if !scriptColumns.Delimiter.IsNull() {
 			outputParser.Delimiter = scriptColumns.Delimiter.ValueStringPointer()
@@ -249,16 +257,23 @@ func (r *itAutomationTaskResource) constructUpdatePayload(
 		if !scriptColumns.GroupResults.IsNull() {
 			outputParser.DefaultGroupBy = scriptColumns.GroupResults.ValueBoolPointer()
 		}
-		if len(scriptColumns.Columns) > 0 {
-			columns := make([]*models.ItautomationColumnInfo, 0, len(scriptColumns.Columns))
-			for _, col := range scriptColumns.Columns {
+
+		if !scriptColumns.Columns.IsNull() && len(scriptColumns.Columns.Elements()) > 0 {
+			var columns []scriptColumnModel
+			diags.Append(scriptColumns.Columns.ElementsAs(ctx, &columns, false)...)
+			if diags.HasError() {
+				return body, diags
+			}
+
+			apiColumns := make([]*models.ItautomationColumnInfo, 0, len(columns))
+			for _, col := range columns {
 				if !col.Name.IsNull() {
-					columns = append(columns, &models.ItautomationColumnInfo{
+					apiColumns = append(apiColumns, &models.ItautomationColumnInfo{
 						Name: col.Name.ValueStringPointer(),
 					})
 				}
 			}
-			outputParser.Columns = columns
+			outputParser.Columns = apiColumns
 		}
 		body.OutputParserConfig = outputParser
 	}
@@ -277,14 +292,18 @@ func (r *itAutomationTaskResource) constructUpdatePayload(
 		if !diags.HasError() {
 			body.Remediations = scripts
 		}
-		if len(plan.VerificationCondition) > 0 {
-			body.VerificationCondition = createVerificationConditions(plan.VerificationCondition)
+		if !plan.VerificationCondition.IsNull() && len(plan.VerificationCondition.Elements()) > 0 {
+			verificationConditions, verifyDiags := createVerificationConditions(ctx, plan.VerificationCondition)
+			diags.Append(verifyDiags...)
+			if !diags.HasError() {
+				body.VerificationCondition = verificationConditions
+			}
 		} else if len(currentTask.VerificationCondition) > 0 {
 			body.VerificationCondition = currentTask.VerificationCondition
 		}
 	}
 
-	return body
+	return body, diags
 }
 
 func (t *itAutomationTaskResourceModel) wrap(
@@ -346,8 +365,11 @@ func (t *itAutomationTaskResourceModel) wrap(
 	}
 
 	if len(task.VerificationCondition) > 0 {
-		t.VerificationCondition = extractVerificationConditions(task.VerificationCondition)
-	} else if len(currentModel.VerificationCondition) > 0 {
+		verificationConditions, diags := extractVerificationConditions(ctx, task.VerificationCondition)
+		if !diags.HasError() {
+			t.VerificationCondition = verificationConditions
+		}
+	} else if !currentModel.VerificationCondition.IsNull() && len(currentModel.VerificationCondition.Elements()) > 0 {
 		t.VerificationCondition = currentModel.VerificationCondition
 	}
 
@@ -366,10 +388,17 @@ func (t *itAutomationTaskResourceModel) wrap(
 					columns = append(columns, scriptColumnModel{Name: types.StringValue(*col.Name)})
 				}
 			}
-			scriptColumns.Columns = columns
+			columnsList, listDiags := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: scriptColumnAttrTypes()}, columns)
+			if !listDiags.HasError() {
+				scriptColumns.Columns = columnsList
+			}
 		}
-		t.ScriptColumns = []scriptColumnsModel{scriptColumns}
-	} else if len(currentModel.ScriptColumns) > 0 {
+
+		scriptColumnsObject, objDiags := types.ObjectValueFrom(ctx, scriptColumnsAttrTypes(), scriptColumns)
+		if !objDiags.HasError() {
+			t.ScriptColumns = scriptColumnsObject
+		}
+	} else if !currentModel.ScriptColumns.IsNull() {
 		t.ScriptColumns = currentModel.ScriptColumns
 	}
 
@@ -639,40 +668,48 @@ func (r *itAutomationTaskResource) Schema(
 				Computed:    true,
 				Description: "The ID of the task group this task belongs to, if any.",
 			},
-		},
-		Blocks: map[string]schema.Block{
-			"script_columns": schema.ListNestedBlock{
-				NestedObject: schema.NestedBlockObject{
-					Blocks: map[string]schema.Block{
-						"columns": schema.ListNestedBlock{
-							NestedObject: schema.NestedBlockObject{
-								Attributes: map[string]schema.Attribute{
-									"name": schema.StringAttribute{
-										Required:    true,
-										Description: "Name of the column.",
-									},
+			"script_columns": schema.SingleNestedAttribute{
+				Optional:    true,
+				Description: "Column configuration for the script output.",
+				Attributes: map[string]schema.Attribute{
+					"delimiter": schema.StringAttribute{
+						Required:    true,
+						Description: "Delimiter character for script columns.",
+					},
+					"group_results": schema.BoolAttribute{
+						Optional:    true,
+						Description: "Whether to group results by column values.",
+					},
+					"columns": schema.ListNestedAttribute{
+						Required:    true,
+						Description: "List of column definitions",
+						NestedObject: schema.NestedAttributeObject{
+							Attributes: map[string]schema.Attribute{
+								"name": schema.StringAttribute{
+									Required:    true,
+									Description: "Name of the column.",
 								},
 							},
 						},
 					},
-					Attributes: map[string]schema.Attribute{
-						"delimiter": schema.StringAttribute{
-							Required:    true,
-							Description: "Delimiter character for script columns.",
-						},
-						"group_results": schema.BoolAttribute{
-							Optional:    true,
-							Description: "Whether to group results by column values.",
-						},
-					},
 				},
-				Description: "Column configuration for the script output.",
 			},
-			"verification_condition": schema.ListNestedBlock{
-				NestedObject: schema.NestedBlockObject{
-					Blocks: map[string]schema.Block{
-						"statements": schema.ListNestedBlock{
-							NestedObject: schema.NestedBlockObject{
+			"verification_condition": schema.ListNestedAttribute{
+				Optional:    true,
+				Description: "Verification conditions for action tasks to determine success (only valid for action tasks). Maps directly to the API's FalconforitapiConditionGroup model.",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"operator": schema.StringAttribute{
+							Required:    true,
+							Description: "Logical operator for the statements (AND, OR).",
+							Validators: []validator.String{
+								stringvalidator.OneOf("AND", "OR"),
+							},
+						},
+						"statements": schema.ListNestedAttribute{
+							Required:    true,
+							Description: "List of verification statements",
+							NestedObject: schema.NestedAttributeObject{
 								Attributes: map[string]schema.Attribute{
 									"data_comparator": schema.StringAttribute{
 										Required:    true,
@@ -708,17 +745,7 @@ func (r *itAutomationTaskResource) Schema(
 							},
 						},
 					},
-					Attributes: map[string]schema.Attribute{
-						"operator": schema.StringAttribute{
-							Required:    true,
-							Description: "Logical operator for the statements (AND, OR).",
-							Validators: []validator.String{
-								stringvalidator.OneOf("AND", "OR"),
-							},
-						},
-					},
 				},
-				Description: "Verification conditions for action tasks to determine success (only valid for action tasks). Maps directly to the API's FalconforitapiConditionGroup model.",
 			},
 		},
 	}
@@ -738,11 +765,13 @@ func (r *itAutomationTaskResource) Create(
 
 	// convert type value for api compatibility.
 	apiType := convertType(plan.Type.ValueString(), "api")
+
 	body := &models.ItautomationCreateTaskRequest{
 		Name:       plan.Name.ValueStringPointer(),
 		TaskType:   &apiType,
 		AccessType: plan.AccessType.ValueStringPointer(),
 	}
+
 	params := it_automation.ITAutomationCreateTaskParams{
 		Context: ctx,
 		Body:    body,
@@ -769,9 +798,14 @@ func (r *itAutomationTaskResource) Create(
 		body.OsQuery = plan.OsQuery.ValueString()
 	}
 
-	if len(plan.ScriptColumns) > 0 {
+	if !plan.ScriptColumns.IsNull() {
 		outputParser := &models.ItautomationOutputParserConfig{}
-		scriptColumns := plan.ScriptColumns[0]
+
+		var scriptColumns scriptColumnsModel
+		resp.Diagnostics.Append(plan.ScriptColumns.As(ctx, &scriptColumns, basetypes.ObjectAsOptions{})...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 
 		if !scriptColumns.Delimiter.IsNull() {
 			outputParser.Delimiter = scriptColumns.Delimiter.ValueStringPointer()
@@ -781,16 +815,22 @@ func (r *itAutomationTaskResource) Create(
 			outputParser.DefaultGroupBy = scriptColumns.GroupResults.ValueBoolPointer()
 		}
 
-		if len(scriptColumns.Columns) > 0 {
-			columns := make([]*models.ItautomationColumnInfo, 0, len(scriptColumns.Columns))
-			for _, col := range scriptColumns.Columns {
+		if !scriptColumns.Columns.IsNull() && len(scriptColumns.Columns.Elements()) > 0 {
+			var columns []scriptColumnModel
+			resp.Diagnostics.Append(scriptColumns.Columns.ElementsAs(ctx, &columns, false)...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+
+			apiColumns := make([]*models.ItautomationColumnInfo, 0, len(columns))
+			for _, col := range columns {
 				if !col.Name.IsNull() {
-					columns = append(columns, &models.ItautomationColumnInfo{
+					apiColumns = append(apiColumns, &models.ItautomationColumnInfo{
 						Name: col.Name.ValueStringPointer(),
 					})
 				}
 			}
-			outputParser.Columns = columns
+			outputParser.Columns = apiColumns
 		}
 
 		body.OutputParserConfig = outputParser
@@ -815,10 +855,13 @@ func (r *itAutomationTaskResource) Create(
 		}
 		body.Remediations = remediations
 
-		if len(plan.VerificationCondition) > 0 {
-			body.VerificationCondition = createVerificationConditions(
-				plan.VerificationCondition,
-			)
+		if !plan.VerificationCondition.IsNull() && len(plan.VerificationCondition.Elements()) > 0 {
+			verificationConditions, verifyDiags := createVerificationConditions(ctx, plan.VerificationCondition)
+			resp.Diagnostics.Append(verifyDiags...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+			body.VerificationCondition = verificationConditions
 		}
 	}
 
@@ -911,7 +954,12 @@ func (r *itAutomationTaskResource) Update(
 		}
 	}
 
-	body := r.constructUpdatePayload(ctx, currentTask, &plan)
+	body, constructDiags := r.constructUpdatePayload(ctx, currentTask, &plan)
+	resp.Diagnostics.Append(constructDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	params := it_automation.ITAutomationUpdateTaskParams{
 		Context: ctx,
 		ID:      taskID,
@@ -1122,7 +1170,7 @@ func (r *itAutomationTaskResource) ValidateConfig(
 			"You must provide one of the script_content or script_file_id fields")
 	}
 
-	if hasValue(config.OsQuery) && config.ScriptColumns != nil {
+	if hasValue(config.OsQuery) && !config.ScriptColumns.IsNull() {
 		resp.Diagnostics.AddAttributeError(path.Root("script_columns"),
 			"Invalid argument", "script_columns cannot be used with os_query")
 	}
@@ -1133,7 +1181,8 @@ func (r *itAutomationTaskResource) ValidateConfig(
 			resp.Diagnostics.AddAttributeError(path.Root("file_ids"),
 				"Invalid argument", "file_ids cannot be used with query tasks")
 		}
-		if len(config.VerificationCondition) > 0 {
+		if !config.VerificationCondition.IsNull() &&
+			len(config.VerificationCondition.Elements()) > 0 {
 			resp.Diagnostics.AddAttributeError(path.Root("verification_condition"),
 				"Invalid argument",
 				"verification_condition can only be used with action tasks")
@@ -1143,7 +1192,7 @@ func (r *itAutomationTaskResource) ValidateConfig(
 			resp.Diagnostics.AddAttributeError(path.Root("os_query"),
 				"Invalid argument", "os_query cannot be used with action tasks")
 		}
-		if config.ScriptColumns != nil {
+		if !config.ScriptColumns.IsNull() {
 			resp.Diagnostics.AddAttributeError(path.Root("script_columns"),
 				"Invalid argument", "script_columns cannot be used with action tasks")
 		}
@@ -1168,23 +1217,32 @@ func (r *itAutomationTaskResource) ValidateConfig(
 	}
 }
 
-// createVerificationConditions converts Terraform verification conditions to API model.
 func createVerificationConditions(
-	conditions []verificationConditionModel,
-) []*models.FalconforitapiConditionGroup {
-	if len(conditions) == 0 {
-		return nil
+	ctx context.Context,
+	conditionsList types.List,
+) ([]*models.FalconforitapiConditionGroup, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if conditionsList.IsNull() || conditionsList.IsUnknown() || len(conditionsList.Elements()) == 0 {
+		return nil, diags
+	}
+
+	var conditions []verificationConditionModel
+	diags.Append(conditionsList.ElementsAs(ctx, &conditions, false)...)
+	if diags.HasError() {
+		return nil, diags
 	}
 
 	result := make([]*models.FalconforitapiConditionGroup, 0, len(conditions))
 	for _, condition := range conditions {
-		statements := make(
-			[]*models.FalconforitapiConditionalExpr,
-			0,
-			len(condition.Statements),
-		)
+		var statements []verificationStatementModel
+		diags.Append(condition.Statements.ElementsAs(ctx, &statements, false)...)
+		if diags.HasError() {
+			return nil, diags
+		}
 
-		for _, statement := range condition.Statements {
+		apiStatements := make([]*models.FalconforitapiConditionalExpr, 0, len(statements))
+		for _, statement := range statements {
 			apiStatement := &models.FalconforitapiConditionalExpr{
 				DataComparator: statement.DataComparator.ValueStringPointer(),
 				DataType:       statement.DataType.ValueStringPointer(),
@@ -1192,35 +1250,68 @@ func createVerificationConditions(
 				TaskID:         statement.TaskID.ValueStringPointer(),
 				Value:          statement.Value.ValueStringPointer(),
 			}
-			statements = append(statements, apiStatement)
+			apiStatements = append(apiStatements, apiStatement)
 		}
 
 		apiCondition := &models.FalconforitapiConditionGroup{
 			Operator:   condition.Operator.ValueString(),
-			Statements: statements,
+			Statements: apiStatements,
 		}
 
 		result = append(result, apiCondition)
 	}
 
-	return result
+	return result, diags
 }
 
-// extractVerificationConditions converts API verification conditions to Terraform model.
+func scriptColumnAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"name": types.StringType,
+	}
+}
+
+func scriptColumnsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"delimiter":     types.StringType,
+		"group_results": types.BoolType,
+		"columns":       types.ListType{ElemType: types.ObjectType{AttrTypes: scriptColumnAttrTypes()}},
+	}
+}
+
+func verificationStatementAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"data_comparator": types.StringType,
+		"data_type":       types.StringType,
+		"key":             types.StringType,
+		"task_id":         types.StringType,
+		"value":           types.StringType,
+	}
+}
+
+func verificationConditionAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"operator":   types.StringType,
+		"statements": types.ListType{ElemType: types.ObjectType{AttrTypes: verificationStatementAttrTypes()}},
+	}
+}
+
 func extractVerificationConditions(
+	ctx context.Context,
 	verificationConditions []*models.FalconforitapiConditionGroup,
-) []verificationConditionModel {
+) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	conditionObjType := types.ObjectType{AttrTypes: verificationConditionAttrTypes()}
+
 	if len(verificationConditions) == 0 {
-		return nil
+		emptyList, listDiags := types.ListValueFrom(ctx, conditionObjType, []verificationConditionModel{})
+		diags.Append(listDiags...)
+		return emptyList, diags
 	}
 
 	result := make([]verificationConditionModel, 0, len(verificationConditions))
+	statementObjType := types.ObjectType{AttrTypes: verificationStatementAttrTypes()}
 
 	for _, apiCondition := range verificationConditions {
-		condition := verificationConditionModel{
-			Operator: types.StringValue(apiCondition.Operator),
-		}
-
 		statements := make([]verificationStatementModel, 0, len(apiCondition.Statements))
 		for _, apiStatement := range apiCondition.Statements {
 			statements = append(statements, verificationStatementModel{
@@ -1232,9 +1323,19 @@ func extractVerificationConditions(
 			})
 		}
 
-		condition.Statements = statements
-		result = append(result, condition)
+		statementsList, listDiags := types.ListValueFrom(ctx, statementObjType, statements)
+		diags.Append(listDiags...)
+		if diags.HasError() {
+			return types.ListNull(conditionObjType), diags
+		}
+
+		result = append(result, verificationConditionModel{
+			Operator:   types.StringValue(apiCondition.Operator),
+			Statements: statementsList,
+		})
 	}
 
-	return result
+	resultList, listDiags := types.ListValueFrom(ctx, conditionObjType, result)
+	diags.Append(listDiags...)
+	return resultList, diags
 }

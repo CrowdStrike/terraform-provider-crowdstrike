@@ -385,6 +385,7 @@ func (r *itAutomationPolicyPrecedenceResource) setItAutomationPolicyPrecedence(
 	body := &models.ItautomationUpdatePoliciesPrecedenceRequest{
 		Ids: policyIDs,
 	}
+
 	params := &it_automation.ITAutomationUpdatePoliciesPrecedenceParams{
 		Context:  ctx,
 		Body:     body,

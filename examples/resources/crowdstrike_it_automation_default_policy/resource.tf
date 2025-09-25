@@ -14,74 +14,56 @@ resource "crowdstrike_it_automation_default_policy" "windows_example" {
   platform    = "Windows"
   description = "Example Windows Default Policy configuration"
 
-  concurrency {
-    concurrent_host_file_transfer_limit = 500
-    concurrent_host_limit               = 5000
-    concurrent_task_limit               = 3
-  }
+  concurrent_host_file_transfer_limit = 500
+  concurrent_host_limit               = 5000
+  concurrent_task_limit               = 3
 
-  execution {
-    enable_os_query         = false
-    enable_python_execution = false
-    enable_script_execution = false
-    execution_timeout       = 30
-    execution_timeout_unit  = "Minutes"
-  }
+  enable_os_query         = false
+  enable_python_execution = false
+  enable_script_execution = false
+  execution_timeout       = 30
+  execution_timeout_unit  = "Minutes"
 
-  resources {
-    cpu_throttle           = 20
-    memory_allocation      = 1024
-    memory_allocation_unit = "MB"
-  }
+  cpu_throttle           = 20
+  memory_allocation      = 1024
+  memory_allocation_unit = "MB"
 }
 
 resource "crowdstrike_it_automation_default_policy" "linux_example" {
   platform    = "Linux"
   description = "Example Linux Default Policy configuration"
 
-  concurrency {
-    concurrent_host_file_transfer_limit = 500
-    concurrent_host_limit               = 5000
-    concurrent_task_limit               = 3
-  }
+  concurrent_host_file_transfer_limit = 500
+  concurrent_host_limit               = 5000
+  concurrent_task_limit               = 3
 
-  execution {
-    enable_os_query         = false
-    enable_python_execution = false
-    enable_script_execution = false
-    execution_timeout       = 30
-    execution_timeout_unit  = "Minutes"
-  }
+  enable_os_query         = false
+  enable_python_execution = false
+  enable_script_execution = false
+  execution_timeout       = 30
+  execution_timeout_unit  = "Minutes"
 
-  resources {
-    cpu_throttle           = 20
-    memory_allocation      = 1024
-    memory_allocation_unit = "MB"
-  }
+  cpu_throttle           = 20
+  memory_allocation      = 1024
+  memory_allocation_unit = "MB"
 }
 
 resource "crowdstrike_it_automation_default_policy" "mac_example" {
   platform    = "Mac"
   description = "Example Mac Default Policy configuration"
 
-  concurrency {
-    concurrent_host_file_transfer_limit = 500
-    concurrent_host_limit               = 5000
-    concurrent_task_limit               = 3
-  }
+  concurrent_host_file_transfer_limit = 500
+  concurrent_host_limit               = 5000
+  concurrent_task_limit               = 3
 
-  execution {
-    enable_os_query         = false
-    enable_python_execution = false
-    enable_script_execution = false
-    execution_timeout       = 30
-    execution_timeout_unit  = "Minutes"
-  }
+  enable_os_query         = false
+  enable_python_execution = false
+  enable_script_execution = false
+  execution_timeout       = 30
+  execution_timeout_unit  = "Minutes"
 
-  resources {
-    cpu_scheduling_priority = "Medium"
-    memory_pressure_level   = "Medium"
-  }
+  cpu_scheduling_priority = "Medium"
+  memory_pressure_level   = "Medium"
 }
 
 output "windows_default_policy" {

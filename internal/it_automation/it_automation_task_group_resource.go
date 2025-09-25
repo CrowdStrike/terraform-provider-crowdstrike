@@ -65,9 +65,7 @@ func (t *itAutomationTaskGroupResourceModel) wrap(
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	// preserve current state for selective restoration.
 	currentDescription := t.Description
-
 	t.ID = types.StringValue(*group.ID)
 	t.AccessType = types.StringValue(*group.AccessType)
 	t.Name = types.StringValue(*group.Name)
@@ -230,6 +228,7 @@ func (r *itAutomationTaskGroupResource) Create(
 		Name:       plan.Name.ValueStringPointer(),
 		AccessType: plan.AccessType.ValueStringPointer(),
 	}
+
 	params := it_automation.ITAutomationCreateTaskGroupParams{
 		Context: ctx,
 		Body:    body,
@@ -338,6 +337,7 @@ func (r *itAutomationTaskGroupResource) Update(
 		Name:       plan.Name.ValueString(),
 		AccessType: plan.AccessType.ValueString(),
 	}
+
 	params := it_automation.ITAutomationUpdateTaskGroupParams{
 		Context: ctx,
 		ID:      groupID,
@@ -351,6 +351,7 @@ func (r *itAutomationTaskGroupResource) Update(
 	if !plan.AssignedUserIds.IsNull() {
 		currentUserIds := currentGroup.AssignedUserIds
 		plannedUserIds := plan.AssignedUserIds
+
 		diags, usersToAdd, usersToRemove := idsDiff(ctx, currentUserIds, plannedUserIds)
 		if !diags.HasError() {
 			body.AddAssignedUserIds = usersToAdd
@@ -361,6 +362,7 @@ func (r *itAutomationTaskGroupResource) Update(
 	if !plan.TaskIds.IsNull() {
 		currentTaskIds := currentGroup.TaskIds
 		plannedTaskIds := plan.TaskIds
+
 		diags, tasksToAdd, tasksToRemove := idsDiff(ctx, currentTaskIds, plannedTaskIds)
 		if !diags.HasError() {
 			body.AddTaskIds = tasksToAdd

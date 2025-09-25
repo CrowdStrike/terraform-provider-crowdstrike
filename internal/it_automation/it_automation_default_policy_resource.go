@@ -49,26 +49,31 @@ type itAutomationDefaultPolicyResource struct {
 
 // itAutomationDefaultPolicyResourceModel is the resource model.
 type itAutomationDefaultPolicyResourceModel struct {
-	ID          types.String            `tfsdk:"id"`
-	LastUpdated types.String            `tfsdk:"last_updated"`
-	Platform    types.String            `tfsdk:"platform"`
-	Name        types.String            `tfsdk:"name"`
-	Description types.String            `tfsdk:"description"`
-	IsEnabled   types.Bool              `tfsdk:"is_enabled"`
-	Concurrency *concurrencyConfigModel `tfsdk:"concurrency"`
-	Execution   *executionConfigModel   `tfsdk:"execution"`
-	Resources   *resourceConfigModel    `tfsdk:"resources"`
+	ID                              types.String `tfsdk:"id"`
+	LastUpdated                     types.String `tfsdk:"last_updated"`
+	Platform                        types.String `tfsdk:"platform"`
+	Name                            types.String `tfsdk:"name"`
+	Description                     types.String `tfsdk:"description"`
+	IsEnabled                       types.Bool   `tfsdk:"is_enabled"`
+	ConcurrentHostFileTransferLimit types.Int32  `tfsdk:"concurrent_host_file_transfer_limit"`
+	ConcurrentHostLimit             types.Int32  `tfsdk:"concurrent_host_limit"`
+	ConcurrentTaskLimit             types.Int32  `tfsdk:"concurrent_task_limit"`
+	EnableOsQuery                   types.Bool   `tfsdk:"enable_os_query"`
+	EnablePythonExecution           types.Bool   `tfsdk:"enable_python_execution"`
+	EnableScriptExecution           types.Bool   `tfsdk:"enable_script_execution"`
+	ExecutionTimeout                types.Int32  `tfsdk:"execution_timeout"`
+	ExecutionTimeoutUnit            types.String `tfsdk:"execution_timeout_unit"`
+	CPUSchedulingPriority           types.String `tfsdk:"cpu_scheduling_priority"`
+	CPUThrottle                     types.Int32  `tfsdk:"cpu_throttle"`
+	MemoryAllocation                types.Int32  `tfsdk:"memory_allocation"`
+	MemoryAllocationUnit            types.String `tfsdk:"memory_allocation_unit"`
+	MemoryPressureLevel             types.String `tfsdk:"memory_pressure_level"`
 }
 
 func (t *itAutomationDefaultPolicyResourceModel) wrap(
 	policy models.ItautomationPolicy,
-) diag.Diagnostics {
-	var diags diag.Diagnostics
-
+) {
 	currentDescription := t.Description
-	currentConcurrency := t.Concurrency
-	currentExecution := t.Execution
-	currentResources := t.Resources
 
 	t.ID = types.StringValue(*policy.ID)
 	t.Name = types.StringValue(*policy.Name)
@@ -84,72 +89,52 @@ func (t *itAutomationDefaultPolicyResourceModel) wrap(
 		t.Platform = types.StringValue(*policy.Target)
 	}
 
-	// process config blocks.
-	t.Concurrency = nil
-	t.Execution = nil
-	t.Resources = nil
-
 	if policy.Config != nil {
 		c := policy.Config.Concurrency
 		if c != nil {
-			t.Concurrency = &concurrencyConfigModel{
-				ConcurrentHostFileTransferLimit: types.Int32Value(c.ConcurrentHostFileTransferLimit),
-				ConcurrentHostLimit:             types.Int32Value(c.ConcurrentHostLimit),
-				ConcurrentTaskLimit:             types.Int32Value(c.ConcurrentTaskLimit),
-			}
-		} else if currentConcurrency != nil {
-			t.Concurrency = currentConcurrency
+			t.ConcurrentHostFileTransferLimit = types.Int32Value(c.ConcurrentHostFileTransferLimit)
+			t.ConcurrentHostLimit = types.Int32Value(c.ConcurrentHostLimit)
+			t.ConcurrentTaskLimit = types.Int32Value(c.ConcurrentTaskLimit)
 		}
 
 		e := policy.Config.Execution
 		if e != nil {
-			t.Execution = &executionConfigModel{
-				EnableOsQuery:         types.BoolValue(e.EnableOsQuery != nil && *e.EnableOsQuery),
-				EnablePythonExecution: types.BoolValue(e.EnablePythonExecution != nil && *e.EnablePythonExecution),
-				EnableScriptExecution: types.BoolValue(e.EnableScriptExecution != nil && *e.EnableScriptExecution),
-				ExecutionTimeout:      types.Int32Value(e.ExecutionTimeout),
-			}
+			t.EnableOsQuery = types.BoolValue(e.EnableOsQuery != nil && *e.EnableOsQuery)
+			t.EnablePythonExecution = types.BoolValue(e.EnablePythonExecution != nil && *e.EnablePythonExecution)
+			t.EnableScriptExecution = types.BoolValue(e.EnableScriptExecution != nil && *e.EnableScriptExecution)
+			t.ExecutionTimeout = types.Int32Value(e.ExecutionTimeout)
 
 			if e.ExecutionTimeoutUnit != "" {
-				t.Execution.ExecutionTimeoutUnit = types.StringValue(e.ExecutionTimeoutUnit)
+				t.ExecutionTimeoutUnit = types.StringValue(e.ExecutionTimeoutUnit)
 			}
-		} else if currentExecution != nil {
-			t.Execution = currentExecution
 		}
 
 		r := policy.Config.Resources
 		if r != nil {
-			t.Resources = &resourceConfigModel{}
-
-			// platform-specific resource handling.
 			isMac := *policy.Target == "Mac"
 
-			// mac supports only cpu_scheduling_priority and memory_pressure_level.
 			if isMac {
 				if r.CPUScheduling != "" {
-					t.Resources.CPUScheduling = types.StringValue(r.CPUScheduling)
+					t.CPUSchedulingPriority = types.StringValue(r.CPUScheduling)
 				}
 				if r.MemoryPressureLevel != "" {
-					t.Resources.MemoryPressureLevel = types.StringValue(r.MemoryPressureLevel)
+					t.MemoryPressureLevel = types.StringValue(r.MemoryPressureLevel)
 				}
 			} else {
-				// windows and linux support cpu_throttle, memory_allocation, and memory_allocation_unit.
 				if r.CPUThrottle != 0 {
-					t.Resources.CPUThrottle = types.Int32Value(r.CPUThrottle)
+					t.CPUThrottle = types.Int32Value(r.CPUThrottle)
 				}
 				if r.MemoryAllocation != 0 {
-					t.Resources.MemoryAllocation = types.Int32Value(r.MemoryAllocation)
+					t.MemoryAllocation = types.Int32Value(r.MemoryAllocation)
 				}
 				if r.MemoryAllocationUnit != "" {
-					t.Resources.MemoryAllocationUnit = types.StringValue(r.MemoryAllocationUnit)
+					t.MemoryAllocationUnit = types.StringValue(r.MemoryAllocationUnit)
 				}
 			}
-		} else if currentResources != nil {
-			t.Resources = currentResources
 		}
 	}
 
-	return diags
+	t.LastUpdated = types.StringValue(time.Now().Format(timeFormat))
 }
 
 // getDefaultPolicyByPlatform finds the default policy for a given platform.
@@ -265,97 +250,80 @@ func (r *itAutomationDefaultPolicyResource) Schema(
 				Computed:    true,
 				Description: "Whether the default policy is enabled or disabled. This is read-only as default policies cannot be enabled or disabled.",
 			},
-		},
-		Blocks: map[string]schema.Block{
-			"concurrency": schema.SingleNestedBlock{
-				Description: "Configuration for concurrency settings.",
-				Attributes: map[string]schema.Attribute{
-					"concurrent_host_file_transfer_limit": schema.Int32Attribute{
-						Required:    true,
-						Description: "Maximum number of hosts that can transfer files simultaneously (1-5000).",
-						Validators: []validator.Int32{
-							int32validator.Between(1, 5000),
-						},
-					},
-					"concurrent_host_limit": schema.Int32Attribute{
-						Required:    true,
-						Description: "Maximum number of hosts that can run operations simultaneously (1-100000).",
-						Validators: []validator.Int32{
-							int32validator.Between(1, 100000),
-						},
-					},
-					"concurrent_task_limit": schema.Int32Attribute{
-						Required:    true,
-						Description: "Maximum number of tasks that can run in parallel (1-5).",
-						Validators: []validator.Int32{
-							int32validator.Between(1, 5),
-						},
-					},
+			"concurrent_host_file_transfer_limit": schema.Int32Attribute{
+				Optional:    true,
+				Description: "Maximum number of hosts that can transfer files simultaneously (1-5000).",
+				Validators: []validator.Int32{
+					int32validator.Between(1, 5000),
 				},
 			},
-			"execution": schema.SingleNestedBlock{
-				Description: "Configuration for execution settings.",
-				Attributes: map[string]schema.Attribute{
-					"enable_os_query": schema.BoolAttribute{
-						Required:    true,
-						Description: "Whether OSQuery functionality is enabled.",
-					},
-					"enable_python_execution": schema.BoolAttribute{
-						Required:    true,
-						Description: "Whether Python script execution is enabled.",
-					},
-					"enable_script_execution": schema.BoolAttribute{
-						Required:    true,
-						Description: "Whether script execution is enabled.",
-					},
-					"execution_timeout": schema.Int32Attribute{
-						Required:    true,
-						Description: "Maximum time a script can run before timing out.",
-					},
-					"execution_timeout_unit": schema.StringAttribute{
-						Required:    true,
-						Description: "Unit of time for execution timeout.",
-						Validators: []validator.String{
-							stringvalidator.OneOf("Minutes", "Hours"),
-						},
-					},
+			"concurrent_host_limit": schema.Int32Attribute{
+				Optional:    true,
+				Description: "Maximum number of hosts that can run operations simultaneously (1-100000).",
+				Validators: []validator.Int32{
+					int32validator.Between(1, 100000),
 				},
 			},
-			"resources": schema.SingleNestedBlock{
-				Description: "Configuration for resource allocation settings.",
-				Attributes: map[string]schema.Attribute{
-					"cpu_scheduling_priority": schema.StringAttribute{
-						Optional:    true,
-						Description: "Sets priority for CPU scheduling.",
-						Validators: []validator.String{
-							stringvalidator.OneOf("Low", "Medium", "High"),
-						},
-					},
-					"cpu_throttle": schema.Int32Attribute{
-						Optional:    true,
-						Description: "CPU usage limit as a percentage (1-100).",
-						Validators: []validator.Int32{
-							int32validator.Between(1, 100),
-						},
-					},
-					"memory_allocation": schema.Int32Attribute{
-						Optional:    true,
-						Description: "Amount of memory allocated.",
-					},
-					"memory_allocation_unit": schema.StringAttribute{
-						Optional:    true,
-						Description: "Unit for memory allocation.",
-						Validators: []validator.String{
-							stringvalidator.OneOf("MB", "GB"),
-						},
-					},
-					"memory_pressure_level": schema.StringAttribute{
-						Optional:    true,
-						Description: "Sets memory pressure level to control system resource allocation during task execution.",
-						Validators: []validator.String{
-							stringvalidator.OneOf("Low", "Medium", "High"),
-						},
-					},
+			"concurrent_task_limit": schema.Int32Attribute{
+				Optional:    true,
+				Description: "Maximum number of tasks that can run in parallel (1-5).",
+				Validators: []validator.Int32{
+					int32validator.Between(1, 5),
+				},
+			},
+			"enable_os_query": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Whether OSQuery functionality is enabled.",
+			},
+			"enable_python_execution": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Whether Python script execution is enabled.",
+			},
+			"enable_script_execution": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Whether script execution is enabled.",
+			},
+			"execution_timeout": schema.Int32Attribute{
+				Optional:    true,
+				Description: "Maximum time a script can run before timing out.",
+			},
+			"execution_timeout_unit": schema.StringAttribute{
+				Optional:    true,
+				Description: "Unit of time for execution timeout.",
+				Validators: []validator.String{
+					stringvalidator.OneOf("Minutes", "Hours"),
+				},
+			},
+			"cpu_scheduling_priority": schema.StringAttribute{
+				Optional:    true,
+				Description: "Sets priority for CPU scheduling.",
+				Validators: []validator.String{
+					stringvalidator.OneOf("Low", "Medium", "High"),
+				},
+			},
+			"cpu_throttle": schema.Int32Attribute{
+				Optional:    true,
+				Description: "CPU usage limit as a percentage (1-100).",
+				Validators: []validator.Int32{
+					int32validator.Between(1, 100),
+				},
+			},
+			"memory_allocation": schema.Int32Attribute{
+				Optional:    true,
+				Description: "Amount of memory allocated.",
+			},
+			"memory_allocation_unit": schema.StringAttribute{
+				Optional:    true,
+				Description: "Unit for memory allocation.",
+				Validators: []validator.String{
+					stringvalidator.OneOf("MB", "GB"),
+				},
+			},
+			"memory_pressure_level": schema.StringAttribute{
+				Optional:    true,
+				Description: "Sets memory pressure level to control system resource allocation during task execution.",
+				Validators: []validator.String{
+					stringvalidator.OneOf("Low", "Medium", "High"),
 				},
 			},
 		},
@@ -403,10 +371,10 @@ func (r *itAutomationDefaultPolicyResource) Create(
 			return
 		}
 
-		resp.Diagnostics.Append(plan.wrap(*updatedPolicy)...)
+		plan.wrap(*updatedPolicy)
 	} else {
 		// no configuration changes, wrap with existing policy.
-		resp.Diagnostics.Append(plan.wrap(*policy)...)
+		plan.wrap(*policy)
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -442,7 +410,7 @@ func (r *itAutomationDefaultPolicyResource) Read(
 		return
 	}
 
-	resp.Diagnostics.Append(state.wrap(*policy)...)
+	state.wrap(*policy)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -475,7 +443,7 @@ func (r *itAutomationDefaultPolicyResource) Update(
 		return
 	}
 
-	resp.Diagnostics.Append(plan.wrap(*updatedPolicy)...)
+	plan.wrap(*updatedPolicy)
 	plan.LastUpdated = types.StringValue(time.Now().Format(timeFormat))
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -516,126 +484,110 @@ func (r *itAutomationDefaultPolicyResource) ValidateConfig(
 
 	isMac := config.Platform.ValueString() == "Mac"
 
-	if config.Concurrency == nil {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("concurrency"),
-			"Missing required block",
-			"concurrency block is required for all default policies",
-		)
-	}
+	if isMac {
+		if config.CPUSchedulingPriority.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("cpu_scheduling_priority"),
+				"Missing required field",
+				"cpu_scheduling_priority is required for Mac default policies",
+			)
+		}
 
-	if config.Execution == nil {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("execution"),
-			"Missing required block",
-			"execution block is required for all default policies",
-		)
-	}
+		if config.MemoryPressureLevel.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("memory_pressure_level"),
+				"Missing required field",
+				"memory_pressure_level is required for Mac default policies",
+			)
+		}
 
-	if config.Resources != nil {
-		res := config.Resources
+		if !config.CPUThrottle.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("cpu_throttle"),
+				"Invalid argument",
+				"cpu_throttle cannot be used with Mac default policies",
+			)
+		}
 
-		if isMac {
-			if res.CPUScheduling.IsNull() {
-				resp.Diagnostics.AddAttributeError(
-					path.Root("resources").AtName("cpu_scheduling_priority"),
-					"Missing required field",
-					"cpu_scheduling_priority is required for Mac default policies",
-				)
-			}
+		if !config.MemoryAllocation.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("memory_allocation"),
+				"Invalid argument",
+				"memory_allocation cannot be used with Mac default policies",
+			)
+		}
 
-			if res.MemoryPressureLevel.IsNull() {
-				resp.Diagnostics.AddAttributeError(
-					path.Root("resources").AtName("memory_pressure_level"),
-					"Missing required field",
-					"memory_pressure_level is required for Mac default policies",
-				)
-			}
-
-			if !res.CPUThrottle.IsNull() {
-				resp.Diagnostics.AddAttributeError(
-					path.Root("resources").AtName("cpu_throttle"),
-					"Invalid argument",
-					"cpu_throttle cannot be used with Mac default policies",
-				)
-			}
-
-			if !res.MemoryAllocation.IsNull() {
-				resp.Diagnostics.AddAttributeError(
-					path.Root("resources").AtName("memory_allocation"),
-					"Invalid argument",
-					"memory_allocation cannot be used with Mac default policies",
-				)
-			}
-
-			if !res.MemoryAllocationUnit.IsNull() {
-				resp.Diagnostics.AddAttributeError(
-					path.Root("resources").AtName("memory_allocation_unit"),
-					"Invalid argument",
-					"memory_allocation_unit cannot be used with Mac default policies",
-				)
-			}
-		} else {
-			if res.CPUThrottle.IsNull() {
-				resp.Diagnostics.AddAttributeError(
-					path.Root("resources").AtName("cpu_throttle"),
-					"Missing required field",
-					fmt.Sprintf("cpu_throttle is required for %s default policies", config.Platform.ValueString()),
-				)
-			}
-
-			if res.MemoryAllocation.IsNull() {
-				resp.Diagnostics.AddAttributeError(
-					path.Root("resources").AtName("memory_allocation"),
-					"Missing required field",
-					fmt.Sprintf("memory_allocation is required for %s default policies", config.Platform.ValueString()),
-				)
-			}
-
-			if res.MemoryAllocationUnit.IsNull() {
-				resp.Diagnostics.AddAttributeError(
-					path.Root("resources").AtName("memory_allocation_unit"),
-					"Missing required field",
-					fmt.Sprintf("memory_allocation_unit is required for %s default policies", config.Platform.ValueString()),
-				)
-			}
-
-			if !res.CPUScheduling.IsNull() {
-				resp.Diagnostics.AddAttributeError(
-					path.Root("resources").AtName("cpu_scheduling_priority"),
-					"Invalid argument",
-					fmt.Sprintf(
-						"cpu_scheduling_priority cannot be used with %s default policies",
-						config.Platform.ValueString(),
-					),
-				)
-			}
-
-			if !res.MemoryPressureLevel.IsNull() {
-				resp.Diagnostics.AddAttributeError(
-					path.Root("resources").AtName("memory_pressure_level"),
-					"Invalid argument",
-					fmt.Sprintf(
-						"memory_pressure_level cannot be used with %s default policies",
-						config.Platform.ValueString(),
-					),
-				)
-			}
+		if !config.MemoryAllocationUnit.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("memory_allocation_unit"),
+				"Invalid argument",
+				"memory_allocation_unit cannot be used with Mac default policies",
+			)
 		}
 	} else {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("resources"),
-			"Missing required block",
-			"resources block is required for all default policies",
-		)
+		if config.CPUThrottle.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("cpu_throttle"),
+				"Missing required field",
+				fmt.Sprintf("cpu_throttle is required for %s default policies", config.Platform.ValueString()),
+			)
+		}
+
+		if config.MemoryAllocation.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("memory_allocation"),
+				"Missing required field",
+				fmt.Sprintf("memory_allocation is required for %s default policies", config.Platform.ValueString()),
+			)
+		}
+
+		if config.MemoryAllocationUnit.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("memory_allocation_unit"),
+				"Missing required field",
+				fmt.Sprintf("memory_allocation_unit is required for %s default policies", config.Platform.ValueString()),
+			)
+		}
+
+		if !config.CPUSchedulingPriority.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("cpu_scheduling_priority"),
+				"Invalid argument",
+				fmt.Sprintf(
+					"cpu_scheduling_priority cannot be used with %s default policies",
+					config.Platform.ValueString(),
+				),
+			)
+		}
+
+		if !config.MemoryPressureLevel.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("memory_pressure_level"),
+				"Invalid argument",
+				fmt.Sprintf(
+					"memory_pressure_level cannot be used with %s default policies",
+					config.Platform.ValueString(),
+				),
+			)
+		}
 	}
 }
 
-// hasConfigChanges checks if any configuration blocks or description are provided.
+// hasConfigChanges checks if any configuration fields or description are provided.
 func (r *itAutomationDefaultPolicyResource) hasConfigChanges(plan *itAutomationDefaultPolicyResourceModel) bool {
-	return plan.Concurrency != nil ||
-		plan.Execution != nil ||
-		plan.Resources != nil ||
+	return !plan.ConcurrentHostFileTransferLimit.IsNull() ||
+		!plan.ConcurrentHostLimit.IsNull() ||
+		!plan.ConcurrentTaskLimit.IsNull() ||
+		!plan.EnableOsQuery.IsNull() ||
+		!plan.EnablePythonExecution.IsNull() ||
+		!plan.EnableScriptExecution.IsNull() ||
+		!plan.ExecutionTimeout.IsNull() ||
+		!plan.ExecutionTimeoutUnit.IsNull() ||
+		!plan.CPUSchedulingPriority.IsNull() ||
+		!plan.CPUThrottle.IsNull() ||
+		!plan.MemoryAllocation.IsNull() ||
+		!plan.MemoryAllocationUnit.IsNull() ||
+		!plan.MemoryPressureLevel.IsNull() ||
 		(!plan.Description.IsNull() && !plan.Description.IsUnknown())
 }
 
@@ -646,6 +598,7 @@ func (r *itAutomationDefaultPolicyResource) updateDefaultPolicyConfig(
 ) error {
 	policyID := plan.ID.ValueString()
 	config, description := createPolicyConfigFromModelDefault(plan)
+
 	body := &models.ItautomationUpdatePolicyRequest{
 		ID:     policyID,
 		Config: config,
@@ -689,63 +642,44 @@ func createPolicyConfigFromModelDefault(
 		description = &desc
 	}
 
-	if plan.Concurrency != nil {
-		config.Concurrency = &models.ItautomationConcurrencyConfig{}
-		cc := plan.Concurrency
-
-		if !cc.ConcurrentHostFileTransferLimit.IsNull() {
-			config.Concurrency.ConcurrentHostFileTransferLimit = cc.ConcurrentHostFileTransferLimit.ValueInt32()
-		}
-
-		if !cc.ConcurrentHostLimit.IsNull() {
-			config.Concurrency.ConcurrentHostLimit = cc.ConcurrentHostLimit.ValueInt32()
-		}
-
-		if !cc.ConcurrentTaskLimit.IsNull() {
-			config.Concurrency.ConcurrentTaskLimit = cc.ConcurrentTaskLimit.ValueInt32()
-		}
+	config.Concurrency = &models.ItautomationConcurrencyConfig{}
+	if !plan.ConcurrentHostFileTransferLimit.IsNull() {
+		config.Concurrency.ConcurrentHostFileTransferLimit = plan.ConcurrentHostFileTransferLimit.ValueInt32()
+	}
+	if !plan.ConcurrentHostLimit.IsNull() {
+		config.Concurrency.ConcurrentHostLimit = plan.ConcurrentHostLimit.ValueInt32()
+	}
+	if !plan.ConcurrentTaskLimit.IsNull() {
+		config.Concurrency.ConcurrentTaskLimit = plan.ConcurrentTaskLimit.ValueInt32()
 	}
 
-	if plan.Execution != nil {
-		config.Execution = &models.ItautomationExecutionConfig{}
-		ec := plan.Execution
+	config.Execution = &models.ItautomationExecutionConfig{}
+	setBoolPointer(plan.EnableOsQuery, &config.Execution.EnableOsQuery)
+	setBoolPointer(plan.EnablePythonExecution, &config.Execution.EnablePythonExecution)
+	setBoolPointer(plan.EnableScriptExecution, &config.Execution.EnableScriptExecution)
 
-		setBoolPointer(ec.EnableOsQuery, &config.Execution.EnableOsQuery)
-		setBoolPointer(ec.EnablePythonExecution, &config.Execution.EnablePythonExecution)
-		setBoolPointer(ec.EnableScriptExecution, &config.Execution.EnableScriptExecution)
-
-		if !ec.ExecutionTimeout.IsNull() {
-			config.Execution.ExecutionTimeout = ec.ExecutionTimeout.ValueInt32()
-		}
-
-		if !ec.ExecutionTimeoutUnit.IsNull() {
-			config.Execution.ExecutionTimeoutUnit = ec.ExecutionTimeoutUnit.ValueString()
-		}
+	if !plan.ExecutionTimeout.IsNull() {
+		config.Execution.ExecutionTimeout = plan.ExecutionTimeout.ValueInt32()
+	}
+	if !plan.ExecutionTimeoutUnit.IsNull() {
+		config.Execution.ExecutionTimeoutUnit = plan.ExecutionTimeoutUnit.ValueString()
 	}
 
-	if plan.Resources != nil {
-		config.Resources = &models.ItautomationResourceConfig{}
-		rc := plan.Resources
-
-		if !rc.CPUScheduling.IsNull() {
-			config.Resources.CPUScheduling = rc.CPUScheduling.ValueString()
-		}
-
-		if !rc.CPUThrottle.IsNull() {
-			config.Resources.CPUThrottle = rc.CPUThrottle.ValueInt32()
-		}
-
-		if !rc.MemoryAllocation.IsNull() {
-			config.Resources.MemoryAllocation = rc.MemoryAllocation.ValueInt32()
-		}
-
-		if !rc.MemoryAllocationUnit.IsNull() {
-			config.Resources.MemoryAllocationUnit = rc.MemoryAllocationUnit.ValueString()
-		}
-
-		if !rc.MemoryPressureLevel.IsNull() {
-			config.Resources.MemoryPressureLevel = rc.MemoryPressureLevel.ValueString()
-		}
+	config.Resources = &models.ItautomationResourceConfig{}
+	if !plan.CPUSchedulingPriority.IsNull() {
+		config.Resources.CPUScheduling = plan.CPUSchedulingPriority.ValueString()
+	}
+	if !plan.CPUThrottle.IsNull() {
+		config.Resources.CPUThrottle = plan.CPUThrottle.ValueInt32()
+	}
+	if !plan.MemoryAllocation.IsNull() {
+		config.Resources.MemoryAllocation = plan.MemoryAllocation.ValueInt32()
+	}
+	if !plan.MemoryAllocationUnit.IsNull() {
+		config.Resources.MemoryAllocationUnit = plan.MemoryAllocationUnit.ValueString()
+	}
+	if !plan.MemoryPressureLevel.IsNull() {
+		config.Resources.MemoryPressureLevel = plan.MemoryPressureLevel.ValueString()
 	}
 
 	return config, description

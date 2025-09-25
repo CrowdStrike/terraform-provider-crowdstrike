@@ -21,25 +21,19 @@ resource "crowdstrike_it_automation_policy" "windows_example" {
     "cd2168944fd648bc9545df05ace3705a"
   ]
 
-  concurrency {
-    concurrent_host_file_transfer_limit = 500
-    concurrent_host_limit               = 5000
-    concurrent_task_limit               = 3
-  }
+  concurrent_host_file_transfer_limit = 500
+  concurrent_host_limit               = 5000
+  concurrent_task_limit               = 3
 
-  execution {
-    enable_os_query         = false
-    enable_python_execution = false
-    enable_script_execution = false
-    execution_timeout       = 30
-    execution_timeout_unit  = "Minutes"
-  }
+  enable_os_query         = false
+  enable_python_execution = false
+  enable_script_execution = false
+  execution_timeout       = 30
+  execution_timeout_unit  = "Minutes"
 
-  resources {
-    cpu_throttle           = 20
-    memory_allocation      = 1024
-    memory_allocation_unit = "MB"
-  }
+  cpu_throttle           = 20
+  memory_allocation      = 1024
+  memory_allocation_unit = "MB"
 }
 
 resource "crowdstrike_it_automation_policy" "linux_example" {
@@ -53,25 +47,19 @@ resource "crowdstrike_it_automation_policy" "linux_example" {
     "e44e040561424ca8980c46abacfaa204"
   ]
 
-  concurrency {
-    concurrent_host_file_transfer_limit = 500
-    concurrent_host_limit               = 5000
-    concurrent_task_limit               = 3
-  }
+  concurrent_host_file_transfer_limit = 500
+  concurrent_host_limit               = 5000
+  concurrent_task_limit               = 3
 
-  execution {
-    enable_os_query         = false
-    enable_python_execution = false
-    enable_script_execution = false
-    execution_timeout       = 30
-    execution_timeout_unit  = "Minutes"
-  }
+  enable_os_query         = false
+  enable_python_execution = false
+  enable_script_execution = false
+  execution_timeout       = 30
+  execution_timeout_unit  = "Minutes"
 
-  resources {
-    cpu_throttle           = 20
-    memory_allocation      = 1024
-    memory_allocation_unit = "MB"
-  }
+  cpu_throttle           = 20
+  memory_allocation      = 1024
+  memory_allocation_unit = "MB"
 }
 
 resource "crowdstrike_it_automation_policy" "mac_example" {
@@ -85,24 +73,18 @@ resource "crowdstrike_it_automation_policy" "mac_example" {
     "f4562561640f4cdf9ea8340d8990d758"
   ]
 
-  concurrency {
-    concurrent_host_file_transfer_limit = 500
-    concurrent_host_limit               = 5000
-    concurrent_task_limit               = 3
-  }
+  concurrent_host_file_transfer_limit = 500
+  concurrent_host_limit               = 5000
+  concurrent_task_limit               = 3
 
-  execution {
-    enable_os_query         = false
-    enable_python_execution = false
-    enable_script_execution = false
-    execution_timeout       = 30
-    execution_timeout_unit  = "Minutes"
-  }
+  enable_os_query         = false
+  enable_python_execution = false
+  enable_script_execution = false
+  execution_timeout       = 30
+  execution_timeout_unit  = "Minutes"
 
-  resources {
-    cpu_scheduling_priority = "Medium"
-    memory_pressure_level   = "Medium"
-  }
+  cpu_scheduling_priority = "Medium"
+  memory_pressure_level   = "Medium"
 }
 
 output "windows_policy" {

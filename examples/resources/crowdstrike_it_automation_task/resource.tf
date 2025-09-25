@@ -28,17 +28,18 @@ resource "crowdstrike_it_automation_task" "script_content_example" {
     "fbf23972-9999-4bc4-9f9f-c2ec07fadeed"
   ]
 
-  script_columns {
+  script_columns = {
     delimiter     = "|"
     group_results = false
 
-    columns {
-      name = "info_type"
-    }
-
-    columns {
-      name = "value"
-    }
+    columns = [
+      {
+        name = "info_type"
+      },
+      {
+        name = "value"
+      }
+    ]
   }
 }
 
@@ -54,16 +55,16 @@ resource "crowdstrike_it_automation_task" "script_file_example" {
     "1b08868dee3511efa739d6ef9e24a20c_a4eb840ff5424cbd89ba28497b6fcb6b"
   ]
 
-  verification_condition {
+  verification_condition = [{
     operator = "AND"
-    statements {
+    statements = [{
       data_comparator = "Equals"
       data_type       = "StringType"
       key             = "script_output"
       task_id         = "bdb7d0283ff8428f9332c5dfeb00a3aa"
       value           = "Success"
-    }
-  }
+    }]
+  }]
 }
 
 resource "crowdstrike_it_automation_task" "osquery_example" {
