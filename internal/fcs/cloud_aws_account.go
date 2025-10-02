@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_aws_registration"
@@ -33,7 +32,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"golang.org/x/exp/maps"
 )
 
 type cloudAWSAccountResource struct {
@@ -567,11 +565,6 @@ func (r *cloudAWSAccountResource) Create(
 			state.IDP.Enabled = types.BoolValue(true)
 			break
 		}
-	}
-
-	// if IDP or realtime visibility are enabled wait until we get all values back
-	if state.IDP.Enabled.ValueBool() || state.RealtimeVisibility.Enabled.ValueBool() {
-		resp.Diagnostics.Append(r.pollMissingValues(ctx, &state)...)
 	}
 
 	// Set refreshed state
@@ -1449,91 +1442,5 @@ func (r *cloudAWSAccountResource) ValidateConfig(
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
-	}
-}
-
-// pollMissingValues waits for missing backend values [eventbus_arn, eventbus_name, cloudtrail_bucket_name] to be set.
-func (r *cloudAWSAccountResource) pollMissingValues(
-	ctx context.Context,
-	config *cloudAWSAccountModel,
-) diag.Diagnostics {
-	var diags diag.Diagnostics
-	missingValues := make(map[string]interface{})
-
-	if config.EventbusArn.ValueString() == "" {
-		missingValues["eventbus_arn"] = nil
-	}
-
-	if config.EventbusName.ValueString() == "" {
-		missingValues["eventbus_name"] = nil
-	}
-
-	if config.CloudTrailBucketName.ValueString() == "" {
-		missingValues["cloudtrail_bucket_name"] = nil
-	}
-
-	if len(missingValues) == 0 {
-		return diags
-	}
-
-	pollCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
-
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			account, diag := r.getCSPMAccount(pollCtx, config.AccountID.ValueString())
-			if diag.HasError() {
-				return diag
-			}
-
-			if _, ok := missingValues["eventbus_arn"]; ok && account.AwsEventbusArn != "" {
-				config.EventbusArn = types.StringValue(account.AwsEventbusArn)
-				delete(missingValues, "eventbus_arn")
-			}
-
-			if _, ok := missingValues["eventbus_name"]; ok && account.EventbusName != "" {
-				config.EventbusName = types.StringValue(account.EventbusName)
-				delete(missingValues, "eventbus_name")
-			}
-
-			if _, ok := missingValues["cloudtrail_bucket_name"]; ok &&
-				account.AwsCloudtrailBucketName != "" {
-				config.CloudTrailBucketName = types.StringValue(account.AwsCloudtrailBucketName)
-				delete(missingValues, "cloudtrail_bucket_name")
-			}
-
-			if len(missingValues) == 0 {
-				return diags
-			}
-
-			fields := strings.Join(maps.Keys(missingValues), ", ")
-			tflog.Debug(
-				pollCtx,
-				fmt.Sprintf("[%s] not yet available, polling again in 10s...", fields),
-			)
-
-		case <-pollCtx.Done():
-			if pollCtx.Err() != context.DeadlineExceeded {
-				return diags
-			}
-
-			if len(missingValues) == 0 {
-				return diags
-			}
-
-			fields := strings.Join(maps.Keys(missingValues), ", ")
-			diags.AddError(
-				"Timed out waiting for missing fields to populate",
-				fmt.Sprintf(
-					"Timed out on create waiting for missing fields [%s] to return from API.",
-					fields,
-				),
-			)
-			return diags
-		}
 	}
 }
