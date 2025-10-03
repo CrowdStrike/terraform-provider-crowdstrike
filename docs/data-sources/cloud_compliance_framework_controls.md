@@ -2,7 +2,7 @@
 page_title: "crowdstrike_cloud_compliance_framework_controls Data Source - crowdstrike"
 subcategory: "Cloud Compliance"
 description: |-
-  This data source retrieves all or a subset of controls within compliance benchmarks. You can search within a single benchmark using the 'benchmark', 'name', and 'requirement' fields, or across multiple benchmarks using an FQL filter. When using 'name', 'benchmark', and 'requirement', the 'benchmark' field is required.
+  This data source retrieves all or a subset of controls within compliance benchmarks. All non-FQL fields can accept wildcards * and query Falcon using logical AND. If FQL is defined, all other fields will be ignored. For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter. For additional information on FQL filtering and usage, refer to the official CrowdStrike documentation: Falcon Query Language (FQL) https://falcon.crowdstrike.com/documentation/page/d3c84a1b/falcon-query-language-fql
   API Scopes
   The following API scopes are required:
   Cloud Security Policies | Read
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_cloud_compliance_framework_controls (Data Source)
 
-This data source retrieves all or a subset of controls within compliance benchmarks. You can search within a single benchmark using the 'benchmark', 'name', and 'requirement' fields, or across multiple benchmarks using an FQL filter. When using 'name', 'benchmark', and 'requirement', the 'benchmark' field is required.
+This data source retrieves all or a subset of controls within compliance benchmarks. All non-FQL fields can accept wildcards `*` and query Falcon using logical AND. If FQL is defined, all other fields will be ignored. For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter. For additional information on FQL filtering and usage, refer to the official CrowdStrike documentation: [Falcon Query Language (FQL)](https://falcon.crowdstrike.com/documentation/page/d3c84a1b/falcon-query-language-fql)
 
 ## API Scopes
 
@@ -36,8 +36,7 @@ provider "crowdstrike" {
 
 # retrieve all controls under a named benchmark
 data "crowdstrike_cloud_compliance_framework_controls" "all" {
-  cloud_provider = "AWS"
-  rule_name      = "NLB/ALB configured publicly with TLS/SSL disabled"
+  benchmark = "CIS 1.0.0 AWS Web Architecture"
 }
 
 # retrieve a single control within a benchmark by name
@@ -63,24 +62,25 @@ data "crowdstrike_cloud_compliance_framework_controls" "fql" {
 
 ### Optional
 
-- `benchmark` (String) Name of the compliance benchmark in the framework.
+- `benchmark` (String) Name of the compliance benchmark in the framework. Examples: `AWS Foundational Security Best Practices v1.*`, `CIS 1.2.0 GCP`, `CIS 1.8.0 GKE`
+- `control_name` (String) Name of the control. Examples: `Ensure security contact phone is set`, `Ensure that Azure Defender*`
+- `fql` (String) Falcon Query Language (FQL) filter for advanced control searches. FQL filter, allowed props: `compliance_control_name`, `compliance_control_authority`, `compliance_control_type`, `compliance_control_section`, `compliance_control_requirement`, `compliance_control_benchmark_name`, `compliance_control_benchmark_version`
+- `requirement` (String) Requirement of the control(s) within the framework. Examples: `2.*`, `1.1`
+- `section` (String) Section of the benchmark where the control(s) reside. Examples: `Data Protection`, `Data*`
+
+### Read-Only
+
 - `controls` (Attributes Set) Security framework and compliance rule information. (see [below for nested schema](#nestedatt--controls))
-- `fql` (String) Falcon Query Language (FQL) filter for advanced control searches. FQL filter, allowed props: *compliance_control_name* *compliance_control_authority* *compliance_control_type* *compliance_control_section* *compliance_control_requirement* *compliance_control_benchmark_name* *compliance_control_benchmark_version*
-- `name` (String) Name of the control.
-- `requirement` (String) Version of the control.
 
 <a id="nestedatt--controls"></a>
 ### Nested Schema for `controls`
 
-Required:
+Read-Only:
 
-- `code` (String) The unique compliance framework rule code.
-- `name` (String) The name of the control.
-- `uuid` (String) The uuid of the compliance control.
-
-Optional:
-
-- `authority` (String) This compliance authority for the framework
+- `authority` (String) The compliance authority for the framework
 - `benchmark` (String) The compliance benchmark within the framework.
+- `code` (String) The unique compliance framework rule code.
+- `id` (String) The id of the compliance control.
+- `name` (String) The name of the control.
 - `requirement` (String) The compliance framework requirement.
 - `section` (String) The section within the compliance benchmark.

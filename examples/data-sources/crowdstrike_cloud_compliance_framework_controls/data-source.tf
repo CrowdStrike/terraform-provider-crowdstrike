@@ -12,8 +12,7 @@ provider "crowdstrike" {
 
 # retrieve all controls under a named benchmark
 data "crowdstrike_cloud_compliance_framework_controls" "all" {
-  cloud_provider = "AWS"
-  rule_name      = "NLB/ALB configured publicly with TLS/SSL disabled"
+  benchmark = "CIS 1.0.0 AWS Web Architecture"
 }
 
 # retrieve a single control within a benchmark by name

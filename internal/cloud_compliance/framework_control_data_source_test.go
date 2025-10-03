@@ -9,8 +9,7 @@ import (
 )
 
 func TestCloudComplianceFrameworkControlDataSource(t *testing.T) {
-
-	controlName := "Ensure CloudFront to Origin connection is configured using TLS1.1+ as the SSL\\\\TLS protocol"
+	controlName := `Ensure CloudFront to Origin connection is configured using TLS1.1+ as the SSL\\TLS protocol`
 	controlNameResponse := "Ensure CloudFront to Origin connection is configured using TLS1.1+ as the SSL\\TLS protocol"
 	benchmark := "CIS 1.0.0 AWS Web Architecture"
 	requirement := "1.17"
@@ -37,7 +36,7 @@ func TestCloudComplianceFrameworkControlDataSource(t *testing.T) {
 					resource.TestCheckResourceAttr(resourcePrefix+"by_fql", "controls.0.name", controlNameResponse),
 					resource.TestCheckResourceAttr(resourcePrefix+"by_fql", "controls.0.requirement", requirement),
 					resource.TestCheckResourceAttrSet(resourcePrefix+"by_fql", "controls.0.section"),
-					resource.TestCheckResourceAttrSet(resourcePrefix+"by_fql", "controls.0.uuid"),
+					resource.TestCheckResourceAttrSet(resourcePrefix+"by_fql", "controls.0.id"),
 					resource.TestCheckResourceAttrSet(resourcePrefix+"by_fql", "controls.0.authority"),
 					resource.TestCheckResourceAttrSet(resourcePrefix+"by_fql", "controls.0.code"),
 				),
@@ -49,7 +48,7 @@ func TestCloudComplianceFrameworkControlDataSource(t *testing.T) {
 					resource.TestCheckResourceAttr(resourcePrefix+"by_name", "controls.0.name", controlNameResponse),
 					resource.TestCheckResourceAttr(resourcePrefix+"by_name", "controls.0.requirement", requirement),
 					resource.TestCheckResourceAttrSet(resourcePrefix+"by_name", "controls.0.section"),
-					resource.TestCheckResourceAttrSet(resourcePrefix+"by_name", "controls.0.uuid"),
+					resource.TestCheckResourceAttrSet(resourcePrefix+"by_name", "controls.0.id"),
 					resource.TestCheckResourceAttrSet(resourcePrefix+"by_name", "controls.0.authority"),
 					resource.TestCheckResourceAttrSet(resourcePrefix+"by_name", "controls.0.code"),
 				),
@@ -61,7 +60,7 @@ func TestCloudComplianceFrameworkControlDataSource(t *testing.T) {
 					resource.TestCheckResourceAttr(resourcePrefix+"by_requirement", "controls.0.name", controlNameResponse),
 					resource.TestCheckResourceAttr(resourcePrefix+"by_requirement", "controls.0.requirement", requirement),
 					resource.TestCheckResourceAttrSet(resourcePrefix+"by_requirement", "controls.0.section"),
-					resource.TestCheckResourceAttrSet(resourcePrefix+"by_requirement", "controls.0.uuid"),
+					resource.TestCheckResourceAttrSet(resourcePrefix+"by_requirement", "controls.0.id"),
 					resource.TestCheckResourceAttrSet(resourcePrefix+"by_requirement", "controls.0.authority"),
 					resource.TestCheckResourceAttrSet(resourcePrefix+"by_requirement", "controls.0.code"),
 				),
@@ -81,7 +80,7 @@ data "crowdstrike_cloud_compliance_framework_controls" "%s" {
 func testByNameConfig(name string, benchmark string, resourceName string) string {
 	return fmt.Sprintf(`
 data "crowdstrike_cloud_compliance_framework_controls" "%s" {
-  name = "%s"
+  control_name = "%s"
   benchmark = "%s"
 }
 `, resourceName, name, benchmark)

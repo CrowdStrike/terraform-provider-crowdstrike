@@ -8,7 +8,7 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon"
 	cloudcompliance "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_compliance"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_posture"
+	cloudposture "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_posture"
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
@@ -255,7 +255,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		contentupdatepolicy.NewDefaultContentUpdatePolicyResource,
 		contentupdatepolicy.NewContentUpdatePolicyPrecedenceResource,
 		sensorvisibilityexclusion.NewSensorVisibilityExclusionResource,
-		cloud_posture.NewCloudPostureCustomRuleResource,
+		cloudposture.NewCloudPostureCustomRuleResource,
 	}
 }
 
@@ -264,7 +264,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		sensorupdatepolicy.NewSensorUpdateBuildsDataSource,
 		fcs.NewCloudAwsAccountsDataSource,
 		contentupdatepolicy.NewContentCategoryVersionsDataSource,
-		cloud_posture.NewCloudPostureRulesDataSource,
+		cloudposture.NewCloudPostureRulesDataSource,
 		cloudcompliance.NewCloudComplianceFrameworkControlDataSource,
 	}
 }

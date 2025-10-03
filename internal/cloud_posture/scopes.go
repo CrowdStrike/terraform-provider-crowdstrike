@@ -1,4 +1,4 @@
-package cloud_posture
+package cloudposture
 
 import "github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 

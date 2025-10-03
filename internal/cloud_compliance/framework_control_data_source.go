@@ -3,16 +3,19 @@ package cloudcompliance
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -29,11 +32,12 @@ type cloudComplianceFrameworkControlDataSource struct {
 }
 
 type cloudComplianceFrameworkControlDataSourceModel struct {
-	Controls    []cloudComplianceFrameworkControlModel `tfsdk:"controls"`
-	Name        types.String                           `tfsdk:"name"`
-	Benchmark   types.String                           `tfsdk:"benchmark"`
-	Requirement types.String                           `tfsdk:"requirement"`
-	FQL         types.String                           `tfsdk:"fql"`
+	Controls    types.Set    `tfsdk:"controls"`
+	Name        types.String `tfsdk:"control_name"`
+	Benchmark   types.String `tfsdk:"benchmark"`
+	Requirement types.String `tfsdk:"requirement"`
+	Section     types.String `tfsdk:"section"`
+	FQL         types.String `tfsdk:"fql"`
 }
 
 type cloudComplianceFrameworkControlModel struct {
@@ -43,7 +47,24 @@ type cloudComplianceFrameworkControlModel struct {
 	Benchmark   types.String `tfsdk:"benchmark"`
 	Name        types.String `tfsdk:"name"`
 	Section     types.String `tfsdk:"section"`
-	UUID        types.String `tfsdk:"uuid"`
+	Id          types.String `tfsdk:"id"`
+}
+
+type fqlFilters struct {
+	value string
+	field string
+}
+
+func (m cloudComplianceFrameworkControlModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"authority":   types.StringType,
+		"code":        types.StringType,
+		"requirement": types.StringType,
+		"benchmark":   types.StringType,
+		"name":        types.StringType,
+		"section":     types.StringType,
+		"id":          types.StringType,
+	}
 }
 
 func (r *cloudComplianceFrameworkControlDataSource) Configure(
@@ -89,97 +110,88 @@ func (r *cloudComplianceFrameworkControlDataSource) Schema(
 		MarkdownDescription: utils.MarkdownDescription(
 			"Cloud Compliance",
 			"This data source retrieves all or a subset of controls within compliance benchmarks. "+
-				"You can search within a single benchmark using the 'benchmark', 'name', and 'requirement' fields, "+
-				"or across multiple benchmarks using an FQL filter. "+
-				"When using 'name', 'benchmark', and 'requirement', the 'benchmark' field is required.",
+				"All non-FQL fields can accept wildcards `*` and query Falcon using logical AND. If FQL is defined, all other fields will be ignored. "+
+				"For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter. "+
+				"For additional information on FQL filtering and usage, refer to the official CrowdStrike documentation: "+
+				"[Falcon Query Language (FQL)](https://falcon.crowdstrike.com/documentation/page/d3c84a1b/falcon-query-language-fql)",
 			cloudComplianceFrameworkScopes,
 		),
 		Attributes: map[string]schema.Attribute{
-			"name": schema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "Name of the control.",
+			"control_name": schema.StringAttribute{
+				Optional: true,
+				MarkdownDescription: "Name of the control. Examples: " +
+					"`Ensure security contact phone is set`, " +
+					"`Ensure that Azure Defender*`",
 			},
 			"benchmark": schema.StringAttribute{
-				Optional:    true,
-				Description: "Name of the compliance benchmark in the framework.",
+				Optional: true,
+				MarkdownDescription: "Name of the compliance benchmark in the framework. Examples: " +
+					"`AWS Foundational Security Best Practices v1.*`, " +
+					"`CIS 1.2.0 GCP`, " +
+					"`CIS 1.8.0 GKE`",
 			},
 			"requirement": schema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "Version of the control.",
+				Optional: true,
+				MarkdownDescription: "Requirement of the control(s) within the framework. Examples: " +
+					"`2.*`, " +
+					"`1.1`",
+			},
+			"section": schema.StringAttribute{
+				Optional: true,
+				MarkdownDescription: "Section of the benchmark where the control(s) reside. Examples: " +
+					"`Data Protection`, " +
+					"`Data*`",
 			},
 			"fql": schema.StringAttribute{
 				Optional: true,
-				Computed: true,
 				Description: "Falcon Query Language (FQL) filter for advanced control searches. " +
 					"FQL filter, allowed props: " +
-					"*compliance_control_name* " +
-					"*compliance_control_authority* " +
-					"*compliance_control_type* " +
-					"*compliance_control_section* " +
-					"*compliance_control_requirement* " +
-					"*compliance_control_benchmark_name* " +
-					"*compliance_control_benchmark_version*",
+					"`compliance_control_name`, " +
+					"`compliance_control_authority`, " +
+					"`compliance_control_type`, " +
+					"`compliance_control_section`, " +
+					"`compliance_control_requirement`, " +
+					"`compliance_control_benchmark_name`, " +
+					"`compliance_control_benchmark_version`",
 			},
 			"controls": schema.SetNestedAttribute{
-				Optional:    true,
 				Computed:    true,
 				Description: "Security framework and compliance rule information.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"authority": schema.StringAttribute{
-							Optional:    true,
-							Description: "This compliance authority for the framework",
+							Computed:    true,
+							Description: "The compliance authority for the framework",
 						},
 						"code": schema.StringAttribute{
-							Required:    true,
+							Computed:    true,
 							Description: "The unique compliance framework rule code.",
 						},
 						"requirement": schema.StringAttribute{
-							Optional:    true,
+							Computed:    true,
 							Description: "The compliance framework requirement.",
 						},
 						"benchmark": schema.StringAttribute{
-							Optional:    true,
+							Computed:    true,
 							Description: "The compliance benchmark within the framework.",
 						},
 						"name": schema.StringAttribute{
-							Required:    true,
+							Computed:    true,
 							Description: "The name of the control.",
 						},
 						"section": schema.StringAttribute{
-							Optional:    true,
+							Computed:    true,
 							Description: "The section within the compliance benchmark.",
 						},
-						"uuid": schema.StringAttribute{
-							Required:    true,
-							Description: "The uuid of the compliance control.",
+						"id": schema.StringAttribute{
+							Computed:    true,
+							Description: "The id of the compliance control.",
 						},
 					},
 				},
 			},
 		},
 	}
-}
-
-func (d *cloudComplianceFrameworkControlDataSource) ValidateConfig(ctx context.Context, req datasource.ValidateConfigRequest, resp *datasource.ValidateConfigResponse) {
-	var config cloudComplianceFrameworkControlDataSourceModel
-
-	// Get the configuration
-	diags := req.Config.Get(ctx, &config)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if config.Benchmark.IsNull() && config.FQL.IsNull() {
-		resp.Diagnostics.AddError(
-			"Invalid Configuration",
-			"At least one of 'benchmark' or 'fql' must be defined",
-		)
-	}
-
 }
 
 func (r *cloudComplianceFrameworkControlDataSource) Read(
@@ -189,18 +201,34 @@ func (r *cloudComplianceFrameworkControlDataSource) Read(
 ) {
 	var data cloudComplianceFrameworkControlDataSourceModel
 	var diags diag.Diagnostics
+	var controls []cloudComplianceFrameworkControlModel
 
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	data.Controls, diags = r.getControls(
+	fqlFilters := []fqlFilters{
+		{data.Benchmark.ValueString(), "compliance_control_benchmark_name"},
+		{data.Name.ValueString(), "compliance_control_name"},
+		{data.Requirement.ValueString(), "compliance_control_requirement"},
+		{data.Section.ValueString(), "compliance_control_section"},
+	}
+
+	controls, diags = r.getControls(
 		ctx,
 		data.FQL.ValueString(),
-		data.Name.ValueString(),
-		data.Requirement.ValueString(),
-		data.Benchmark.ValueString(),
+		fqlFilters,
+	)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	data.Controls, diags = types.SetValueFrom(
+		ctx,
+		types.ObjectType{AttrTypes: cloudComplianceFrameworkControlModel{}.AttributeTypes()},
+		controls,
 	)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
@@ -218,142 +246,176 @@ func (r *cloudComplianceFrameworkControlDataSource) Read(
 func (r *cloudComplianceFrameworkControlDataSource) getControls(
 	ctx context.Context,
 	fql string,
-	name string,
-	requirement string,
-	benchmark string,
+	fqlFilters []fqlFilters,
 ) ([]cloudComplianceFrameworkControlModel, diag.Diagnostics) {
 	var controls []cloudComplianceFrameworkControlModel
 	var diags diag.Diagnostics
 	var filter string
-
-	if fql == "" {
-		filter = fmt.Sprintf("compliance_control_benchmark_name:'%s'", benchmark)
-
-		if name != "" {
-			filter = fmt.Sprintf("%s+compliance_control_name:'%s'", filter, name)
-		}
-		if requirement != "" {
-			filter = fmt.Sprintf("%s+compliance_control_requirement:'%s'", filter, requirement)
-		}
-	} else {
-		filter = fql
-	}
+	offset := int64(0)
+	limit := int64(500)
 
 	params := cloud_policies.QueryComplianceControlsParams{
 		Context: ctx,
-		Filter:  &filter,
+		Limit:   &limit,
+		Offset:  &offset,
 	}
 
-	resp, err := r.client.CloudPolicies.QueryComplianceControls(&params)
-	if err != nil {
-		if notFound, ok := err.(*cloud_policies.QueryComplianceControlsBadRequest); ok {
+	if fql == "" {
+		var filters []string
+		for _, f := range fqlFilters {
+			if f.value != "" {
+				value := strings.ReplaceAll(f.value, "\\", "\\\\\\\\")
+				filters = append(filters, fmt.Sprintf("%s:*'%s'", f.field, value))
+			}
+		}
+
+		if len(filters) > 0 {
+			filter = strings.Join(filters, "+")
+		}
+
+		if filter != "" {
+			params.Filter = &filter
+		}
+	} else {
+		params.Filter = &fql
+	}
+
+	for {
+		resp, err := r.client.CloudPolicies.QueryComplianceControls(&params)
+		if err != nil {
+			if badRequest, ok := err.(*cloud_policies.QueryComplianceControlsBadRequest); ok {
+				diags.AddError(
+					"Error Retrieving Control IDs",
+					fmt.Sprintf("Failed to retrieve controls (400): %+v", *badRequest.Payload.Errors[0].Message),
+				)
+				return controls, diags
+			}
+
+			if internalServerError, ok := err.(*cloud_policies.QueryComplianceControlsInternalServerError); ok {
+				diags.AddError(
+					"Error Retrieving Control IDs",
+					fmt.Sprintf("Failed to retrieve controls (500): %+v", *internalServerError.Payload.Errors[0].Message),
+				)
+				return controls, diags
+			}
+
 			diags.AddError(
-				"Error Retrieving Rules",
-				fmt.Sprintf("Failed retrieve rules (400): %+v", *notFound.Payload.Errors[0].Message),
+				"Error Retrieving Control IDs",
+				fmt.Sprintf("Failed to retrieve controls: %+v", err),
+			)
+
+			return controls, diags
+		}
+
+		if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 {
+			return controls, diags
+		}
+
+		payload := resp.GetPayload()
+
+		if err = falcon.AssertNoError(payload.Errors); err != nil {
+			diags.AddError(
+				"Error Retrieving Control IDs",
+				fmt.Sprintf("Failed to retrieve control IDs: %s", err.Error()),
 			)
 			return controls, diags
 		}
 
-		if notFound, ok := err.(*cloud_policies.QueryComplianceControlsInternalServerError); ok {
-			diags.AddError(
-				"Error Retrieving Rule",
-				fmt.Sprintf("Failed retrieve rules (500): %+v", *notFound.Payload.Errors[0].Message),
-			)
+		if len(payload.Resources) < 1 {
 			return controls, diags
 		}
 
-		diags.AddError(
-			"Error Retrieving Rule",
-			fmt.Sprintf("Failed retrieve rules: %+v", err),
-		)
+		controlsInfo, diags := r.describeControls(ctx, payload.Resources)
+		if diags.HasError() {
+			return controls, diags
+		}
 
-		return controls, diags
-	}
+		for _, control := range controlsInfo {
+			var benchmark types.String
+			if control.SecurityFramework != nil {
+				benchmark = types.StringPointerValue(control.SecurityFramework[0].Name)
+			}
+			controls = append(controls, cloudComplianceFrameworkControlModel{
+				Authority:   types.StringPointerValue(control.Authority),
+				Code:        types.StringPointerValue(control.Code),
+				Requirement: types.StringValue(control.Requirement),
+				Benchmark:   benchmark,
+				Name:        types.StringPointerValue(control.Name),
+				Section:     types.StringValue(control.SectionName),
+				Id:          types.StringPointerValue(control.UUID),
+			})
+		}
 
-	payload := resp.GetPayload()
-	if err = falcon.AssertNoError(payload.Errors); err != nil {
-		diags.AddError(
-			"Error Retrieving Rule",
-			fmt.Sprintf("Failed to retrieve rule: %s", err.Error()),
-		)
-		return controls, diags
-	}
+		if payload.Meta != nil && payload.Meta.Pagination != nil {
+			pagination := payload.Meta.Pagination
+			if pagination.Offset != nil && pagination.Total != nil && *pagination.Offset >= int32(*pagination.Total) {
+				tflog.Info(ctx, "Pagination complete", map[string]any{"meta": payload.Meta})
+				break
+			}
+		}
 
-	if len(payload.Resources) < 1 {
-		diags.AddError(
-			"Error Retrieving Rule",
-			fmt.Sprintf("No rules found for filter: %s", filter),
-		)
-		return controls, diags
-	}
-
-	controlsInfo, diags := r.describeControls(ctx, payload.Resources)
-	if diags.HasError() {
-		return controls, diags
-	}
-
-	for _, control := range controlsInfo {
-		controls = append(controls, cloudComplianceFrameworkControlModel{
-			Authority:   types.StringPointerValue(control.Authority),
-			Code:        types.StringPointerValue(control.Code),
-			Requirement: types.StringValue(control.Requirement),
-			Benchmark:   types.StringPointerValue(control.SecurityFramework[0].Name),
-			Name:        types.StringPointerValue(control.Name),
-			Section:     types.StringValue(control.SectionName),
-			UUID:        types.StringPointerValue(control.UUID),
-		})
+		offset += limit
 	}
 
 	return controls, diags
 }
 
-func (r *cloudComplianceFrameworkControlDataSource) describeControls(ctx context.Context, uuids []string) ([]*models.ApimodelsControl, diag.Diagnostics) {
+func (r *cloudComplianceFrameworkControlDataSource) describeControls(ctx context.Context, ids []string) ([]*models.ApimodelsControl, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var controls []*models.ApimodelsControl
 	params := cloud_policies.GetComplianceControlsParams{
 		Context: ctx,
-		Ids:     uuids,
+		Ids:     ids,
 	}
 
 	resp, err := r.client.CloudPolicies.GetComplianceControls(&params)
 	if err != nil {
-		if notFound, ok := err.(*cloud_policies.GetComplianceControlsBadRequest); ok {
+		if badRequest, ok := err.(*cloud_policies.GetComplianceControlsBadRequest); ok {
 			diags.AddError(
-				"Error Retrieving Rules",
-				fmt.Sprintf("Failed retrieve rules (400): %+v", *notFound.Payload.Errors[0].Message),
+				"Error Retrieving Compliance Control Information",
+				fmt.Sprintf("Failed to retrieve compliance control information (400): %+v", *badRequest.Payload.Errors[0].Message),
 			)
 			return nil, diags
 		}
 
 		if notFound, ok := err.(*cloud_policies.GetComplianceControlsNotFound); ok {
 			diags.AddError(
-				"Error Retrieving Rules",
-				fmt.Sprintf("Failed retrieve rules (404): %+v", *notFound.Payload.Errors[0].Message),
+				"Error Retrieving Compliance Control Information",
+				fmt.Sprintf("Failed to retrieve compliance control information (404): %+v", *notFound.Payload.Errors[0].Message),
 			)
 			return nil, diags
 		}
 
-		if notFound, ok := err.(*cloud_policies.GetComplianceControlsInternalServerError); ok {
+		if internalServerError, ok := err.(*cloud_policies.GetComplianceControlsInternalServerError); ok {
 			diags.AddError(
-				"Error Retrieving Rules",
-				fmt.Sprintf("Failed retrieve rules (500): %+v", *notFound.Payload.Errors[0].Message),
+				"Error Retrieving Compliance Control Information",
+				fmt.Sprintf("Failed to retrieve compliance control information (500): %+v", *internalServerError.Payload.Errors[0].Message),
 			)
 			return nil, diags
 		}
 
 		diags.AddError(
-			"Error Retrieving Rule",
-			fmt.Sprintf("Failed retrieve rules: %+v", err),
+			"Error Retrieving Compliance Control Information",
+			fmt.Sprintf("Failed to retrieve compliance control information: %+v", err),
 		)
 
 		return nil, diags
 	}
 
+	if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 {
+		diags.AddError(
+			"Error Retrieving Compliance Control Information",
+			"Failed to retrieve compliance control information: The API returned an empty payload.",
+		)
+		return nil, diags
+	}
+
 	payload := resp.GetPayload()
+
 	if err = falcon.AssertNoError(payload.Errors); err != nil {
 		diags.AddError(
-			"Error Retrieving Rule",
-			fmt.Sprintf("Failed to retrieve rule: %s", err.Error()),
+			"Error Retrieving Compliance Control Information",
+			fmt.Sprintf("Failed to retrieve compliance controls: %s", err.Error()),
 		)
 		return nil, diags
 	}

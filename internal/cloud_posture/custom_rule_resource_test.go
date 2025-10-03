@@ -1,4 +1,8 @@
-package cloud_posture_test
+package cloudposture_test
+
+// Check empty fields.
+// Check nil
+// Check from defined to empty or nil. In-place updates.
 
 import (
 	"fmt"
@@ -44,7 +48,7 @@ var commonConfig = ruleBaseConfig{
 	},
 	subdomain: "IOM",
 	domain:    "CSPM",
-	severity:  []string{"0", "1"},
+	severity:  []string{"critical", "informational"},
 	remediationInfo: [][]string{
 		{"This is the first step", "This is the second step"},
 		{"This is the first step", "This is the second step", "This is the third step."},
@@ -143,12 +147,10 @@ func generateRuleCopyTests(config ruleCustomConfig, ruleName string) []resource.
 			Config: fmt.Sprintf(`
 resource "crowdstrike_cloud_posture_custom_rule" "rule_%s" {
   resource_type    = "%s"
-  subdomain        = "%s"
   name             = "%s"
   description      = "%s"
-  cloud_platform   = "%s"
   cloud_provider   = "%s"
-  severity         = %s
+  severity         = "%s"
   remediation_info = [%s]
   controls = [
     %s
@@ -156,8 +158,8 @@ resource "crowdstrike_cloud_posture_custom_rule" "rule_%s" {
   parent_rule_id   = "%s"
   alert_info = [%s]
 }
-`, ruleName, config.resourceType, config.ruleBaseConfig.subdomain, config.ruleBaseConfig.ruleNamePrefix+ruleName, config.ruleBaseConfig.description[i],
-				config.cloudPlatform, config.cloudProvider, config.severity[i], remediationInfo,
+`, ruleName, config.resourceType, config.ruleBaseConfig.ruleNamePrefix+ruleName, config.ruleBaseConfig.description[i],
+				config.cloudProvider, config.severity[i], remediationInfo,
 				testGenerateControlBlock(config.ruleBaseConfig.controls[i]), config.parentId, alertInfo),
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttr(resourceName, "subdomain", config.ruleBaseConfig.subdomain),
@@ -167,13 +169,13 @@ resource "crowdstrike_cloud_posture_custom_rule" "rule_%s" {
 				resource.TestCheckResourceAttr(resourceName, "description", config.ruleBaseConfig.description[i]),
 				resource.TestCheckResourceAttr(resourceName, "cloud_platform", config.cloudPlatform),
 				resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
-				resource.TestCheckResourceAttr(resourceName, "severity", fmt.Sprint(i)),
+				resource.TestCheckResourceAttr(resourceName, "severity", config.severity[i]),
 				resource.TestCheckResourceAttr(resourceName, "parent_rule_id", config.parentId),
 				resource.TestCheckResourceAttr(resourceName, "controls.0.authority", config.ruleBaseConfig.controls[i].authority),
 				resource.TestCheckResourceAttr(resourceName, "controls.0.code", config.ruleBaseConfig.controls[i].code),
 				resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("alert_info.%d", len(config.ruleBaseConfig.alertInfo[i])-1), config.ruleBaseConfig.alertInfo[i][len(config.ruleBaseConfig.alertInfo[i])-1]),
 				resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("remediation_info.%d", len(config.ruleBaseConfig.remediationInfo[i])-1), config.ruleBaseConfig.remediationInfo[i][len(config.ruleBaseConfig.remediationInfo[i])-1]),
-				resource.TestCheckResourceAttrSet(resourceName, "uuid"),
+				resource.TestCheckResourceAttrSet(resourceName, "id"),
 			),
 		}
 		steps = append(steps, newStep)
@@ -198,14 +200,12 @@ func generateRuleLogicTests(config ruleCustomConfig, ruleName string) []resource
 		}, "")
 		resourceStep := resource.TestStep{
 			Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule""rule_%s" {
+resource "crowdstrike_cloud_posture_custom_rule" "rule_%s" {
   resource_type    = "%s"
-  subdomain        = "%s"
   name             = "%s"
   description      = "%s"
-  cloud_platform   = "%s"
   cloud_provider   = "%s"
-  severity         = %s
+  severity         = "%s"
   remediation_info = [%s]
   logic = <<EOF
 %s
@@ -216,8 +216,8 @@ EOF
   ]
   attack_types = [%s]
 }
-`, ruleName, config.resourceType, config.ruleBaseConfig.subdomain, config.ruleBaseConfig.ruleNamePrefix+ruleName, config.ruleBaseConfig.description[i],
-				config.cloudPlatform, config.cloudProvider, config.ruleBaseConfig.severity[i], remediationInfo, config.ruleBaseConfig.logic[i],
+`, ruleName, config.resourceType, config.ruleBaseConfig.ruleNamePrefix+ruleName, config.ruleBaseConfig.description[i],
+				config.cloudProvider, config.ruleBaseConfig.severity[i], remediationInfo, config.ruleBaseConfig.logic[i],
 				alertInfo, testGenerateControlBlock(config.ruleBaseConfig.controls[i]), attackTypes),
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttr(resourceName, "subdomain", config.ruleBaseConfig.subdomain),
@@ -227,13 +227,14 @@ EOF
 				resource.TestCheckResourceAttr(resourceName, "description", config.ruleBaseConfig.description[i]),
 				resource.TestCheckResourceAttr(resourceName, "cloud_platform", config.cloudPlatform),
 				resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
+				resource.TestCheckResourceAttr(resourceName, "severity", config.ruleBaseConfig.severity[i]),
 				resource.TestCheckResourceAttr(resourceName, "logic", config.ruleBaseConfig.logic[i]+"\n"),
 				resource.TestCheckResourceAttr(resourceName, "controls.0.authority", config.ruleBaseConfig.controls[i].authority),
 				resource.TestCheckResourceAttr(resourceName, "controls.0.code", config.ruleBaseConfig.controls[i].code),
 				resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("alert_info.%d", len(config.ruleBaseConfig.alertInfo[i])-1), config.ruleBaseConfig.alertInfo[i][len(config.ruleBaseConfig.alertInfo[i])-1]),
 				resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("remediation_info.%d", len(config.ruleBaseConfig.remediationInfo[i])-1), config.ruleBaseConfig.remediationInfo[i][len(config.ruleBaseConfig.remediationInfo[i])-1]),
 				resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("attack_types.%d", len(config.ruleBaseConfig.attackTypes[i])-1), config.ruleBaseConfig.attackTypes[i][len(config.ruleBaseConfig.attackTypes[i])-1]),
-				resource.TestCheckResourceAttrSet(resourceName, "uuid"),
+				resource.TestCheckResourceAttrSet(resourceName, "id"),
 			),
 		}
 
@@ -241,13 +242,13 @@ EOF
 			ResourceName:                         resourceName,
 			ImportState:                          true,
 			ImportStateVerify:                    true,
-			ImportStateVerifyIdentifierAttribute: "uuid",
+			ImportStateVerifyIdentifierAttribute: "id",
 			ImportStateIdFunc: func(s *terraform.State) (string, error) {
 				rs, ok := s.RootModule().Resources[resourceName]
 				if !ok {
 					return "", fmt.Errorf("Resource not found: %s", resourceName)
 				}
-				return rs.Primary.Attributes["uuid"], nil
+				return rs.Primary.Attributes["id"], nil
 			},
 		}
 
@@ -267,15 +268,13 @@ func generateMinimalRuleCopyTests(config ruleCustomConfig, ruleName string) []re
 			Config: fmt.Sprintf(`
 resource "crowdstrike_cloud_posture_custom_rule" "rule_%s" {
   resource_type    = "%s"
-  subdomain        = "%s"
   name             = "%s"
   description      = "%s"
-  cloud_platform   = "%s"
   cloud_provider   = "%s"
   parent_rule_id   = "%s"
 }
-`, ruleName, config.resourceType, config.ruleBaseConfig.subdomain, config.ruleBaseConfig.ruleNamePrefix+ruleName, config.ruleBaseConfig.description[i],
-				config.cloudPlatform, config.cloudProvider, config.parentId),
+`, ruleName, config.resourceType, config.ruleBaseConfig.ruleNamePrefix+ruleName, config.ruleBaseConfig.description[i],
+				config.cloudProvider, config.parentId),
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttr(resourceName, "subdomain", config.ruleBaseConfig.subdomain),
 				resource.TestCheckResourceAttr(resourceName, "domain", config.ruleBaseConfig.domain),
@@ -285,7 +284,8 @@ resource "crowdstrike_cloud_posture_custom_rule" "rule_%s" {
 				resource.TestCheckResourceAttr(resourceName, "cloud_platform", config.cloudPlatform),
 				resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
 				resource.TestCheckResourceAttr(resourceName, "parent_rule_id", config.parentId),
-				resource.TestCheckResourceAttrSet(resourceName, "uuid"),
+				resource.TestCheckResourceAttrSet(resourceName, "id"),
+				resource.TestCheckResourceAttrSet(resourceName, "severity"),
 			),
 		}
 		steps = append(steps, newStep)
@@ -301,19 +301,17 @@ func generateMinimalRuleLogicTests(config ruleCustomConfig, ruleName string) []r
 	for i := range 2 {
 		resourceStep := resource.TestStep{
 			Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule""rule_%s" {
+resource "crowdstrike_cloud_posture_custom_rule" "rule_%s" {
   resource_type    = "%s"
-  subdomain        = "%s"
   name             = "%s"
   description      = "%s"
-  cloud_platform   = "%s"
   cloud_provider   = "%s"
   logic = <<EOF
 %s
 EOF
 }
-`, ruleName, config.resourceType, config.ruleBaseConfig.subdomain, config.ruleBaseConfig.ruleNamePrefix+ruleName, config.ruleBaseConfig.description[i],
-				config.cloudPlatform, config.cloudProvider, config.ruleBaseConfig.logic[i]),
+`, ruleName, config.resourceType, config.ruleBaseConfig.ruleNamePrefix+ruleName, config.ruleBaseConfig.description[i],
+				config.cloudProvider, config.ruleBaseConfig.logic[i]),
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttr(resourceName, "subdomain", config.ruleBaseConfig.subdomain),
 				resource.TestCheckResourceAttr(resourceName, "domain", config.ruleBaseConfig.domain),
@@ -323,7 +321,8 @@ EOF
 				resource.TestCheckResourceAttr(resourceName, "cloud_platform", config.cloudPlatform),
 				resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
 				resource.TestCheckResourceAttr(resourceName, "logic", config.ruleBaseConfig.logic[i]+"\n"),
-				resource.TestCheckResourceAttrSet(resourceName, "uuid"),
+				resource.TestCheckResourceAttrSet(resourceName, "id"),
+				resource.TestCheckResourceAttrSet(resourceName, "severity"),
 			),
 		}
 
@@ -331,13 +330,13 @@ EOF
 			ResourceName:                         resourceName,
 			ImportState:                          true,
 			ImportStateVerify:                    true,
-			ImportStateVerifyIdentifierAttribute: "uuid",
+			ImportStateVerifyIdentifierAttribute: "id",
 			ImportStateIdFunc: func(s *terraform.State) (string, error) {
 				rs, ok := s.RootModule().Resources[resourceName]
 				if !ok {
 					return "", fmt.Errorf("Resource not found: %s", resourceName)
 				}
-				return rs.Primary.Attributes["uuid"], nil
+				return rs.Primary.Attributes["id"], nil
 			},
 		}
 
