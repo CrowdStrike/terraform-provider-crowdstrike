@@ -66,7 +66,7 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 		{
 			Config: fmt.Sprintf(`
 data "crowdstrike_cloud_posture_rules" "%[1]s" {
-  cloud_provider = "%[1]s"
+  // cloud_provider = "%[1]s"
   resource_type  = "%[2]s"
 }
 `, config.cloudProvider, config.resourceType),

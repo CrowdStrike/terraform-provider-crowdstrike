@@ -47,15 +47,15 @@ type fqlFilters struct {
 	field string
 }
 
-func convertAlertRemediationInfoToTerraformState(input *string) basetypes.ListValue {
-	if input == nil {
+func convertAlertRemediationInfoToTerraformState(input string) basetypes.ListValue {
+	if input == "" {
 		return basetypes.NewListValueMust(basetypes.StringType{}, []attr.Value{})
 	}
 
-	*input = strings.TrimSpace(*input)
-	*input = strings.TrimSuffix(*input, "|")
+	input = strings.TrimSpace(input)
+	input = strings.TrimSuffix(input, "|")
 
-	parts := strings.Split(*input, "|")
+	parts := strings.Split(input, "|")
 	values := make([]attr.Value, 0, len(parts))
 
 	for index, part := range parts {

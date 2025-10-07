@@ -179,6 +179,7 @@ func (r *cloudPostureCustomRuleResource) Schema(
 				MarkdownDescription: "Specific attack types associated with the rule. " +
 					"Note: If `parent_rule_id` is defined, attack types will be inherited from the parent rule and cannot be specified using this field.",
 				ElementType: types.StringType,
+				Default:     setdefault.StaticValue(types.SetValueMust(types.StringType, []attr.Value{})),
 			},
 			"logic": schema.StringAttribute{
 				Optional: true,
@@ -406,9 +407,9 @@ func (m *cloudPostureCustomRuleResourceModel) wrap(
 	m.Domain = types.StringPointerValue(rule.Domain)
 	m.Subdomain = types.StringPointerValue(rule.Subdomain)
 	m.CloudProvider = types.StringPointerValue(rule.Provider)
-	m.RemediationInfo = convertAlertRemediationInfoToTerraformState(rule.Remediation)
+	m.RemediationInfo = convertAlertRemediationInfoToTerraformState(*rule.Remediation)
 
-	m.AlertInfo = convertAlertRemediationInfoToTerraformState(rule.AlertInfo)
+	m.AlertInfo = convertAlertRemediationInfoToTerraformState(*rule.AlertInfo)
 	if diags.HasError() {
 		return diags
 	}
@@ -423,30 +424,41 @@ func (m *cloudPostureCustomRuleResourceModel) wrap(
 		m.Logic = types.StringValue(rule.Logic)
 	}
 
-	m.AttackTypes = types.SetValueMust(types.StringType, []attr.Value{})
-	for _, attackType := range rule.AttackTypes {
-		m.AttackTypes, diags = types.SetValue(types.StringType, append(m.AttackTypes.Elements(), types.StringValue(attackType)))
-		if diags.HasError() {
-			return diags
+	if len(rule.AttackTypes) > 0 {
+		filteredAttackTypes := make([]string, 0, len(rule.AttackTypes))
+		for _, attackType := range rule.AttackTypes {
+			if attackType != "" {
+				filteredAttackTypes = append(filteredAttackTypes, attackType)
+			}
+		}
+
+		m.AttackTypes = types.SetValueMust(types.StringType, []attr.Value{})
+		for _, attackType := range filteredAttackTypes {
+			m.AttackTypes, diags = types.SetValue(types.StringType, append(m.AttackTypes.Elements(), types.StringValue(attackType)))
+			if diags.HasError() {
+				return diags
+			}
 		}
 	}
 
-	var policyControls []policyControl
-	for _, control := range rule.Controls {
-		policyControls = append(policyControls, policyControl{
-			Authority: types.StringPointerValue(control.Authority),
-			Code:      types.StringPointerValue(control.Code),
-		})
-	}
+	if len(rule.Controls) > 0 {
+		var policyControls []policyControl
+		for _, control := range rule.Controls {
+			policyControls = append(policyControls, policyControl{
+				Authority: types.StringPointerValue(control.Authority),
+				Code:      types.StringPointerValue(control.Code),
+			})
+		}
 
-	m.Controls, diags = types.SetValueFrom(
-		ctx,
-		types.ObjectType{AttrTypes: policyControl{}.AttributeTypes()},
-		policyControls,
-	)
+		m.Controls, diags = types.SetValueFrom(
+			ctx,
+			types.ObjectType{AttrTypes: policyControl{}.AttributeTypes()},
+			policyControls,
+		)
 
-	if diags.HasError() {
-		return diags
+		if diags.HasError() {
+			return diags
+		}
 	}
 
 	if rule.RuleLogicList != nil {
@@ -511,8 +523,8 @@ func (r *cloudPostureCustomRuleResource) createCloudPolicyRule(ctx context.Conte
 		})
 	}
 
-	severity := severityToInt32[plan.Severity.ValueString()]
-	body.Severity = &severity
+	severity := severityToInt64[plan.Severity.ValueString()]
+	body.Severity = severity
 
 	attackTypes := make([]string, 0, len(plan.AttackTypes.Elements()))
 	for _, elem := range plan.AttackTypes.Elements() {
@@ -521,7 +533,7 @@ func (r *cloudPostureCustomRuleResource) createCloudPolicyRule(ctx context.Conte
 		}
 	}
 
-	body.AttackTypes = utils.Addr(strings.Join(attackTypes, ","))
+	body.AttackTypes = strings.Join(attackTypes, ",")
 
 	params := cloud_policies.CreateRuleParams{
 		Context: ctx,
@@ -646,13 +658,17 @@ func (r *cloudPostureCustomRuleResource) updateCloudPolicyRule(ctx context.Conte
 	severity := severityToInt64[plan.Severity.ValueString()]
 	body.Severity = severity
 
-	attackTypes := make([]string, 0, len(plan.AttackTypes.Elements()))
-	for _, elem := range plan.AttackTypes.Elements() {
-		if str, ok := elem.(types.String); ok {
-			attackTypes = append(attackTypes, str.ValueString())
+	if !plan.AttackTypes.IsNull() {
+		attackTypes := make([]string, 0, len(plan.AttackTypes.Elements()))
+		for _, elem := range plan.AttackTypes.Elements() {
+			if str, ok := elem.(types.String); ok {
+				attackTypes = append(attackTypes, str.ValueString())
+			}
 		}
+		body.AttackTypes = attackTypes
+	} else {
+		body.AttackTypes = []string{}
 	}
-	body.AttackTypes = attackTypes
 
 	if !plan.Controls.IsNull() {
 		var controls []policyControl
@@ -664,6 +680,8 @@ func (r *cloudPostureCustomRuleResource) updateCloudPolicyRule(ctx context.Conte
 				Code:      control.Code.ValueStringPointer(),
 			})
 		}
+	} else {
+		body.Controls = []*models.ApimodelsControlReference{}
 	}
 
 	body.RuleLogicList = []*models.ApimodelsRuleLogic{
@@ -672,7 +690,7 @@ func (r *cloudPostureCustomRuleResource) updateCloudPolicyRule(ctx context.Conte
 		},
 	}
 
-	var remediationInfo, alertInfo *string
+	var remediationInfo, alertInfo string
 	if plan.ParentRuleId.IsNull() {
 		alertInfo, diags = convertAlertInfoToAPIFormat(ctx, plan.AlertInfo, false)
 		if diags.HasError() {
@@ -697,13 +715,13 @@ func (r *cloudPostureCustomRuleResource) updateCloudPolicyRule(ctx context.Conte
 		}
 	}
 
-	if remediationInfo != nil {
-		body.RuleLogicList[0].RemediationInfo = remediationInfo
-	}
+	// if remediationInfo != nil {
+	body.RuleLogicList[0].RemediationInfo = remediationInfo
+	// }
 
-	if alertInfo != nil {
-		body.AlertInfo = *alertInfo
-	}
+	// if alertInfo != nil {
+	body.AlertInfo = alertInfo
+	// }
 
 	params := cloud_policies.UpdateRuleParams{
 		Context: ctx,
@@ -810,13 +828,13 @@ func (r *cloudPostureCustomRuleResource) deleteCloudPolicyRule(ctx context.Conte
 	return diags
 }
 
-func convertAlertInfoToAPIFormat(ctx context.Context, alertInfo basetypes.ListValue, includeNumbering bool) (*string, diag.Diagnostics) {
+func convertAlertInfoToAPIFormat(ctx context.Context, alertInfo basetypes.ListValue, includeNumbering bool) (string, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var alertInfoStrings []string
 	var convertedAlertInfo string
 
 	if alertInfo.IsNull() || alertInfo.IsUnknown() {
-		return nil, diags
+		return "", diags
 	}
 
 	// Duplicate rules require the numbering with |\n delimiters
@@ -830,7 +848,7 @@ func convertAlertInfoToAPIFormat(ctx context.Context, alertInfo basetypes.ListVa
 					"Error converting AlertInfo",
 					fmt.Sprintf("Failed to convert element %d to string", i),
 				)
-				return nil, diags
+				return "", diags
 			}
 			alertInfoStrings = append(alertInfoStrings, fmt.Sprintf("%d. %s", i+1, str.ValueString()))
 		}
@@ -840,16 +858,16 @@ func convertAlertInfoToAPIFormat(ctx context.Context, alertInfo basetypes.ListVa
 		diags = alertInfo.ElementsAs(ctx, &alertInfoStrings, false)
 		convertedAlertInfo = strings.Join(alertInfoStrings, "|")
 	}
-	return &convertedAlertInfo, diags
+	return convertedAlertInfo, diags
 }
 
-func convertRemediationInfoToAPIFormat(ctx context.Context, info basetypes.ListValue, includeNumbering bool) (*string, diag.Diagnostics) {
+func convertRemediationInfoToAPIFormat(ctx context.Context, info basetypes.ListValue, includeNumbering bool) (string, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var infoStrings []string
 	var convertedInfo string
 
 	if info.IsNull() || info.IsUnknown() {
-		return nil, diags
+		return "", diags
 	}
 
 	// Duplicate rules require the numbering with |\n delimiters
@@ -863,7 +881,7 @@ func convertRemediationInfoToAPIFormat(ctx context.Context, info basetypes.ListV
 					"Error converting RemediationInfo",
 					fmt.Sprintf("Failed to convert element %d to string", i),
 				)
-				return nil, diags
+				return "", diags
 			}
 			infoStrings = append(infoStrings, fmt.Sprintf("Step %d. %s", i+1, str.ValueString()))
 		}
@@ -873,5 +891,5 @@ func convertRemediationInfoToAPIFormat(ctx context.Context, info basetypes.ListV
 		convertedInfo = strings.Join(infoStrings, "|")
 	}
 
-	return &convertedInfo, diags
+	return convertedInfo, diags
 }
