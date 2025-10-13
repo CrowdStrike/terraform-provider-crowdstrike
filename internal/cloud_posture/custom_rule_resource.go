@@ -132,11 +132,16 @@ func (r *cloudPostureCustomRuleResource) Schema(
 				ElementType: types.StringType,
 				MarkdownDescription: "A list of the alert logic and detection criteria for rule violations. " +
 					"When `alert_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `alert_info`. " +
-					"Do not include numbering within this list. The Falcon console will automatically add numbering.",
+					"Do not include numbering within this list. The Falcon console will automatically add numbering. " +
+					"When `logic` is defined and `alert_info` is initially set but later changed to an empty list or omitted, the resource will require recreation. " +
+					"When `parent_rule_id` is defined and `alert_info` is initially set but later changed to an empty list or omitted, the resource will inherit the `alert_logic` from the parent rule.",
 				Validators: []validator.List{
 					listvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
 					),
+				},
+				PlanModifiers: []planmodifier.List{
+					CustomPlanModifierAlertRemediationInfo(),
 				},
 			},
 			"controls": schema.SetNestedAttribute{
@@ -179,7 +184,7 @@ func (r *cloudPostureCustomRuleResource) Schema(
 				MarkdownDescription: "Specific attack types associated with the rule. " +
 					"Note: If `parent_rule_id` is defined, attack types will be inherited from the parent rule and cannot be specified using this field.",
 				ElementType: types.StringType,
-				Default:     setdefault.StaticValue(types.SetValueMust(types.StringType, []attr.Value{})),
+				// Default:     setdefault.StaticValue(types.SetValueMust(types.StringType, []attr.Value{})),
 			},
 			"logic": schema.StringAttribute{
 				Optional: true,
@@ -232,11 +237,16 @@ func (r *cloudPostureCustomRuleResource) Schema(
 				Computed:    true,
 				ElementType: types.StringType,
 				Description: "Information about how to remediate issues detected by this rule. " +
-					"Do not include numbering within this list. The Falcon console will automatically add numbering.",
+					"Do not include numbering within this list. The Falcon console will automatically add numbering. " +
+					"When `logic` is defined and `remediation_info` is initially set but later changed to an empty list or omitted, the resource will require recreation. " +
+					"When `parent_rule_id` is defined and `remediation_info` is initially set but later changed to an empty list or omitted, the resource will inherit the `alert_logic` from the parent rule.",
 				Validators: []validator.List{
 					listvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
 					),
+				},
+				PlanModifiers: []planmodifier.List{
+					CustomPlanModifierAlertRemediationInfo(),
 				},
 			},
 			"resource_type": schema.StringAttribute{
@@ -704,24 +714,44 @@ func (r *cloudPostureCustomRuleResource) updateCloudPolicyRule(ctx context.Conte
 
 		body.RuleLogicList[0].Logic = plan.Logic.ValueString()
 	} else {
-		alertInfo, diags = convertAlertInfoToAPIFormat(ctx, plan.AlertInfo, true)
+		var parentRule cloudPostureCustomRuleResourceModel
+		var ruleResp *models.ApimodelsRule
+		emptyRemediationInfo := plan.AlertInfo.IsNull() || len(plan.RemediationInfo.Elements()) == 0
+		emptyAlertInfo := plan.AlertInfo.IsNull() || len(plan.AlertInfo.Elements()) == 0
+
+		if emptyRemediationInfo || emptyAlertInfo {
+			ruleResp, diags = r.getCloudPolicyRule(ctx, plan.ParentRuleId.ValueString())
+			if diags.HasError() {
+				return nil, diags
+			}
+
+			parentRule.wrap(ctx, ruleResp)
+		}
+
+		if emptyRemediationInfo {
+			remediationInfo, diags = convertRemediationInfoToAPIFormat(ctx, parentRule.RemediationInfo, true)
+		} else {
+			remediationInfo, diags = convertRemediationInfoToAPIFormat(ctx, plan.RemediationInfo, true)
+		}
+
 		if diags.HasError() {
 			return nil, diags
 		}
 
-		remediationInfo, diags = convertRemediationInfoToAPIFormat(ctx, plan.RemediationInfo, true)
+		if emptyAlertInfo {
+			alertInfo, diags = convertAlertInfoToAPIFormat(ctx, parentRule.AlertInfo, true)
+		} else {
+			alertInfo, diags = convertAlertInfoToAPIFormat(ctx, plan.AlertInfo, true)
+		}
+
 		if diags.HasError() {
 			return nil, diags
 		}
+
 	}
 
-	// if remediationInfo != nil {
 	body.RuleLogicList[0].RemediationInfo = remediationInfo
-	// }
-
-	// if alertInfo != nil {
 	body.AlertInfo = alertInfo
-	// }
 
 	params := cloud_policies.UpdateRuleParams{
 		Context: ctx,

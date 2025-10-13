@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_cloud_posture_custom_rule (Resource)
 
-This resource manages custom cloud posture rules. These rules can be created either by inheriting properties from a parent rule with minimal customization, or by fully customizing all attributes for maximum flexibility. To create a rule based on a parent rule, utilize the `crowdstrike_cloud_posture_rules` data source to gather parent rule information to use in the new custom rule. The `crowdstrike_cloud_compliance_framework_controls` data source can be used to query Falcon for compliance benchmark controls to associate with custom rules created with this resource.
+This resource manages custom cloud posture rules. These rules can be created either by inheriting properties from a parent rule with minimal customization, or by fully customizing all attributes for maximum flexibility. To create a rule based on a parent rule, utilize the `crowdstrike_cloud_posture_rules` data source to gather parent rule information to use in the new custom rule. The `crowdstrike_cloud_compliance_framework_controls` data source can be used to query Falcon for compliance benchmark controls to associate with custom rules created with this resource. 
 
 ## API Scopes
 
@@ -114,12 +114,12 @@ EOF
 
 ### Optional
 
-- `alert_info` (List of String) A list of the alert logic and detection criteria for rule violations. When `alert_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `alert_info`. Do not include numbering within this list. The Falcon console will automatically add numbering.
+- `alert_info` (List of String) A list of the alert logic and detection criteria for rule violations. When `alert_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `alert_info`. Do not include numbering within this list. The Falcon console will automatically add numbering. When `logic` is defined and `alert_info` is initially set but later changed to an empty list or omitted, the resource will require recreation. When `parent_rule_id` is defined and `alert_info` is initially set but later changed to an empty list or omitted, the resource will inherit the `alert_logic` from the parent rule.
 - `attack_types` (Set of String) Specific attack types associated with the rule. Note: If `parent_rule_id` is defined, attack types will be inherited from the parent rule and cannot be specified using this field.
 - `controls` (Attributes Set) Security framework and compliance rule information. Utilize the `crowdstrike_cloud_compliance_framework_controls` data source to obtain this information. When `controls` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `controls`. (see [below for nested schema](#nestedatt--controls))
 - `logic` (String) Rego logic for the rule. If this is not defined, then parent_rule_id must be defined. When `parent_rule_id` is defined, `logic` from the parent rule is not visible, but it is used for triggering this rule.
 - `parent_rule_id` (String) Id of the parent rule to inherit properties from. The `crowdstrike_cloud_posture_rules` data source can be used to query Falcon for parent rule information to use in this field. Required if `logic` is not specified.
-- `remediation_info` (List of String) Information about how to remediate issues detected by this rule. Do not include numbering within this list. The Falcon console will automatically add numbering.
+- `remediation_info` (List of String) Information about how to remediate issues detected by this rule. Do not include numbering within this list. The Falcon console will automatically add numbering. When `logic` is defined and `remediation_info` is initially set but later changed to an empty list or omitted, the resource will require recreation. When `parent_rule_id` is defined and `remediation_info` is initially set but later changed to an empty list or omitted, the resource will inherit the `alert_logic` from the parent rule.
 - `severity` (String) Severity of the rule. Valid values are `critical`, `high`, `medium`, `informational`.
 
 ### Read-Only
