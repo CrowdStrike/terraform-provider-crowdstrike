@@ -33,7 +33,7 @@ var (
 
 var (
 	defaultPoliciesDocumentationSection string         = "IT Automation"
-	defaultPoliciesMarkdownDescription  string         = "IT Automation default policies --- This resource allows management of default IT Automation policy configuration settings in the CrowdStrike Falcon platform. For default policies, you can only update the description and configuration settings (concurrency, execution, resources). Default policies cannot be created, deleted, enabled/disabled, assigned to host groups, or have their names changed."
+	defaultPoliciesMarkdownDescription  string         = "IT Automation default policies --- This resource allows management of default IT Automation policy configuration settings in the CrowdStrike Falcon platform."
 	defaultPoliciesRequiredScopes       []scopes.Scope = itAutomationScopes
 )
 
@@ -50,24 +50,24 @@ type itAutomationDefaultPolicyResource struct {
 // itAutomationDefaultPolicyResourceModel is the resource model.
 type itAutomationDefaultPolicyResourceModel struct {
 	ID                              types.String `tfsdk:"id"`
-	LastUpdated                     types.String `tfsdk:"last_updated"`
-	Platform                        types.String `tfsdk:"platform"`
 	Name                            types.String `tfsdk:"name"`
 	Description                     types.String `tfsdk:"description"`
-	IsEnabled                       types.Bool   `tfsdk:"is_enabled"`
 	ConcurrentHostFileTransferLimit types.Int32  `tfsdk:"concurrent_host_file_transfer_limit"`
 	ConcurrentHostLimit             types.Int32  `tfsdk:"concurrent_host_limit"`
 	ConcurrentTaskLimit             types.Int32  `tfsdk:"concurrent_task_limit"`
+	CPUSchedulingPriority           types.String `tfsdk:"cpu_scheduling_priority"`
+	CPUThrottle                     types.Int32  `tfsdk:"cpu_throttle"`
 	EnableOsQuery                   types.Bool   `tfsdk:"enable_os_query"`
 	EnablePythonExecution           types.Bool   `tfsdk:"enable_python_execution"`
 	EnableScriptExecution           types.Bool   `tfsdk:"enable_script_execution"`
 	ExecutionTimeout                types.Int32  `tfsdk:"execution_timeout"`
 	ExecutionTimeoutUnit            types.String `tfsdk:"execution_timeout_unit"`
-	CPUSchedulingPriority           types.String `tfsdk:"cpu_scheduling_priority"`
-	CPUThrottle                     types.Int32  `tfsdk:"cpu_throttle"`
+	IsEnabled                       types.Bool   `tfsdk:"is_enabled"`
+	LastUpdated                     types.String `tfsdk:"last_updated"`
 	MemoryAllocation                types.Int32  `tfsdk:"memory_allocation"`
 	MemoryAllocationUnit            types.String `tfsdk:"memory_allocation_unit"`
 	MemoryPressureLevel             types.String `tfsdk:"memory_pressure_level"`
+	Platform                        types.String `tfsdk:"platform"`
 }
 
 func (t *itAutomationDefaultPolicyResourceModel) wrap(
@@ -397,6 +397,9 @@ func (r *itAutomationDefaultPolicyResource) Read(
 	resp.Diagnostics.Append(diags...)
 
 	if resp.Diagnostics.HasError() {
+		// manually parse diagnostic errors.
+		// helper functions return standardized diagnostics for consistency.
+		// this is due to some IT Automation endpoints not returning structured/generic 404s.
 		for _, d := range resp.Diagnostics.Errors() {
 			if d.Summary() == policyNotFoundErrorSummary {
 				tflog.Warn(

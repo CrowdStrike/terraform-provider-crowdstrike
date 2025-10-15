@@ -36,7 +36,7 @@ var (
 
 var (
 	policiesDocumentationSection string         = "IT Automation"
-	policiesMarkdownDescription  string         = "IT Automation policies --- This resource allows management of IT Automation policies in the CrowdStrike Falcon platform. IT Automation policies allow you to configure settings related to the module apply them to host groups."
+	policiesMarkdownDescription  string         = "IT Automation policies --- This resource allows management of IT Automation policies in the CrowdStrike Falcon platform. IT Automation policies allow you to configure settings related to the module and apply them to host groups."
 	policiesRequiredScopes       []scopes.Scope = itAutomationScopes
 )
 
@@ -53,25 +53,25 @@ type itAutomationPolicyResource struct {
 // itAutomationPolicyResourceModel is the resource model.
 type itAutomationPolicyResourceModel struct {
 	ID                              types.String `tfsdk:"id"`
-	LastUpdated                     types.String `tfsdk:"last_updated"`
 	Name                            types.String `tfsdk:"name"`
 	Description                     types.String `tfsdk:"description"`
-	Platform                        types.String `tfsdk:"platform"`
-	IsEnabled                       types.Bool   `tfsdk:"is_enabled"`
-	HostGroups                      types.Set    `tfsdk:"host_groups"`
 	ConcurrentHostFileTransferLimit types.Int32  `tfsdk:"concurrent_host_file_transfer_limit"`
 	ConcurrentHostLimit             types.Int32  `tfsdk:"concurrent_host_limit"`
 	ConcurrentTaskLimit             types.Int32  `tfsdk:"concurrent_task_limit"`
+	CPUSchedulingPriority           types.String `tfsdk:"cpu_scheduling_priority"`
+	CPUThrottle                     types.Int32  `tfsdk:"cpu_throttle"`
 	EnableOsQuery                   types.Bool   `tfsdk:"enable_os_query"`
 	EnablePythonExecution           types.Bool   `tfsdk:"enable_python_execution"`
 	EnableScriptExecution           types.Bool   `tfsdk:"enable_script_execution"`
 	ExecutionTimeout                types.Int32  `tfsdk:"execution_timeout"`
 	ExecutionTimeoutUnit            types.String `tfsdk:"execution_timeout_unit"`
-	CPUSchedulingPriority           types.String `tfsdk:"cpu_scheduling_priority"`
-	CPUThrottle                     types.Int32  `tfsdk:"cpu_throttle"`
+	HostGroups                      types.Set    `tfsdk:"host_groups"`
+	IsEnabled                       types.Bool   `tfsdk:"is_enabled"`
+	LastUpdated                     types.String `tfsdk:"last_updated"`
 	MemoryAllocation                types.Int32  `tfsdk:"memory_allocation"`
 	MemoryAllocationUnit            types.String `tfsdk:"memory_allocation_unit"`
 	MemoryPressureLevel             types.String `tfsdk:"memory_pressure_level"`
+	Platform                        types.String `tfsdk:"platform"`
 }
 
 func (t *itAutomationPolicyResourceModel) wrap(
@@ -496,6 +496,9 @@ func (r *itAutomationPolicyResource) Read(
 	resp.Diagnostics.Append(diags...)
 
 	if resp.Diagnostics.HasError() {
+		// manually parse diagnostic errors.
+		// helper functions return standardized diagnostics for consistency.
+		// this is due to some IT Automation endpoints not returning structured/generic 404s.
 		for _, d := range resp.Diagnostics.Errors() {
 			if d.Summary() == policyNotFoundErrorSummary {
 				tflog.Warn(
@@ -690,7 +693,7 @@ func (r *itAutomationPolicyResource) Delete(
 			if isNotFoundError(err) {
 				tflog.Warn(
 					ctx,
-					fmt.Sprintf("IT automation policy %s not found during disable, removing from state", policyID),
+					fmt.Sprintf("%s %s not found during disable, removing from state", itAutomationPolicy, policyID),
 					map[string]any{"error": err.Error()},
 				)
 				resp.State.RemoveResource(ctx)
@@ -733,11 +736,26 @@ func (r *itAutomationPolicyResource) Delete(
 			strings.Contains(err.Error(), "404") {
 			tflog.Warn(
 				ctx,
-				fmt.Sprintf(notFoundRemoving, fmt.Sprintf("IT automation policy %s", policyID)),
+				fmt.Sprintf(notFoundRemoving, fmt.Sprintf("%s %s", itAutomationPolicy, policyID)),
 				map[string]any{"error": err.Error()},
 			)
 			resp.State.RemoveResource(ctx)
 			return
+		}
+
+		/*
+			workaround for api limitation where concurrent policy deletes can return errors
+			even when the policy was successfully deleted by another request.
+			verify the policy actually exists before treating this as a failure.
+		*/
+		_, verifyDiags := getItAutomationPolicy(ctx, r.client, policyID)
+		if verifyDiags.HasError() {
+			for _, diag := range verifyDiags {
+				if diag.Summary() == policyNotFoundErrorSummary {
+					resp.State.RemoveResource(ctx)
+					return
+				}
+			}
 		}
 
 		resp.Diagnostics.AddError(

@@ -11,6 +11,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -28,10 +29,12 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                   = &itAutomationTaskResource{}
-	_ resource.ResourceWithConfigure      = &itAutomationTaskResource{}
-	_ resource.ResourceWithImportState    = &itAutomationTaskResource{}
-	_ resource.ResourceWithValidateConfig = &itAutomationTaskResource{}
+	_ resource.Resource                     = &itAutomationTaskResource{}
+	_ resource.ResourceWithConfigure        = &itAutomationTaskResource{}
+	_ resource.ResourceWithImportState      = &itAutomationTaskResource{}
+	_ resource.ResourceWithValidateConfig   = &itAutomationTaskResource{}
+	_ resource.ResourceWithConfigValidators = &itAutomationTaskResource{}
+	_ resource.ResourceWithModifyPlan       = &itAutomationTaskResource{}
 )
 
 var (
@@ -76,32 +79,30 @@ type verificationConditionModel struct {
 // itAutomationTaskResourceModel is the resource model.
 type itAutomationTaskResourceModel struct {
 	ID                       types.String `tfsdk:"id"`
-	LastUpdated              types.String `tfsdk:"last_updated"`
-	EffectiveAccessType      types.String `tfsdk:"effective_access_type"`
-	EffectiveAssignedUserIds types.Set    `tfsdk:"effective_assigned_user_ids"`
-	InTaskGroup              types.Bool   `tfsdk:"in_task_group"`
-	TaskGroupID              types.String `tfsdk:"task_group_id"`
 	Name                     types.String `tfsdk:"name"`
 	Description              types.String `tfsdk:"description"`
 	AccessType               types.String `tfsdk:"access_type"`
 	AssignedUserIds          types.Set    `tfsdk:"assigned_user_ids"`
+	EffectiveAccessType      types.String `tfsdk:"effective_access_type"`
+	EffectiveAssignedUserIds types.Set    `tfsdk:"effective_assigned_user_ids"`
+	FileIds                  types.Set    `tfsdk:"file_ids"`
+	InTaskGroup              types.Bool   `tfsdk:"in_task_group"`
+	LastUpdated              types.String `tfsdk:"last_updated"`
+	LinuxScriptContent       types.String `tfsdk:"linux_script_content"`
+	LinuxScriptFileId        types.String `tfsdk:"linux_script_file_id"`
+	LinuxScriptLanguage      types.String `tfsdk:"linux_script_language"`
+	MacScriptContent         types.String `tfsdk:"mac_script_content"`
+	MacScriptFileId          types.String `tfsdk:"mac_script_file_id"`
+	MacScriptLanguage        types.String `tfsdk:"mac_script_language"`
 	OsQuery                  types.String `tfsdk:"os_query"`
 	ScriptColumns            types.Object `tfsdk:"script_columns"`
 	Target                   types.String `tfsdk:"target"`
+	TaskGroupID              types.String `tfsdk:"task_group_id"`
 	Type                     types.String `tfsdk:"type"`
-	LinuxScriptContent       types.String `tfsdk:"linux_script_content"`
-	LinuxScriptLanguage      types.String `tfsdk:"linux_script_language"`
-	MacScriptContent         types.String `tfsdk:"mac_script_content"`
-	MacScriptLanguage        types.String `tfsdk:"mac_script_language"`
+	VerificationCondition    types.List   `tfsdk:"verification_condition"`
 	WindowsScriptContent     types.String `tfsdk:"windows_script_content"`
+	WindowsScriptFileId      types.String `tfsdk:"windows_script_file_id"`
 	WindowsScriptLanguage    types.String `tfsdk:"windows_script_language"`
-
-	// action task specific fields.
-	FileIds               types.Set    `tfsdk:"file_ids"`
-	LinuxScriptFileId     types.String `tfsdk:"linux_script_file_id"`
-	MacScriptFileId       types.String `tfsdk:"mac_script_file_id"`
-	WindowsScriptFileId   types.String `tfsdk:"windows_script_file_id"`
-	VerificationCondition types.List   `tfsdk:"verification_condition"`
 }
 
 // convertType converts the type value to the Terraform or API expected values.
@@ -130,6 +131,9 @@ func createScriptFromPlan(
 	if !fileID.IsNull() {
 		script.ScriptFileID = fileID.ValueString()
 		script.ActionType = "script_file"
+		if !language.IsNull() {
+			script.Language = language.ValueString()
+		}
 	} else if !content.IsNull() && !language.IsNull() {
 		script.Content = content.ValueString()
 		script.Language = language.ValueString()
@@ -154,6 +158,7 @@ func createScriptsFromPlan(
 	if !model.FileIds.IsNull() && !model.FileIds.IsUnknown() {
 		var err diag.Diagnostics
 		fileIDs, err = setToStringSlice(ctx, model.FileIds)
+
 		diags.Append(err...)
 		if diags.HasError() {
 			return nil, diags
@@ -208,7 +213,6 @@ func (r *itAutomationTaskResource) constructUpdatePayload(
 		OutputParserConfig: currentTask.OutputParserConfig,
 	}
 
-	// set access type only if not in task group.
 	if !inTaskGroup {
 		body.AccessType = plan.AccessType.ValueString()
 	}
@@ -217,11 +221,13 @@ func (r *itAutomationTaskResource) constructUpdatePayload(
 	if plan.AccessType.ValueString() == "Shared" && !plan.AssignedUserIds.IsNull() && !inTaskGroup {
 		currentUserIds := currentTask.AssignedUserIds
 		plannedUserIds := plan.AssignedUserIds
+
 		diags, usersToAdd, usersToRemove := idsDiff(ctx, currentUserIds, plannedUserIds)
 		if !diags.HasError() {
 			if len(usersToAdd) > 0 {
 				body.AddAssignedUserIds = usersToAdd
 			}
+
 			if len(usersToRemove) > 0 {
 				body.RemoveAssignedUserIds = usersToRemove
 			}
@@ -254,6 +260,7 @@ func (r *itAutomationTaskResource) constructUpdatePayload(
 		if !scriptColumns.Delimiter.IsNull() {
 			outputParser.Delimiter = scriptColumns.Delimiter.ValueStringPointer()
 		}
+
 		if !scriptColumns.GroupResults.IsNull() {
 			outputParser.DefaultGroupBy = scriptColumns.GroupResults.ValueBoolPointer()
 		}
@@ -278,22 +285,29 @@ func (r *itAutomationTaskResource) constructUpdatePayload(
 		body.OutputParserConfig = outputParser
 	}
 
-	// handle script updates or preserve existing scripts.
 	switch apiType {
 	case "query":
 		if plan.OsQuery.IsNull() {
-			scripts, diags := createScriptsFromPlan(ctx, plan)
+			scripts, scriptDiags := createScriptsFromPlan(ctx, plan)
+			diags.Append(scriptDiags...)
 			if !diags.HasError() {
 				body.Queries = scripts
 			}
 		}
+
 	case "remediation":
-		scripts, diags := createScriptsFromPlan(ctx, plan)
+		scripts, scriptDiags := createScriptsFromPlan(ctx, plan)
+		diags.Append(scriptDiags...)
 		if !diags.HasError() {
 			body.Remediations = scripts
 		}
+
 		if !plan.VerificationCondition.IsNull() && len(plan.VerificationCondition.Elements()) > 0 {
-			verificationConditions, verifyDiags := createVerificationConditions(ctx, plan.VerificationCondition)
+			verificationConditions, verifyDiags := createVerificationConditions(
+				ctx,
+				plan.VerificationCondition,
+			)
+
 			diags.Append(verifyDiags...)
 			if !diags.HasError() {
 				body.VerificationCondition = verificationConditions
@@ -312,11 +326,15 @@ func (t *itAutomationTaskResourceModel) wrap(
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 	currentModel := *t
+	inTaskGroup := hasTaskGroupMembership(task.Groups)
+
 	t.ID = types.StringValue(*task.ID)
 	t.Name = types.StringValue(*task.Name)
 	t.Type = types.StringValue(convertType(*task.TaskType, "terraform"))
 	t.EffectiveAccessType = types.StringValue(task.AccessType)
-	t.InTaskGroup = types.BoolValue(hasTaskGroupMembership(task.Groups))
+	t.InTaskGroup = types.BoolValue(inTaskGroup)
+
+	t.AccessType = types.StringValue(task.AccessType)
 
 	if hasTaskGroupMembership(task.Groups) {
 		if task.Groups[0].ID != nil {
@@ -324,13 +342,7 @@ func (t *itAutomationTaskResourceModel) wrap(
 		} else {
 			t.TaskGroupID = types.StringNull()
 		}
-		if !currentModel.AccessType.IsNull() {
-			t.AccessType = currentModel.AccessType
-		} else {
-			t.AccessType = types.StringValue(AccessTypePublic)
-		}
 	} else {
-		t.AccessType = types.StringValue(task.AccessType)
 		t.TaskGroupID = types.StringNull()
 	}
 
@@ -340,28 +352,16 @@ func (t *itAutomationTaskResourceModel) wrap(
 	preserveStringField(task.Target, currentModel.Target, &t.Target)
 
 	if len(task.AssignedUserIds) > 0 {
-		effectiveUserIds, diag := stringSliceToSet(ctx, task.AssignedUserIds)
+		userIds, diag := stringSliceToSet(ctx, task.AssignedUserIds)
 		diags.Append(diag...)
 		if diags.HasError() {
 			return diags
 		}
-		t.EffectiveAssignedUserIds = effectiveUserIds
-
-		if (!t.InTaskGroup.ValueBool() || currentModel.AssignedUserIds.IsNull()) &&
-			task.AccessType == "Shared" {
-			t.AssignedUserIds = effectiveUserIds
-		} else if t.InTaskGroup.ValueBool() && !currentModel.AssignedUserIds.IsNull() {
-			t.AssignedUserIds = currentModel.AssignedUserIds
-		} else {
-			t.AssignedUserIds = types.SetNull(types.StringType)
-		}
+		t.AssignedUserIds = userIds
+		t.EffectiveAssignedUserIds = userIds
 	} else {
+		t.AssignedUserIds = types.SetNull(types.StringType)
 		t.EffectiveAssignedUserIds = types.SetNull(types.StringType)
-		if t.InTaskGroup.ValueBool() && !currentModel.AssignedUserIds.IsNull() {
-			t.AssignedUserIds = currentModel.AssignedUserIds
-		} else {
-			t.AssignedUserIds = types.SetNull(types.StringType)
-		}
 	}
 
 	if len(task.VerificationCondition) > 0 {
@@ -378,9 +378,11 @@ func (t *itAutomationTaskResourceModel) wrap(
 		if task.OutputParserConfig.Delimiter != nil {
 			scriptColumns.Delimiter = types.StringValue(*task.OutputParserConfig.Delimiter)
 		}
+
 		if task.OutputParserConfig.DefaultGroupBy != nil {
 			scriptColumns.GroupResults = types.BoolValue(*task.OutputParserConfig.DefaultGroupBy)
 		}
+
 		if len(task.OutputParserConfig.Columns) > 0 {
 			columns := make([]scriptColumnModel, 0, len(task.OutputParserConfig.Columns))
 			for _, col := range task.OutputParserConfig.Columns {
@@ -432,14 +434,17 @@ func (t *itAutomationTaskResourceModel) wrap(
 			if s.script == nil {
 				continue
 			}
+
 			if s.script.ScriptFileID != "" {
 				*s.fileIdField = types.StringValue(s.script.ScriptFileID)
 			} else if s.script.Content != "" {
 				*s.contentField = types.StringValue(s.script.Content)
 			}
+
 			if s.script.Language != "" {
 				*s.languageField = types.StringValue(s.script.Language)
 			}
+
 			if len(s.script.FileIds) > 0 {
 				fileIds, fileDiags := stringSliceToSet(ctx, s.script.FileIds)
 				diags.Append(fileDiags...)
@@ -450,7 +455,7 @@ func (t *itAutomationTaskResourceModel) wrap(
 		}
 	}
 
-	// preserve current file ids if not set from api.
+	// preserve current file ids if not provided from api response.
 	if t.FileIds.IsNull() && !currentModel.FileIds.IsNull() {
 		t.FileIds = currentModel.FileIds
 	}
@@ -519,7 +524,8 @@ func (r *itAutomationTaskResource) Schema(
 				Description: "Timestamp of the last Terraform update of the resource.",
 			},
 			"access_type": schema.StringAttribute{
-				Required:    true,
+				Optional:    true,
+				Computed:    true,
 				Description: "Access control configuration for the task (Public, Shared).",
 				Validators: []validator.String{
 					stringvalidator.OneOf("Public", "Shared"),
@@ -751,6 +757,59 @@ func (r *itAutomationTaskResource) Schema(
 	}
 }
 
+// ModifyPlan validates configuration when task is in a task group.
+func (r *itAutomationTaskResource) ModifyPlan(
+	ctx context.Context,
+	req resource.ModifyPlanRequest,
+	resp *resource.ModifyPlanResponse,
+) {
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan itAutomationTaskResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var state itAutomationTaskResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if !state.InTaskGroup.IsNull() && state.InTaskGroup.ValueBool() {
+		var accessTypeFromConfig types.String
+		diags := req.Config.GetAttribute(ctx, path.Root("access_type"), &accessTypeFromConfig)
+		if !diags.HasError() && !accessTypeFromConfig.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"Cannot configure access_type when task is part of a task group. "+
+					"The access_type is inherited from the task group and cannot be overridden. "+
+					"Remove the access_type configuration or remove the task from the task group.",
+			)
+			return
+		}
+
+		var assignedUserIdsFromConfig types.Set
+		diags = req.Config.GetAttribute(ctx, path.Root("assigned_user_ids"), &assignedUserIdsFromConfig)
+		if !diags.HasError() && !assignedUserIdsFromConfig.IsNull() {
+			resp.Diagnostics.AddError(
+				"Invalid Configuration",
+				"Cannot configure assigned_user_ids when task is part of a task group. "+
+					"The assigned_user_ids are inherited from the task group and cannot be overridden. "+
+					"Remove the assigned_user_ids configuration or remove the task from the task group.",
+			)
+			return
+		}
+	}
+}
+
 // Create creates the resource and sets the initial Terraform state.
 func (r *itAutomationTaskResource) Create(
 	ctx context.Context,
@@ -766,10 +825,16 @@ func (r *itAutomationTaskResource) Create(
 	// convert type value for api compatibility.
 	apiType := convertType(plan.Type.ValueString(), "api")
 
+	// default access_type to public if not specified.
+	accessType := plan.AccessType.ValueString()
+	if accessType == "" {
+		accessType = AccessTypePublic
+	}
+
 	body := &models.ItautomationCreateTaskRequest{
 		Name:       plan.Name.ValueStringPointer(),
 		TaskType:   &apiType,
-		AccessType: plan.AccessType.ValueStringPointer(),
+		AccessType: &accessType,
 	}
 
 	params := it_automation.ITAutomationCreateTaskParams{
@@ -784,6 +849,7 @@ func (r *itAutomationTaskResource) Create(
 	if !plan.AssignedUserIds.IsNull() && !plan.AssignedUserIds.IsUnknown() {
 		assignedUserIds, diags := setToStringSlice(ctx, plan.AssignedUserIds)
 		resp.Diagnostics.Append(diags...)
+
 		if resp.Diagnostics.HasError() {
 			return
 		}
@@ -802,7 +868,12 @@ func (r *itAutomationTaskResource) Create(
 		outputParser := &models.ItautomationOutputParserConfig{}
 
 		var scriptColumns scriptColumnsModel
-		resp.Diagnostics.Append(plan.ScriptColumns.As(ctx, &scriptColumns, basetypes.ObjectAsOptions{})...)
+		resp.Diagnostics.Append(plan.ScriptColumns.As(
+			ctx,
+			&scriptColumns,
+			basetypes.ObjectAsOptions{},
+		)...)
+
 		if resp.Diagnostics.HasError() {
 			return
 		}
@@ -841,6 +912,7 @@ func (r *itAutomationTaskResource) Create(
 		if plan.OsQuery.IsNull() {
 			queries, diags := createScriptsFromPlan(ctx, &plan)
 			resp.Diagnostics.Append(diags...)
+
 			if resp.Diagnostics.HasError() {
 				return
 			}
@@ -850,6 +922,7 @@ func (r *itAutomationTaskResource) Create(
 	case "remediation":
 		remediations, diags := createScriptsFromPlan(ctx, &plan)
 		resp.Diagnostics.Append(diags...)
+
 		if resp.Diagnostics.HasError() {
 			return
 		}
@@ -858,6 +931,7 @@ func (r *itAutomationTaskResource) Create(
 		if !plan.VerificationCondition.IsNull() && len(plan.VerificationCondition.Elements()) > 0 {
 			verificationConditions, verifyDiags := createVerificationConditions(ctx, plan.VerificationCondition)
 			resp.Diagnostics.Append(verifyDiags...)
+
 			if resp.Diagnostics.HasError() {
 				return
 			}
@@ -899,6 +973,9 @@ func (r *itAutomationTaskResource) Read(
 	resp.Diagnostics.Append(diags...)
 
 	if resp.Diagnostics.HasError() {
+		// manually parse diagnostic errors.
+		// helper functions return standardized diagnostics for consistency.
+		// this is due to some IT Automation endpoints not returning structured/generic 404s.
 		for _, d := range resp.Diagnostics.Errors() {
 			if d.Summary() == taskNotFoundErrorSummary {
 				tflog.Warn(
@@ -936,22 +1013,10 @@ func (r *itAutomationTaskResource) Update(
 
 	taskID := plan.ID.ValueString()
 	currentTask, diags := getItAutomationTask(ctx, r.client, taskID)
+
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
-	}
-
-	inTaskGroup := hasTaskGroupMembership(currentTask.Groups)
-	if inTaskGroup {
-		apiAccessType := currentTask.AccessType
-		configuredAccessType := plan.AccessType.ValueString()
-
-		if apiAccessType != configuredAccessType {
-			tflog.Warn(
-				ctx,
-				fmt.Sprintf("Task access type overridden by group: %s", apiAccessType),
-			)
-		}
 	}
 
 	body, constructDiags := r.constructUpdatePayload(ctx, currentTask, &plan)
@@ -975,46 +1040,14 @@ func (r *itAutomationTaskResource) Update(
 		return
 	}
 
-	updatedTask, diags := getItAutomationTask(ctx, r.client, taskID)
-	resp.Diagnostics.Append(diags...)
+	updatedTask, readDiags := getItAutomationTask(ctx, r.client, taskID)
+	resp.Diagnostics.Append(readDiags...)
 	if resp.Diagnostics.HasError() {
 		return
-	}
-
-	// always set effective fields from api response for task group inheritance visibility.
-	plan.EffectiveAccessType = types.StringValue(updatedTask.AccessType)
-	plan.InTaskGroup = types.BoolValue(hasTaskGroupMembership(updatedTask.Groups))
-
-	if len(updatedTask.AssignedUserIds) > 0 {
-		effectiveUserIds, diags := stringSliceToSet(ctx, updatedTask.AssignedUserIds)
-		resp.Diagnostics.Append(diags...)
-		if !resp.Diagnostics.HasError() {
-			plan.EffectiveAssignedUserIds = effectiveUserIds
-		}
-	} else {
-		plan.EffectiveAssignedUserIds = types.SetNull(types.StringType)
-	}
-
-	if hasTaskGroupMembership(updatedTask.Groups) {
-		plan.TaskGroupID = types.StringValue(*updatedTask.Groups[0].ID)
-	} else {
-		plan.TaskGroupID = types.StringNull()
-	}
-
-	resp.Diagnostics.Append(plan.wrap(ctx, *updatedTask)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	plan.ID = types.StringValue(*updatedTask.ID)
-	plan.Name = types.StringValue(*updatedTask.Name)
-	plan.Type = types.StringValue(convertType(*updatedTask.TaskType, "terraform"))
-
-	if updatedTask.Description != nil {
-		plan.Description = types.StringValue(*updatedTask.Description)
 	}
 
 	plan.LastUpdated = types.StringValue(time.Now().Format(timeFormat))
+	resp.Diagnostics.Append(plan.wrap(ctx, *updatedTask)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -1051,7 +1084,7 @@ func (r *itAutomationTaskResource) Delete(
 		if isNotFoundError(err) {
 			tflog.Warn(
 				ctx,
-				fmt.Sprintf(notFoundRemoving, fmt.Sprintf("IT automation task %s", state.ID.ValueString())),
+				fmt.Sprintf(notFoundRemoving, fmt.Sprintf("%s %s", itAutomationTask, state.ID.ValueString())),
 				map[string]any{"error": err.Error()},
 			)
 			resp.State.RemoveResource(ctx)
@@ -1079,6 +1112,24 @@ func (r *itAutomationTaskResource) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
+// ConfigValidators provides declarative validation for the resource configuration.
+func (r *itAutomationTaskResource) ConfigValidators(ctx context.Context) []resource.ConfigValidator {
+	return []resource.ConfigValidator{
+		resourcevalidator.Conflicting(
+			path.MatchRoot("linux_script_content"),
+			path.MatchRoot("linux_script_file_id"),
+		),
+		resourcevalidator.Conflicting(
+			path.MatchRoot("mac_script_content"),
+			path.MatchRoot("mac_script_file_id"),
+		),
+		resourcevalidator.Conflicting(
+			path.MatchRoot("windows_script_content"),
+			path.MatchRoot("windows_script_file_id"),
+		),
+	}
+}
+
 // ValidateConfig validates the resource configuration.
 func (r *itAutomationTaskResource) ValidateConfig(
 	ctx context.Context,
@@ -1091,14 +1142,19 @@ func (r *itAutomationTaskResource) ValidateConfig(
 		return
 	}
 
-	// validate access type and user ids relationship.
-	if config.AccessType.ValueString() == AccessTypeShared && config.AssignedUserIds.IsNull() {
+	accessType := config.AccessType.ValueString()
+	if accessType == "" {
+		accessType = AccessTypePublic
+	}
+
+	if accessType == AccessTypeShared && config.AssignedUserIds.IsNull() {
 		resp.Diagnostics.AddAttributeError(path.Root("access_type"),
 			"Missing required argument",
 			"When access_type is Shared, assigned_user_ids is required")
 		return
 	}
-	if config.AccessType.ValueString() != AccessTypeShared && !config.AssignedUserIds.IsNull() {
+
+	if accessType != AccessTypeShared && !config.AssignedUserIds.IsNull() {
 		resp.Diagnostics.AddAttributeError(path.Root("assigned_user_ids"),
 			"Invalid argument",
 			"assigned_user_ids can only be used when access_type is Shared")
@@ -1106,17 +1162,27 @@ func (r *itAutomationTaskResource) ValidateConfig(
 	}
 
 	platformScripts := map[string][3]types.String{
-		"linux": {config.LinuxScriptContent, config.LinuxScriptFileId,
-			config.LinuxScriptLanguage},
-		"mac": {config.MacScriptContent, config.MacScriptFileId,
-			config.MacScriptLanguage},
-		"windows": {config.WindowsScriptContent, config.WindowsScriptFileId,
-			config.WindowsScriptLanguage},
+		"linux": {
+			config.LinuxScriptContent,
+			config.LinuxScriptFileId,
+			config.LinuxScriptLanguage,
+		},
+		"mac": {
+			config.MacScriptContent,
+			config.MacScriptFileId,
+			config.MacScriptLanguage,
+		},
+		"windows": {
+			config.WindowsScriptContent,
+			config.WindowsScriptFileId,
+			config.WindowsScriptLanguage,
+		},
 	}
 
 	hasValue := func(field types.String) bool {
 		return !field.IsNull() && field.ValueString() != ""
 	}
+
 	scriptProvided, hasUnknownFileIds := false, false
 
 	for platform, fields := range platformScripts {
@@ -1125,6 +1191,7 @@ func (r *itAutomationTaskResource) ValidateConfig(
 		if fileId.IsUnknown() {
 			hasUnknownFileIds = true
 		}
+
 		if hasValue(content) || hasValue(fileId) {
 			scriptProvided = true
 		}
@@ -1135,10 +1202,18 @@ func (r *itAutomationTaskResource) ValidateConfig(
 				fmt.Sprintf("The field %s_script_content cannot be used with %s_script_file_id",
 					platform, platform))
 		}
+
 		if hasValue(content) && !hasValue(language) {
 			resp.Diagnostics.AddAttributeError(path.Root(platform+"_script_content"),
 				"Missing required argument",
 				fmt.Sprintf("The field %s_script_content requires %s_script_language",
+					platform, platform))
+		}
+
+		if hasValue(fileId) && !hasValue(language) {
+			resp.Diagnostics.AddAttributeError(path.Root(platform+"_script_file_id"),
+				"Missing required argument",
+				fmt.Sprintf("The field %s_script_file_id requires %s_script_language",
 					platform, platform))
 		}
 
@@ -1164,7 +1239,9 @@ func (r *itAutomationTaskResource) ValidateConfig(
 		}
 	}
 
-	if !hasValue(config.OsQuery) && !scriptProvided && !hasUnknownFileIds &&
+	if !hasValue(config.OsQuery) &&
+		!scriptProvided &&
+		!hasUnknownFileIds &&
 		config.Type.ValueString() != "" {
 		resp.Diagnostics.AddError("Missing field",
 			"You must provide one of the script_content or script_file_id fields")
@@ -1181,6 +1258,7 @@ func (r *itAutomationTaskResource) ValidateConfig(
 			resp.Diagnostics.AddAttributeError(path.Root("file_ids"),
 				"Invalid argument", "file_ids cannot be used with query tasks")
 		}
+
 		if !config.VerificationCondition.IsNull() &&
 			len(config.VerificationCondition.Elements()) > 0 {
 			resp.Diagnostics.AddAttributeError(path.Root("verification_condition"),
@@ -1192,19 +1270,22 @@ func (r *itAutomationTaskResource) ValidateConfig(
 			resp.Diagnostics.AddAttributeError(path.Root("os_query"),
 				"Invalid argument", "os_query cannot be used with action tasks")
 		}
+
 		if !config.ScriptColumns.IsNull() {
 			resp.Diagnostics.AddAttributeError(path.Root("script_columns"),
 				"Invalid argument", "script_columns cannot be used with action tasks")
 		}
 
-		// validate that action tasks only have scripts for one platform.
+		// action tasks can only have scripts for one platform.
 		scriptPlatformCount := 0
 		if hasValue(config.LinuxScriptContent) || hasValue(config.LinuxScriptFileId) {
 			scriptPlatformCount++
 		}
+
 		if hasValue(config.WindowsScriptContent) || hasValue(config.WindowsScriptFileId) {
 			scriptPlatformCount++
 		}
+
 		if hasValue(config.MacScriptContent) || hasValue(config.MacScriptFileId) {
 			scriptPlatformCount++
 		}
@@ -1223,7 +1304,10 @@ func createVerificationConditions(
 ) ([]*models.FalconforitapiConditionGroup, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	if conditionsList.IsNull() || conditionsList.IsUnknown() || len(conditionsList.Elements()) == 0 {
+	// return early if no conditions are provided.
+	if conditionsList.IsNull() ||
+		conditionsList.IsUnknown() ||
+		len(conditionsList.Elements()) == 0 {
 		return nil, diags
 	}
 

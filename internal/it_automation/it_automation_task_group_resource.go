@@ -51,11 +51,11 @@ type itAutomationTaskGroupResource struct {
 // itAutomationTaskGroupResourceModel is the resource model.
 type itAutomationTaskGroupResourceModel struct {
 	ID              types.String `tfsdk:"id"`
-	LastUpdated     types.String `tfsdk:"last_updated"`
+	Name            types.String `tfsdk:"name"`
+	Description     types.String `tfsdk:"description"`
 	AccessType      types.String `tfsdk:"access_type"`
 	AssignedUserIds types.Set    `tfsdk:"assigned_user_ids"`
-	Description     types.String `tfsdk:"description"`
-	Name            types.String `tfsdk:"name"`
+	LastUpdated     types.String `tfsdk:"last_updated"`
 	TaskIds         types.Set    `tfsdk:"task_ids"`
 }
 
@@ -291,6 +291,9 @@ func (r *itAutomationTaskGroupResource) Read(
 	resp.Diagnostics.Append(diags...)
 
 	if resp.Diagnostics.HasError() {
+		// manually parse diagnostic errors.
+		// helper functions return standardized diagnostics for consistency.
+		// this is due to some IT Automation endpoints not returning structured/generic 404s.
 		for _, d := range resp.Diagnostics.Errors() {
 			if d.Summary() == taskGroupNotFoundErrorSummary {
 				tflog.Warn(
@@ -423,7 +426,7 @@ func (r *itAutomationTaskGroupResource) Delete(
 		if isNotFoundError(err) {
 			tflog.Warn(
 				ctx,
-				fmt.Sprintf(notFoundRemoving, fmt.Sprintf("IT automation task group %s", state.ID.ValueString())),
+				fmt.Sprintf(notFoundRemoving, fmt.Sprintf("%s %s", itAutomationTaskGroup, state.ID.ValueString())),
 				map[string]any{"error": err.Error()},
 			)
 			resp.State.RemoveResource(ctx)
@@ -464,8 +467,10 @@ func (r *itAutomationTaskGroupResource) ValidateConfig(
 	}
 
 	AccessType := config.AccessType.ValueString()
+
 	AssignedUserIdsProvided := !config.AssignedUserIds.IsNull() &&
 		!config.AssignedUserIds.IsUnknown()
+
 	TaskIdsProvided := !config.TaskIds.IsNull() &&
 		!config.TaskIds.IsUnknown()
 

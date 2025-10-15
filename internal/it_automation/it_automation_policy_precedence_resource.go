@@ -29,7 +29,7 @@ var (
 
 var (
 	precedenceDocumentationSection string         = "IT Automation"
-	precedenceMarkdownDescription  string         = "This resource allows you to set the precedence of IT Automation Policies based on the order of IDs. **Note**: Only one precedence resource per platform is allowed. Multiple precedence resources for the same platform will conflict."
+	precedenceMarkdownDescription  string         = "IT Automation policy precedence --- This resource allows you to set the precedence of IT Automation policies based on the order of policy IDs."
 	precedenceRequiredScopes       []scopes.Scope = itAutomationScopes
 )
 
@@ -53,8 +53,8 @@ type itAutomationPolicyPrecedenceResourceModel struct {
 	ID          types.String `tfsdk:"id"`
 	IDs         types.List   `tfsdk:"ids"`
 	Enforcement types.String `tfsdk:"enforcement"`
-	Platform    types.String `tfsdk:"platform"`
 	LastUpdated types.String `tfsdk:"last_updated"`
+	Platform    types.String `tfsdk:"platform"`
 }
 
 func (d *itAutomationPolicyPrecedenceResourceModel) wrap(
@@ -218,10 +218,9 @@ func (r *itAutomationPolicyPrecedenceResource) Create(
 		return
 	}
 
-	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) {
-		if len(policies) > len(plan.IDs.Elements()) {
-			policies = policies[:len(plan.IDs.Elements())]
-		}
+	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) &&
+		len(policies) > len(plan.IDs.Elements()) {
+		policies = policies[:len(plan.IDs.Elements())]
 	}
 
 	plan.ID = types.StringValue(
@@ -251,15 +250,15 @@ func (r *itAutomationPolicyPrecedenceResource) Read(
 		r.client,
 		state.Platform.ValueString(),
 	)
+
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if strings.EqualFold(state.Enforcement.ValueString(), dynamicEnforcement) {
-		if len(policies) > len(state.IDs.Elements()) {
-			policies = policies[:len(state.IDs.Elements())]
-		}
+	if strings.EqualFold(state.Enforcement.ValueString(), dynamicEnforcement) &&
+		len(policies) > len(state.IDs.Elements()) {
+		policies = policies[:len(state.IDs.Elements())]
 	}
 
 	resp.Diagnostics.Append(state.wrap(ctx, policies)...)
@@ -290,6 +289,7 @@ func (r *itAutomationPolicyPrecedenceResource) Update(
 			planPolicyIDs,
 			plan.Platform.ValueString(),
 		)
+
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -302,6 +302,7 @@ func (r *itAutomationPolicyPrecedenceResource) Update(
 			planPolicyIDs,
 			plan.Platform.ValueString(),
 		)
+
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -330,10 +331,9 @@ func (r *itAutomationPolicyPrecedenceResource) Update(
 		return
 	}
 
-	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) {
-		if len(policies) > len(plan.IDs.Elements()) {
-			policies = policies[:len(plan.IDs.Elements())]
-		}
+	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) &&
+		len(policies) > len(plan.IDs.Elements()) {
+		policies = policies[:len(plan.IDs.Elements())]
 	}
 
 	plan.ID = types.StringValue(fmt.Sprintf(
@@ -423,9 +423,7 @@ func (r *itAutomationPolicyPrecedenceResource) generateDynamicPolicyOrder(
 	}
 
 	var finalOrder []string
-
 	finalOrder = append(finalOrder, managedPolicyIDs...)
-
 	for _, policyID := range currentPrecedence {
 		if !managedPolicyMap[policyID] {
 			finalOrder = append(finalOrder, policyID)
@@ -473,6 +471,5 @@ func (r *itAutomationPolicyPrecedenceResource) generateStrictPolicyOrder(
 		return nil, diags
 	}
 
-	// return the exact order specified by the user.
 	return managedPolicyIDs, diags
 }
