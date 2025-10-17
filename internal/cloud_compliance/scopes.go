@@ -9,3 +9,11 @@ var cloudComplianceFrameworkScopes = []scopes.Scope{
 		Write: false,
 	},
 }
+
+var cloudComplianceCustomFrameworkScopes = []scopes.Scope{
+	{
+		Name:  "Cloud Security Custom Policies",
+		Read:  true,
+		Write: true,
+	},
+}
