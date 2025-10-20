@@ -146,6 +146,38 @@ resource "crowdstrike_cloud_aws_account" "test" {
 `, account, organization_id)
 }
 
+func TestAccCloudAwsAccountResourceMinimal(t *testing.T) {
+	resourceName := "crowdstrike_cloud_aws_account.test"
+	account_id := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			// Test minimal configuration
+			{
+				Config: testAccCloudAwsAccountConfig_minimal(account_id),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "account_id", account_id),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"is_organization_management_account",
+						"false",
+					),
+					resource.TestCheckResourceAttr(resourceName, "account_type", "commercial"),
+					// Computed fields should exist
+					resource.TestCheckResourceAttrSet(resourceName, "external_id"),
+					resource.TestCheckResourceAttrSet(resourceName, "intermediate_role_arn"),
+					resource.TestCheckResourceAttrSet(resourceName, "iam_role_arn"),
+					resource.TestCheckResourceAttrSet(resourceName, "eventbus_name"),
+					resource.TestCheckResourceAttrSet(resourceName, "eventbus_arn"),
+					resource.TestCheckResourceAttrSet(resourceName, "dspm_role_arn"),
+				),
+			},
+		},
+	})
+}
+
 // Minimal configuration with only required attributes.
 func testAccCloudAwsAccountConfig_minimal(account string) string {
 	return fmt.Sprintf(`
