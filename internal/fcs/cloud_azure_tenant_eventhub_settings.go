@@ -189,7 +189,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) Create(
 		return
 	}
 
-	err := r.triggerHealthCheck(ctx, data.TenantId.String())
+	err := r.triggerHealthCheck(ctx, data.TenantId.ValueString())
 	if len(err) > 0 {
 		tflog.Warn(
 			ctx,
@@ -257,7 +257,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) Update(
 		return
 	}
 
-	err = r.triggerHealthCheck(ctx, data.TenantId.String())
+	err = r.triggerHealthCheck(ctx, data.TenantId.ValueString())
 	if len(err) > 0 {
 		tflog.Warn(
 			ctx,
@@ -302,7 +302,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) Delete(
 		return
 	}
 
-	err = r.triggerHealthCheck(ctx, data.TenantId.String())
+	err = r.triggerHealthCheck(ctx, data.TenantId.ValueString())
 	if len(err) > 0 {
 		tflog.Warn(
 			ctx,
