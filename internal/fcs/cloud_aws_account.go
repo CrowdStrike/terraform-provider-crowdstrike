@@ -539,7 +539,7 @@ func (r *cloudAWSAccountResource) Create(
 		)
 	}
 
-	state.SensorManagement.Enabled = types.BoolValue(*cspmAccount.SensorManagementEnabled)
+	state.SensorManagement.Enabled = types.BoolPointerValue(cspmAccount.SensorManagementEnabled)
 
 	state.DSPM.Enabled = types.BoolValue(cspmAccount.DspmEnabled)
 
@@ -857,7 +857,7 @@ func (r *cloudAWSAccountResource) Read(
 	} else {
 		state.SensorManagement = &sensorManagementOptions{}
 	}
-	state.SensorManagement.Enabled = types.BoolValue(*cspmAccount.SensorManagementEnabled)
+	state.SensorManagement.Enabled = types.BoolPointerValue(cspmAccount.SensorManagementEnabled)
 
 	if oldState.DSPM != nil {
 		state.DSPM = oldState.DSPM
@@ -1095,7 +1095,7 @@ func (r *cloudAWSAccountResource) Update(
 		)
 	}
 
-	plan.SensorManagement.Enabled = types.BoolValue(*cspmAccount.SensorManagementEnabled)
+	plan.SensorManagement.Enabled = types.BoolPointerValue(cspmAccount.SensorManagementEnabled)
 
 	plan.DSPM.Enabled = types.BoolValue(cspmAccount.DspmEnabled)
 
