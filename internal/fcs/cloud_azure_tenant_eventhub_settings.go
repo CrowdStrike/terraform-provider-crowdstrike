@@ -189,6 +189,18 @@ func (r *cloudAzureTenantEventhubSettingsResource) Create(
 		return
 	}
 
+	err := r.triggerHealthCheck(ctx, data.TenantId.String())
+	if len(err) > 0 {
+		tflog.Warn(
+			ctx,
+			fmt.Sprintf(
+				"failed to trigger health check scan for tenant %s, error: %+v",
+				data.TenantId.ValueString(),
+				err,
+			),
+		)
+	}
+
 	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -245,6 +257,18 @@ func (r *cloudAzureTenantEventhubSettingsResource) Update(
 		return
 	}
 
+	err = r.triggerHealthCheck(ctx, data.TenantId.String())
+	if len(err) > 0 {
+		tflog.Warn(
+			ctx,
+			fmt.Sprintf(
+				"failed to trigger health check scan for tenant %s, error: %+v",
+				data.TenantId.ValueString(),
+				err,
+			),
+		)
+	}
+
 	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -276,6 +300,18 @@ func (r *cloudAzureTenantEventhubSettingsResource) Delete(
 	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	err = r.triggerHealthCheck(ctx, data.TenantId.String())
+	if len(err) > 0 {
+		tflog.Warn(
+			ctx,
+			fmt.Sprintf(
+				"failed to trigger health check scan for tenant %s, error: %+v",
+				data.TenantId.ValueString(),
+				err,
+			),
+		)
 	}
 
 	if !data.Settings.IsNull() {
@@ -417,4 +453,26 @@ func (r *cloudAzureTenantEventhubSettingsResource) updateRegistration(
 	}
 
 	return res.Payload.Resources[0], diags
+}
+
+func (r *cloudAzureTenantEventhubSettingsResource) triggerHealthCheck(
+	ctx context.Context,
+	tenantID string,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+	params := cloud_azure_registration.CloudRegistrationAzureTriggerHealthCheckParams{
+		TenantIds: []string{tenantID},
+		Context:   ctx,
+	}
+
+	_, err := r.client.CloudAzureRegistration.CloudRegistrationAzureTriggerHealthCheck(&params)
+
+	if err != nil {
+		diags.AddError(
+			"Failed to trigger health check scan",
+			fmt.Sprintf("Failed to trigger health check scan for Azure tenant registration: %s", falcon.ErrorExplain(err)),
+		)
+	}
+
+	return diags
 }
