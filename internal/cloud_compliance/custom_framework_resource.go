@@ -9,12 +9,15 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -107,13 +110,17 @@ func (r *cloudComplianceCustomFrameworkResource) Schema(
 				MarkdownDescription: "The name of the custom compliance framework.",
 			},
 			"description": schema.StringAttribute{
-				Optional:            true,
+				Required:            true,
 				MarkdownDescription: "A description of the custom compliance framework.",
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 			"active": schema.BoolAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "Whether the custom compliance framework is active.",
+				Default:             booldefault.StaticBool(false),
+				MarkdownDescription: "Whether the custom compliance framework is active. Defaults to false on create. Once set to true, cannot be changed back to false.",
 			},
 		},
 	}
@@ -309,6 +316,23 @@ func (r *cloudComplianceCustomFrameworkResource) Update(
 		return
 	}
 
+	// Get current state to check if we're trying to change active from true to false
+	var state cloudComplianceCustomFrameworkResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Validate that active cannot be changed from true to false
+	if !state.Active.IsNull() && state.Active.ValueBool() && !plan.Active.ValueBool() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("active"),
+			"Invalid Active Field Change",
+			"The active field cannot be changed from true to false. Once a custom compliance framework is activated, it must remain active.",
+		)
+		return
+	}
+
 	tflog.Info(ctx, "Updating custom compliance framework", map[string]any{
 		"id": plan.ID.ValueString(),
 	})
@@ -323,7 +347,7 @@ func (r *cloudComplianceCustomFrameworkResource) Update(
 	}
 
 	params := cloud_policies.NewUpdateComplianceFrameworkParamsWithContext(ctx)
-	params.SetID(plan.ID.ValueString())
+	params.SetIds(plan.ID.ValueString()) // Should be params.SetId (update in gofalcon)
 	params.SetBody(updateReq)
 
 	updateResp, err := r.client.CloudPolicies.UpdateComplianceFramework(params)
