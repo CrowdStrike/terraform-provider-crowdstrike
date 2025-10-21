@@ -302,18 +302,6 @@ func (r *cloudAzureTenantEventhubSettingsResource) Delete(
 		return
 	}
 
-	err = r.triggerHealthCheck(ctx, data.TenantId.ValueString())
-	if len(err) > 0 {
-		tflog.Warn(
-			ctx,
-			fmt.Sprintf(
-				"failed to trigger health check scan for tenant %s, error: %+v",
-				data.TenantId.ValueString(),
-				err,
-			),
-		)
-	}
-
 	if !data.Settings.IsNull() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("settings"),
