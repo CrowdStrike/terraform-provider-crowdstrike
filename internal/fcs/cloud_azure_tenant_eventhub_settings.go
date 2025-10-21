@@ -189,17 +189,8 @@ func (r *cloudAzureTenantEventhubSettingsResource) Create(
 		return
 	}
 
-	err := r.triggerHealthCheck(ctx, data.TenantId.ValueString())
-	if len(err) > 0 {
-		tflog.Warn(
-			ctx,
-			fmt.Sprintf(
-				"failed to trigger health check scan for tenant %s, error: %+v",
-				data.TenantId.ValueString(),
-				err,
-			),
-		)
-	}
+	diags = r.triggerHealthCheck(ctx, data.TenantId.ValueString())
+	resp.Diagnostics.Append(diags...)
 
 	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -257,17 +248,8 @@ func (r *cloudAzureTenantEventhubSettingsResource) Update(
 		return
 	}
 
-	err = r.triggerHealthCheck(ctx, data.TenantId.ValueString())
-	if len(err) > 0 {
-		tflog.Warn(
-			ctx,
-			fmt.Sprintf(
-				"failed to trigger health check scan for tenant %s, error: %+v",
-				data.TenantId.ValueString(),
-				err,
-			),
-		)
-	}
+	diags := r.triggerHealthCheck(ctx, data.TenantId.ValueString())
+	resp.Diagnostics.Append(diags...)
 
 	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -456,8 +438,8 @@ func (r *cloudAzureTenantEventhubSettingsResource) triggerHealthCheck(
 	_, err := r.client.CloudAzureRegistration.CloudRegistrationAzureTriggerHealthCheck(&params)
 
 	if err != nil {
-		diags.AddError(
-			"Failed to trigger health check scan",
+		diags.AddWarning(
+			"Failed to trigger health check scan. Please go to the Falcon console and trigger health check scan manually to reflect the latest state.",
 			fmt.Sprintf("Failed to trigger health check scan for Azure tenant registration: %s", falcon.ErrorExplain(err)),
 		)
 	}
