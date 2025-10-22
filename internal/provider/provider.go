@@ -14,6 +14,7 @@ import (
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
+	usermanagement "github.com/crowdstrike/terraform-provider-crowdstrike/internal/user"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/function"
@@ -253,6 +254,8 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		contentupdatepolicy.NewDefaultContentUpdatePolicyResource,
 		contentupdatepolicy.NewContentUpdatePolicyPrecedenceResource,
 		sensorvisibilityexclusion.NewSensorVisibilityExclusionResource,
+		usermanagement.NewUserResource,
+		usermanagement.NewUserRoleAssignmentsResource,
 	}
 }
 
@@ -261,6 +264,8 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		sensorupdatepolicy.NewSensorUpdateBuildsDataSource,
 		fcs.NewCloudAwsAccountsDataSource,
 		contentupdatepolicy.NewContentCategoryVersionsDataSource,
+		usermanagement.NewUserDataSource,
+		usermanagement.NewUserRolesDataSource,
 	}
 }
 
