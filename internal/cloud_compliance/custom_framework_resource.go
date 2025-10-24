@@ -48,6 +48,17 @@ type cloudComplianceCustomFrameworkResourceModel struct {
 	Name        types.String `tfsdk:"name"`
 	Description types.String `tfsdk:"description"`
 	Active      types.Bool   `tfsdk:"active"`
+	Sections    types.Map    `tfsdk:"sections"`
+}
+
+type SectionModel struct {
+	Description types.String `tfsdk:"description"`
+	Controls    types.Map    `tfsdk:"controls"`
+}
+
+type ControlModel struct {
+	Description types.String `tfsdk:"description"`
+	Rules       types.List   `tfsdk:"rules"`
 }
 
 func (r *cloudComplianceCustomFrameworkResource) Configure(
@@ -121,6 +132,41 @@ func (r *cloudComplianceCustomFrameworkResource) Schema(
 				Computed:            true,
 				Default:             booldefault.StaticBool(false),
 				MarkdownDescription: "Whether the custom compliance framework is active. Defaults to false on create. Once set to true, cannot be changed back to false.",
+			},
+			"sections": schema.MapNestedAttribute{
+				Optional:            true,
+				MarkdownDescription: "Map of sections within the framework. Key is the section name.",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"description": schema.StringAttribute{
+							Required:            true,
+							MarkdownDescription: "Description of the section.",
+							Validators: []validator.String{
+								stringvalidator.LengthAtLeast(1),
+							},
+						},
+						"controls": schema.MapNestedAttribute{
+							Optional:            true,
+							MarkdownDescription: "Map of controls within the section. Key is the control name.",
+							NestedObject: schema.NestedAttributeObject{
+								Attributes: map[string]schema.Attribute{
+									"description": schema.StringAttribute{
+										Required:            true,
+										MarkdownDescription: "Description of the control.",
+										Validators: []validator.String{
+											stringvalidator.LengthAtLeast(1),
+										},
+									},
+									"rules": schema.ListAttribute{
+										Optional:            true,
+										ElementType:         types.StringType,
+										MarkdownDescription: "List of rule IDs assigned to this control.",
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	}
