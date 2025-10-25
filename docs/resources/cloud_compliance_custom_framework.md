@@ -40,7 +40,6 @@ resource "crowdstrike_cloud_compliance_custom_framework" "example" {
   description = "An example framework created with Terraform"
   sections = {
     "Section 1" = {
-      description = "This is the first section"
       controls = {
         "Control 1" = {
           description = "This is the first control"
@@ -53,7 +52,6 @@ resource "crowdstrike_cloud_compliance_custom_framework" "example" {
       }
     }
     "Section 2" = {
-      description = "This is the second section"
       controls = {
         "Control 2" = {
           description = "This is the second control"

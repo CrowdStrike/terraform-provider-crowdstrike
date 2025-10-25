@@ -9,7 +9,9 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -20,6 +22,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+)
+
+const (
+	complianceControlsByFrameworkFilter        = "compliance_control_benchmark_name:'%s'+compliance_control_authority:'Custom'"
+	complianceControlsByFrameworkVersionFilter = "compliance_control_benchmark_name:'%s'+compliance_control_authority:'Custom'+compliance_control_benchmark_version:'%s'"
+	complianceControlsByFrameworkSectionFilter = "compliance_control_benchmark_name:'%s'+compliance_control_authority:'Custom'+compliance_control_section:'%s'"
+	complianceRulesByControlFilter             = "rule_compliance_benchmark:'%s'+rule_control_section:'%s'+rule_control_requirement:'%s'"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -52,17 +61,17 @@ type cloudComplianceCustomFrameworkResourceModel struct {
 }
 
 type SectionModel struct {
-	Description types.String `tfsdk:"description"`
-	Controls    types.Map    `tfsdk:"controls"`
+	Controls types.Map `tfsdk:"controls"`
 }
 
 type ControlModel struct {
+	ID          types.String `tfsdk:"id"`
 	Description types.String `tfsdk:"description"`
 	Rules       types.List   `tfsdk:"rules"`
 }
 
 func (r *cloudComplianceCustomFrameworkResource) Configure(
-	ctx context.Context,
+	_ context.Context,
 	req resource.ConfigureRequest,
 	resp *resource.ConfigureResponse,
 ) {
@@ -70,7 +79,7 @@ func (r *cloudComplianceCustomFrameworkResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	falconClient, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
 
 	if !ok {
 		resp.Diagnostics.AddError(
@@ -84,7 +93,7 @@ func (r *cloudComplianceCustomFrameworkResource) Configure(
 		return
 	}
 
-	r.client = client
+	r.client = falconClient
 }
 
 // Metadata returns the resource type name.
@@ -136,18 +145,17 @@ func (r *cloudComplianceCustomFrameworkResource) Schema(
 			"sections": schema.MapNestedAttribute{
 				Optional:            true,
 				MarkdownDescription: "Map of sections within the framework. Key is the section name.",
+				Validators: []validator.Map{
+					mapvalidator.KeysAre(stringvalidator.LengthAtLeast(1)),
+				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"description": schema.StringAttribute{
-							Required:            true,
-							MarkdownDescription: "Description of the section.",
-							Validators: []validator.String{
-								stringvalidator.LengthAtLeast(1),
-							},
-						},
 						"controls": schema.MapNestedAttribute{
 							Optional:            true,
 							MarkdownDescription: "Map of controls within the section. Key is the control name.",
+							Validators: []validator.Map{
+								mapvalidator.KeysAre(stringvalidator.LengthAtLeast(1)),
+							},
 							NestedObject: schema.NestedAttributeObject{
 								Attributes: map[string]schema.Attribute{
 									"description": schema.StringAttribute{
@@ -253,6 +261,21 @@ func (r *cloudComplianceCustomFrameworkResource) Create(
 		return
 	}
 
+	// Create controls and assign rules if sections are provided
+	var sections map[string]SectionModel
+	if !plan.Sections.IsNull() && !plan.Sections.IsUnknown() {
+		resp.Diagnostics.Append(plan.Sections.ElementsAs(ctx, &sections, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		// Create controls for this framework
+		resp.Diagnostics.Append(r.createControlsForFramework(ctx, framework.UUID, sections)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
 	// Update the plan with the API response
 	resp.Diagnostics.Append(plan.wrap(ctx, framework)...)
 	if resp.Diagnostics.HasError() {
@@ -344,6 +367,14 @@ func (r *cloudComplianceCustomFrameworkResource) Read(
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// Read controls and sections data
+	sectionsMap, sectionsDiags := r.readControlsForFramework(ctx, *framework)
+	resp.Diagnostics.Append(sectionsDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.Sections = sectionsMap
 
 	// Set state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -449,11 +480,42 @@ func (r *cloudComplianceCustomFrameworkResource) Update(
 	// Get the updated framework from response
 	framework := payload.Resources[0]
 
+	// Handle sections/controls/rules updates
+	// For simplicity, we delete all existing controls and recreate them
+	// This ensures consistency with the desired state
+	if !plan.Sections.IsNull() && !plan.Sections.IsUnknown() {
+		// First delete existing controls
+		resp.Diagnostics.Append(r.deleteControlsForFramework(ctx, plan.Name.ValueString())...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		// Then create new controls based on the plan
+		var sections map[string]SectionModel
+		resp.Diagnostics.Append(plan.Sections.ElementsAs(ctx, &sections, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		resp.Diagnostics.Append(r.createControlsForFramework(ctx, plan.ID.ValueString(), sections)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
 	// Update the plan with the API response
 	resp.Diagnostics.Append(plan.wrap(ctx, framework)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// Read back the controls to ensure state consistency
+	sectionsMap, sectionsDiags := r.readControlsForFramework(ctx, *framework)
+	resp.Diagnostics.Append(sectionsDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Sections = sectionsMap
 
 	// Set state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -475,6 +537,12 @@ func (r *cloudComplianceCustomFrameworkResource) Delete(
 	tflog.Info(ctx, "Deleting custom compliance framework", map[string]any{
 		"id": state.ID.ValueString(),
 	})
+
+	// First delete all controls associated with this framework
+	resp.Diagnostics.Append(r.deleteControlsForFramework(ctx, state.Name.ValueString())...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	params := cloud_policies.NewDeleteComplianceFrameworkParamsWithContext(ctx)
 	params.SetIds(state.ID.ValueString())
@@ -541,6 +609,325 @@ func (d *cloudComplianceCustomFrameworkResourceModel) wrap(
 	d.Name = types.StringPointerValue(framework.Name)
 	d.Description = types.StringValue(framework.Description)
 	d.Active = types.BoolValue(framework.Active)
+
+	return diags
+}
+
+// createControlsForFramework creates controls and assigns rules for a framework
+func (r *cloudComplianceCustomFrameworkResource) createControlsForFramework(
+	ctx context.Context,
+	frameworkID string,
+	sections map[string]SectionModel,
+) diag.Diagnostics {
+	diags := diag.Diagnostics{}
+
+	for sectionName, section := range sections {
+		var sectionControls map[string]ControlModel
+		diags.Append(section.Controls.ElementsAs(ctx, &sectionControls, false)...)
+		if diags.HasError() {
+			continue
+		}
+
+		for controlName, control := range sectionControls {
+			controlDesc := control.Description.ValueString()
+			createReq := &models.CommonCreateComplianceControlRequest{
+				Name:        &controlName,
+				Description: &controlDesc,
+				FrameworkID: &frameworkID,
+				SectionName: &sectionName,
+			}
+
+			params := cloud_policies.NewCreateComplianceControlParamsWithContext(ctx)
+			params.SetBody(createReq)
+
+			createResp, err := r.client.CloudPolicies.CreateComplianceControl(params)
+			if err != nil {
+				diags.AddError(
+					"Error Creating Control",
+					fmt.Sprintf("Failed to create control %s in section %s: %s", controlName, sectionName, falcon.ErrorExplain(err)),
+				)
+				continue
+			}
+
+			if createResp == nil || createResp.Payload == nil || len(createResp.Payload.Resources) == 0 {
+				diags.AddError(
+					"Error Creating Control",
+					fmt.Sprintf("No control returned from API for %s in section %s", controlName, sectionName),
+				)
+				continue
+			}
+
+			// Get created control ID
+			controlID := createResp.Payload.Resources[0].UUID
+			if controlID == nil {
+				diags.AddError(
+					"Error Creating Control",
+					fmt.Sprintf("No control ID returned for %s in section %s", controlName, sectionName),
+				)
+				continue
+			}
+
+			// Assign ruleIds to control if any
+			var ruleIds []string
+			if !control.Rules.IsNull() && len(control.Rules.Elements()) > 0 {
+				diags.Append(control.Rules.ElementsAs(ctx, &ruleIds, false)...)
+				if diags.HasError() {
+					continue
+				}
+
+				assignReq := &models.CommonAssignRulesToControlRequest{
+					RuleIds: ruleIds,
+				}
+
+				assignParams := cloud_policies.NewReplaceControlRulesParamsWithContext(ctx).
+					WithUID(*controlID).
+					WithBody(assignReq)
+
+				_, assignRulesErr := r.client.CloudPolicies.ReplaceControlRules(assignParams)
+				if assignRulesErr != nil {
+					diags.AddError(
+						"Error Assigning Rules",
+						fmt.Sprintf("Failed to assign ruleIds to control %s: %s", controlName, falcon.ErrorExplain(assignRulesErr)),
+					)
+				}
+			}
+		}
+	}
+
+	return diags
+}
+
+// readControlsForFramework reads controls and rules for a framework and returns sections data
+func (r *cloudComplianceCustomFrameworkResource) readControlsForFramework(
+	ctx context.Context,
+	framework models.ApimodelsSecurityFramework,
+) (types.Map, diag.Diagnostics) {
+	diags := diag.Diagnostics{}
+	frameworkName := *framework.Name
+
+	// Query controls for this framework
+	frameworkNameFilter := fmt.Sprintf(complianceControlsByFrameworkVersionFilter, frameworkName, *framework.Version)
+	queryControlsParams := cloud_policies.NewQueryComplianceControlsParamsWithContext(ctx).WithFilter(&frameworkNameFilter)
+
+	queryControlsResp, err := r.client.CloudPolicies.QueryComplianceControls(queryControlsParams)
+	if err != nil {
+		diags.AddError(
+			"Error Querying Controls",
+			fmt.Sprintf("Failed to query controls for framework %s: %s", frameworkName, falcon.ErrorExplain(err)),
+		)
+		return types.MapNull(types.ObjectType{}), diags
+	}
+
+	if queryControlsResp == nil || queryControlsResp.Payload == nil || len(queryControlsResp.Payload.Resources) == 0 {
+		// No controls found, return empty sections
+		emptyMap, mapDiags := types.MapValue(
+			types.ObjectType{
+				AttrTypes: map[string]attr.Type{
+					"controls": types.MapType{
+						ElemType: types.ObjectType{
+							AttrTypes: map[string]attr.Type{
+								"description": types.StringType,
+								"rules":       types.ListType{ElemType: types.StringType},
+							},
+						},
+					},
+				},
+			},
+			map[string]attr.Value{},
+		)
+		diags.Append(mapDiags...)
+		return emptyMap, diags
+	}
+
+	// Get detailed control information
+	controlIDs := queryControlsResp.Payload.Resources
+	getControlsParams := cloud_policies.NewGetComplianceControlsParamsWithContext(ctx).
+		WithIds(controlIDs)
+
+	getControlsResp, err := r.client.CloudPolicies.GetComplianceControls(getControlsParams)
+	if err != nil {
+		diags.AddError(
+			"Error Getting Controls",
+			fmt.Sprintf("Failed to get controls for framework %s: %s", frameworkName, falcon.ErrorExplain(err)),
+		)
+		return types.MapNull(types.ObjectType{}), diags
+	}
+
+	if getControlsResp == nil || getControlsResp.Payload == nil {
+		diags.AddError(
+			"Error Getting Controls",
+			"The API returned an empty response when getting controls.",
+		)
+		return types.MapNull(types.ObjectType{}), diags
+	}
+
+	// Organize controls by section
+	sectionMap := make(map[string]map[string]ControlModel)
+	for _, control := range getControlsResp.Payload.Resources {
+		sectionName := control.SectionName
+		controlName := *control.Name
+
+		// Initialize section if not exists
+		if _, exists := sectionMap[sectionName]; !exists {
+			sectionMap[sectionName] = make(map[string]ControlModel)
+		}
+
+		// Convert ruleIds to a terraform list
+		rulesByControlFilter := fmt.Sprintf(complianceRulesByControlFilter, frameworkName, *control.Name, control.Requirement)
+		queryRulesParams := cloud_policies.NewQueryRuleParamsWithContext(ctx).WithFilter(&rulesByControlFilter)
+
+		queryRulesResp, queryRuleErr := r.client.CloudPolicies.QueryRule(queryRulesParams)
+		if queryRuleErr != nil {
+			diags.AddError(
+				"Error Querying Rules",
+				fmt.Sprintf("Failed to query rules for control %s: %s", control.Name, falcon.ErrorExplain(queryRuleErr)),
+			)
+			return types.MapNull(types.ObjectType{}), diags
+		}
+
+		ruleValues := make([]attr.Value, 0)
+		if len(queryRulesResp.Payload.Resources) > 0 {
+			ruleValues = make([]attr.Value, len(queryRulesResp.Payload.Resources))
+			for i, ruleId := range queryRulesResp.Payload.Resources {
+				ruleValues[i] = types.StringValue(ruleId)
+			}
+		}
+		rulesList, listDiags := types.ListValue(types.StringType, ruleValues)
+		diags.Append(listDiags...)
+
+		if diags.HasError() {
+			continue
+		}
+
+		// Create control model
+		controlModel := ControlModel{
+			Description: types.StringValue(control.Description),
+			Rules:       rulesList,
+		}
+
+		sectionMap[sectionName][controlName] = controlModel
+	}
+
+	// Convert to terraform Map structure
+	sectionsAttrValue := make(map[string]attr.Value)
+
+	for sectionName, controls := range sectionMap {
+		// Convert controls to terraform Map
+		controlsAttrValue := make(map[string]attr.Value)
+		for controlName, control := range controls {
+			controlValue, controlDiags := types.ObjectValue(
+				map[string]attr.Type{
+					"description": types.StringType,
+					"rules":       types.ListType{ElemType: types.StringType},
+				},
+				map[string]attr.Value{
+					"description": control.Description,
+					"rules":       control.Rules,
+				},
+			)
+			diags.Append(controlDiags...)
+			if diags.HasError() {
+				continue
+			}
+			controlsAttrValue[controlName] = controlValue
+		}
+
+		controlsMap, controlsMapDiags := types.MapValue(
+			types.ObjectType{
+				AttrTypes: map[string]attr.Type{
+					"description": types.StringType,
+					"rules":       types.ListType{ElemType: types.StringType},
+				},
+			},
+			controlsAttrValue,
+		)
+		diags.Append(controlsMapDiags...)
+		if diags.HasError() {
+			continue
+		}
+
+		// Create section object
+		sectionValue, sectionDiags := types.ObjectValue(
+			map[string]attr.Type{
+				"controls": types.MapType{
+					ElemType: types.ObjectType{
+						AttrTypes: map[string]attr.Type{
+							"description": types.StringType,
+							"rules":       types.ListType{ElemType: types.StringType},
+						},
+					},
+				},
+			},
+			map[string]attr.Value{
+				"controls": controlsMap,
+			},
+		)
+		diags.Append(sectionDiags...)
+		if diags.HasError() {
+			continue
+		}
+
+		sectionsAttrValue[sectionName] = sectionValue
+	}
+
+	// Create final sections Map
+	sectionsMap, sectionsMapDiags := types.MapValue(
+		types.ObjectType{
+			AttrTypes: map[string]attr.Type{
+				"controls": types.MapType{
+					ElemType: types.ObjectType{
+						AttrTypes: map[string]attr.Type{
+							"description": types.StringType,
+							"rules":       types.ListType{ElemType: types.StringType},
+						},
+					},
+				},
+			},
+		},
+		sectionsAttrValue,
+	)
+	diags.Append(sectionsMapDiags...)
+
+	return sectionsMap, diags
+}
+
+// deleteControlsForFramework deletes all controls for a framework
+func (r *cloudComplianceCustomFrameworkResource) deleteControlsForFramework(
+	ctx context.Context,
+	frameworkName string,
+) diag.Diagnostics {
+	diags := diag.Diagnostics{}
+
+	// Query controls for this framework
+	frameworkNameFilter := fmt.Sprintf(complianceControlsByFrameworkFilter, frameworkName)
+	params := cloud_policies.NewQueryComplianceControlsParamsWithContext(ctx).
+		WithFilter(&frameworkNameFilter)
+
+	queryControlsResp, err := r.client.CloudPolicies.QueryComplianceControls(params)
+	if err != nil {
+		diags.AddError(
+			"Error Querying Controls for Deletion",
+			fmt.Sprintf("Failed to query controls for framework %s: %s", frameworkName, falcon.ErrorExplain(err)),
+		)
+		return diags
+	}
+
+	if queryControlsResp == nil || queryControlsResp.Payload == nil || len(queryControlsResp.Payload.Resources) == 0 {
+		// No controls found, nothing to delete
+		return diags
+	}
+
+	// Delete controls
+	controlIds := queryControlsResp.Payload.Resources
+	deleteParams := cloud_policies.NewDeleteComplianceControlParamsWithContext(ctx).WithIds(controlIds)
+	_, err = r.client.CloudPolicies.DeleteComplianceControl(deleteParams)
+	if err != nil {
+		// Continue deleting other controls even if one fails
+		diags.AddWarning(
+			"Error Deleting Controls",
+			fmt.Sprintf("Failed to delete controls %s: %s", controlIds, falcon.ErrorExplain(err)),
+		)
+	}
 
 	return diags
 }
