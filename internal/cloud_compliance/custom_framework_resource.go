@@ -67,7 +67,7 @@ type SectionModel struct {
 type ControlModel struct {
 	ID          types.String `tfsdk:"id"`
 	Description types.String `tfsdk:"description"`
-	Rules       types.List   `tfsdk:"rules"`
+	Rules       types.Set    `tfsdk:"rules"`
 }
 
 func (r *cloudComplianceCustomFrameworkResource) Configure(
@@ -151,13 +151,20 @@ func (r *cloudComplianceCustomFrameworkResource) Schema(
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"controls": schema.MapNestedAttribute{
-							Optional:            true,
+							Required:            true,
 							MarkdownDescription: "Map of controls within the section. Key is the control name.",
 							Validators: []validator.Map{
 								mapvalidator.KeysAre(stringvalidator.LengthAtLeast(1)),
 							},
 							NestedObject: schema.NestedAttributeObject{
 								Attributes: map[string]schema.Attribute{
+									"id": schema.StringAttribute{
+										Computed:            true,
+										MarkdownDescription: "The unique identifier for the framework control.",
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.UseStateForUnknown(),
+										},
+									},
 									"description": schema.StringAttribute{
 										Required:            true,
 										MarkdownDescription: "Description of the control.",
@@ -165,10 +172,10 @@ func (r *cloudComplianceCustomFrameworkResource) Schema(
 											stringvalidator.LengthAtLeast(1),
 										},
 									},
-									"rules": schema.ListAttribute{
+									"rules": schema.SetAttribute{
 										Optional:            true,
 										ElementType:         types.StringType,
-										MarkdownDescription: "List of rule IDs assigned to this control.",
+										MarkdownDescription: "Set of rule IDs assigned to this control.",
 									},
 								},
 							},
@@ -282,6 +289,16 @@ func (r *cloudComplianceCustomFrameworkResource) Create(
 		return
 	}
 
+	// Read controls and sections data if sections were created
+	if !plan.Sections.IsNull() && !plan.Sections.IsUnknown() {
+		sectionsMap, sectionsDiags := r.readControlsForFramework(ctx, *framework)
+		resp.Diagnostics.Append(sectionsDiags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		plan.Sections = sectionsMap
+	}
+
 	// Set state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -368,13 +385,16 @@ func (r *cloudComplianceCustomFrameworkResource) Read(
 		return
 	}
 
-	// Read controls and sections data
-	sectionsMap, sectionsDiags := r.readControlsForFramework(ctx, *framework)
-	resp.Diagnostics.Append(sectionsDiags...)
-	if resp.Diagnostics.HasError() {
-		return
+	// Read controls and sections data only if sections are configured
+	// This prevents inconsistent state when sections are not configured
+	if !state.Sections.IsNull() && !state.Sections.IsUnknown() {
+		sectionsMap, sectionsDiags := r.readControlsForFramework(ctx, *framework)
+		resp.Diagnostics.Append(sectionsDiags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		state.Sections = sectionsMap
 	}
-	state.Sections = sectionsMap
 
 	// Set state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -509,13 +529,15 @@ func (r *cloudComplianceCustomFrameworkResource) Update(
 		return
 	}
 
-	// Read back the controls to ensure state consistency
-	sectionsMap, sectionsDiags := r.readControlsForFramework(ctx, *framework)
-	resp.Diagnostics.Append(sectionsDiags...)
-	if resp.Diagnostics.HasError() {
-		return
+	// Read back the controls to ensure state consistency only if sections are configured
+	if !plan.Sections.IsNull() && !plan.Sections.IsUnknown() {
+		sectionsMap, sectionsDiags := r.readControlsForFramework(ctx, *framework)
+		resp.Diagnostics.Append(sectionsDiags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		plan.Sections = sectionsMap
 	}
-	plan.Sections = sectionsMap
 
 	// Set state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -610,6 +632,9 @@ func (d *cloudComplianceCustomFrameworkResourceModel) wrap(
 	d.Description = types.StringValue(framework.Description)
 	d.Active = types.BoolValue(framework.Active)
 
+	// Don't modify Sections here - it will be handled by readControlsForFramework
+	// in the Read method or set explicitly in Create/Update methods
+
 	return diags
 }
 
@@ -658,11 +683,20 @@ func (r *cloudComplianceCustomFrameworkResource) createControlsForFramework(
 			}
 
 			// Get created control ID
-			controlID := createResp.Payload.Resources[0].UUID
-			if controlID == nil {
+			createdControl := createResp.Payload.Resources[0]
+			if createdControl == nil {
 				diags.AddError(
 					"Error Creating Control",
-					fmt.Sprintf("No control ID returned for %s in section %s", controlName, sectionName),
+					fmt.Sprintf("No control resource returned for %s in section %s", controlName, sectionName),
+				)
+				continue
+			}
+
+			controlID := createdControl.UUID
+			if controlID == nil || *controlID == "" {
+				diags.AddError(
+					"Error Creating Control",
+					fmt.Sprintf("Empty control ID returned for %s in section %s", controlName, sectionName),
 				)
 				continue
 			}
@@ -674,6 +708,12 @@ func (r *cloudComplianceCustomFrameworkResource) createControlsForFramework(
 				if diags.HasError() {
 					continue
 				}
+
+				tflog.Info(ctx, "Assigning rules to control", map[string]any{
+					"controlID":   *controlID,
+					"controlName": controlName,
+					"ruleIds":     ruleIds,
+				})
 
 				assignReq := &models.CommonAssignRulesToControlRequest{
 					RuleIds: ruleIds,
@@ -726,8 +766,9 @@ func (r *cloudComplianceCustomFrameworkResource) readControlsForFramework(
 					"controls": types.MapType{
 						ElemType: types.ObjectType{
 							AttrTypes: map[string]attr.Type{
+								"id":          types.StringType,
 								"description": types.StringType,
-								"rules":       types.ListType{ElemType: types.StringType},
+								"rules":       types.SetType{ElemType: types.StringType},
 							},
 						},
 					},
@@ -773,14 +814,14 @@ func (r *cloudComplianceCustomFrameworkResource) readControlsForFramework(
 		}
 
 		// Convert ruleIds to a terraform list
-		rulesByControlFilter := fmt.Sprintf(complianceRulesByControlFilter, frameworkName, *control.Name, control.Requirement)
+		rulesByControlFilter := fmt.Sprintf(complianceRulesByControlFilter, frameworkName, control.SectionName, control.Requirement)
 		queryRulesParams := cloud_policies.NewQueryRuleParamsWithContext(ctx).WithFilter(&rulesByControlFilter)
 
 		queryRulesResp, queryRuleErr := r.client.CloudPolicies.QueryRule(queryRulesParams)
 		if queryRuleErr != nil {
 			diags.AddError(
 				"Error Querying Rules",
-				fmt.Sprintf("Failed to query rules for control %s: %s", control.Name, falcon.ErrorExplain(queryRuleErr)),
+				fmt.Sprintf("Failed to query rules for control %s: %s", *control.Name, falcon.ErrorExplain(queryRuleErr)),
 			)
 			return types.MapNull(types.ObjectType{}), diags
 		}
@@ -792,8 +833,8 @@ func (r *cloudComplianceCustomFrameworkResource) readControlsForFramework(
 				ruleValues[i] = types.StringValue(ruleId)
 			}
 		}
-		rulesList, listDiags := types.ListValue(types.StringType, ruleValues)
-		diags.Append(listDiags...)
+		rulesSet, setDiags := types.SetValue(types.StringType, ruleValues)
+		diags.Append(setDiags...)
 
 		if diags.HasError() {
 			continue
@@ -801,8 +842,9 @@ func (r *cloudComplianceCustomFrameworkResource) readControlsForFramework(
 
 		// Create control model
 		controlModel := ControlModel{
+			ID:          types.StringValue(*control.UUID),
 			Description: types.StringValue(control.Description),
-			Rules:       rulesList,
+			Rules:       rulesSet,
 		}
 
 		sectionMap[sectionName][controlName] = controlModel
@@ -817,10 +859,12 @@ func (r *cloudComplianceCustomFrameworkResource) readControlsForFramework(
 		for controlName, control := range controls {
 			controlValue, controlDiags := types.ObjectValue(
 				map[string]attr.Type{
+					"id":          types.StringType,
 					"description": types.StringType,
-					"rules":       types.ListType{ElemType: types.StringType},
+					"rules":       types.SetType{ElemType: types.StringType},
 				},
 				map[string]attr.Value{
+					"id":          control.ID,
 					"description": control.Description,
 					"rules":       control.Rules,
 				},
@@ -835,8 +879,9 @@ func (r *cloudComplianceCustomFrameworkResource) readControlsForFramework(
 		controlsMap, controlsMapDiags := types.MapValue(
 			types.ObjectType{
 				AttrTypes: map[string]attr.Type{
+					"id":          types.StringType,
 					"description": types.StringType,
-					"rules":       types.ListType{ElemType: types.StringType},
+					"rules":       types.SetType{ElemType: types.StringType},
 				},
 			},
 			controlsAttrValue,
@@ -852,8 +897,9 @@ func (r *cloudComplianceCustomFrameworkResource) readControlsForFramework(
 				"controls": types.MapType{
 					ElemType: types.ObjectType{
 						AttrTypes: map[string]attr.Type{
+							"id":          types.StringType,
 							"description": types.StringType,
-							"rules":       types.ListType{ElemType: types.StringType},
+							"rules":       types.SetType{ElemType: types.StringType},
 						},
 					},
 				},
@@ -877,8 +923,9 @@ func (r *cloudComplianceCustomFrameworkResource) readControlsForFramework(
 				"controls": types.MapType{
 					ElemType: types.ObjectType{
 						AttrTypes: map[string]attr.Type{
+							"id":          types.StringType,
 							"description": types.StringType,
-							"rules":       types.ListType{ElemType: types.StringType},
+							"rules":       types.SetType{ElemType: types.StringType},
 						},
 					},
 				},
