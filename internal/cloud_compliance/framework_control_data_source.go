@@ -10,10 +10,13 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -51,8 +54,8 @@ type cloudComplianceFrameworkControlModel struct {
 }
 
 type fqlFilters struct {
-	value string
-	field string
+	property string
+	value    string
 }
 
 func (m cloudComplianceFrameworkControlModel) AttributeTypes() map[string]attr.Type {
@@ -110,10 +113,11 @@ func (r *cloudComplianceFrameworkControlDataSource) Schema(
 		MarkdownDescription: utils.MarkdownDescription(
 			"Cloud Compliance",
 			"This data source retrieves all or a subset of controls within compliance benchmarks. "+
-				"All non-FQL fields can accept wildcards `*` and query Falcon using logical AND. If FQL is defined, all other fields will be ignored. "+
+				"All non-FQL fields can accept wildcards `*` and query Falcon using logical AND. "+
 				"For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter. "+
 				"For additional information on FQL filtering and usage, refer to the official CrowdStrike documentation: "+
-				"[Falcon Query Language (FQL)](https://falcon.crowdstrike.com/documentation/page/d3c84a1b/falcon-query-language-fql)",
+				"[Falcon Query Language (FQL)](https://falcon.crowdstrike.com/documentation/page/d3c84a1b/falcon-query-language-fql) "+
+				"Note that broader searches may result in longer response times due to the larger volume of controls being retrieved and set in the state.",
 			cloudComplianceFrameworkScopes,
 		),
 		Attributes: map[string]schema.Attribute{
@@ -122,6 +126,9 @@ func (r *cloudComplianceFrameworkControlDataSource) Schema(
 				MarkdownDescription: "Name of the control. Examples: " +
 					"`Ensure security contact phone is set`, " +
 					"`Ensure that Azure Defender*`",
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
+				},
 			},
 			"benchmark": schema.StringAttribute{
 				Optional: true,
@@ -129,22 +136,31 @@ func (r *cloudComplianceFrameworkControlDataSource) Schema(
 					"`AWS Foundational Security Best Practices v1.*`, " +
 					"`CIS 1.2.0 GCP`, " +
 					"`CIS 1.8.0 GKE`",
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
+				},
 			},
 			"requirement": schema.StringAttribute{
 				Optional: true,
 				MarkdownDescription: "Requirement of the control(s) within the framework. Examples: " +
 					"`2.*`, " +
 					"`1.1`",
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
+				},
 			},
 			"section": schema.StringAttribute{
 				Optional: true,
 				MarkdownDescription: "Section of the benchmark where the control(s) reside. Examples: " +
 					"`Data Protection`, " +
 					"`Data*`",
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
+				},
 			},
 			"fql": schema.StringAttribute{
 				Optional: true,
-				Description: "Falcon Query Language (FQL) filter for advanced control searches. " +
+				MarkdownDescription: "Falcon Query Language (FQL) filter for advanced control searches. " +
 					"FQL filter, allowed props: " +
 					"`compliance_control_name`, " +
 					"`compliance_control_authority`, " +
@@ -209,10 +225,22 @@ func (r *cloudComplianceFrameworkControlDataSource) Read(
 	}
 
 	fqlFilters := []fqlFilters{
-		{data.Benchmark.ValueString(), "compliance_control_benchmark_name"},
-		{data.Name.ValueString(), "compliance_control_name"},
-		{data.Requirement.ValueString(), "compliance_control_requirement"},
-		{data.Section.ValueString(), "compliance_control_section"},
+		{
+			property: "compliance_control_benchmark_name",
+			value:    data.Benchmark.ValueString(),
+		},
+		{
+			property: "compliance_control_name",
+			value:    data.Name.ValueString(),
+		},
+		{
+			property: "compliance_control_requirement",
+			value:    data.Requirement.ValueString(),
+		},
+		{
+			property: "compliance_control_section",
+			value:    data.Section.ValueString(),
+		},
 	}
 
 	controls, diags = r.getControls(
@@ -265,7 +293,7 @@ func (r *cloudComplianceFrameworkControlDataSource) getControls(
 		for _, f := range fqlFilters {
 			if f.value != "" {
 				value := strings.ReplaceAll(f.value, "\\", "\\\\\\\\")
-				filters = append(filters, fmt.Sprintf("%s:*'%s'", f.field, value))
+				filters = append(filters, fmt.Sprintf("%s:*'%s'", f.property, value))
 			}
 		}
 
@@ -318,10 +346,6 @@ func (r *cloudComplianceFrameworkControlDataSource) getControls(
 				"Error Retrieving Control IDs",
 				fmt.Sprintf("Failed to retrieve control IDs: %s", err.Error()),
 			)
-			return controls, diags
-		}
-
-		if len(payload.Resources) < 1 {
 			return controls, diags
 		}
 

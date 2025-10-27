@@ -16,12 +16,6 @@ const (
 )
 
 var (
-	severityToInt32 = map[string]int32{
-		SeverityCritical:      0,
-		SeverityHigh:          1,
-		SeverityMedium:        2,
-		SeverityInformational: 3,
-	}
 	severityToInt64 = map[string]int64{
 		SeverityCritical:      0,
 		SeverityHigh:          1,
@@ -42,20 +36,14 @@ var (
 	}
 )
 
-type fqlFilters struct {
-	value string
-	field string
-}
-
-func convertAlertRemediationInfoToTerraformState(input string) basetypes.ListValue {
-	if input == "" {
+func convertAlertRemediationInfoToTerraformState(input *string) basetypes.ListValue {
+	if input == nil {
 		return basetypes.NewListValueMust(basetypes.StringType{}, []attr.Value{})
 	}
+	*input = strings.TrimSpace(*input)
+	*input = strings.TrimSuffix(*input, "|")
 
-	input = strings.TrimSpace(input)
-	input = strings.TrimSuffix(input, "|")
-
-	parts := strings.Split(input, "|")
+	parts := strings.Split(*input, "|")
 	values := make([]attr.Value, 0, len(parts))
 
 	for index, part := range parts {

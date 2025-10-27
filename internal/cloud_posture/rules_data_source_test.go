@@ -10,45 +10,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-type dataRuleConfig struct {
-	cloudProvider string
-	ruleName      string
-	resourceType  string
-	benchmark     string
-	framework     string
-	service       string
-}
-
-var awsConfig = dataRuleConfig{
-	cloudProvider: "AWS",
-	ruleName:      "NLB/ALB configured publicly with TLS/SSL disabled",
-	resourceType:  "AWS::ElasticLoadBalancingV2::LoadBalancer",
-	benchmark:     "CIS*",
-	framework:     "CIS",
-	service:       "ELB",
-}
-
-var azureConfig = dataRuleConfig{
-	cloudProvider: "Azure",
-	ruleName:      "Virtual Machine allows public internet access to Docker (port 2375/2376)",
-	resourceType:  "Microsoft.Compute/virtualMachines",
-	benchmark:     "CIS*",
-	framework:     "CIS",
-	service:       "Virtual Machines",
-}
-
-var gcpConfig = dataRuleConfig{
-	cloudProvider: "GCP",
-	ruleName:      "GKE Cluster insecure kubelet read only port is enabled",
-	resourceType:  "container.googleapis.com/Cluster",
-	benchmark:     "CIS*",
-	framework:     "CIS",
-	service:       "Google Kubernetes Engine",
-}
-
 func TestCloudPostureRulesDataSource(t *testing.T) {
 	var steps []resource.TestStep
 
+	steps = append(steps, testDatasourceConfigConflicts()...)
 	steps = append(steps, testCloudRules(awsConfig)...)
 	steps = append(steps, testCloudRules(azureConfig)...)
 	steps = append(steps, testCloudRules(gcpConfig)...)
@@ -66,7 +31,7 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 		{
 			Config: fmt.Sprintf(`
 data "crowdstrike_cloud_posture_rules" "%[1]s" {
-  // cloud_provider = "%[1]s"
+  cloud_provider = "%[1]s"
   resource_type  = "%[2]s"
 }
 `, config.cloudProvider, config.resourceType),
@@ -197,4 +162,63 @@ data "crowdstrike_cloud_posture_rules" "%s" {
 	}
 
 	return steps
+}
+
+func testDatasourceConfigConflicts() []resource.TestStep {
+	return []resource.TestStep{
+		{
+			Config: `
+data "crowdstrike_cloud_posture_rules" "test" {
+	fql = "test"
+	cloud_provider = "test"
+}
+			`,
+			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		{
+			Config: `
+data "crowdstrike_cloud_posture_rules" "test" {
+	fql       = "test"
+	rule_name = "test"
+}
+			`,
+			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		{
+			Config: `
+data "crowdstrike_cloud_posture_rules" "test" {
+	fql         = "test"
+	resource_type = "test"
+}
+			`,
+			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		{
+			Config: `
+data "crowdstrike_cloud_posture_rules" "test" {
+	fql     = "test"
+	benchmark = "test"
+}
+			`,
+			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		{
+			Config: `
+data "crowdstrike_cloud_posture_rules" "test" {
+	fql     = "test"
+	framework = "test"
+}
+			`,
+			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		{
+			Config: `
+data "crowdstrike_cloud_posture_rules" "test" {
+	fql     = "test"
+	service = "test"
+}
+			`,
+			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+	}
 }

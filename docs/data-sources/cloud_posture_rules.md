@@ -100,7 +100,7 @@ Read-Only:
 <a id="nestedatt--rules--controls"></a>
 ### Nested Schema for `rules.controls`
 
-Required:
+Read-Only:
 
 - `authority` (String) The compliance framework
 - `code` (String) The compliance framework rule code

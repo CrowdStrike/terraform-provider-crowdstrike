@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -61,6 +62,11 @@ type cloudPostureRulesDataSourceRuleModel struct {
 	Severity        types.String `tfsdk:"severity"`
 	Subdomain       types.String `tfsdk:"subdomain"`
 	AttackTypes     types.Set    `tfsdk:"attack_types"`
+}
+
+type fqlFilters struct {
+	property string
+	value    string
 }
 
 func (m cloudPostureRulesDataSourceRuleModel) AttributeTypes() map[string]attr.Type {
@@ -150,26 +156,44 @@ func (r *cloudPostureRulesDataSource) Schema(
 			"cloud_provider": schema.StringAttribute{
 				Optional:    true,
 				Description: "Cloud provider for where the rule resides.",
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
+				},
 			},
 			"rule_name": schema.StringAttribute{
 				Optional:    true,
 				Description: "Name of the rule to search for. If no name is defined all rules in a cloud provider will be returned.",
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
+				},
 			},
 			"resource_type": schema.StringAttribute{
 				Optional:    true,
 				Description: "Name of the resource type to search for. Examples: `AWS::IAM::CredentialReport`, `Microsoft.Compute/virtualMachines`, `container.googleapis.com/Cluster`.",
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
+				},
 			},
 			"benchmark": schema.StringAttribute{
 				Optional:            true,
 				MarkdownDescription: "Name of the benchmark that this rule is attached to. Note that rules can be associated with multiple benchmarks. Example: `CIS 1.0.0 AWS*`",
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
+				},
 			},
 			"framework": schema.StringAttribute{
 				Optional:    true,
 				Description: "Name of the framework that this rule is attached to. Note that rules can be associated with multiple benchmarks. Examples: CIS, NIST ",
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
+				},
 			},
 			"service": schema.StringAttribute{
 				Optional:    true,
 				Description: "Name of the service within the cloud provider that rule is for. Examples: IAM, S3, Microsoft.Compute",
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
+				},
 			},
 			"fql": schema.StringAttribute{
 				Optional: true,
@@ -224,11 +248,11 @@ func (r *cloudPostureRulesDataSource) Schema(
 							NestedObject: schema.NestedAttributeObject{
 								Attributes: map[string]schema.Attribute{
 									"authority": schema.StringAttribute{
-										Required:    true,
+										Computed:    true,
 										Description: "The compliance framework",
 									},
 									"code": schema.StringAttribute{
-										Required:    true,
+										Computed:    true,
 										Description: "The compliance framework rule code",
 									},
 								},
@@ -321,12 +345,24 @@ func (r *cloudPostureRulesDataSource) Read(
 	}
 
 	fqlFilters := []fqlFilters{
-		{data.CloudProvider.ValueString(), "rule_provider"},
-		{data.RuleName.ValueString(), "rule_name"},
-		{data.ResourceType.ValueString(), "rule_resource_type"},
-		{data.Benchmark.ValueString(), "rule_compliance_benchmark"},
-		{data.Service.ValueString(), "rule_service"},
-		{data.Framework.ValueString(), "rule_compliance_framework"},
+		{
+			property: "rule_provider",
+			value:    data.CloudProvider.ValueString()},
+		{
+			property: "rule_name",
+			value:    data.RuleName.ValueString()},
+		{
+			property: "rule_resource_type",
+			value:    data.ResourceType.ValueString()},
+		{
+			property: "rule_compliance_benchmark",
+			value:    data.Benchmark.ValueString()},
+		{
+			property: "rule_service",
+			value:    data.Service.ValueString()},
+		{
+			property: "rule_compliance_framework",
+			value:    data.Framework.ValueString()},
 	}
 
 	data.Rules, diags = r.getRules(
@@ -362,6 +398,7 @@ func (r *cloudPostureRulesDataSource) getRules(
 	queryParams := cloud_policies.QueryRuleParams{
 		Context: ctx,
 		Limit:   &limit,
+		Offset:  &offset,
 	}
 
 	if fql == "" {
@@ -369,7 +406,7 @@ func (r *cloudPostureRulesDataSource) getRules(
 		for _, f := range fqlFilters {
 			if f.value != "" {
 				value := strings.ReplaceAll(f.value, "\\", "\\\\\\\\")
-				filters = append(filters, fmt.Sprintf("%s:*'%s'", f.field, value))
+				filters = append(filters, fmt.Sprintf("%s:*'%s'", f.property, value))
 			}
 		}
 
@@ -475,7 +512,6 @@ func (r *cloudPostureRulesDataSource) getRules(
 				ParentRuleID:   types.StringValue(resource.ParentRuleShortUUID),
 				CloudPlatform:  types.StringValue(resource.Platform),
 				CloudProvider:  types.StringPointerValue(resource.Provider),
-				Severity:       types.StringValue(int64ToSeverity[*resource.Severity]),
 				Subdomain:      types.StringPointerValue(resource.Subdomain),
 			}
 
@@ -502,16 +538,20 @@ func (r *cloudPostureRulesDataSource) getRules(
 				return defaultResponse, diags
 			}
 
-			if resource.RuleLogicList != nil {
-				rule.RemediationInfo = convertAlertRemediationInfoToTerraformState(resource.RuleLogicList[0].RemediationInfo)
+			if len(resource.RuleLogicList) > 0 {
+				rule.RemediationInfo = convertAlertRemediationInfoToTerraformState(&resource.RuleLogicList[0].RemediationInfo)
 			}
 
 			if resource.AlertInfo != nil {
-				rule.AlertInfo = convertAlertRemediationInfoToTerraformState(*resource.AlertInfo)
+				rule.AlertInfo = convertAlertRemediationInfoToTerraformState(resource.AlertInfo)
 			}
 
-			if resource.ResourceTypes != nil {
+			if len(resource.ResourceTypes) > 0 {
 				rule.ResourceType = types.StringPointerValue(resource.ResourceTypes[0].ResourceType)
+			}
+
+			if resource.Severity != nil {
+				rule.Severity = types.StringValue(int64ToSeverity[*resource.Severity])
 			}
 
 			rules = append(rules, rule)
@@ -528,6 +568,7 @@ func (r *cloudPostureRulesDataSource) getRules(
 		offset += limit
 	}
 
+	tflog.Info(ctx, "Assinging rules to Set")
 	rulesSet, diags := types.SetValueFrom(
 		ctx,
 		types.ObjectType{AttrTypes: cloudPostureRulesDataSourceRuleModel{}.AttributeTypes()},
@@ -536,5 +577,6 @@ func (r *cloudPostureRulesDataSource) getRules(
 	if diags.HasError() {
 		return defaultResponse, diags
 	}
+
 	return rulesSet, diags
 }
