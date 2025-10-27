@@ -29,10 +29,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                     = &cloudSecurityGroupResource{}
-	_ resource.ResourceWithConfigure        = &cloudSecurityGroupResource{}
-	_ resource.ResourceWithImportState      = &cloudSecurityGroupResource{}
-	_ resource.ResourceWithValidateConfig   = &cloudSecurityGroupResource{}
+	_ resource.Resource                = &cloudSecurityGroupResource{}
+	_ resource.ResourceWithConfigure   = &cloudSecurityGroupResource{}
+	_ resource.ResourceWithImportState = &cloudSecurityGroupResource{}
 )
 
 // cloudSecurityGroupScopes defines the required API scopes for Cloud Security Groups.
@@ -344,46 +343,6 @@ func (r *cloudSecurityGroupResource) Configure(
 	}
 
 	r.client = client
-}
-
-// ValidateConfig validates the resource configuration.
-func (r *cloudSecurityGroupResource) ValidateConfig(
-	ctx context.Context,
-	req resource.ValidateConfigRequest,
-	resp *resource.ValidateConfigResponse,
-) {
-	var config cloudSecurityGroupResourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Validate that GCP configuration does not use tags filter
-	if !config.GCP.IsNull() && !config.GCP.IsUnknown() {
-		var gcpConfig cloudProviderConfigModel
-		resp.Diagnostics.Append(config.GCP.As(ctx, &gcpConfig, basetypes.ObjectAsOptions{})...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		if !gcpConfig.Filters.IsNull() && !gcpConfig.Filters.IsUnknown() {
-			// Extract filters attributes to check for tags
-			filterValues := gcpConfig.Filters.Attributes()
-
-			// Check if tags field exists and has values
-			if tagsValue, ok := filterValues["tags"]; ok && !tagsValue.IsNull() {
-				var tags []string
-				resp.Diagnostics.Append(tagsValue.(types.List).ElementsAs(ctx, &tags, false)...)
-				if len(tags) > 0 {
-					resp.Diagnostics.AddAttributeError(
-						path.Root("gcp").AtName("filters").AtName("tags"),
-						"Invalid Configuration",
-						"GCP cloud resources do not support tag filtering. Remove the tags filter from the GCP configuration.",
-					)
-				}
-			}
-		}
-	}
 }
 
 // Create creates the resource and sets the initial Terraform state.
@@ -772,7 +731,15 @@ func (r *cloudSecurityGroupResource) convertSelectorsToAPI(
 			// Extract region if present
 			if regionValue, ok := filterValues["region"]; ok && !regionValue.IsNull() {
 				var regions []string
-				diags.Append(regionValue.(types.List).ElementsAs(ctx, &regions, false)...)
+				regionList, ok := regionValue.(types.List)
+				if !ok {
+					diags.AddError(
+						"Invalid Type",
+						"Expected region to be a list type.",
+					)
+					return nil, diags
+				}
+				diags.Append(regionList.ElementsAs(ctx, &regions, false)...)
 				apiFilters.Region = regions
 			}
 
@@ -780,7 +747,15 @@ func (r *cloudSecurityGroupResource) convertSelectorsToAPI(
 			if includeTags {
 				if tagsValue, ok := filterValues["tags"]; ok && !tagsValue.IsNull() {
 					var tags []string
-					diags.Append(tagsValue.(types.List).ElementsAs(ctx, &tags, false)...)
+					tagsList, ok := tagsValue.(types.List)
+					if !ok {
+						diags.AddError(
+							"Invalid Type",
+							"Expected tags to be a list type.",
+						)
+						return nil, diags
+					}
+					diags.Append(tagsList.ElementsAs(ctx, &tags, false)...)
 					apiFilters.Tags = tags
 				}
 			}

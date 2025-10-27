@@ -21,14 +21,14 @@ type groupConfig struct {
 	Owners         []string
 
 	// Cloud provider configs
-	AWSAccountIDs    []string
-	AWSRegions       []string
-	AWSTags          []string
-	AzureAccountIDs  []string
-	AzureRegions     []string
-	AzureTags        []string
-	GCPAccountIDs    []string
-	GCPRegions       []string
+	AWSAccountIDs   []string
+	AWSRegions      []string
+	AWSTags         []string
+	AzureAccountIDs []string
+	AzureRegions    []string
+	AzureTags       []string
+	GCPAccountIDs   []string
+	GCPRegions      []string
 
 	// Image selectors
 	Images []imageSelector
