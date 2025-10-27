@@ -1,8 +1,8 @@
 ---
 page_title: "crowdstrike_cloud_security_group Resource - crowdstrike"
-subcategory: "Cloud Security"
+subcategory: "CrowdStrike Cloud Security Group"
 description: |-
-  This resource allows you to manage cloud security groups in the CrowdStrike Falcon Platform.
+  This resource manages CrowdStrike Cloud Security Groups for organizing cloud resources and container images.
   API Scopes
   The following API scopes are required:
   Cloud security | Read & Write
@@ -10,13 +10,14 @@ description: |-
 
 # crowdstrike_cloud_security_group (Resource)
 
-This resource allows you to manage cloud security groups in the CrowdStrike Falcon Platform. Cloud security groups are organizational units that help group cloud resources and container images based on selectors for policy management and monitoring.
+This resource manages CrowdStrike Cloud Security Groups for organizing cloud resources and container images.
 
 ## API Scopes
 
 The following API scopes are required:
 
 - Cloud security | Read & Write
+
 
 ## Example Usage
 
@@ -36,85 +37,152 @@ provider "crowdstrike" {
 # Basic cloud security group with business context
 resource "crowdstrike_cloud_security_group" "basic" {
   name            = "production-web-services"
-  description     = "Production web services security group"
   business_impact = "high"
   business_unit   = "Engineering"
   environment     = "prod"
   owners          = ["team-lead@company.com", "security@company.com"]
 }
 
-# Cloud security group with cloud resource selectors
+# Cloud security group with AWS cloud resources
 resource "crowdstrike_cloud_security_group" "aws_resources" {
-  name        = "aws-production-resources"
-  description = "AWS production resources"
-  
-  selectors {
-    cloud_resources {
-      cloud_provider = "aws"
-      account_ids    = ["123456789012", "123456789013"]
-      filters {
-        region = ["us-east-1", "us-west-2"]
-        tags   = ["Environment=Production", "Team=WebServices"]
-      }
+  name            = "aws-production-resources"
+  description     = "AWS production resources across multiple accounts"
+  business_impact = "high"
+  business_unit   = "Platform"
+  environment     = "prod"
+  owners          = ["cloud-team@company.com"]
+
+  aws = {
+    account_ids = ["123456789012", "123456789013"]
+    filters = {
+      region = ["us-east-1", "us-west-2"]
+      tags   = ["Environment=Production", "Team=WebServices"]
     }
   }
 }
 
-# Cloud security group with container image selectors
+# Cloud security group with Azure cloud resources
+resource "crowdstrike_cloud_security_group" "azure_resources" {
+  name        = "azure-staging-resources"
+  description = "Azure staging environment resources"
+  environment = "stage"
+
+  azure = {
+    account_ids = ["12345678-1234-1234-1234-123456789012"]
+    filters = {
+      region = ["eastus", "westus2"]
+      tags   = ["Team=Platform", "Environment=Staging"]
+    }
+  }
+}
+
+# Cloud security group with GCP cloud resources
+resource "crowdstrike_cloud_security_group" "gcp_resources" {
+  name        = "gcp-dev-resources"
+  description = "GCP development resources"
+  environment = "dev"
+
+  gcp = {
+    account_ids = ["my-gcp-project-123"]
+    filters = {
+      region = ["us-central1", "us-east1"]
+      # Note: GCP does not support tag filtering
+    }
+  }
+}
+
+# Cloud security group with container images
 resource "crowdstrike_cloud_security_group" "container_images" {
-  name        = "production-containers"
-  description = "Production container images"
-  
-  selectors {
-    images {
+  name            = "production-containers"
+  description     = "Production container images"
+  business_impact = "high"
+  environment     = "prod"
+  owners          = ["devops@company.com"]
+
+  images = [
+    {
       registry   = "docker.io"
       repository = "mycompany/webapp"
       tag        = "latest"
-    }
-    
-    images {
+    },
+    {
       registry   = "gcr.io"
       repository = "myproject/api"
-    }
-  }
-}
-
-# Complete cloud security group with mixed selectors
-resource "crowdstrike_cloud_security_group" "complete" {
-  name            = "complete-security-group"
-  description     = "Complete example with all selector types"
-  business_impact = "moderate"
-  business_unit   = "DevOps"
-  environment     = "stage"
-  owners          = ["devops@company.com"]
-  
-  selectors {
-    # Azure cloud resources
-    cloud_resources {
-      cloud_provider = "azure"
-      account_ids    = ["12345678-1234-1234-1234-123456789012"]
-      filters {
-        region = ["eastus", "westus2"]
-        tags   = ["Team=Platform", "Environment=Staging"]
-      }
-    }
-    
-    # GCP cloud resources  
-    cloud_resources {
-      cloud_provider = "gcp"
-      account_ids    = ["my-gcp-project-123"]
-      filters {
-        region = ["us-central1"]
-      }
-    }
-    
-    # Container images
-    images {
+      tag        = "v2.1.0"
+    },
+    {
       registry   = "quay.io"
       repository = "prometheus/prometheus"
-      tag        = "v2.40.0"
+      # tag is optional - matches all tags if not specified
+    }
+  ]
+}
+
+# Complete cloud security group with multiple cloud providers and images
+resource "crowdstrike_cloud_security_group" "complete" {
+  name            = "complete-security-group"
+  description     = "Complete example with multiple cloud providers and container images"
+  business_impact = "moderate"
+  business_unit   = "DevOps"
+  environment     = "prod"
+  owners          = ["devops@company.com", "security@company.com"]
+
+  # AWS production resources
+  aws = {
+    account_ids = ["123456789012"]
+    filters = {
+      region = ["us-east-1", "us-west-2"]
+      tags   = ["Environment=Production", "ManagedBy=Terraform"]
     }
   }
+
+  # Azure production resources
+  azure = {
+    account_ids = ["12345678-1234-1234-1234-123456789012"]
+    filters = {
+      region = ["eastus"]
+      tags   = ["Environment=Production"]
+    }
+  }
+
+  # GCP production resources
+  gcp = {
+    account_ids = ["my-gcp-project-456"]
+    filters = {
+      region = ["us-central1"]
+    }
+  }
+
+  # Production container images
+  images = [
+    {
+      registry   = "docker.io"
+      repository = "mycompany/backend"
+      tag        = "stable"
+    },
+    {
+      registry   = "gcr.io"
+      repository = "myproject/frontend"
+      tag        = "v1.5.0"
+    }
+  ]
+}
+
+# Minimal cloud security group with only required fields
+resource "crowdstrike_cloud_security_group" "minimal" {
+  name = "minimal-security-group"
+}
+
+output "basic_security_group" {
+  value = crowdstrike_cloud_security_group.basic
+}
+
+output "complete_security_group" {
+  value = crowdstrike_cloud_security_group.complete
+}
+
+output "aws_security_group_id" {
+  value = crowdstrike_cloud_security_group.aws_resources.id
 }
 ```
 
@@ -127,59 +195,96 @@ resource "crowdstrike_cloud_security_group" "complete" {
 
 ### Optional
 
-- `business_impact` (String) The business impact level. Valid values: `low`, `moderate`, `high`, `critical`.
-- `business_unit` (String) The business unit that owns this group.
-- `description` (String) A description for the cloud security group.
-- `environment` (String) The environment type. Valid values: `dev`, `test`, `stage`, `prod`.
-- `owners` (Set of String) A set of email addresses of the group owners.
-- `selectors` (Block Set) Selectors that define which resources belong to this group. (see [below for nested schema](#nestedblock--selectors))
+- `aws` (Attributes) AWS cloud resource configuration (see [below for nested schema](#nestedatt--aws))
+- `azure` (Attributes) Azure cloud resource configuration (see [below for nested schema](#nestedatt--azure))
+- `business_impact` (String) Business impact level for the group.
+- `business_unit` (String) Business unit for the group.
+- `description` (String) The description of the cloud security group.
+- `environment` (String) Environment for the group.
+- `gcp` (Attributes) GCP cloud resource configuration (see [below for nested schema](#nestedatt--gcp))
+- `images` (Attributes List) Container image selectors for grouping container images (see [below for nested schema](#nestedatt--images))
+- `owners` (List of String) List of owner email addresses for the group.
 
 ### Read-Only
 
-- `created_at` (String) The RFC3339 timestamp of when the group was created.
-- `created_by` (String) The user who created the group.
-- `id` (String) The unique identifier for the cloud security group.
-- `updated_at` (String) The RFC3339 timestamp of when the group was last updated.
+- `created_at` (String) The timestamp when the group was created.
+- `created_by` (String) The API client ID that created the group.
+- `id` (String) The ID of the cloud security group.
+- `updated_at` (String) The timestamp when the group was last updated.
 
-<a id="nestedblock--selectors"></a>
-### Nested Schema for `selectors`
-
-Optional:
-
-- `cloud_resources` (Block Set) Cloud resource selectors for grouping cloud accounts and resources. (see [below for nested schema](#nestedblock--selectors--cloud_resources))
-- `images` (Block Set) Container image selectors for grouping container images. (see [below for nested schema](#nestedblock--selectors--images))
-
-<a id="nestedblock--selectors--cloud_resources"></a>
-### Nested Schema for `selectors.cloud_resources`
+<a id="nestedatt--aws"></a>
+### Nested Schema for `aws`
 
 Required:
 
-- `account_ids` (Set of String) A set of cloud account IDs to include in the selector.
-- `cloud_provider` (String) The cloud provider. Valid values: `aws`, `azure`, `gcp`.
+- `account_ids` (List of String) List of AWS account IDs
 
 Optional:
 
-- `filters` (Block Set) Additional filters to apply to the cloud resources. (see [below for nested schema](#nestedblock--selectors--cloud_resources--filters))
+- `filters` (Attributes) Filters for AWS cloud resources (see [below for nested schema](#nestedatt--aws--filters))
 
-<a id="nestedblock--selectors--cloud_resources--filters"></a>
-### Nested Schema for `selectors.cloud_resources.filters`
+<a id="nestedatt--aws--filters"></a>
+### Nested Schema for `aws.filters`
 
 Optional:
 
-- `region` (Set of String) A set of regions to filter by.
-- `tags` (Set of String) A set of tags to filter by in key=value format.
+- `region` (List of String) List of AWS regions to include
+- `tags` (List of String) List of tags to filter by (format: key=value)
 
-<a id="nestedblock--selectors--images"></a>
-### Nested Schema for `selectors.images`
+
+
+<a id="nestedatt--azure"></a>
+### Nested Schema for `azure`
 
 Required:
 
-- `registry` (String) The container registry hostname.
-- `repository` (String) The container repository name.
+- `account_ids` (List of String) List of Azure subscription IDs
 
 Optional:
 
-- `tag` (String) The container image tag. If not specified, matches all tags.
+- `filters` (Attributes) Filters for Azure cloud resources (see [below for nested schema](#nestedatt--azure--filters))
+
+<a id="nestedatt--azure--filters"></a>
+### Nested Schema for `azure.filters`
+
+Optional:
+
+- `region` (List of String) List of Azure regions to include
+- `tags` (List of String) List of tags to filter by (format: key=value)
+
+
+
+<a id="nestedatt--gcp"></a>
+### Nested Schema for `gcp`
+
+Required:
+
+- `account_ids` (List of String) List of GCP project IDs
+
+Optional:
+
+- `filters` (Attributes) Filters for GCP cloud resources. Note: GCP does not support tag filtering. (see [below for nested schema](#nestedatt--gcp--filters))
+
+<a id="nestedatt--gcp--filters"></a>
+### Nested Schema for `gcp.filters`
+
+Optional:
+
+- `region` (List of String) List of GCP regions to include
+
+
+
+<a id="nestedatt--images"></a>
+### Nested Schema for `images`
+
+Required:
+
+- `registry` (String) Container registry hostname
+- `repository` (String) Repository name
+
+Optional:
+
+- `tag` (String) Image tag (optional, defaults to any tag if not specified)
 
 ## Import
 
@@ -188,3 +293,4 @@ Import is supported using the following syntax:
 ```shell
 # cloud security group can be imported by specifying the group UUID.
 terraform import crowdstrike_cloud_security_group.example 12345678-1234-1234-1234-123456789abc
+```
