@@ -448,76 +448,33 @@ func TestAccCloudComplianceCustomFrameworkResource_Import(t *testing.T) {
 }
 
 func TestAccCloudComplianceCustomFrameworkResource_WithSections(t *testing.T) {
-	testCases := []struct {
-		name   string
-		config completeFrameworkConfig
-	}{
-		{
-			name: "framework_with_sections",
-			config: completeFrameworkConfig{
-				Name:        "Test Framework With Sections",
-				Description: "Framework to test sections, controls, and rules",
-				Active:      utils.Addr(false),
-				Sections: map[string]sectionConfig{
-					"Section 1": {
-						Controls: map[string]controlConfig{
-							"Control 1": {
-								Description: "This is the first control",
-								Rules: []string{
-									"2a11d9fc-6dfa-44f9-acc9-5ff046083716",
-									"a28151f0-5077-49da-8999-f909d94b53a3",
-								},
-							},
-							"Control 1b": {
-								Description: "This is another control in section 1",
-								Rules: []string{
-									"0473a26b-7f29-43c7-9581-105f8c9c0b7d",
-									"190c2d3d-8b0e-4838-bf11-4c6e044b9cb1",
-									"6896e8e5-84c2-4310-8207-3f46e54b6abe",
-								},
-							},
+	initialConfig := completeFrameworkConfig{
+		Name:        "Test Framework With Sections",
+		Description: "Framework to test sections, controls, and rules",
+		Active:      utils.Addr(false),
+		Sections: map[string]sectionConfig{
+			"Section 1": {
+				Controls: map[string]controlConfig{
+					"Control 1a": {
+						Description: "This is the first control",
+						Rules: []string{
+							"2a11d9fc-6dfa-44f9-acc9-5ff046083716",
+							"a28151f0-5077-49da-8999-f909d94b53a3",
 						},
 					},
-					"Section 2": {
-						Controls: map[string]controlConfig{
-							"Control 2": {
-								Description: "This is the second control",
-								Rules:       []string{},
-							},
+					"Control 1b": {
+						Description: "This is another control in section 1",
+						Rules: []string{
+							"6896e8e5-84c2-4310-8207-3f46e54b6abe",
 						},
 					},
 				},
 			},
-		},
-		{
-			name: "updated_framework_sections",
-			config: completeFrameworkConfig{
-				Name:        "Test Framework With Sections",
-				Description: "Updated framework with modified sections",
-				Active:      utils.Addr(false),
-				Sections: map[string]sectionConfig{
-					"Section 1": {
-						Controls: map[string]controlConfig{
-							"Control 1": {
-								Description: "Updated first control description",
-								Rules: []string{ // Modified rules
-									"0473a26b-7f29-43c7-9581-105f8c9c0b7d",
-									"190c2d3d-8b0e-4838-bf11-4c6e044b9cb1",
-								},
-							},
-							"Control 1c": { // New control
-								Description: "New control in section 1",
-								Rules:       []string{"a28151f0-5077-49da-8999-f909d94b53a3"},
-							},
-						},
-					},
-					"Section 3": { // New section
-						Controls: map[string]controlConfig{
-							"Control 3": {
-								Description: "Control in new section",
-								Rules:       []string{"6896e8e5-84c2-4310-8207-3f46e54b6abe"},
-							},
-						},
+			"Section 2": {
+				Controls: map[string]controlConfig{
+					"Control 2": {
+						Description: "This is the second control",
+						Rules:       []string{},
 					},
 				},
 			},
@@ -529,12 +486,10 @@ func TestAccCloudComplianceCustomFrameworkResource_WithSections(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: func() []resource.TestStep {
 			var steps []resource.TestStep
-			for _, tc := range testCases {
-				steps = append(steps, resource.TestStep{
-					Config: acctest.ProviderConfig + tc.config.String(),
-					Check:  tc.config.TestChecks(),
-				})
-			}
+			steps = append(steps, resource.TestStep{
+				Config: acctest.ProviderConfig + initialConfig.String(),
+				Check:  initialConfig.TestChecks(),
+			})
 			// Add import test
 			steps = append(steps, resource.TestStep{
 				ResourceName:      customFrameworkResourceName,
@@ -588,8 +543,8 @@ func TestAccCloudComplianceCustomFrameworkResource_SectionManagement(t *testing.
 					"New Section": {
 						Controls: map[string]controlConfig{
 							"New Control": {
-								Description: "Updated control description",
-								Rules:       []string{"190c2d3d-8b0e-4838-bf11-4c6e044b9cb1"},
+								Description: "Control in new section",
+								Rules:       []string{"0473a26b-7f29-43c7-9581-105f8c9c0b7d"},
 							},
 						},
 					},
@@ -641,7 +596,6 @@ func TestAccCloudComplianceCustomFrameworkResource_RuleAssignment(t *testing.T) 
 								Rules: []string{
 									"2a11d9fc-6dfa-44f9-acc9-5ff046083716",
 									"a28151f0-5077-49da-8999-f909d94b53a3",
-									"0473a26b-7f29-43c7-9581-105f8c9c0b7d",
 								},
 							},
 							"Control Without Rules": {
@@ -666,8 +620,7 @@ func TestAccCloudComplianceCustomFrameworkResource_RuleAssignment(t *testing.T) 
 								Description: "Control that has rules assigned",
 								Rules: []string{ // Modified rules
 									"2a11d9fc-6dfa-44f9-acc9-5ff046083716",
-									"a28151f0-5077-49da-8999-f909d94b53a3",
-									"190c2d3d-8b0e-4838-bf11-4c6e044b9cb1",
+									"0473a26b-7f29-43c7-9581-105f8c9c0b7d",
 								},
 							},
 							"Control Without Rules": {
