@@ -568,7 +568,6 @@ func (r *cloudPostureRulesDataSource) getRules(
 		offset += limit
 	}
 
-	tflog.Info(ctx, "Assinging rules to Set")
 	rulesSet, diags := types.SetValueFrom(
 		ctx,
 		types.ObjectType{AttrTypes: cloudPostureRulesDataSourceRuleModel{}.AttributeTypes()},

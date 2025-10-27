@@ -497,12 +497,6 @@ func (r *cloudPostureCustomRuleResource) ModifyPlan(
 			plan.RemediationInfo = config.RemediationInfo
 		}
 
-		// if config.Controls.IsNull() {
-		// 	plan.Controls = types.SetUnknown(types.ObjectType{AttrTypes: policyControl{}.AttributeTypes()})
-		// } else {
-		// 	plan.Controls = config.Controls
-		// }
-
 		if config.Controls.IsNull() {
 			plan.Controls = types.SetUnknown(types.ObjectType{AttrTypes: policyControl{}.AttributeTypes()})
 		} else {
