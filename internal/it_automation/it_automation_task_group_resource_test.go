@@ -12,12 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
-// usage:
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationTaskGroupResource ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationTaskGroupResource_Basic ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationTaskGroupResource_AccessTypes ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationTaskGroupResource_WithTasks ./internal/it_automation
-
 const taskGroupResourceName = "crowdstrike_it_automation_task_group.test"
 
 type taskGroupConfig struct {
@@ -33,7 +27,7 @@ func (config *taskGroupConfig) String() string {
 	var taskRefs []string
 
 	for i := range len(config.TaskIds) {
-		randomSuffix := sdkacctest.RandomWithPrefix("tf-acc-test")
+		randomSuffix := sdkacctest.RandomWithPrefix("tf-acctest")
 		taskName := fmt.Sprintf("task-%s-%d", randomSuffix, i)
 
 		taskResources += fmt.Sprintf(`
@@ -101,7 +95,7 @@ func TestAccITAutomationTaskGroupResource_Basic(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	t.Cleanup(func() { sdk.Cleanup(t) })
 
-	rName := sdkacctest.RandomWithPrefix("tf-acc-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 
 	testCases := []struct {
 		name   string
@@ -157,7 +151,7 @@ func TestAccITAutomationTaskGroupResource_AccessTypes(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	t.Cleanup(func() { sdk.Cleanup(t) })
 
-	rName := sdkacctest.RandomWithPrefix("tf-acc-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 
 	testCases := []struct {
 		name   string
@@ -205,7 +199,7 @@ func TestAccITAutomationTaskGroupResource_WithTasks(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	t.Cleanup(func() { sdk.Cleanup(t) })
 
-	rName := sdkacctest.RandomWithPrefix("tf-acc-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 
 	testCases := []struct {
 		name   string

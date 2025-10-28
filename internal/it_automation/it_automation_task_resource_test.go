@@ -12,18 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
-// usage:
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationTaskResource ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationTaskResource_ScriptContent ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationTaskResource_ScriptFile ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationTaskResource_OSQuery ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationTaskResource_InTaskGroup ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationTaskResource_RemovedFromGroup ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationTaskResource_ConfigureWhileInGroup ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationTaskResource_ExplicitAccessTypeOverride ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationTaskResource_PublicAccessInheritance ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationTaskResource_GroupAccessTypeChange ./internal/it_automation
-
 const taskResourceName = "crowdstrike_it_automation_task.test"
 
 type taskConfig struct {
@@ -265,7 +253,7 @@ func TestAccITAutomationTaskResource_ScriptContent(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	t.Cleanup(func() { sdk.Cleanup(t) })
 
-	rName := sdkacctest.RandomWithPrefix("tf-acc-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 
 	testCases := []struct {
 		name   string
@@ -389,7 +377,7 @@ func TestAccITAutomationTaskResource_ScriptFile(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	t.Cleanup(func() { sdk.Cleanup(t) })
 
-	rName := sdkacctest.RandomWithPrefix("tf-acc-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 
 	testCases := []struct {
 		name   string
@@ -524,7 +512,7 @@ func TestAccITAutomationTaskResource_OSQuery(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	t.Cleanup(func() { sdk.Cleanup(t) })
 
-	rName := sdkacctest.RandomWithPrefix("tf-acc-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 
 	testCases := []struct {
 		name   string
@@ -585,7 +573,7 @@ func TestAccITAutomationTaskResource_InTaskGroup(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	t.Cleanup(func() { sdk.Cleanup(t) })
 
-	rName := sdkacctest.RandomWithPrefix("tf-acc-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
@@ -657,7 +645,7 @@ func TestAccITAutomationTaskResource_RemovedFromGroup(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	t.Cleanup(func() { sdk.Cleanup(t) })
 
-	rName := sdkacctest.RandomWithPrefix("tf-acc-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
@@ -725,7 +713,7 @@ func TestAccITAutomationTaskResource_ConfigureWhileInGroup(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	t.Cleanup(func() { sdk.Cleanup(t) })
 
-	rName := sdkacctest.RandomWithPrefix("tf-acc-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
@@ -812,7 +800,7 @@ func TestAccITAutomationTaskResource_ExplicitAccessTypeOverride(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	t.Cleanup(func() { sdk.Cleanup(t) })
 
-	rName := sdkacctest.RandomWithPrefix("tf-acc-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
@@ -871,7 +859,7 @@ func TestAccITAutomationTaskResource_PublicAccessInheritance(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	t.Cleanup(func() { sdk.Cleanup(t) })
 
-	rName := sdkacctest.RandomWithPrefix("tf-acc-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
@@ -917,7 +905,7 @@ func TestAccITAutomationTaskResource_GroupAccessTypeChange(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	t.Cleanup(func() { sdk.Cleanup(t) })
 
-	rName := sdkacctest.RandomWithPrefix("tf-acc-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
@@ -981,6 +969,38 @@ resource "crowdstrike_it_automation_task_group" "test" {
 					resource.TestCheckResourceAttr(taskResourceName, "in_task_group", "true"),
 					resource.TestCheckResourceAttr(taskResourceName, "effective_access_type", "Public"),
 					resource.TestCheckResourceAttr(taskResourceName, "effective_assigned_user_ids.#", "0"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccITAutomationTaskResource_OmittedOptionalFields(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_it_automation_task" "test" {
+  name                  = %q
+  type                  = "query"
+  linux_script_language = "bash"
+  linux_script_content  = "echo 'test'"
+}
+`, rName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(taskResourceName, "id"),
+					resource.TestCheckResourceAttr(taskResourceName, "name", rName),
+					resource.TestCheckResourceAttr(taskResourceName, "type", "query"),
+					resource.TestCheckNoResourceAttr(taskResourceName, "description"),
+					resource.TestCheckNoResourceAttr(taskResourceName, "target"),
+					resource.TestCheckNoResourceAttr(taskResourceName, "os_query"),
 				),
 			},
 		},

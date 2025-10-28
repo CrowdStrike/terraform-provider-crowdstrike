@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/it_automation"
@@ -65,16 +64,10 @@ func (t *itAutomationTaskGroupResourceModel) wrap(
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	currentDescription := t.Description
-	t.ID = types.StringValue(*group.ID)
-	t.AccessType = types.StringValue(*group.AccessType)
-	t.Name = types.StringValue(*group.Name)
-
-	if group.Description != nil {
-		t.Description = types.StringValue(*group.Description)
-	} else if !currentDescription.IsNull() {
-		t.Description = currentDescription
-	}
+	t.ID = types.StringPointerValue(group.ID)
+	t.AccessType = types.StringPointerValue(group.AccessType)
+	t.Name = types.StringPointerValue(group.Name)
+	t.Description = types.StringPointerValue(group.Description)
 
 	if group.AssignedUserIds != nil {
 		AssignedUserIds, diag := stringSliceToSet(ctx, group.AssignedUserIds)
@@ -267,8 +260,16 @@ func (r *itAutomationTaskGroupResource) Create(
 		return
 	}
 
-	plan.ID = types.StringValue(*apiResponse.Payload.Resources[0].ID)
-	plan.LastUpdated = types.StringValue(time.Now().Format(timeFormat))
+	if apiResponse == nil || apiResponse.Payload == nil || len(apiResponse.Payload.Resources) == 0 {
+		resp.Diagnostics.AddError(
+			"Error creating IT automation task group",
+			"API returned empty response",
+		)
+		return
+	}
+
+	plan.ID = types.StringPointerValue(apiResponse.Payload.Resources[0].ID)
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 
 	resp.Diagnostics.Append(plan.wrap(ctx, *apiResponse.Payload.Resources[0])...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -288,22 +289,24 @@ func (r *itAutomationTaskGroupResource) Read(
 
 	groupID := state.ID.ValueString()
 	taskGroup, diags := getItAutomationTaskGroup(ctx, r.client, groupID)
-	resp.Diagnostics.Append(diags...)
-
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
 		// manually parse diagnostic errors.
 		// helper functions return standardized diagnostics for consistency.
 		// this is due to some IT Automation endpoints not returning structured/generic 404s.
-		for _, d := range resp.Diagnostics.Errors() {
+		for _, d := range diags.Errors() {
 			if d.Summary() == taskGroupNotFoundErrorSummary {
 				tflog.Warn(
 					ctx,
-					fmt.Sprintf(notFoundRemoving, fmt.Sprintf("IT Automation Task Group %s", groupID)),
+					fmt.Sprintf(
+						notFoundRemoving,
+						fmt.Sprintf("%s %s", itAutomationTaskGroup, groupID,),
+					),
 				)
 				resp.State.RemoveResource(ctx)
 				return
 			}
 		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -389,7 +392,7 @@ func (r *itAutomationTaskGroupResource) Update(
 	}
 
 	resp.Diagnostics.Append(plan.wrap(ctx, *updatedTask)...)
-	plan.LastUpdated = types.StringValue(time.Now().Format(timeFormat))
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -424,12 +427,6 @@ func (r *itAutomationTaskGroupResource) Delete(
 
 	if err != nil {
 		if isNotFoundError(err) {
-			tflog.Warn(
-				ctx,
-				fmt.Sprintf(notFoundRemoving, fmt.Sprintf("%s %s", itAutomationTaskGroup, state.ID.ValueString())),
-				map[string]any{"error": err.Error()},
-			)
-			resp.State.RemoveResource(ctx)
 			return
 		}
 
@@ -463,6 +460,10 @@ func (r *itAutomationTaskGroupResource) ValidateConfig(
 	var config itAutomationTaskGroupResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if config.AccessType.IsUnknown() {
 		return
 	}
 

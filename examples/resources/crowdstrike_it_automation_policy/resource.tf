@@ -14,8 +14,8 @@ resource "crowdstrike_it_automation_policy" "windows_example" {
   name        = "Example Windows Policy"
   description = "Example Windows policy configuration"
 
-  platform   = "Windows"
-  is_enabled = true
+  platform_name = "Windows"
+  enabled       = true
 
   host_groups = [
     "cd2168944fd648bc9545df05ace3705a"
@@ -40,8 +40,8 @@ resource "crowdstrike_it_automation_policy" "linux_example" {
   name        = "Example Linux Policy"
   description = "Example Linux policy configuration"
 
-  platform   = "Linux"
-  is_enabled = true
+  platform_name = "Linux"
+  enabled       = true
 
   host_groups = [
     "e44e040561424ca8980c46abacfaa204"
@@ -66,8 +66,8 @@ resource "crowdstrike_it_automation_policy" "mac_example" {
   name        = "Example Mac Policy"
   description = "Example Mac policy configuration"
 
-  platform   = "Mac"
-  is_enabled = true
+  platform_name = "Mac"
+  enabled       = true
 
   host_groups = [
     "f4562561640f4cdf9ea8340d8990d758"

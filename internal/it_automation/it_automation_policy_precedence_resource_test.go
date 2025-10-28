@@ -12,12 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
-// usage:
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationPolicyPrecedenceResource ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationPolicyPrecedenceResource_Windows ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationPolicyPrecedenceResource_Linux ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationPolicyPrecedenceResource_Mac ./internal/it_automation
-
 const precedenceResourceName = "crowdstrike_it_automation_policy_precedence.test"
 
 type precedenceConfig struct {
@@ -46,8 +40,8 @@ func (config *precedenceConfig) String() string {
 
 	return fmt.Sprintf(`
 resource "crowdstrike_it_automation_policy_precedence" "test" {
-  platform    = %q
-  enforcement = %q%s
+  platform_name = %q
+  enforcement   = %q%s
 }
 `, config.Platform, config.Enforcement, idsBlock)
 }
@@ -58,7 +52,7 @@ func (config *precedenceConfig) TestChecks() resource.TestCheckFunc {
 	checks = append(checks,
 		resource.TestCheckResourceAttrSet(precedenceResourceName, "id"),
 		resource.TestCheckResourceAttrSet(precedenceResourceName, "last_updated"),
-		resource.TestCheckResourceAttr(precedenceResourceName, "platform", config.Platform),
+		resource.TestCheckResourceAttr(precedenceResourceName, "platform_name", config.Platform),
 		resource.TestCheckResourceAttr(precedenceResourceName, "enforcement", config.Enforcement),
 	)
 

@@ -11,8 +11,8 @@ provider "crowdstrike" {
 }
 
 resource "crowdstrike_it_automation_policy_precedence" "strict_example" {
-  platform    = "Windows"
-  enforcement = "strict"
+  platform_name = "Windows"
+  enforcement   = "strict"
 
   # Strict requires ALL policy IDs to be specified.
   ids = [
@@ -26,8 +26,8 @@ resource "crowdstrike_it_automation_policy_precedence" "strict_example" {
 }
 
 resource "crowdstrike_it_automation_policy_precedence" "dynamic_example" {
-  platform    = "Linux"
-  enforcement = "dynamic"
+  platform_name = "Linux"
+  enforcement   = "dynamic"
 
   ids = [
     "859448168fe947d781798b090402479c",

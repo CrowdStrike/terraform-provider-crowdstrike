@@ -11,8 +11,8 @@ provider "crowdstrike" {
 }
 
 resource "crowdstrike_it_automation_default_policy" "windows_example" {
-  platform    = "Windows"
-  description = "Example Windows Default Policy configuration"
+  platform_name = "Windows"
+  description   = "Example Windows Default Policy configuration"
 
   concurrent_host_file_transfer_limit = 500
   concurrent_host_limit               = 5000
@@ -30,8 +30,8 @@ resource "crowdstrike_it_automation_default_policy" "windows_example" {
 }
 
 resource "crowdstrike_it_automation_default_policy" "linux_example" {
-  platform    = "Linux"
-  description = "Example Linux Default Policy configuration"
+  platform_name = "Linux"
+  description   = "Example Linux Default Policy configuration"
 
   concurrent_host_file_transfer_limit = 500
   concurrent_host_limit               = 5000
@@ -49,8 +49,8 @@ resource "crowdstrike_it_automation_default_policy" "linux_example" {
 }
 
 resource "crowdstrike_it_automation_default_policy" "mac_example" {
-  platform    = "Mac"
-  description = "Example Mac Default Policy configuration"
+  platform_name = "Mac"
+  description   = "Example Mac Default Policy configuration"
 
   concurrent_host_file_transfer_limit = 500
   concurrent_host_limit               = 5000

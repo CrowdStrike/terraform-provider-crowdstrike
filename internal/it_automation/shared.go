@@ -76,14 +76,6 @@ func preserveStringField(apiVal *string, current types.String, target *types.Str
 	}
 }
 
-// setBoolPointer sets a boolean pointer field if the terraform field is not null.
-func setBoolPointer(field types.Bool, target **bool) {
-	if !field.IsNull() {
-		val := field.ValueBool()
-		*target = &val
-	}
-}
-
 // idsDiff performs the diff on a list of planned and current IDs and returns two string slices of IDs to remove and add.
 func idsDiff(
 	ctx context.Context,

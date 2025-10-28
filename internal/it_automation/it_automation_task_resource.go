@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/it_automation"
@@ -217,7 +216,7 @@ func (r *itAutomationTaskResource) constructUpdatePayload(
 		body.AccessType = plan.AccessType.ValueString()
 	}
 
-	// handle user id changes only if shared access and not in task group.
+	// handle user id changes only if access and not in task group.
 	if plan.AccessType.ValueString() == "Shared" && !plan.AssignedUserIds.IsNull() && !inTaskGroup {
 		currentUserIds := currentTask.AssignedUserIds
 		plannedUserIds := plan.AssignedUserIds
@@ -325,16 +324,32 @@ func (t *itAutomationTaskResourceModel) wrap(
 	task models.ItautomationTask,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
-	currentModel := *t
 	inTaskGroup := hasTaskGroupMembership(task.Groups)
 
-	t.ID = types.StringValue(*task.ID)
-	t.Name = types.StringValue(*task.Name)
+	t.ID = types.StringPointerValue(task.ID)
+	t.Name = types.StringPointerValue(task.Name)
 	t.Type = types.StringValue(convertType(*task.TaskType, "terraform"))
 	t.EffectiveAccessType = types.StringValue(task.AccessType)
 	t.InTaskGroup = types.BoolValue(inTaskGroup)
-
 	t.AccessType = types.StringValue(task.AccessType)
+
+	if task.Description == nil || *task.Description == "" {
+		t.Description = types.StringNull()
+	} else {
+		t.Description = types.StringValue(*task.Description)
+	}
+
+	if task.OsQuery == "" {
+		t.OsQuery = types.StringNull()
+	} else {
+		t.OsQuery = types.StringValue(task.OsQuery)
+	}
+
+	if task.Target == nil || *task.Target == "" {
+		t.Target = types.StringNull()
+	} else {
+		t.Target = types.StringValue(*task.Target)
+	}
 
 	if hasTaskGroupMembership(task.Groups) {
 		if task.Groups[0].ID != nil {
@@ -345,11 +360,6 @@ func (t *itAutomationTaskResourceModel) wrap(
 	} else {
 		t.TaskGroupID = types.StringNull()
 	}
-
-	// preserve configured fields over api values.
-	preserveStringField(task.Description, currentModel.Description, &t.Description)
-	preserveStringField(&task.OsQuery, currentModel.OsQuery, &t.OsQuery)
-	preserveStringField(task.Target, currentModel.Target, &t.Target)
 
 	if len(task.AssignedUserIds) > 0 {
 		userIds, diag := stringSliceToSet(ctx, task.AssignedUserIds)
@@ -365,12 +375,13 @@ func (t *itAutomationTaskResourceModel) wrap(
 	}
 
 	if len(task.VerificationCondition) > 0 {
-		verificationConditions, diags := extractVerificationConditions(ctx, task.VerificationCondition)
+		verificationConditions, vDiags := extractVerificationConditions(ctx, task.VerificationCondition)
+		diags.Append(vDiags...)
 		if !diags.HasError() {
 			t.VerificationCondition = verificationConditions
 		}
-	} else if !currentModel.VerificationCondition.IsNull() && len(currentModel.VerificationCondition.Elements()) > 0 {
-		t.VerificationCondition = currentModel.VerificationCondition
+	} else {
+		t.VerificationCondition = types.ListNull(types.ObjectType{AttrTypes: verificationConditionAttrTypes()})
 	}
 
 	if task.OutputParserConfig != nil {
@@ -397,11 +408,12 @@ func (t *itAutomationTaskResourceModel) wrap(
 		}
 
 		scriptColumnsObject, objDiags := types.ObjectValueFrom(ctx, scriptColumnsAttrTypes(), scriptColumns)
-		if !objDiags.HasError() {
+		diags.Append(objDiags...)
+		if !diags.HasError() {
 			t.ScriptColumns = scriptColumnsObject
 		}
-	} else if !currentModel.ScriptColumns.IsNull() {
-		t.ScriptColumns = currentModel.ScriptColumns
+	} else {
+		t.ScriptColumns = types.ObjectNull(scriptColumnsAttrTypes())
 	}
 
 	scriptSources := task.Queries
@@ -455,9 +467,8 @@ func (t *itAutomationTaskResourceModel) wrap(
 		}
 	}
 
-	// preserve current file ids if not provided from api response.
-	if t.FileIds.IsNull() && !currentModel.FileIds.IsNull() {
-		t.FileIds = currentModel.FileIds
+	if t.FileIds.IsNull() {
+		t.FileIds = types.SetNull(types.StringType)
 	}
 
 	return diags
@@ -949,8 +960,16 @@ func (r *itAutomationTaskResource) Create(
 		return
 	}
 
-	plan.ID = types.StringValue(*apiResponse.Payload.Resources[0].ID)
-	plan.LastUpdated = types.StringValue(time.Now().Format(timeFormat))
+	if apiResponse == nil || apiResponse.Payload == nil || len(apiResponse.Payload.Resources) == 0 {
+		resp.Diagnostics.AddError(
+			"Error creating IT automation task",
+			"API returned empty response",
+		)
+		return
+	}
+
+	plan.ID = types.StringPointerValue(apiResponse.Payload.Resources[0].ID)
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 
 	resp.Diagnostics.Append(plan.wrap(ctx, *apiResponse.Payload.Resources[0])...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -970,22 +989,21 @@ func (r *itAutomationTaskResource) Read(
 
 	taskID := state.ID.ValueString()
 	task, diags := getItAutomationTask(ctx, r.client, taskID)
-	resp.Diagnostics.Append(diags...)
-
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
 		// manually parse diagnostic errors.
 		// helper functions return standardized diagnostics for consistency.
 		// this is due to some IT Automation endpoints not returning structured/generic 404s.
-		for _, d := range resp.Diagnostics.Errors() {
+		for _, d := range diags.Errors() {
 			if d.Summary() == taskNotFoundErrorSummary {
 				tflog.Warn(
 					ctx,
-					fmt.Sprintf(notFoundRemoving, fmt.Sprintf("IT Automation Task %s", taskID)),
+					fmt.Sprintf(notFoundRemoving, fmt.Sprintf("%s %s", itAutomationTask, taskID)),
 				)
 				resp.State.RemoveResource(ctx)
 				return
 			}
 		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -1046,7 +1064,7 @@ func (r *itAutomationTaskResource) Update(
 		return
 	}
 
-	plan.LastUpdated = types.StringValue(time.Now().Format(timeFormat))
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 	resp.Diagnostics.Append(plan.wrap(ctx, *updatedTask)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -1082,12 +1100,6 @@ func (r *itAutomationTaskResource) Delete(
 
 	if err != nil {
 		if isNotFoundError(err) {
-			tflog.Warn(
-				ctx,
-				fmt.Sprintf(notFoundRemoving, fmt.Sprintf("%s %s", itAutomationTask, state.ID.ValueString())),
-				map[string]any{"error": err.Error()},
-			)
-			resp.State.RemoveResource(ctx)
 			return
 		}
 
@@ -1139,6 +1151,10 @@ func (r *itAutomationTaskResource) ValidateConfig(
 	var config itAutomationTaskResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if config.AccessType.IsUnknown() {
 		return
 	}
 

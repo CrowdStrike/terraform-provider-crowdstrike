@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/it_automation"
@@ -66,12 +65,12 @@ type itAutomationPolicyResourceModel struct {
 	ExecutionTimeout                types.Int32  `tfsdk:"execution_timeout"`
 	ExecutionTimeoutUnit            types.String `tfsdk:"execution_timeout_unit"`
 	HostGroups                      types.Set    `tfsdk:"host_groups"`
-	IsEnabled                       types.Bool   `tfsdk:"is_enabled"`
+	Enabled                         types.Bool   `tfsdk:"enabled"`
 	LastUpdated                     types.String `tfsdk:"last_updated"`
 	MemoryAllocation                types.Int32  `tfsdk:"memory_allocation"`
 	MemoryAllocationUnit            types.String `tfsdk:"memory_allocation_unit"`
 	MemoryPressureLevel             types.String `tfsdk:"memory_pressure_level"`
-	Platform                        types.String `tfsdk:"platform"`
+	PlatformName                    types.String `tfsdk:"platform_name"`
 }
 
 func (t *itAutomationPolicyResourceModel) wrap(
@@ -80,31 +79,20 @@ func (t *itAutomationPolicyResourceModel) wrap(
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	currentDescription := t.Description
-	currentHostGroups := t.HostGroups
-
-	t.ID = types.StringValue(*policy.ID)
-	t.Name = types.StringValue(*policy.Name)
-	t.IsEnabled = types.BoolValue(policy.IsEnabled)
-
-	if policy.Description != nil {
+	t.ID = types.StringPointerValue(policy.ID)
+	t.Name = types.StringPointerValue(policy.Name)
+	t.Enabled = types.BoolValue(policy.IsEnabled)
+	if policy.Description == nil || *policy.Description == "" {
+		t.Description = types.StringNull()
+	} else {
 		t.Description = types.StringValue(*policy.Description)
-	} else if !currentDescription.IsNull() {
-		t.Description = currentDescription
 	}
+	t.PlatformName = types.StringPointerValue(policy.Target)
 
-	if policy.Target != nil {
-		t.Platform = types.StringValue(*policy.Target)
-	}
-
-	if policy.HostGroups != nil {
-		hostGroups, diag := stringSliceToSet(ctx, policy.HostGroups)
-		diags.Append(diag...)
-		if !diags.HasError() {
-			t.HostGroups = hostGroups
-		}
-	} else if !currentHostGroups.IsNull() {
-		t.HostGroups = currentHostGroups
+	hostGroups, diag := stringSliceToSet(ctx, policy.HostGroups)
+	diags.Append(diag...)
+	if !diags.HasError() {
+		t.HostGroups = hostGroups
 	}
 
 	if policy.Config != nil {
@@ -117,42 +105,28 @@ func (t *itAutomationPolicyResourceModel) wrap(
 
 		e := policy.Config.Execution
 		if e != nil {
-			t.EnableOsQuery = types.BoolValue(e.EnableOsQuery != nil && *e.EnableOsQuery)
-			t.EnablePythonExecution = types.BoolValue(e.EnablePythonExecution != nil && *e.EnablePythonExecution)
-			t.EnableScriptExecution = types.BoolValue(e.EnableScriptExecution != nil && *e.EnableScriptExecution)
+			t.EnableOsQuery = types.BoolPointerValue(e.EnableOsQuery)
+			t.EnablePythonExecution = types.BoolPointerValue(e.EnablePythonExecution)
+			t.EnableScriptExecution = types.BoolPointerValue(e.EnableScriptExecution)
 			t.ExecutionTimeout = types.Int32Value(e.ExecutionTimeout)
-
-			if e.ExecutionTimeoutUnit != "" {
-				t.ExecutionTimeoutUnit = types.StringValue(e.ExecutionTimeoutUnit)
-			}
+			t.ExecutionTimeoutUnit = types.StringValue(e.ExecutionTimeoutUnit)
 		}
 
 		r := policy.Config.Resources
 		if r != nil {
-			isMac := *policy.Target == "Mac"
+			isMac := policy.Target != nil && *policy.Target == "Mac"
 
 			if isMac {
-				if r.CPUScheduling != "" {
-					t.CPUSchedulingPriority = types.StringValue(r.CPUScheduling)
-				}
-				if r.MemoryPressureLevel != "" {
-					t.MemoryPressureLevel = types.StringValue(r.MemoryPressureLevel)
-				}
+				t.CPUSchedulingPriority = types.StringValue(r.CPUScheduling)
+				t.MemoryPressureLevel = types.StringValue(r.MemoryPressureLevel)
 			} else {
-				if r.CPUThrottle != 0 {
-					t.CPUThrottle = types.Int32Value(r.CPUThrottle)
-				}
-				if r.MemoryAllocation != 0 {
-					t.MemoryAllocation = types.Int32Value(r.MemoryAllocation)
-				}
-				if r.MemoryAllocationUnit != "" {
-					t.MemoryAllocationUnit = types.StringValue(r.MemoryAllocationUnit)
-				}
+				t.CPUThrottle = types.Int32Value(r.CPUThrottle)
+				t.MemoryAllocation = types.Int32Value(r.MemoryAllocation)
+				t.MemoryAllocationUnit = types.StringValue(r.MemoryAllocationUnit)
 			}
 		}
 	}
 
-	t.LastUpdated = types.StringValue(time.Now().Format(timeFormat))
 	return diags
 }
 
@@ -225,20 +199,23 @@ func (r *itAutomationPolicyResource) Schema(
 				},
 			},
 			"description": schema.StringAttribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Description of the policy.",
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
 			},
-			"platform": schema.StringAttribute{
+			"platform_name": schema.StringAttribute{
 				Required:    true,
 				Description: "Platform for the policy (Windows, Linux, Mac).",
 				Validators: []validator.String{
 					stringvalidator.OneOf("Windows", "Linux", "Mac"),
 				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
-			"is_enabled": schema.BoolAttribute{
+			"enabled": schema.BoolAttribute{
 				Required:    true,
 				Description: "Whether the policy is enabled or disabled.",
 			},
@@ -258,44 +235,44 @@ func (r *itAutomationPolicyResource) Schema(
 				},
 			},
 			"concurrent_host_file_transfer_limit": schema.Int32Attribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Maximum number of hosts that can transfer files simultaneously (1-5000).",
 				Validators: []validator.Int32{
 					int32validator.Between(1, 5000),
 				},
 			},
 			"concurrent_host_limit": schema.Int32Attribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Maximum number of hosts that can run operations simultaneously (1-100000).",
 				Validators: []validator.Int32{
 					int32validator.Between(1, 100000),
 				},
 			},
 			"concurrent_task_limit": schema.Int32Attribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Maximum number of tasks that can run in parallel (1-5).",
 				Validators: []validator.Int32{
 					int32validator.Between(1, 5),
 				},
 			},
 			"enable_os_query": schema.BoolAttribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Whether OSQuery functionality is enabled.",
 			},
 			"enable_python_execution": schema.BoolAttribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Whether Python script execution is enabled.",
 			},
 			"enable_script_execution": schema.BoolAttribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Whether script execution is enabled.",
 			},
 			"execution_timeout": schema.Int32Attribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Maximum time a script can run before timing out.",
 			},
 			"execution_timeout_unit": schema.StringAttribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Unit of time for execution timeout.",
 				Validators: []validator.String{
 					stringvalidator.OneOf("Minutes", "Hours"),
@@ -343,27 +320,18 @@ func createPolicyConfigFromModel(
 ) *models.ItautomationPolicyConfig {
 	config := &models.ItautomationPolicyConfig{}
 
-	config.Concurrency = &models.ItautomationConcurrencyConfig{}
-	if !plan.ConcurrentHostFileTransferLimit.IsNull() {
-		config.Concurrency.ConcurrentHostFileTransferLimit = plan.ConcurrentHostFileTransferLimit.ValueInt32()
-	}
-	if !plan.ConcurrentHostLimit.IsNull() {
-		config.Concurrency.ConcurrentHostLimit = plan.ConcurrentHostLimit.ValueInt32()
-	}
-	if !plan.ConcurrentTaskLimit.IsNull() {
-		config.Concurrency.ConcurrentTaskLimit = plan.ConcurrentTaskLimit.ValueInt32()
+	config.Concurrency = &models.ItautomationConcurrencyConfig{
+		ConcurrentHostFileTransferLimit: plan.ConcurrentHostFileTransferLimit.ValueInt32(),
+		ConcurrentHostLimit:             plan.ConcurrentHostLimit.ValueInt32(),
+		ConcurrentTaskLimit:             plan.ConcurrentTaskLimit.ValueInt32(),
 	}
 
-	config.Execution = &models.ItautomationExecutionConfig{}
-	setBoolPointer(plan.EnableOsQuery, &config.Execution.EnableOsQuery)
-	setBoolPointer(plan.EnablePythonExecution, &config.Execution.EnablePythonExecution)
-	setBoolPointer(plan.EnableScriptExecution, &config.Execution.EnableScriptExecution)
-
-	if !plan.ExecutionTimeout.IsNull() {
-		config.Execution.ExecutionTimeout = plan.ExecutionTimeout.ValueInt32()
-	}
-	if !plan.ExecutionTimeoutUnit.IsNull() {
-		config.Execution.ExecutionTimeoutUnit = plan.ExecutionTimeoutUnit.ValueString()
+	config.Execution = &models.ItautomationExecutionConfig{
+		EnableOsQuery:         plan.EnableOsQuery.ValueBoolPointer(),
+		EnablePythonExecution: plan.EnablePythonExecution.ValueBoolPointer(),
+		EnableScriptExecution: plan.EnableScriptExecution.ValueBoolPointer(),
+		ExecutionTimeout:      plan.ExecutionTimeout.ValueInt32(),
+		ExecutionTimeoutUnit:  plan.ExecutionTimeoutUnit.ValueString(),
 	}
 
 	config.Resources = &models.ItautomationResourceConfig{}
@@ -401,7 +369,7 @@ func (r *itAutomationPolicyResource) Create(
 	body := &models.ItautomationCreatePolicyRequest{
 		Name:        plan.Name.ValueString(),
 		Description: plan.Description.ValueStringPointer(),
-		Platform:    plan.Platform.ValueStringPointer(),
+		Platform:    plan.PlatformName.ValueStringPointer(),
 		Config:      createPolicyConfigFromModel(&plan),
 	}
 
@@ -419,16 +387,24 @@ func (r *itAutomationPolicyResource) Create(
 		return
 	}
 
+	if ok == nil || ok.Payload == nil || len(ok.Payload.Resources) == 0 {
+		resp.Diagnostics.AddError(
+			"Error creating IT automation policy",
+			"API returned empty response",
+		)
+		return
+	}
+
 	policy := ok.Payload.Resources[0]
 	plan.ID = types.StringPointerValue(policy.ID)
-	plan.LastUpdated = types.StringValue(time.Now().Format(timeFormat))
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if plan.IsEnabled.ValueBool() {
+	if plan.Enabled.ValueBool() {
 		err := r.updatePolicyEnabledState(ctx, *policy.ID, true)
 		if err != nil {
 			resp.Diagnostics.AddError(
@@ -470,8 +446,8 @@ func (r *itAutomationPolicyResource) Create(
 	}
 
 	updatedPolicy, diags := getItAutomationPolicy(ctx, r.client, *policy.ID)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -493,22 +469,24 @@ func (r *itAutomationPolicyResource) Read(
 
 	policyID := state.ID.ValueString()
 	policy, diags := getItAutomationPolicy(ctx, r.client, policyID)
-	resp.Diagnostics.Append(diags...)
-
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
 		// manually parse diagnostic errors.
 		// helper functions return standardized diagnostics for consistency.
 		// this is due to some IT Automation endpoints not returning structured/generic 404s.
-		for _, d := range resp.Diagnostics.Errors() {
+		for _, d := range diags.Errors() {
 			if d.Summary() == policyNotFoundErrorSummary {
 				tflog.Warn(
 					ctx,
-					fmt.Sprintf(notFoundRemoving, fmt.Sprintf("IT Automation Policy %s", policyID)),
+					fmt.Sprintf(
+						notFoundRemoving,
+						fmt.Sprintf("%s %s", itAutomationPolicy, policyID),
+					),
 				)
 				resp.State.RemoveResource(ctx)
 				return
 			}
 		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -534,20 +512,12 @@ func (r *itAutomationPolicyResource) Update(
 		return
 	}
 
-	if !plan.Platform.Equal(state.Platform) {
-		resp.Diagnostics.AddError(
-			"Platform change not supported",
-			"Changing the platform of an IT automation policy requires resource replacement. Please use terraform destroy and apply, or add 'replace_triggered_by' lifecycle rule.",
-		)
-		return
-	}
-
 	policyID := state.ID.ValueString()
 
 	body := &models.ItautomationUpdatePolicyRequest{
 		ID:          policyID,
 		Name:        plan.Name.ValueString(),
-		Description: plan.Description.ValueString(),
+		Description: plan.Description.ValueStringPointer(),
 		Config:      createPolicyConfigFromModel(&plan),
 	}
 
@@ -556,7 +526,7 @@ func (r *itAutomationPolicyResource) Update(
 		Body:    body,
 	}
 
-	_, err := r.client.ItAutomation.ITAutomationUpdatePolicies(params)
+	ok, err := r.client.ItAutomation.ITAutomationUpdatePolicies(params)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating IT automation policy",
@@ -565,8 +535,18 @@ func (r *itAutomationPolicyResource) Update(
 		return
 	}
 
-	if !plan.IsEnabled.Equal(state.IsEnabled) {
-		err := r.updatePolicyEnabledState(ctx, policyID, plan.IsEnabled.ValueBool())
+	if ok == nil || ok.Payload == nil || len(ok.Payload.Resources) == 0 {
+		resp.Diagnostics.AddError(
+			"Error updating IT automation policy",
+			"API returned empty response",
+		)
+		return
+	}
+
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
+
+	if !plan.Enabled.Equal(state.Enabled) {
+		err := r.updatePolicyEnabledState(ctx, policyID, plan.Enabled.ValueBool())
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error updating IT automation policy enabled state",
@@ -577,46 +557,84 @@ func (r *itAutomationPolicyResource) Update(
 	}
 
 	if !plan.HostGroups.Equal(state.HostGroups) {
-		if !plan.HostGroups.IsNull() && !plan.HostGroups.IsUnknown() {
-			hostGroups, diags := setToStringSlice(ctx, plan.HostGroups)
-			resp.Diagnostics.Append(diags...)
-			if diags.HasError() {
-				return
+		hostGroupsToAdd, hostGroupsToRemove, diags := utils.SetIDsToModify(
+			ctx,
+			plan.HostGroups,
+			state.HostGroups,
+		)
+		resp.Diagnostics.Append(diags...)
+		if diags.HasError() {
+			return
+		}
+
+		if len(hostGroupsToAdd) > 0 {
+			action := "assign"
+			body := &models.ItautomationUpdatePoliciesHostGroupsRequest{
+				Action:       &action,
+				HostGroupIds: hostGroupsToAdd,
+				PolicyID:     &policyID,
 			}
 
-			if len(hostGroups) > 0 {
-				action := "assign"
-				body := &models.ItautomationUpdatePoliciesHostGroupsRequest{
-					Action:       &action,
-					HostGroupIds: hostGroups,
-					PolicyID:     &policyID,
-				}
+			params := &it_automation.ITAutomationUpdatePolicyHostGroupsParams{
+				Context: ctx,
+				Body:    body,
+			}
 
-				params := &it_automation.ITAutomationUpdatePolicyHostGroupsParams{
-					Context: ctx,
-					Body:    body,
-				}
+			_, err := r.client.ItAutomation.ITAutomationUpdatePolicyHostGroups(params)
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Error adding IT automation policy host groups",
+					fmt.Sprintf(
+						"Could not add host groups: (%s) to policy with id: %s\n\n%s",
+						strings.Join(hostGroupsToAdd, ", "),
+						policyID,
+						err.Error(),
+					),
+				)
+				return
+			}
+		}
 
-				_, err := r.client.ItAutomation.ITAutomationUpdatePolicyHostGroups(params)
-				if err != nil {
-					resp.Diagnostics.AddError(
-						"Error updating IT automation policy host groups",
-						"Could not update host groups for policy ID: "+policyID+", error: "+err.Error(),
-					)
-					return
-				}
+		if len(hostGroupsToRemove) > 0 {
+			action := "unassign"
+			body := &models.ItautomationUpdatePoliciesHostGroupsRequest{
+				Action:       &action,
+				HostGroupIds: hostGroupsToRemove,
+				PolicyID:     &policyID,
+			}
+
+			params := &it_automation.ITAutomationUpdatePolicyHostGroupsParams{
+				Context: ctx,
+				Body:    body,
+			}
+
+			_, err := r.client.ItAutomation.ITAutomationUpdatePolicyHostGroups(params)
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Error removing IT automation policy host groups",
+					fmt.Sprintf(
+						"Could not remove host groups: (%s) from policy with id: %s\n\n%s",
+						strings.Join(hostGroupsToRemove, ", "),
+						policyID,
+						err.Error(),
+					),
+				)
+				return
 			}
 		}
 	}
 
-	updatedPolicy, diags := getItAutomationPolicy(ctx, r.client, policyID)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
+	if !plan.Enabled.Equal(state.Enabled) || !plan.HostGroups.Equal(state.HostGroups) {
+		updatedPolicy, diags := getItAutomationPolicy(ctx, r.client, policyID)
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			return
+		}
+		resp.Diagnostics.Append(plan.wrap(ctx, *updatedPolicy)...)
+	} else {
+		resp.Diagnostics.Append(plan.wrap(ctx, *ok.Payload.Resources[0])...)
 	}
 
-	resp.Diagnostics.Append(plan.wrap(ctx, *updatedPolicy)...)
-	plan.LastUpdated = types.StringValue(time.Now().Format(timeFormat))
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -682,8 +700,13 @@ func (r *itAutomationPolicyResource) Delete(
 	policyID := state.ID.ValueString()
 
 	currentPolicy, diags := getItAutomationPolicy(ctx, r.client, policyID)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
+		for _, d := range diags.Errors() {
+			if d.Summary() == policyNotFoundErrorSummary {
+				return
+			}
+		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -691,35 +714,12 @@ func (r *itAutomationPolicyResource) Delete(
 		err := r.updatePolicyEnabledState(ctx, policyID, false)
 		if err != nil {
 			if isNotFoundError(err) {
-				tflog.Warn(
-					ctx,
-					fmt.Sprintf("%s %s not found during disable, removing from state", itAutomationPolicy, policyID),
-					map[string]any{"error": err.Error()},
-				)
-				resp.State.RemoveResource(ctx)
 				return
 			}
 
 			resp.Diagnostics.AddError(
 				"Error disabling IT automation policy before deletion",
 				err.Error(),
-			)
-			return
-		}
-
-		verifyPolicy, diags := getItAutomationPolicy(ctx, r.client, policyID)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		if verifyPolicy.IsEnabled {
-			resp.Diagnostics.AddError(
-				"Policy disable verification failed",
-				fmt.Sprintf(
-					"Policy %s still shows IsEnabled=true after disable operation",
-					policyID,
-				),
 			)
 			return
 		}
@@ -734,27 +734,20 @@ func (r *itAutomationPolicyResource) Delete(
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "not found") ||
 			strings.Contains(err.Error(), "404") {
-			tflog.Warn(
-				ctx,
-				fmt.Sprintf(notFoundRemoving, fmt.Sprintf("%s %s", itAutomationPolicy, policyID)),
-				map[string]any{"error": err.Error()},
-			)
-			resp.State.RemoveResource(ctx)
 			return
 		}
 
-		/*
-			workaround for api limitation where concurrent policy deletes can return errors
-			even when the policy was successfully deleted by another request.
-			verify the policy actually exists before treating this as a failure.
-		*/
-		_, verifyDiags := getItAutomationPolicy(ctx, r.client, policyID)
-		if verifyDiags.HasError() {
-			for _, diag := range verifyDiags {
-				if diag.Summary() == policyNotFoundErrorSummary {
-					resp.State.RemoveResource(ctx)
-					return
+		if strings.Contains(err.Error(), "500") || strings.Contains(err.Error(), "409") {
+			checkPolicy, checkDiags := getItAutomationPolicy(ctx, r.client, policyID)
+			if checkDiags.HasError() {
+				for _, d := range checkDiags.Errors() {
+					if d.Summary() == policyNotFoundErrorSummary {
+						return
+					}
 				}
+			}
+			if checkPolicy == nil {
+				return
 			}
 		}
 
@@ -799,7 +792,11 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 		return
 	}
 
-	isMac := config.Platform.ValueString() == "Mac"
+	if config.PlatformName.IsUnknown() {
+		return
+	}
+
+	isMac := config.PlatformName.ValueString() == "Mac"
 
 	if isMac {
 		if config.CPUSchedulingPriority.IsNull() {
@@ -846,7 +843,10 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 			resp.Diagnostics.AddAttributeError(
 				path.Root("cpu_throttle"),
 				"Missing required field",
-				fmt.Sprintf("cpu_throttle is required for %s policies", config.Platform.ValueString()),
+				fmt.Sprintf(
+					"cpu_throttle is required for %s policies",
+					config.PlatformName.ValueString(),
+				),
 			)
 		}
 
@@ -854,7 +854,10 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 			resp.Diagnostics.AddAttributeError(
 				path.Root("memory_allocation"),
 				"Missing required field",
-				fmt.Sprintf("memory_allocation is required for %s policies", config.Platform.ValueString()),
+				fmt.Sprintf(
+					"memory_allocation is required for %s policies",
+					config.PlatformName.ValueString(),
+				),
 			)
 		}
 
@@ -862,7 +865,10 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 			resp.Diagnostics.AddAttributeError(
 				path.Root("memory_allocation_unit"),
 				"Missing required field",
-				fmt.Sprintf("memory_allocation_unit is required for %s policies", config.Platform.ValueString()),
+				fmt.Sprintf(
+					"memory_allocation_unit is required for %s policies",
+					config.PlatformName.ValueString(),
+				),
 			)
 		}
 
@@ -872,7 +878,7 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 				"Invalid argument",
 				fmt.Sprintf(
 					"cpu_scheduling_priority cannot be used with %s policies",
-					config.Platform.ValueString(),
+					config.PlatformName.ValueString(),
 				),
 			)
 		}
@@ -883,7 +889,7 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 				"Invalid argument",
 				fmt.Sprintf(
 					"memory_pressure_level cannot be used with %s policies",
-					config.Platform.ValueString(),
+					config.PlatformName.ValueString(),
 				),
 			)
 		}

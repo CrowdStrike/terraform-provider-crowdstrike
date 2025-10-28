@@ -3,7 +3,6 @@ package itautomation
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/it_automation"
@@ -16,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -62,32 +62,26 @@ type itAutomationDefaultPolicyResourceModel struct {
 	EnableScriptExecution           types.Bool   `tfsdk:"enable_script_execution"`
 	ExecutionTimeout                types.Int32  `tfsdk:"execution_timeout"`
 	ExecutionTimeoutUnit            types.String `tfsdk:"execution_timeout_unit"`
-	IsEnabled                       types.Bool   `tfsdk:"is_enabled"`
+	Enabled                         types.Bool   `tfsdk:"enabled"`
 	LastUpdated                     types.String `tfsdk:"last_updated"`
 	MemoryAllocation                types.Int32  `tfsdk:"memory_allocation"`
 	MemoryAllocationUnit            types.String `tfsdk:"memory_allocation_unit"`
 	MemoryPressureLevel             types.String `tfsdk:"memory_pressure_level"`
-	Platform                        types.String `tfsdk:"platform"`
+	PlatformName                    types.String `tfsdk:"platform_name"`
 }
 
 func (t *itAutomationDefaultPolicyResourceModel) wrap(
 	policy models.ItautomationPolicy,
 ) {
-	currentDescription := t.Description
-
-	t.ID = types.StringValue(*policy.ID)
-	t.Name = types.StringValue(*policy.Name)
-	t.IsEnabled = types.BoolValue(policy.IsEnabled)
-
-	if policy.Description != nil {
+	t.ID = types.StringPointerValue(policy.ID)
+	t.Name = types.StringPointerValue(policy.Name)
+	t.Enabled = types.BoolValue(policy.IsEnabled)
+	if policy.Description == nil || *policy.Description == "" {
+		t.Description = types.StringNull()
+	} else {
 		t.Description = types.StringValue(*policy.Description)
-	} else if !currentDescription.IsNull() {
-		t.Description = currentDescription
 	}
-
-	if policy.Target != nil {
-		t.Platform = types.StringValue(*policy.Target)
-	}
+	t.PlatformName = types.StringPointerValue(policy.Target)
 
 	if policy.Config != nil {
 		c := policy.Config.Concurrency
@@ -99,42 +93,27 @@ func (t *itAutomationDefaultPolicyResourceModel) wrap(
 
 		e := policy.Config.Execution
 		if e != nil {
-			t.EnableOsQuery = types.BoolValue(e.EnableOsQuery != nil && *e.EnableOsQuery)
-			t.EnablePythonExecution = types.BoolValue(e.EnablePythonExecution != nil && *e.EnablePythonExecution)
-			t.EnableScriptExecution = types.BoolValue(e.EnableScriptExecution != nil && *e.EnableScriptExecution)
+			t.EnableOsQuery = types.BoolPointerValue(e.EnableOsQuery)
+			t.EnablePythonExecution = types.BoolPointerValue(e.EnablePythonExecution)
+			t.EnableScriptExecution = types.BoolPointerValue(e.EnableScriptExecution)
 			t.ExecutionTimeout = types.Int32Value(e.ExecutionTimeout)
-
-			if e.ExecutionTimeoutUnit != "" {
-				t.ExecutionTimeoutUnit = types.StringValue(e.ExecutionTimeoutUnit)
-			}
+			t.ExecutionTimeoutUnit = types.StringValue(e.ExecutionTimeoutUnit)
 		}
 
 		r := policy.Config.Resources
 		if r != nil {
-			isMac := *policy.Target == "Mac"
+			isMac := policy.Target != nil && *policy.Target == "Mac"
 
 			if isMac {
-				if r.CPUScheduling != "" {
-					t.CPUSchedulingPriority = types.StringValue(r.CPUScheduling)
-				}
-				if r.MemoryPressureLevel != "" {
-					t.MemoryPressureLevel = types.StringValue(r.MemoryPressureLevel)
-				}
+				t.CPUSchedulingPriority = types.StringValue(r.CPUScheduling)
+				t.MemoryPressureLevel = types.StringValue(r.MemoryPressureLevel)
 			} else {
-				if r.CPUThrottle != 0 {
-					t.CPUThrottle = types.Int32Value(r.CPUThrottle)
-				}
-				if r.MemoryAllocation != 0 {
-					t.MemoryAllocation = types.Int32Value(r.MemoryAllocation)
-				}
-				if r.MemoryAllocationUnit != "" {
-					t.MemoryAllocationUnit = types.StringValue(r.MemoryAllocationUnit)
-				}
+				t.CPUThrottle = types.Int32Value(r.CPUThrottle)
+				t.MemoryAllocation = types.Int32Value(r.MemoryAllocation)
+				t.MemoryAllocationUnit = types.StringValue(r.MemoryAllocationUnit)
 			}
 		}
 	}
-
-	t.LastUpdated = types.StringValue(time.Now().Format(timeFormat))
 }
 
 // getDefaultPolicyByPlatform finds the default policy for a given platform.
@@ -224,7 +203,7 @@ func (r *itAutomationDefaultPolicyResource) Schema(
 				Computed:    true,
 				Description: "Timestamp of the last Terraform update of the resource.",
 			},
-			"platform": schema.StringAttribute{
+			"platform_name": schema.StringAttribute{
 				Required:    true,
 				Description: "Platform for the default policy (Windows, Linux, Mac).",
 				Validators: []validator.String{
@@ -237,58 +216,63 @@ func (r *itAutomationDefaultPolicyResource) Schema(
 			"name": schema.StringAttribute{
 				Computed:    true,
 				Description: "Name of the default policy. This is read-only as default policy names cannot be changed.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"description": schema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
+				Required:    true,
 				Description: "Description of the default policy.",
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
 			},
-			"is_enabled": schema.BoolAttribute{
+			"enabled": schema.BoolAttribute{
 				Computed:    true,
 				Description: "Whether the default policy is enabled or disabled. This is read-only as default policies cannot be enabled or disabled.",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"concurrent_host_file_transfer_limit": schema.Int32Attribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Maximum number of hosts that can transfer files simultaneously (1-5000).",
 				Validators: []validator.Int32{
 					int32validator.Between(1, 5000),
 				},
 			},
 			"concurrent_host_limit": schema.Int32Attribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Maximum number of hosts that can run operations simultaneously (1-100000).",
 				Validators: []validator.Int32{
 					int32validator.Between(1, 100000),
 				},
 			},
 			"concurrent_task_limit": schema.Int32Attribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Maximum number of tasks that can run in parallel (1-5).",
 				Validators: []validator.Int32{
 					int32validator.Between(1, 5),
 				},
 			},
 			"enable_os_query": schema.BoolAttribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Whether OSQuery functionality is enabled.",
 			},
 			"enable_python_execution": schema.BoolAttribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Whether Python script execution is enabled.",
 			},
 			"enable_script_execution": schema.BoolAttribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Whether script execution is enabled.",
 			},
 			"execution_timeout": schema.Int32Attribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Maximum time a script can run before timing out.",
 			},
 			"execution_timeout_unit": schema.StringAttribute{
-				Optional:    true,
+				Required:    true,
 				Description: "Unit of time for execution timeout.",
 				Validators: []validator.String{
 					stringvalidator.OneOf("Minutes", "Hours"),
@@ -342,20 +326,17 @@ func (r *itAutomationDefaultPolicyResource) Create(
 		return
 	}
 
-	// find the default policy for this platform.
-	policy, diags := r.getDefaultPolicyByPlatform(ctx, plan.Platform.ValueString())
+	policy, diags := r.getDefaultPolicyByPlatform(ctx, plan.PlatformName.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// set initial state from discovered policy.
 	plan.ID = types.StringValue(*policy.ID)
-	plan.LastUpdated = types.StringValue(time.Now().Format(timeFormat))
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 
-	// apply any configuration changes.
 	if r.hasConfigChanges(&plan) {
-		err := r.updateDefaultPolicyConfig(ctx, &plan)
+		updatedPolicy, err := r.updateDefaultPolicyConfig(ctx, &plan)
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error updating default policy configuration",
@@ -363,17 +344,8 @@ func (r *itAutomationDefaultPolicyResource) Create(
 			)
 			return
 		}
-
-		// get updated policy after configuration changes.
-		updatedPolicy, diags := getItAutomationPolicy(ctx, r.client, *policy.ID)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
 		plan.wrap(*updatedPolicy)
 	} else {
-		// no configuration changes, wrap with existing policy.
 		plan.wrap(*policy)
 	}
 
@@ -394,13 +366,12 @@ func (r *itAutomationDefaultPolicyResource) Read(
 
 	policyID := state.ID.ValueString()
 	policy, diags := getItAutomationPolicy(ctx, r.client, policyID)
-	resp.Diagnostics.Append(diags...)
 
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
 		// manually parse diagnostic errors.
 		// helper functions return standardized diagnostics for consistency.
 		// this is due to some IT Automation endpoints not returning structured/generic 404s.
-		for _, d := range resp.Diagnostics.Errors() {
+		for _, d := range diags.Errors() {
 			if d.Summary() == policyNotFoundErrorSummary {
 				tflog.Warn(
 					ctx,
@@ -410,6 +381,7 @@ func (r *itAutomationDefaultPolicyResource) Read(
 				return
 			}
 		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -429,9 +401,7 @@ func (r *itAutomationDefaultPolicyResource) Update(
 		return
 	}
 
-	policyID := plan.ID.ValueString()
-
-	err := r.updateDefaultPolicyConfig(ctx, &plan)
+	updatedPolicy, err := r.updateDefaultPolicyConfig(ctx, &plan)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating default policy configuration",
@@ -440,14 +410,8 @@ func (r *itAutomationDefaultPolicyResource) Update(
 		return
 	}
 
-	updatedPolicy, diags := getItAutomationPolicy(ctx, r.client, policyID)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	plan.wrap(*updatedPolicy)
-	plan.LastUpdated = types.StringValue(time.Now().Format(timeFormat))
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -485,7 +449,11 @@ func (r *itAutomationDefaultPolicyResource) ValidateConfig(
 		return
 	}
 
-	isMac := config.Platform.ValueString() == "Mac"
+	if config.PlatformName.IsUnknown() {
+		return
+	}
+
+	isMac := config.PlatformName.ValueString() == "Mac"
 
 	if isMac {
 		if config.CPUSchedulingPriority.IsNull() {
@@ -532,7 +500,7 @@ func (r *itAutomationDefaultPolicyResource) ValidateConfig(
 			resp.Diagnostics.AddAttributeError(
 				path.Root("cpu_throttle"),
 				"Missing required field",
-				fmt.Sprintf("cpu_throttle is required for %s default policies", config.Platform.ValueString()),
+				fmt.Sprintf("cpu_throttle is required for %s default policies", config.PlatformName.ValueString()),
 			)
 		}
 
@@ -540,7 +508,7 @@ func (r *itAutomationDefaultPolicyResource) ValidateConfig(
 			resp.Diagnostics.AddAttributeError(
 				path.Root("memory_allocation"),
 				"Missing required field",
-				fmt.Sprintf("memory_allocation is required for %s default policies", config.Platform.ValueString()),
+				fmt.Sprintf("memory_allocation is required for %s default policies", config.PlatformName.ValueString()),
 			)
 		}
 
@@ -548,7 +516,7 @@ func (r *itAutomationDefaultPolicyResource) ValidateConfig(
 			resp.Diagnostics.AddAttributeError(
 				path.Root("memory_allocation_unit"),
 				"Missing required field",
-				fmt.Sprintf("memory_allocation_unit is required for %s default policies", config.Platform.ValueString()),
+				fmt.Sprintf("memory_allocation_unit is required for %s default policies", config.PlatformName.ValueString()),
 			)
 		}
 
@@ -558,7 +526,7 @@ func (r *itAutomationDefaultPolicyResource) ValidateConfig(
 				"Invalid argument",
 				fmt.Sprintf(
 					"cpu_scheduling_priority cannot be used with %s default policies",
-					config.Platform.ValueString(),
+					config.PlatformName.ValueString(),
 				),
 			)
 		}
@@ -569,7 +537,7 @@ func (r *itAutomationDefaultPolicyResource) ValidateConfig(
 				"Invalid argument",
 				fmt.Sprintf(
 					"memory_pressure_level cannot be used with %s default policies",
-					config.Platform.ValueString(),
+					config.PlatformName.ValueString(),
 				),
 			)
 		}
@@ -598,17 +566,14 @@ func (r *itAutomationDefaultPolicyResource) hasConfigChanges(plan *itAutomationD
 func (r *itAutomationDefaultPolicyResource) updateDefaultPolicyConfig(
 	ctx context.Context,
 	plan *itAutomationDefaultPolicyResourceModel,
-) error {
+) (*models.ItautomationPolicy, error) {
 	policyID := plan.ID.ValueString()
-	config, description := createPolicyConfigFromModelDefault(plan)
+	config := createPolicyConfigFromModelDefault(plan)
 
 	body := &models.ItautomationUpdatePolicyRequest{
-		ID:     policyID,
-		Config: config,
-	}
-
-	if description != nil {
-		body.Description = *description
+		ID:          policyID,
+		Description: plan.Description.ValueStringPointer(),
+		Config:      config,
 	}
 
 	params := &it_automation.ITAutomationUpdatePoliciesParams{
@@ -616,9 +581,13 @@ func (r *itAutomationDefaultPolicyResource) updateDefaultPolicyConfig(
 		Body:    body,
 	}
 
-	_, err := r.client.ItAutomation.ITAutomationUpdatePolicies(params)
+	ok, err := r.client.ItAutomation.ITAutomationUpdatePolicies(params)
 	if err != nil {
-		return fmt.Errorf("could not update default policy ID %s: %w", policyID, err)
+		return nil, fmt.Errorf("could not update default policy ID %s: %w", policyID, err)
+	}
+
+	if ok == nil || ok.Payload == nil || len(ok.Payload.Resources) == 0 {
+		return nil, fmt.Errorf("API returned empty response")
 	}
 
 	tflog.Info(
@@ -626,46 +595,31 @@ func (r *itAutomationDefaultPolicyResource) updateDefaultPolicyConfig(
 		fmt.Sprintf(
 			"Successfully updated default policy %s for platform %s",
 			policyID,
-			plan.Platform.ValueString(),
+			plan.PlatformName.ValueString(),
 		),
 	)
 
-	return nil
+	return ok.Payload.Resources[0], nil
 }
 
 // createPolicyConfigFromModelDefault creates a policy configuration from the default policy resource model.
 func createPolicyConfigFromModelDefault(
 	plan *itAutomationDefaultPolicyResourceModel,
-) (*models.ItautomationPolicyConfig, *string) {
+) *models.ItautomationPolicyConfig {
 	config := &models.ItautomationPolicyConfig{}
-	var description *string
 
-	if !plan.Description.IsNull() && !plan.Description.IsUnknown() {
-		desc := plan.Description.ValueString()
-		description = &desc
-	}
-
-	config.Concurrency = &models.ItautomationConcurrencyConfig{}
-	if !plan.ConcurrentHostFileTransferLimit.IsNull() {
-		config.Concurrency.ConcurrentHostFileTransferLimit = plan.ConcurrentHostFileTransferLimit.ValueInt32()
-	}
-	if !plan.ConcurrentHostLimit.IsNull() {
-		config.Concurrency.ConcurrentHostLimit = plan.ConcurrentHostLimit.ValueInt32()
-	}
-	if !plan.ConcurrentTaskLimit.IsNull() {
-		config.Concurrency.ConcurrentTaskLimit = plan.ConcurrentTaskLimit.ValueInt32()
+	config.Concurrency = &models.ItautomationConcurrencyConfig{
+		ConcurrentHostFileTransferLimit: plan.ConcurrentHostFileTransferLimit.ValueInt32(),
+		ConcurrentHostLimit:             plan.ConcurrentHostLimit.ValueInt32(),
+		ConcurrentTaskLimit:             plan.ConcurrentTaskLimit.ValueInt32(),
 	}
 
-	config.Execution = &models.ItautomationExecutionConfig{}
-	setBoolPointer(plan.EnableOsQuery, &config.Execution.EnableOsQuery)
-	setBoolPointer(plan.EnablePythonExecution, &config.Execution.EnablePythonExecution)
-	setBoolPointer(plan.EnableScriptExecution, &config.Execution.EnableScriptExecution)
-
-	if !plan.ExecutionTimeout.IsNull() {
-		config.Execution.ExecutionTimeout = plan.ExecutionTimeout.ValueInt32()
-	}
-	if !plan.ExecutionTimeoutUnit.IsNull() {
-		config.Execution.ExecutionTimeoutUnit = plan.ExecutionTimeoutUnit.ValueString()
+	config.Execution = &models.ItautomationExecutionConfig{
+		EnableOsQuery:         plan.EnableOsQuery.ValueBoolPointer(),
+		EnablePythonExecution: plan.EnablePythonExecution.ValueBoolPointer(),
+		EnableScriptExecution: plan.EnableScriptExecution.ValueBoolPointer(),
+		ExecutionTimeout:      plan.ExecutionTimeout.ValueInt32(),
+		ExecutionTimeoutUnit:  plan.ExecutionTimeoutUnit.ValueString(),
 	}
 
 	config.Resources = &models.ItautomationResourceConfig{}
@@ -685,5 +639,5 @@ func createPolicyConfigFromModelDefault(
 		config.Resources.MemoryPressureLevel = plan.MemoryPressureLevel.ValueString()
 	}
 
-	return config, description
+	return config
 }

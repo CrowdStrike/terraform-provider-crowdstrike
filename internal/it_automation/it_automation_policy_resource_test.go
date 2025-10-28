@@ -13,12 +13,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
-// usage:
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationPolicyResource ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationPolicyResource_Windows ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationPolicyResource_Linux ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationPolicyResource_Mac ./internal/it_automation
-
 const policyResourceName = "crowdstrike_it_automation_policy.test"
 
 type policyConfig struct {
@@ -69,8 +63,8 @@ func (config *policyConfig) String() string {
 resource "crowdstrike_it_automation_policy" "test" {
   name        = %q
   description = %q
-  platform    = %q
-  is_enabled  = %t
+  platform_name    = %q
+  enabled  = %t
 %s
   concurrent_host_file_transfer_limit = %d
   concurrent_host_limit               = %d
@@ -98,8 +92,8 @@ func (config *policyConfig) TestChecks() resource.TestCheckFunc {
 		resource.TestCheckResourceAttrSet(policyResourceName, "last_updated"),
 		resource.TestCheckResourceAttr(policyResourceName, "name", config.Name),
 		resource.TestCheckResourceAttr(policyResourceName, "description", config.Description),
-		resource.TestCheckResourceAttr(policyResourceName, "platform", config.Platform),
-		resource.TestCheckResourceAttr(policyResourceName, "is_enabled", fmt.Sprintf("%t", config.IsEnabled)),
+		resource.TestCheckResourceAttr(policyResourceName, "platform_name", config.Platform),
+		resource.TestCheckResourceAttr(policyResourceName, "enabled", fmt.Sprintf("%t", config.IsEnabled)),
 		resource.TestCheckResourceAttr(policyResourceName, "concurrent_host_file_transfer_limit", fmt.Sprintf("%d", config.ConcurrentHostFileTransferLimit)),
 		resource.TestCheckResourceAttr(policyResourceName, "concurrent_host_limit", fmt.Sprintf("%d", config.ConcurrentHostLimit)),
 		resource.TestCheckResourceAttr(policyResourceName, "concurrent_task_limit", fmt.Sprintf("%d", config.ConcurrentTaskLimit)),
@@ -133,7 +127,7 @@ func (config *policyConfig) TestChecks() resource.TestCheckFunc {
 }
 
 func TestAccITAutomationPolicyResource_Windows(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acc-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 
 	testCases := []struct {
 		name   string
@@ -212,7 +206,7 @@ func TestAccITAutomationPolicyResource_Windows(t *testing.T) {
 }
 
 func TestAccITAutomationPolicyResource_Linux(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acc-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 
 	testCases := []struct {
 		name   string
@@ -291,7 +285,7 @@ func TestAccITAutomationPolicyResource_Linux(t *testing.T) {
 }
 
 func TestAccITAutomationPolicyResource_Mac(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acc-test")
+	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 
 	testCases := []struct {
 		name   string

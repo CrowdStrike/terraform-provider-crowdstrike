@@ -49,7 +49,8 @@ resource "crowdstrike_it_automation_task" "script_file_example" {
   description = "Example task using script files, file attachments, and a verification condition."
   type        = "action"
 
-  linux_script_file_id = "378e984aee3511efb8a2bef47e6c96ec_a4eb840ff5424cbd89ba28497b6fcb6b"
+  linux_script_file_id  = "378e984aee3511efb8a2bef47e6c96ec_a4eb840ff5424cbd89ba28497b6fcb6b"
+  linux_script_language = "bash"
 
   file_ids = [
     "1b08868dee3511efa739d6ef9e24a20c_a4eb840ff5424cbd89ba28497b6fcb6b"
@@ -65,6 +66,61 @@ resource "crowdstrike_it_automation_task" "script_file_example" {
       value           = "Success"
     }]
   }]
+}
+
+resource "crowdstrike_it_automation_task" "mac_script_example" {
+  name        = "Mac Script Content Example"
+  access_type = "Public"
+  description = "Example task for Mac using inline script content"
+  type        = "query"
+
+  mac_script_language = "zsh"
+  mac_script_content  = <<-END
+    #!/bin/zsh
+    echo "System|$(uname -s)"
+    echo "Version|$(sw_vers -productVersion)"
+  END
+
+  script_columns = {
+    delimiter     = "|"
+    group_results = false
+
+    columns = [
+      {
+        name = "info"
+      },
+      {
+        name = "value"
+      }
+    ]
+  }
+}
+
+resource "crowdstrike_it_automation_task" "windows_script_example" {
+  name        = "Windows Script Content Example"
+  access_type = "Public"
+  description = "Example task for Windows using inline script content"
+  type        = "query"
+
+  windows_script_language = "powershell"
+  windows_script_content  = <<-END
+    Write-Output "Computer|$env:COMPUTERNAME"
+    Write-Output "OS|$((Get-WmiObject Win32_OperatingSystem).Caption)"
+  END
+
+  script_columns = {
+    delimiter     = "|"
+    group_results = false
+
+    columns = [
+      {
+        name = "type"
+      },
+      {
+        name = "data"
+      }
+    ]
+  }
 }
 
 resource "crowdstrike_it_automation_task" "osquery_example" {
@@ -87,6 +143,14 @@ output "script_content_task" {
 
 output "script_file_task" {
   value = crowdstrike_it_automation_task.script_file_example
+}
+
+output "mac_script_task" {
+  value = crowdstrike_it_automation_task.mac_script_example
+}
+
+output "windows_script_task" {
+  value = crowdstrike_it_automation_task.windows_script_example
 }
 
 output "osquery_task" {

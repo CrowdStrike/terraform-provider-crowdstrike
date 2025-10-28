@@ -11,12 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
-// usage:
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationDefaultPolicyResource ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationDefaultPolicyResource_Windows ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationDefaultPolicyResource_Linux ./internal/it_automation
-// 	TF_LOG=DEBUG TF_ACC=1 go test -v -run TestAccITAutomationDefaultPolicyResource_Mac ./internal/it_automation
-
 const defaultPolicyResourceName = "crowdstrike_it_automation_default_policy.test"
 
 type defaultPolicyConfig struct {
@@ -54,7 +48,7 @@ func (config *defaultPolicyConfig) String() string {
 
 	return fmt.Sprintf(`
 resource "crowdstrike_it_automation_default_policy" "test" {
-  platform    = %q
+  platform_name    = %q
   description = %q
 
   concurrent_host_file_transfer_limit = %d
@@ -81,7 +75,7 @@ func (config *defaultPolicyConfig) TestChecks() resource.TestCheckFunc {
 		resource.TestCheckResourceAttrSet(defaultPolicyResourceName, "id"),
 		resource.TestCheckResourceAttrSet(defaultPolicyResourceName, "name"),
 		resource.TestCheckResourceAttrSet(defaultPolicyResourceName, "last_updated"),
-		resource.TestCheckResourceAttr(defaultPolicyResourceName, "platform", config.Platform),
+		resource.TestCheckResourceAttr(defaultPolicyResourceName, "platform_name", config.Platform),
 		resource.TestCheckResourceAttr(defaultPolicyResourceName, "description", config.Description),
 		resource.TestCheckResourceAttr(defaultPolicyResourceName, "concurrent_host_file_transfer_limit", fmt.Sprintf("%d", config.ConcurrentHostFileTransferLimit)),
 		resource.TestCheckResourceAttr(defaultPolicyResourceName, "concurrent_host_limit", fmt.Sprintf("%d", config.ConcurrentHostLimit)),
@@ -91,7 +85,7 @@ func (config *defaultPolicyConfig) TestChecks() resource.TestCheckFunc {
 		resource.TestCheckResourceAttr(defaultPolicyResourceName, "enable_script_execution", fmt.Sprintf("%t", config.EnableScriptExecution)),
 		resource.TestCheckResourceAttr(defaultPolicyResourceName, "execution_timeout", fmt.Sprintf("%d", config.ExecutionTimeout)),
 		resource.TestCheckResourceAttr(defaultPolicyResourceName, "execution_timeout_unit", config.ExecutionTimeoutUnit),
-		resource.TestCheckResourceAttr(defaultPolicyResourceName, "is_enabled", "true"),
+		resource.TestCheckResourceAttr(defaultPolicyResourceName, "enabled", "true"),
 	)
 
 	if config.Platform == "Mac" {

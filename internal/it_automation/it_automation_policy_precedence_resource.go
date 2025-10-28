@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/it_automation"
@@ -50,11 +49,11 @@ type itAutomationPolicyPrecedenceResource struct {
 
 // itAutomationPolicyPrecedenceResourceModel is the resource model.
 type itAutomationPolicyPrecedenceResourceModel struct {
-	ID          types.String `tfsdk:"id"`
-	IDs         types.List   `tfsdk:"ids"`
-	Enforcement types.String `tfsdk:"enforcement"`
-	LastUpdated types.String `tfsdk:"last_updated"`
-	Platform    types.String `tfsdk:"platform"`
+	ID           types.String `tfsdk:"id"`
+	IDs          types.List   `tfsdk:"ids"`
+	Enforcement  types.String `tfsdk:"enforcement"`
+	LastUpdated  types.String `tfsdk:"last_updated"`
+	PlatformName types.String `tfsdk:"platform_name"`
 }
 
 func (d *itAutomationPolicyPrecedenceResourceModel) wrap(
@@ -70,7 +69,6 @@ func (d *itAutomationPolicyPrecedenceResourceModel) wrap(
 	}
 
 	d.IDs = policyList
-
 	return diags
 }
 
@@ -139,7 +137,7 @@ func (r *itAutomationPolicyPrecedenceResource) Schema(
 					stringvalidator.OneOfCaseInsensitive(strictEnforcement, dynamicEnforcement),
 				},
 			},
-			"platform": schema.StringAttribute{
+			"platform_name": schema.StringAttribute{
 				Required:    true,
 				Description: "The platform of the IT automation policies (Windows, Linux, Mac).",
 				Validators: []validator.String{
@@ -176,7 +174,7 @@ func (r *itAutomationPolicyPrecedenceResource) Create(
 		dynamicOrderedPolicyIDs, diags := r.generateDynamicPolicyOrder(
 			ctx,
 			planPolicyIDs,
-			plan.Platform.ValueString(),
+			plan.PlatformName.ValueString(),
 		)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -188,7 +186,7 @@ func (r *itAutomationPolicyPrecedenceResource) Create(
 		strictOrderedPolicyIDs, diags := r.generateStrictPolicyOrder(
 			ctx,
 			planPolicyIDs,
-			plan.Platform.ValueString(),
+			plan.PlatformName.ValueString(),
 		)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -202,7 +200,7 @@ func (r *itAutomationPolicyPrecedenceResource) Create(
 		r.setItAutomationPolicyPrecedence(
 			ctx,
 			planPolicyIDs,
-			plan.Platform.ValueString(),
+			plan.PlatformName.ValueString(),
 		)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -211,7 +209,7 @@ func (r *itAutomationPolicyPrecedenceResource) Create(
 	_, policies, diags := getItAutomationPolicies(
 		ctx,
 		r.client,
-		plan.Platform.ValueString(),
+		plan.PlatformName.ValueString(),
 	)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -225,10 +223,10 @@ func (r *itAutomationPolicyPrecedenceResource) Create(
 
 	plan.ID = types.StringValue(
 		fmt.Sprintf("it_automation_policy_precedence_%s",
-			strings.ToLower(plan.Platform.ValueString()),
+			strings.ToLower(plan.PlatformName.ValueString()),
 		),
 	)
-	plan.LastUpdated = types.StringValue(time.Now().Format(timeFormat))
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 	resp.Diagnostics.Append(plan.wrap(ctx, policies)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -248,7 +246,7 @@ func (r *itAutomationPolicyPrecedenceResource) Read(
 	_, policies, diags := getItAutomationPolicies(
 		ctx,
 		r.client,
-		state.Platform.ValueString(),
+		state.PlatformName.ValueString(),
 	)
 
 	resp.Diagnostics.Append(diags...)
@@ -287,7 +285,7 @@ func (r *itAutomationPolicyPrecedenceResource) Update(
 		dynamicOrderedPolicyIDs, diags := r.generateDynamicPolicyOrder(
 			ctx,
 			planPolicyIDs,
-			plan.Platform.ValueString(),
+			plan.PlatformName.ValueString(),
 		)
 
 		resp.Diagnostics.Append(diags...)
@@ -300,7 +298,7 @@ func (r *itAutomationPolicyPrecedenceResource) Update(
 		strictOrderedPolicyIDs, diags := r.generateStrictPolicyOrder(
 			ctx,
 			planPolicyIDs,
-			plan.Platform.ValueString(),
+			plan.PlatformName.ValueString(),
 		)
 
 		resp.Diagnostics.Append(diags...)
@@ -315,7 +313,7 @@ func (r *itAutomationPolicyPrecedenceResource) Update(
 		r.setItAutomationPolicyPrecedence(
 			ctx,
 			planPolicyIDs,
-			plan.Platform.ValueString(),
+			plan.PlatformName.ValueString(),
 		)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -324,7 +322,7 @@ func (r *itAutomationPolicyPrecedenceResource) Update(
 	_, policies, diags := getItAutomationPolicies(
 		ctx,
 		r.client,
-		plan.Platform.ValueString(),
+		plan.PlatformName.ValueString(),
 	)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -338,8 +336,8 @@ func (r *itAutomationPolicyPrecedenceResource) Update(
 
 	plan.ID = types.StringValue(fmt.Sprintf(
 		"it_automation_policy_precedence_%s",
-		strings.ToLower(plan.Platform.ValueString())))
-	plan.LastUpdated = types.StringValue(time.Now().Format(timeFormat))
+		strings.ToLower(plan.PlatformName.ValueString())))
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 
 	resp.Diagnostics.Append(plan.wrap(ctx, policies)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -365,7 +363,7 @@ func (r *itAutomationPolicyPrecedenceResource) ValidateConfig(
 		return
 	}
 
-	if config.IDs.IsUnknown() || config.Enforcement.IsUnknown() || config.Platform.IsUnknown() {
+	if config.IDs.IsUnknown() || config.Enforcement.IsUnknown() || config.PlatformName.IsUnknown() {
 		return
 	}
 
