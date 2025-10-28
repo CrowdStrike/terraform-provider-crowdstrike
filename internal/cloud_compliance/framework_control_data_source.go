@@ -47,7 +47,7 @@ type cloudComplianceFrameworkControlModel struct {
 	Authority   types.String `tfsdk:"authority"`
 	Code        types.String `tfsdk:"code"`
 	Requirement types.String `tfsdk:"requirement"`
-	Benchmark   types.String `tfsdk:"benchmark"`
+	Benchmark   types.Set    `tfsdk:"benchmark"`
 	Name        types.String `tfsdk:"name"`
 	Section     types.String `tfsdk:"section"`
 	Id          types.String `tfsdk:"id"`
@@ -63,7 +63,7 @@ func (m cloudComplianceFrameworkControlModel) AttributeTypes() map[string]attr.T
 		"authority":   types.StringType,
 		"code":        types.StringType,
 		"requirement": types.StringType,
-		"benchmark":   types.StringType,
+		"benchmark":   types.SetType{ElemType: types.StringType},
 		"name":        types.StringType,
 		"section":     types.StringType,
 		"id":          types.StringType,
@@ -187,9 +187,10 @@ func (r *cloudComplianceFrameworkControlDataSource) Schema(
 							Computed:    true,
 							Description: "The compliance framework requirement.",
 						},
-						"benchmark": schema.StringAttribute{
+						"benchmark": schema.SetAttribute{
 							Computed:    true,
-							Description: "The compliance benchmark within the framework.",
+							Description: "The compliance benchmarks within the framework.",
+							ElementType: types.StringType,
 						},
 						"name": schema.StringAttribute{
 							Computed:    true,
@@ -355,9 +356,15 @@ func (r *cloudComplianceFrameworkControlDataSource) getControls(
 		}
 
 		for _, control := range controlsInfo {
-			var benchmark types.String
-			if control.SecurityFramework != nil {
-				benchmark = types.StringPointerValue(control.SecurityFramework[0].Name)
+			var benchmark types.Set
+			if len(control.SecurityFramework) > 0 {
+				benchmarkValues := make([]string, 0, len(control.SecurityFramework))
+				for _, framework := range control.SecurityFramework {
+					if framework.Name != nil {
+						benchmarkValues = append(benchmarkValues, *framework.Name)
+					}
+				}
+				benchmark, _ = types.SetValueFrom(ctx, types.StringType, benchmarkValues)
 			}
 			controls = append(controls, cloudComplianceFrameworkControlModel{
 				Authority:   types.StringPointerValue(control.Authority),

@@ -33,7 +33,7 @@ func TestCloudComplianceFrameworkControlDataSource(t *testing.T) {
 				"by_fql",
 			),
 			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr(resourcePrefix+"by_fql", "controls.0.benchmark", benchmark),
+				resource.TestCheckResourceAttr(resourcePrefix+"by_fql", "controls.0.benchmark.0", benchmark),
 				resource.TestCheckResourceAttr(resourcePrefix+"by_fql", "controls.0.name", controlNameResponse),
 				resource.TestCheckResourceAttr(resourcePrefix+"by_fql", "controls.0.requirement", requirement),
 				resource.TestCheckResourceAttrSet(resourcePrefix+"by_fql", "controls.0.section"),
@@ -45,7 +45,7 @@ func TestCloudComplianceFrameworkControlDataSource(t *testing.T) {
 		{
 			Config: testDatasourceByNameConfig(controlName, benchmark, "by_name"),
 			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr(resourcePrefix+"by_name", "controls.0.benchmark", benchmark),
+				resource.TestCheckResourceAttr(resourcePrefix+"by_name", "controls.0.benchmark.0", benchmark),
 				resource.TestCheckResourceAttr(resourcePrefix+"by_name", "controls.0.name", controlNameResponse),
 				resource.TestCheckResourceAttr(resourcePrefix+"by_name", "controls.0.requirement", requirement),
 				resource.TestCheckResourceAttrSet(resourcePrefix+"by_name", "controls.0.section"),
@@ -57,7 +57,7 @@ func TestCloudComplianceFrameworkControlDataSource(t *testing.T) {
 		{
 			Config: testDatasourceByRequirementConfig(requirement, benchmark, "by_requirement"),
 			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr(resourcePrefix+"by_requirement", "controls.0.benchmark", benchmark),
+				resource.TestCheckResourceAttr(resourcePrefix+"by_requirement", "controls.0.benchmark.0", benchmark),
 				resource.TestCheckResourceAttr(resourcePrefix+"by_requirement", "controls.0.name", controlNameResponse),
 				resource.TestCheckResourceAttr(resourcePrefix+"by_requirement", "controls.0.requirement", requirement),
 				resource.TestCheckResourceAttrSet(resourcePrefix+"by_requirement", "controls.0.section"),
@@ -69,7 +69,7 @@ func TestCloudComplianceFrameworkControlDataSource(t *testing.T) {
 		{
 			Config: testDatasourceBySectionConfig(requirement, benchmark, section, "by_section"),
 			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr(resourcePrefix+"by_section", "controls.0.benchmark", benchmark),
+				resource.TestCheckResourceAttr(resourcePrefix+"by_section", "controls.0.benchmark.0", benchmark),
 				resource.TestCheckResourceAttr(resourcePrefix+"by_section", "controls.0.name", controlNameResponse),
 				resource.TestCheckResourceAttr(resourcePrefix+"by_section", "controls.0.requirement", requirement),
 				resource.TestCheckResourceAttrSet(resourcePrefix+"by_section", "controls.0.section"),

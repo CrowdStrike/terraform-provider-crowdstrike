@@ -78,7 +78,7 @@ data "crowdstrike_cloud_compliance_framework_controls" "fql" {
 Read-Only:
 
 - `authority` (String) The compliance authority for the framework
-- `benchmark` (String) The compliance benchmark within the framework.
+- `benchmark` (Set of String) The compliance benchmarks within the framework.
 - `code` (String) The unique compliance framework rule code.
 - `id` (String) The id of the compliance control.
 - `name` (String) The name of the control.
