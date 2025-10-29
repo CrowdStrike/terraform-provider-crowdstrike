@@ -472,11 +472,9 @@ func (r *itAutomationTaskGroupResource) ValidateConfig(
 
 	AccessType := config.AccessType.ValueString()
 
-	AssignedUserIdsProvided := !config.AssignedUserIds.IsNull() &&
-		!config.AssignedUserIds.IsUnknown()
+	AssignedUserIdsProvided := utils.IsKnown(config.AssignedUserIds)
 
-	TaskIdsProvided := !config.TaskIds.IsNull() &&
-		!config.TaskIds.IsUnknown()
+	TaskIdsProvided := utils.IsKnown(config.TaskIds)
 
 	if TaskIdsProvided {
 		var taskIds []types.String

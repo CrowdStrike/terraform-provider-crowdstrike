@@ -17,6 +17,11 @@ func IsKnown(value attr.Value) bool {
 	return !value.IsNull() && !value.IsUnknown()
 }
 
+// IsNull returns true if an attribute value is known and null.
+func IsNull(value attr.Value) bool {
+	return value.IsNull() && !value.IsUnknown()
+}
+
 // ListTypeAs converts a types.List into a known []T.
 func ListTypeAs[T any](
 	ctx context.Context,

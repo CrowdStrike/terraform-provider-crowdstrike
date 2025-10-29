@@ -1183,14 +1183,14 @@ func (r *itAutomationTaskResource) ValidateConfig(
 		accessType = AccessTypePublic
 	}
 
-	if accessType == AccessTypeShared && config.AssignedUserIds.IsNull() {
+	if accessType == AccessTypeShared && utils.IsNull(config.AssignedUserIds) {
 		resp.Diagnostics.AddAttributeError(path.Root("access_type"),
 			"Missing required argument",
 			"When access_type is Shared, assigned_user_ids is required")
 		return
 	}
 
-	if accessType != AccessTypeShared && !config.AssignedUserIds.IsNull() {
+	if accessType != AccessTypeShared && utils.IsKnown(config.AssignedUserIds) {
 		resp.Diagnostics.AddAttributeError(path.Root("assigned_user_ids"),
 			"Invalid argument",
 			"assigned_user_ids can only be used when access_type is Shared")

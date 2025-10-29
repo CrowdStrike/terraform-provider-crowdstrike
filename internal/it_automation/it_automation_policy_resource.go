@@ -799,7 +799,7 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 	isMac := config.PlatformName.ValueString() == "Mac"
 
 	if isMac {
-		if config.CPUSchedulingPriority.IsNull() {
+		if utils.IsNull(config.CPUSchedulingPriority) {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("cpu_scheduling_priority"),
 				"Missing required field",
@@ -807,7 +807,7 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 			)
 		}
 
-		if config.MemoryPressureLevel.IsNull() {
+		if utils.IsNull(config.MemoryPressureLevel) {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("memory_pressure_level"),
 				"Missing required field",
@@ -815,7 +815,7 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 			)
 		}
 
-		if !config.CPUThrottle.IsNull() {
+		if utils.IsKnown(config.CPUThrottle) {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("cpu_throttle"),
 				"Invalid argument",
@@ -823,7 +823,7 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 			)
 		}
 
-		if !config.MemoryAllocation.IsNull() {
+		if utils.IsKnown(config.MemoryAllocation) {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("memory_allocation"),
 				"Invalid argument",
@@ -831,7 +831,7 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 			)
 		}
 
-		if !config.MemoryAllocationUnit.IsNull() {
+		if utils.IsKnown(config.MemoryAllocationUnit) {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("memory_allocation_unit"),
 				"Invalid argument",
@@ -839,7 +839,7 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 			)
 		}
 	} else {
-		if config.CPUThrottle.IsNull() {
+		if utils.IsNull(config.CPUThrottle) {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("cpu_throttle"),
 				"Missing required field",
@@ -850,7 +850,7 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 			)
 		}
 
-		if config.MemoryAllocation.IsNull() {
+		if utils.IsNull(config.MemoryAllocation) {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("memory_allocation"),
 				"Missing required field",
@@ -861,7 +861,7 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 			)
 		}
 
-		if config.MemoryAllocationUnit.IsNull() {
+		if utils.IsNull(config.MemoryAllocationUnit) {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("memory_allocation_unit"),
 				"Missing required field",
@@ -872,7 +872,7 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 			)
 		}
 
-		if !config.CPUSchedulingPriority.IsNull() {
+		if utils.IsKnown(config.CPUSchedulingPriority) {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("cpu_scheduling_priority"),
 				"Invalid argument",
@@ -883,7 +883,7 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 			)
 		}
 
-		if !config.MemoryPressureLevel.IsNull() {
+		if utils.IsKnown(config.MemoryPressureLevel) {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("memory_pressure_level"),
 				"Invalid argument",
