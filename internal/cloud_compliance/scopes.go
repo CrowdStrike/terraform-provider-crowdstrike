@@ -12,7 +12,7 @@ var cloudComplianceFrameworkScopes = []scopes.Scope{
 
 var cloudComplianceCustomFrameworkScopes = []scopes.Scope{
 	{
-		Name:  "Cloud Security Custom Policies",
+		Name:  "Cloud Security Policies",
 		Read:  true,
 		Write: true,
 	},

@@ -5,7 +5,7 @@ description: |-
   This resource allows managing custom compliance frameworks in the CrowdStrike Falcon Platform.
   API Scopes
   The following API scopes are required:
-  Cloud Security Custom Policies | Read & Write
+  Cloud Security Policies | Read & Write
 ---
 
 # crowdstrike_cloud_compliance_custom_framework (Resource)
@@ -16,7 +16,7 @@ This resource allows managing custom compliance frameworks in the CrowdStrike Fa
 
 The following API scopes are required:
 
-- Cloud Security Custom Policies | Read & Write
+- Cloud Security Policies | Read & Write
 
 
 ## Example Usage
@@ -78,10 +78,33 @@ output "cloud_compliance_custom_framework" {
 ### Optional
 
 - `active` (Boolean) Whether the custom compliance framework is active. Defaults to false on create. Once set to true, cannot be changed back to false.
+- `sections` (Attributes Map) Map of sections within the framework. Key is the section name. Sections cannot exist without controls. (see [below for nested schema](#nestedatt--sections))
 
 ### Read-Only
 
-- `id` (String) The unique identifier for the custom compliance framework.
+- `id` (String) Identifier for the custom compliance framework.
+
+<a id="nestedatt--sections"></a>
+### Nested Schema for `sections`
+
+Required:
+
+- `controls` (Attributes Map) Map of controls within the section. Key is the control name. (see [below for nested schema](#nestedatt--sections--controls))
+
+<a id="nestedatt--sections--controls"></a>
+### Nested Schema for `sections.controls`
+
+Required:
+
+- `description` (String) Description of the control.
+
+Optional:
+
+- `rules` (Set of String) Set of rule IDs assigned to this control.
+
+Read-Only:
+
+- `id` (String) Identifier for the framework control.
 
 ## Import
 

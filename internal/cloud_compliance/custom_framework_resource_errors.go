@@ -16,6 +16,7 @@ const (
 	apiOperationReadFramework   = "read_framework"
 	apiOperationDeleteFramework = "delete_framework"
 	apiOperationCreateControl   = "create_control"
+	apiOperationReadControls    = "read_controls"
 
 	errorCreatingFramework = "Error Creating Custom Compliance Framework"
 	errorUpdatingFramework = "Error Updating Custom Compliance Framework"
@@ -34,6 +35,7 @@ const (
 	noFrameworkReturned   = "No framework returned from API"
 	noControlReturned     = "No control returned from API"
 	noControlIdReturned   = "No control ID returned from API"
+	failedToGetControls   = "Failed to get controls for control IDs %s: %s"
 	failedToCreateControl = "Failed to create control %s in section %s: %s"
 )
 
@@ -51,7 +53,6 @@ func handleAPIError(err error, operation string, id string) diag.Diagnostics {
 				))
 			return diags
 		}
-
 	case apiOperationUpdateFramework:
 		if badRequest, ok := err.(*cloud_policies.UpdateComplianceFrameworkBadRequest); ok {
 			diags.AddError(errorUpdatingFramework,
@@ -70,7 +71,6 @@ func handleAPIError(err error, operation string, id string) diag.Diagnostics {
 				))
 			return diags
 		}
-
 	case apiOperationReadFramework:
 		if badRequest, ok := err.(*cloud_policies.GetComplianceFrameworksBadRequest); ok {
 			diags.AddError(errorReadingFramework,
@@ -90,7 +90,6 @@ func handleAPIError(err error, operation string, id string) diag.Diagnostics {
 					*internalServerError.Payload.Errors[0].Message))
 			return diags
 		}
-
 	case apiOperationDeleteFramework:
 		if badRequest, ok := err.(*cloud_policies.DeleteComplianceFrameworkBadRequest); ok {
 			diags.AddError(errorDeletingFramework,
@@ -104,11 +103,20 @@ func handleAPIError(err error, operation string, id string) diag.Diagnostics {
 					id, *notFound.Payload.Errors[0].Message))
 			return diags
 		}
-
 	case apiOperationCreateControl:
 		if badRequest, ok := err.(*cloud_policies.CreateComplianceControlBadRequest); ok {
 			diags.AddError(errorCreatingControl,
 				fmt.Sprintf("Failed to create custom compliance framework (%+v): %+v",
+					*badRequest.Payload.Errors[0].Code,
+					*badRequest.Payload.Errors[0].Message,
+				))
+			return diags
+		}
+	case apiOperationReadControls:
+		if badRequest, ok := err.(*cloud_policies.GetComplianceControlsBadRequest); ok {
+			diags.AddError(errorGettingControls,
+				fmt.Sprintf("Compliance framework controls with IDs %s were not found (%+v): %+v",
+					id,
 					*badRequest.Payload.Errors[0].Code,
 					*badRequest.Payload.Errors[0].Message,
 				))
@@ -158,6 +166,14 @@ func validateAPIResponse(payload interface{}, errSummary string) diag.Diagnostic
 
 		if p.Resources[0].UUID == nil || *p.Resources[0].UUID == "" {
 			diags.AddError(errSummary, noControlIdReturned)
+		}
+	case *models.CommonGetComplianceControlsResponse:
+		if err := falcon.AssertNoError(p.Errors); err != nil {
+			diags.AddError(errSummary, fmt.Sprintf("API returned error: %s", err.Error()))
+		}
+
+		if len(p.Resources) == 0 {
+			diags.AddError(errSummary, noControlReturned)
 		}
 	}
 

@@ -3,6 +3,7 @@ package cloudcompliance
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
@@ -46,9 +47,10 @@ var sectionAttrTypes = map[string]attr.Type{
 }
 
 var (
-	_ resource.Resource                = &cloudComplianceCustomFrameworkResource{}
-	_ resource.ResourceWithConfigure   = &cloudComplianceCustomFrameworkResource{}
-	_ resource.ResourceWithImportState = &cloudComplianceCustomFrameworkResource{}
+	_ resource.Resource                   = &cloudComplianceCustomFrameworkResource{}
+	_ resource.ResourceWithConfigure      = &cloudComplianceCustomFrameworkResource{}
+	_ resource.ResourceWithImportState    = &cloudComplianceCustomFrameworkResource{}
+	_ resource.ResourceWithValidateConfig = &cloudComplianceCustomFrameworkResource{}
 )
 
 var (
@@ -109,8 +111,7 @@ func (r *cloudComplianceCustomFrameworkResource) Configure(
 		return
 	}
 
-	falconClient, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
-
+	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
@@ -123,7 +124,7 @@ func (r *cloudComplianceCustomFrameworkResource) Configure(
 		return
 	}
 
-	r.client = falconClient
+	r.client = client
 }
 
 // Metadata returns the resource type name.
@@ -150,7 +151,7 @@ func (r *cloudComplianceCustomFrameworkResource) Schema(
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "The unique identifier for the custom compliance framework.",
+				MarkdownDescription: "Identifier for the custom compliance framework.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -190,7 +191,7 @@ func (r *cloudComplianceCustomFrameworkResource) Schema(
 								Attributes: map[string]schema.Attribute{
 									"id": schema.StringAttribute{
 										Computed:            true,
-										MarkdownDescription: "The unique identifier for the framework control.",
+										MarkdownDescription: "Identifier for the framework control.",
 										PlanModifiers: []planmodifier.String{
 											stringplanmodifier.UseStateForUnknown(),
 										},
@@ -200,6 +201,9 @@ func (r *cloudComplianceCustomFrameworkResource) Schema(
 										MarkdownDescription: "Description of the control.",
 										Validators: []validator.String{
 											stringvalidator.LengthAtLeast(1),
+										},
+										PlanModifiers: []planmodifier.String{
+											stringplanmodifier.RequiresReplace(),
 										},
 									},
 									"rules": schema.SetAttribute{
@@ -238,11 +242,6 @@ func (r *cloudComplianceCustomFrameworkResource) Create(
 	createResp, err := r.client.CloudPolicies.CreateComplianceFramework(params)
 	if err != nil {
 		resp.Diagnostics.Append(handleAPIError(err, apiOperationCreateFramework, "")...)
-		return
-	}
-
-	if createResp == nil || createResp.Payload == nil {
-		resp.Diagnostics.Append(validateAPIResponse(nil, errorCreatingFramework)...)
 		return
 	}
 
@@ -327,11 +326,6 @@ func (r *cloudComplianceCustomFrameworkResource) Read(
 		return
 	}
 
-	if getResp == nil || getResp.Payload == nil {
-		resp.Diagnostics.Append(validateAPIResponse(nil, errorReadingFramework)...)
-		return
-	}
-
 	payload := getResp.GetPayload()
 	resp.Diagnostics.Append(validateAPIResponse(payload, errorReadingFramework)...)
 	if resp.Diagnostics.HasError() {
@@ -401,11 +395,6 @@ func (r *cloudComplianceCustomFrameworkResource) Update(
 	updateResp, err := r.client.CloudPolicies.UpdateComplianceFramework(params)
 	if err != nil {
 		resp.Diagnostics.Append(handleAPIError(err, apiOperationUpdateFramework, plan.ID.ValueString())...)
-		return
-	}
-
-	if updateResp == nil || updateResp.Payload == nil {
-		resp.Diagnostics.Append(validateAPIResponse(nil, errorUpdatingFramework)...)
 		return
 	}
 
@@ -538,6 +527,15 @@ func (r *cloudComplianceCustomFrameworkResource) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
+func (r *cloudComplianceCustomFrameworkResource) ValidateConfig(
+	ctx context.Context,
+	req resource.ValidateConfigRequest,
+	resp *resource.ValidateConfigResponse,
+) {
+	var config cloudComplianceCustomFrameworkResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+}
+
 // createControlsForFramework creates controls and assigns rules for a framework
 func (r *cloudComplianceCustomFrameworkResource) createControlsForFramework(
 	ctx context.Context,
@@ -582,11 +580,6 @@ func (r *cloudComplianceCustomFrameworkResource) createSingleControlAndReturn(
 	createResp, err := r.client.CloudPolicies.CreateComplianceControl(params)
 	if err != nil {
 		diags.Append(handleAPIError(err, apiOperationCreateControl, "")...)
-		return emptyControl, diags
-	}
-
-	if createResp == nil || createResp.Payload == nil || len(createResp.Payload.Resources) == 0 {
-		diags.Append(validateAPIResponse(nil, errorCreatingControl)...)
 		return emptyControl, diags
 	}
 
@@ -656,7 +649,7 @@ func (r *cloudComplianceCustomFrameworkResource) readControlsForFramework(
 	}
 
 	// Get detailed control information
-	apiControls, apiControlDiags := r.getControlDetails(ctx, controlIDs, frameworkName)
+	apiControls, apiControlDiags := r.getControlDetails(ctx, controlIDs)
 	diags.Append(apiControlDiags...)
 	if diags.HasError() {
 		return types.MapNull(types.ObjectType{}), diags
@@ -700,6 +693,102 @@ func (r *cloudComplianceCustomFrameworkResource) readControlsForFramework(
 	diags.Append(sectionsMapDiags...)
 
 	return sectionsMap, diags
+}
+
+func (r *cloudComplianceCustomFrameworkResource) queryFrameworkControls(
+	ctx context.Context,
+	frameworkName string,
+) ([]string, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	frameworkNameFilter := fmt.Sprintf(complianceControlsByFrameworkFilter, frameworkName)
+	queryControlsParams := cloud_policies.NewQueryComplianceControlsParamsWithContext(ctx).WithFilter(&frameworkNameFilter)
+
+	queryControlsResp, err := r.client.CloudPolicies.QueryComplianceControls(queryControlsParams)
+	if err != nil {
+		diags.AddError(errorQueryingControls,
+			fmt.Sprintf("Failed to query controls for framework %s: %s", frameworkName, falcon.ErrorExplain(err)))
+		return nil, diags
+	}
+
+	if queryControlsResp == nil || queryControlsResp.Payload == nil || len(queryControlsResp.Payload.Resources) == 0 {
+		return []string{}, diags
+	}
+
+	return queryControlsResp.Payload.Resources, diags
+}
+
+func (r *cloudComplianceCustomFrameworkResource) getControlDetails(
+	ctx context.Context,
+	controlIds []string,
+) ([]*models.ApimodelsControl, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	getControlsParams := cloud_policies.NewGetComplianceControlsParamsWithContext(ctx).WithIds(controlIds)
+	getControlsResp, err := r.client.CloudPolicies.GetComplianceControls(getControlsParams)
+	if err != nil {
+		diags.Append(handleAPIError(err, apiOperationReadControls, strings.Join(controlIds, ","))...)
+		return nil, diags
+	}
+
+	payload := getControlsResp.GetPayload()
+	diags.Append(validateAPIResponse(payload, errorGettingControls)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	return getControlsResp.Payload.Resources, diags
+}
+
+func (r *cloudComplianceCustomFrameworkResource) queryControlRules(
+	ctx context.Context,
+	frameworkName, sectionName, requirement string,
+) ([]string, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	rulesByControlFilter := fmt.Sprintf(complianceRulesByControlFilter, frameworkName, sectionName, requirement)
+	queryRulesParams := cloud_policies.NewQueryRuleParamsWithContext(ctx).WithFilter(&rulesByControlFilter)
+
+	queryRulesResp, queryRuleErr := r.client.CloudPolicies.QueryRule(queryRulesParams)
+	if queryRuleErr != nil {
+		diags.AddError(errorQueryingRules,
+			fmt.Sprintf("Failed to query rules for control: %s", falcon.ErrorExplain(queryRuleErr)))
+		return nil, diags
+	}
+
+	if queryRulesResp == nil || queryRulesResp.Payload == nil {
+		return []string{}, diags
+	}
+
+	return queryRulesResp.Payload.Resources, diags
+}
+
+func (r *cloudComplianceCustomFrameworkResource) readControlWithRules(
+	ctx context.Context,
+	control *models.ApimodelsControl,
+	frameworkName string,
+) (ControlModel, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	// Query rules for this control
+	ruleIDs, ruleDiags := r.queryControlRules(ctx, frameworkName, control.SectionName, control.Requirement)
+	diags.Append(ruleDiags...)
+	if diags.HasError() {
+		return ControlModel{}, diags
+	}
+
+	// Convert rules to Terraform set
+	rulesSet, setDiags := convertRulesToTerraformSet(ruleIDs)
+	diags.Append(setDiags...)
+	if diags.HasError() {
+		return ControlModel{}, diags
+	}
+
+	return ControlModel{
+		ID:          types.StringValue(*control.UUID),
+		Description: types.StringValue(control.Description),
+		Rules:       rulesSet,
+	}, diags
 }
 
 // updateControlsForFramework updates controls differentially to preserve existing control IDs
@@ -780,14 +869,15 @@ func (r *cloudComplianceCustomFrameworkResource) processControlUpdates(
 			// Check if control exists in current state
 			if existingSection, sectionExists := existingControls[sectionName]; sectionExists {
 				if existingControl, controlExists := existingSection[controlName]; controlExists {
-					// Control exists, update it
 					updateDiags := r.updateExistingControl(ctx, existingControl, planControl, controlName, sectionName)
 					diags.Append(updateDiags...)
 
-					// Update rules separately
-					controlID := existingControl.ID.ValueString()
-					rulesDiags := r.updateControlRules(ctx, controlID, planControl, controlName)
-					diags.Append(rulesDiags...)
+					// Update rules, if necessary
+					if existingControl.Rules.Equal(planControl.Rules) {
+						controlID := existingControl.ID.ValueString()
+						rulesDiags := r.updateControlRules(ctx, controlID, planControl, controlName)
+						diags.Append(rulesDiags...)
+					}
 
 					// Use existing control with updated data
 					updatedControls[controlName] = ControlModel{
@@ -953,104 +1043,6 @@ func (r *cloudComplianceCustomFrameworkResource) deleteControlsForFramework(
 	}
 
 	return diags
-}
-
-func (r *cloudComplianceCustomFrameworkResource) queryFrameworkControls(
-	ctx context.Context,
-	frameworkName string,
-) ([]string, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	frameworkNameFilter := fmt.Sprintf(complianceControlsByFrameworkFilter, frameworkName)
-	queryControlsParams := cloud_policies.NewQueryComplianceControlsParamsWithContext(ctx).WithFilter(&frameworkNameFilter)
-
-	queryControlsResp, err := r.client.CloudPolicies.QueryComplianceControls(queryControlsParams)
-	if err != nil {
-		diags.AddError(errorQueryingControls,
-			fmt.Sprintf("Failed to query controls for framework %s: %s", frameworkName, falcon.ErrorExplain(err)))
-		return nil, diags
-	}
-
-	if queryControlsResp == nil || queryControlsResp.Payload == nil || len(queryControlsResp.Payload.Resources) == 0 {
-		return []string{}, diags
-	}
-
-	return queryControlsResp.Payload.Resources, diags
-}
-
-func (r *cloudComplianceCustomFrameworkResource) getControlDetails(
-	ctx context.Context,
-	controlIDs []string,
-	frameworkName string,
-) ([]*models.ApimodelsControl, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	getControlsParams := cloud_policies.NewGetComplianceControlsParamsWithContext(ctx).WithIds(controlIDs)
-
-	getControlsResp, err := r.client.CloudPolicies.GetComplianceControls(getControlsParams)
-	if err != nil {
-		diags.AddError(errorGettingControls,
-			fmt.Sprintf("Failed to get controls for framework %s: %s", frameworkName, falcon.ErrorExplain(err)))
-		return nil, diags
-	}
-
-	if getControlsResp == nil || getControlsResp.Payload == nil {
-		diags.AddError(errorGettingControls, emptyAPIResponse)
-		return nil, diags
-	}
-
-	return getControlsResp.Payload.Resources, diags
-}
-
-func (r *cloudComplianceCustomFrameworkResource) queryControlRules(
-	ctx context.Context,
-	frameworkName, sectionName, requirement string,
-) ([]string, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	rulesByControlFilter := fmt.Sprintf(complianceRulesByControlFilter, frameworkName, sectionName, requirement)
-	queryRulesParams := cloud_policies.NewQueryRuleParamsWithContext(ctx).WithFilter(&rulesByControlFilter)
-
-	queryRulesResp, queryRuleErr := r.client.CloudPolicies.QueryRule(queryRulesParams)
-	if queryRuleErr != nil {
-		diags.AddError(errorQueryingRules,
-			fmt.Sprintf("Failed to query rules for control: %s", falcon.ErrorExplain(queryRuleErr)))
-		return nil, diags
-	}
-
-	if queryRulesResp == nil || queryRulesResp.Payload == nil {
-		return []string{}, diags
-	}
-
-	return queryRulesResp.Payload.Resources, diags
-}
-
-func (r *cloudComplianceCustomFrameworkResource) readControlWithRules(
-	ctx context.Context,
-	control *models.ApimodelsControl,
-	frameworkName string,
-) (ControlModel, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	// Query rules for this control
-	ruleIDs, ruleDiags := r.queryControlRules(ctx, frameworkName, control.SectionName, control.Requirement)
-	diags.Append(ruleDiags...)
-	if diags.HasError() {
-		return ControlModel{}, diags
-	}
-
-	// Convert rules to Terraform set
-	rulesSet, setDiags := convertRulesToTerraformSet(ruleIDs)
-	diags.Append(setDiags...)
-	if diags.HasError() {
-		return ControlModel{}, diags
-	}
-
-	return ControlModel{
-		ID:          types.StringValue(*control.UUID),
-		Description: types.StringValue(control.Description),
-		Rules:       rulesSet,
-	}, diags
 }
 
 // Validation and business logic utilities
