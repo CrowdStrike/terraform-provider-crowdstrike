@@ -76,43 +76,66 @@ func (t *itAutomationDefaultPolicyResourceModel) wrap(
 	t.ID = types.StringPointerValue(policy.ID)
 	t.Name = types.StringPointerValue(policy.Name)
 	t.Enabled = types.BoolValue(policy.IsEnabled)
-	if policy.Description == nil || *policy.Description == "" {
-		t.Description = types.StringNull()
-	} else {
-		t.Description = types.StringValue(*policy.Description)
-	}
+	t.Description = types.StringPointerValue(policy.Description)
 	t.PlatformName = types.StringPointerValue(policy.Target)
 
-	if policy.Config != nil {
-		c := policy.Config.Concurrency
-		if c != nil {
-			t.ConcurrentHostFileTransferLimit = types.Int32Value(c.ConcurrentHostFileTransferLimit)
-			t.ConcurrentHostLimit = types.Int32Value(c.ConcurrentHostLimit)
-			t.ConcurrentTaskLimit = types.Int32Value(c.ConcurrentTaskLimit)
-		}
+	t.wrapConcurrency(policy.Config)
+	t.wrapExecution(policy.Config)
+	t.wrapResources(policy.Config, policy.Target)
+}
 
-		e := policy.Config.Execution
-		if e != nil {
-			t.EnableOsQuery = types.BoolPointerValue(e.EnableOsQuery)
-			t.EnablePythonExecution = types.BoolPointerValue(e.EnablePythonExecution)
-			t.EnableScriptExecution = types.BoolPointerValue(e.EnableScriptExecution)
-			t.ExecutionTimeout = types.Int32Value(e.ExecutionTimeout)
-			t.ExecutionTimeoutUnit = types.StringValue(e.ExecutionTimeoutUnit)
-		}
+func (t *itAutomationDefaultPolicyResourceModel) wrapConcurrency(config *models.ItautomationPolicyConfig) {
+	if config == nil || config.Concurrency == nil {
+		t.ConcurrentHostFileTransferLimit = types.Int32Null()
+		t.ConcurrentHostLimit = types.Int32Null()
+		t.ConcurrentTaskLimit = types.Int32Null()
+		return
+	}
 
-		r := policy.Config.Resources
-		if r != nil {
-			isMac := policy.Target != nil && *policy.Target == "Mac"
+	c := config.Concurrency
+	t.ConcurrentHostFileTransferLimit = types.Int32Value(c.ConcurrentHostFileTransferLimit)
+	t.ConcurrentHostLimit = types.Int32Value(c.ConcurrentHostLimit)
+	t.ConcurrentTaskLimit = types.Int32Value(c.ConcurrentTaskLimit)
+}
 
-			if isMac {
-				t.CPUSchedulingPriority = types.StringValue(r.CPUScheduling)
-				t.MemoryPressureLevel = types.StringValue(r.MemoryPressureLevel)
-			} else {
-				t.CPUThrottle = types.Int32Value(r.CPUThrottle)
-				t.MemoryAllocation = types.Int32Value(r.MemoryAllocation)
-				t.MemoryAllocationUnit = types.StringValue(r.MemoryAllocationUnit)
-			}
-		}
+func (t *itAutomationDefaultPolicyResourceModel) wrapExecution(config *models.ItautomationPolicyConfig) {
+	if config == nil || config.Execution == nil {
+		t.EnableOsQuery = types.BoolNull()
+		t.EnablePythonExecution = types.BoolNull()
+		t.EnableScriptExecution = types.BoolNull()
+		t.ExecutionTimeout = types.Int32Null()
+		t.ExecutionTimeoutUnit = types.StringNull()
+		return
+	}
+
+	e := config.Execution
+	t.EnableOsQuery = types.BoolPointerValue(e.EnableOsQuery)
+	t.EnablePythonExecution = types.BoolPointerValue(e.EnablePythonExecution)
+	t.EnableScriptExecution = types.BoolPointerValue(e.EnableScriptExecution)
+	t.ExecutionTimeout = types.Int32Value(e.ExecutionTimeout)
+	t.ExecutionTimeoutUnit = types.StringValue(e.ExecutionTimeoutUnit)
+}
+
+func (t *itAutomationDefaultPolicyResourceModel) wrapResources(config *models.ItautomationPolicyConfig, target *string) {
+	t.CPUSchedulingPriority = types.StringNull()
+	t.MemoryPressureLevel = types.StringNull()
+	t.CPUThrottle = types.Int32Null()
+	t.MemoryAllocation = types.Int32Null()
+	t.MemoryAllocationUnit = types.StringNull()
+
+	if config == nil || config.Resources == nil {
+		return
+	}
+
+	r := config.Resources
+
+	if target != nil && *target == "Mac" {
+		t.CPUSchedulingPriority = types.StringValue(r.CPUScheduling)
+		t.MemoryPressureLevel = types.StringValue(r.MemoryPressureLevel)
+	} else {
+		t.CPUThrottle = types.Int32Value(r.CPUThrottle)
+		t.MemoryAllocation = types.Int32Value(r.MemoryAllocation)
+		t.MemoryAllocationUnit = types.StringValue(r.MemoryAllocationUnit)
 	}
 }
 
