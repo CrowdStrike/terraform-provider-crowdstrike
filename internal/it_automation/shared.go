@@ -67,15 +67,6 @@ func setToStringSlice(ctx context.Context, set types.Set) ([]string, diag.Diagno
 	return result, diags
 }
 
-// preserveStringField preserves configured field values over API values.
-func preserveStringField(apiVal *string, current types.String, target *types.String) {
-	if !current.IsNull() {
-		*target = current
-	} else if apiVal != nil && *apiVal != "" {
-		*target = types.StringValue(*apiVal)
-	}
-}
-
 // idsDiff performs the diff on a list of planned and current IDs and returns two string slices of IDs to remove and add.
 func idsDiff(
 	ctx context.Context,

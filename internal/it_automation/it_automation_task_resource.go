@@ -338,7 +338,7 @@ func (t *itAutomationTaskResourceModel) wrap(
 	if task.Description == nil || *task.Description == "" {
 		t.Description = types.StringNull()
 	} else {
-		t.Description = types.StringValue(*task.Description)
+		t.Description = types.StringPointerValue(task.Description)
 	}
 
 	if task.OsQuery == "" {
@@ -350,12 +350,12 @@ func (t *itAutomationTaskResourceModel) wrap(
 	if task.Target == nil || *task.Target == "" {
 		t.Target = types.StringNull()
 	} else {
-		t.Target = types.StringValue(*task.Target)
+		t.Target = types.StringPointerValue(task.Target)
 	}
 
 	if hasTaskGroupMembership(task.Groups) {
 		if task.Groups[0].ID != nil {
-			t.TaskGroupID = types.StringValue(*task.Groups[0].ID)
+			t.TaskGroupID = types.StringPointerValue(task.Groups[0].ID)
 		} else {
 			t.TaskGroupID = types.StringNull()
 		}
@@ -389,18 +389,18 @@ func (t *itAutomationTaskResourceModel) wrap(
 	if task.OutputParserConfig != nil {
 		scriptColumns := scriptColumnsModel{}
 		if task.OutputParserConfig.Delimiter != nil {
-			scriptColumns.Delimiter = types.StringValue(*task.OutputParserConfig.Delimiter)
+			scriptColumns.Delimiter = types.StringPointerValue(task.OutputParserConfig.Delimiter)
 		}
 
 		if task.OutputParserConfig.DefaultGroupBy != nil {
-			scriptColumns.GroupResults = types.BoolValue(*task.OutputParserConfig.DefaultGroupBy)
+			scriptColumns.GroupResults = types.BoolPointerValue(task.OutputParserConfig.DefaultGroupBy)
 		}
 
 		if len(task.OutputParserConfig.Columns) > 0 {
 			columns := make([]scriptColumnModel, 0, len(task.OutputParserConfig.Columns))
 			for _, col := range task.OutputParserConfig.Columns {
 				if col.Name != nil {
-					columns = append(columns, scriptColumnModel{Name: types.StringValue(*col.Name)})
+					columns = append(columns, scriptColumnModel{Name: types.StringPointerValue(col.Name)})
 				}
 			}
 			columnsList, listDiags := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: scriptColumnAttrTypes()}, columns)
@@ -535,11 +535,14 @@ func (r *itAutomationTaskResource) Schema(
 			"last_updated": schema.StringAttribute{
 				Computed:    true,
 				Description: "Timestamp of the last Terraform update of the resource.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"access_type": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "Access control configuration for the task (Public, Shared).",
+				Description: "Access control configuration for the task (Public, Shared). Cannot be configured when the task belongs to a task group; inherited from the group instead.",
 				Validators: []validator.String{
 					stringvalidator.OneOf("Public", "Shared"),
 				},
@@ -551,7 +554,7 @@ func (r *itAutomationTaskResource) Schema(
 				Optional:    true,
 				Computed:    true,
 				ElementType: types.StringType,
-				Description: "Assigned user IDs of the task, when access_type is Shared.",
+				Description: "Assigned user IDs of the task, when access_type is Shared. Required when access_type is 'Shared' and the task is not part of a task group.",
 				Validators: []validator.Set{
 					setvalidator.NoNullValues(),
 					setvalidator.SizeBetween(1, 100),
@@ -1432,11 +1435,11 @@ func extractVerificationConditions(
 		statements := make([]verificationStatementModel, 0, len(apiCondition.Statements))
 		for _, apiStatement := range apiCondition.Statements {
 			statements = append(statements, verificationStatementModel{
-				DataComparator: types.StringValue(*apiStatement.DataComparator),
-				DataType:       types.StringValue(*apiStatement.DataType),
-				Key:            types.StringValue(*apiStatement.Key),
-				TaskID:         types.StringValue(*apiStatement.TaskID),
-				Value:          types.StringValue(*apiStatement.Value),
+				DataComparator: types.StringPointerValue(apiStatement.DataComparator),
+				DataType:       types.StringPointerValue(apiStatement.DataType),
+				Key:            types.StringPointerValue(apiStatement.Key),
+				TaskID:         types.StringPointerValue(apiStatement.TaskID),
+				Value:          types.StringPointerValue(apiStatement.Value),
 			})
 		}
 

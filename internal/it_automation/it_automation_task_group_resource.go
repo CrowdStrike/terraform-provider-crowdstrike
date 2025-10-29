@@ -149,24 +149,27 @@ func (r *itAutomationTaskGroupResource) Schema(
 			"last_updated": schema.StringAttribute{
 				Computed:    true,
 				Description: "Timestamp of the last Terraform update of the resource.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"access_type": schema.StringAttribute{
 				Required:    true,
-				Description: "Access control configuration for the task.",
+				Description: "Access control configuration for the task (Public, Shared).",
 				Validators: []validator.String{
 					stringvalidator.OneOf("Public", "Shared"),
 				},
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
-				Description: "Name of the task.",
+				Description: "Name of the task group.",
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
-				Description: "Description of the task.",
+				Description: "Description of the task group.",
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
@@ -174,7 +177,7 @@ func (r *itAutomationTaskGroupResource) Schema(
 			"assigned_user_ids": schema.SetAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
-				Description: "Assigned user IDs of the group, when access_type is Shared.",
+				Description: "Assigned user IDs of the group, when access_type is Shared. Required when access_type is 'Shared'.",
 				Validators: []validator.Set{
 					setvalidator.SizeBetween(1, 100),
 					setvalidator.NoNullValues(),

@@ -85,7 +85,7 @@ func (t *itAutomationPolicyResourceModel) wrap(
 	if policy.Description == nil || *policy.Description == "" {
 		t.Description = types.StringNull()
 	} else {
-		t.Description = types.StringValue(*policy.Description)
+		t.Description = types.StringPointerValue(policy.Description)
 	}
 	t.PlatformName = types.StringPointerValue(policy.Target)
 
@@ -222,7 +222,7 @@ func (r *itAutomationPolicyResource) Schema(
 			"host_groups": schema.SetAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
-				Description: "List of host group IDs associated with this policy.",
+				Description: "Set of host group IDs where this policy will be applied. Hosts in these groups will use this policy's configuration for IT automation tasks.",
 				Validators: []validator.Set{
 					setvalidator.SizeBetween(1, 100),
 					setvalidator.NoNullValues(),

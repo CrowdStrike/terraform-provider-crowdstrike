@@ -225,6 +225,9 @@ func (r *itAutomationDefaultPolicyResource) Schema(
 			"last_updated": schema.StringAttribute{
 				Computed:    true,
 				Description: "Timestamp of the last Terraform update of the resource.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"platform_name": schema.StringAttribute{
 				Required:    true,
@@ -303,32 +306,32 @@ func (r *itAutomationDefaultPolicyResource) Schema(
 			},
 			"cpu_scheduling_priority": schema.StringAttribute{
 				Optional:    true,
-				Description: "Sets priority for CPU scheduling.",
+				Description: "Sets priority for CPU scheduling (Mac only). Required for Mac platform, cannot be used for Windows or Linux.",
 				Validators: []validator.String{
 					stringvalidator.OneOf("Low", "Medium", "High"),
 				},
 			},
 			"cpu_throttle": schema.Int32Attribute{
 				Optional:    true,
-				Description: "CPU usage limit as a percentage (1-100).",
+				Description: "CPU usage limit as a percentage (1-100) (Windows/Linux only). Required for Windows and Linux platforms, cannot be used for Mac.",
 				Validators: []validator.Int32{
 					int32validator.Between(1, 100),
 				},
 			},
 			"memory_allocation": schema.Int32Attribute{
 				Optional:    true,
-				Description: "Amount of memory allocated.",
+				Description: "Amount of memory allocated (Windows/Linux only). Required for Windows and Linux platforms, cannot be used for Mac.",
 			},
 			"memory_allocation_unit": schema.StringAttribute{
 				Optional:    true,
-				Description: "Unit for memory allocation.",
+				Description: "Unit for memory allocation (Windows/Linux only). Required for Windows and Linux platforms, cannot be used for Mac.",
 				Validators: []validator.String{
 					stringvalidator.OneOf("MB", "GB"),
 				},
 			},
 			"memory_pressure_level": schema.StringAttribute{
 				Optional:    true,
-				Description: "Sets memory pressure level to control system resource allocation during task execution.",
+				Description: "Sets memory pressure level to control system resource allocation during task execution (Mac only). Required for Mac platform, cannot be used for Windows or Linux.",
 				Validators: []validator.String{
 					stringvalidator.OneOf("Low", "Medium", "High"),
 				},
@@ -355,7 +358,7 @@ func (r *itAutomationDefaultPolicyResource) Create(
 		return
 	}
 
-	plan.ID = types.StringValue(*policy.ID)
+	plan.ID = types.StringPointerValue(policy.ID)
 	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 
 	if r.hasConfigChanges(&plan) {
