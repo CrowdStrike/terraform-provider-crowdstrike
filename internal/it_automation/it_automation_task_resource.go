@@ -18,7 +18,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -88,7 +87,6 @@ type itAutomationTaskResourceModel struct {
 	EffectiveAccessType      types.String `tfsdk:"effective_access_type"`
 	EffectiveAssignedUserIds types.Set    `tfsdk:"effective_assigned_user_ids"`
 	FileIds                  types.Set    `tfsdk:"file_ids"`
-	InTaskGroup              types.Bool   `tfsdk:"in_task_group"`
 	LastUpdated              types.String `tfsdk:"last_updated"`
 	LinuxScriptContent       types.String `tfsdk:"linux_script_content"`
 	LinuxScriptFileId        types.String `tfsdk:"linux_script_file_id"`
@@ -327,13 +325,11 @@ func (t *itAutomationTaskResourceModel) wrap(
 	task models.ItautomationTask,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
-	inTaskGroup := hasTaskGroupMembership(task.Groups)
 
 	t.ID = types.StringPointerValue(task.ID)
 	t.Name = types.StringPointerValue(task.Name)
 	t.Type = types.StringValue(convertType(*task.TaskType, "terraform"))
 	t.EffectiveAccessType = types.StringValue(task.AccessType)
-	t.InTaskGroup = types.BoolValue(inTaskGroup)
 	t.AccessType = types.StringValue(task.AccessType)
 
 	if task.Description == nil || *task.Description == "" {
@@ -690,13 +686,6 @@ func (r *itAutomationTaskResource) Schema(
 					setplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"in_task_group": schema.BoolAttribute{
-				Computed:    true,
-				Description: "Indicates whether this task is part of a task group.",
-				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.UseStateForUnknown(),
-				},
-			},
 			"task_group_id": schema.StringAttribute{
 				Computed:    true,
 				Description: "The ID of the task group this task belongs to, if any.",
@@ -813,7 +802,8 @@ func (r *itAutomationTaskResource) ModifyPlan(
 		return
 	}
 
-	if utils.IsKnown(state.InTaskGroup) && state.InTaskGroup.ValueBool() {
+	// Check if task is in a task group by checking if task_group_id is set
+	if !state.TaskGroupID.IsNull() {
 		var accessTypeFromConfig types.String
 		diags := req.Config.GetAttribute(ctx, path.Root("access_type"), &accessTypeFromConfig)
 		if !diags.HasError() && !accessTypeFromConfig.IsNull() {

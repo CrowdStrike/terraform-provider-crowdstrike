@@ -329,15 +329,8 @@ func getItAutomationPolicies(
 }
 
 // hasTaskGroupMembership checks if a task has group memberships.
-func hasTaskGroupMembership(groups any) bool {
-	switch g := groups.(type) {
-	case []*models.FalconforitapiGroupMembership:
-		return len(g) > 0 && g[0] != nil && g[0].ID != nil
-	case []*models.ItautomationTaskGroup:
-		return len(g) > 0 && g[0] != nil && g[0].ID != nil
-	default:
-		return false
-	}
+func hasTaskGroupMembership(groups []*models.FalconforitapiGroupMembership) bool {
+	return len(groups) > 0 && groups[0] != nil && groups[0].ID != nil
 }
 
 // isNotFoundError checks if an error indicates a resource was not found.
