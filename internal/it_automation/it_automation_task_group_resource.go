@@ -67,25 +67,21 @@ func (t *itAutomationTaskGroupResourceModel) wrap(
 	t.ID = types.StringPointerValue(group.ID)
 	t.AccessType = types.StringPointerValue(group.AccessType)
 	t.Name = types.StringPointerValue(group.Name)
-	t.Description = types.StringPointerValue(group.Description)
+	t.Description = utils.PlanAwareStringValue(t.Description, group.Description)
 
-	if group.AssignedUserIds != nil {
-		AssignedUserIds, diag := stringSliceToSet(ctx, group.AssignedUserIds)
-		diags.Append(diag...)
-		if diags.HasError() {
-			return diags
-		}
-		t.AssignedUserIds = AssignedUserIds
+	assignedUserIds, diag := stringSliceToSet(ctx, group.AssignedUserIds)
+	diags.Append(diag...)
+	if diags.HasError() {
+		return diags
 	}
+	t.AssignedUserIds = assignedUserIds
 
-	if group.TaskIds != nil {
-		TaskIds, diag := stringSliceToSet(ctx, group.TaskIds)
-		diags.Append(diag...)
-		if diags.HasError() {
-			return diags
-		}
-		t.TaskIds = TaskIds
+	taskIDs, diag := stringSliceToSet(ctx, group.TaskIds)
+	diags.Append(diag...)
+	if diags.HasError() {
+		return diags
 	}
+	t.TaskIds = taskIDs
 
 	return diags
 }
@@ -150,7 +146,7 @@ func (r *itAutomationTaskGroupResource) Schema(
 				Computed:    true,
 				Description: "Timestamp of the last Terraform update of the resource.",
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"access_type": schema.StringAttribute{
@@ -250,9 +246,7 @@ func (r *itAutomationTaskGroupResource) Create(
 		body.TaskIds = TaskIds
 	}
 
-	if !plan.Description.IsNull() {
-		body.Description = plan.Description.ValueString()
-	}
+	body.Description = plan.Description.ValueString()
 
 	apiResponse, err := r.client.ItAutomation.ITAutomationCreateTaskGroup(&params)
 	if err != nil {
@@ -293,16 +287,13 @@ func (r *itAutomationTaskGroupResource) Read(
 	groupID := state.ID.ValueString()
 	taskGroup, diags := getItAutomationTaskGroup(ctx, r.client, groupID)
 	if diags.HasError() {
-		// manually parse diagnostic errors.
-		// helper functions return standardized diagnostics for consistency.
-		// this is due to some IT Automation endpoints not returning structured/generic 404s.
 		for _, d := range diags.Errors() {
 			if d.Summary() == taskGroupNotFoundErrorSummary {
 				tflog.Warn(
 					ctx,
 					fmt.Sprintf(
 						notFoundRemoving,
-						fmt.Sprintf("%s %s", itAutomationTaskGroup, groupID,),
+						fmt.Sprintf("%s %s", itAutomationTaskGroup, groupID),
 					),
 				)
 				resp.State.RemoveResource(ctx)
@@ -313,7 +304,7 @@ func (r *itAutomationTaskGroupResource) Read(
 		return
 	}
 
-	resp.Diagnostics.Append(state.wrap(ctx, *taskGroup)...)
+	resp.Diagnostics.Append(state.wrap(ctx, taskGroup)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -353,31 +344,29 @@ func (r *itAutomationTaskGroupResource) Update(
 		Body:    body,
 	}
 
-	if !plan.Description.IsNull() {
-		body.Description = plan.Description.ValueString()
+	body.Description = plan.Description.ValueString()
+
+	currentUserIds := currentGroup.AssignedUserIds
+	plannedUserIds := plan.AssignedUserIds
+	usersToAdd, usersToRemove, diags := idsDiff(ctx, currentUserIds, plannedUserIds)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	if !plan.AssignedUserIds.IsNull() {
-		currentUserIds := currentGroup.AssignedUserIds
-		plannedUserIds := plan.AssignedUserIds
+	body.AddAssignedUserIds = usersToAdd
+	body.RemoveAssignedUserIds = usersToRemove
 
-		diags, usersToAdd, usersToRemove := idsDiff(ctx, currentUserIds, plannedUserIds)
-		if !diags.HasError() {
-			body.AddAssignedUserIds = usersToAdd
-			body.RemoveAssignedUserIds = usersToRemove
-		}
+	currentTaskIds := currentGroup.TaskIds
+	plannedTaskIds := plan.TaskIds
+	tasksToAdd, tasksToRemove, diags := idsDiff(ctx, currentTaskIds, plannedTaskIds)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	if !plan.TaskIds.IsNull() {
-		currentTaskIds := currentGroup.TaskIds
-		plannedTaskIds := plan.TaskIds
-
-		diags, tasksToAdd, tasksToRemove := idsDiff(ctx, currentTaskIds, plannedTaskIds)
-		if !diags.HasError() {
-			body.AddTaskIds = tasksToAdd
-			body.RemoveTaskIds = tasksToRemove
-		}
-	}
+	body.AddTaskIds = tasksToAdd
+	body.RemoveTaskIds = tasksToRemove
 
 	_, err := r.client.ItAutomation.ITAutomationUpdateTaskGroup(&params)
 	if err != nil {
@@ -394,7 +383,7 @@ func (r *itAutomationTaskGroupResource) Update(
 		return
 	}
 
-	resp.Diagnostics.Append(plan.wrap(ctx, *updatedTask)...)
+	resp.Diagnostics.Append(plan.wrap(ctx, updatedTask)...)
 	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -417,16 +406,6 @@ func (r *itAutomationTaskGroupResource) Delete(
 	}
 
 	ok, multi, err := r.client.ItAutomation.ITAutomationDeleteTaskGroups(&params)
-	if ok != nil || multi != nil {
-		tflog.Info(
-			ctx,
-			fmt.Sprintf(
-				"Successfully deleted it automation task group %s",
-				state.ID.ValueString(),
-			),
-		)
-		return
-	}
 
 	if err != nil {
 		if isNotFoundError(err) {
@@ -439,6 +418,17 @@ func (r *itAutomationTaskGroupResource) Delete(
 				"Could not delete task group ID %s, error: %s",
 				state.ID.ValueString(),
 				err.Error(),
+			),
+		)
+		return
+	}
+
+	if ok != nil || multi != nil {
+		tflog.Info(
+			ctx,
+			fmt.Sprintf(
+				"Successfully deleted it automation task group %s",
+				state.ID.ValueString(),
 			),
 		)
 		return
@@ -470,13 +460,11 @@ func (r *itAutomationTaskGroupResource) ValidateConfig(
 		return
 	}
 
-	AccessType := config.AccessType.ValueString()
+	accessType := config.AccessType.ValueString()
+	assignedUserIdsProvided := utils.IsKnown(config.AssignedUserIds)
+	taskIdsProvided := utils.IsKnown(config.TaskIds)
 
-	AssignedUserIdsProvided := utils.IsKnown(config.AssignedUserIds)
-
-	TaskIdsProvided := utils.IsKnown(config.TaskIds)
-
-	if TaskIdsProvided {
+	if taskIdsProvided {
 		var taskIds []types.String
 		diags := config.TaskIds.ElementsAs(ctx, &taskIds, false)
 		resp.Diagnostics.Append(diags...)
@@ -485,8 +473,8 @@ func (r *itAutomationTaskGroupResource) ValidateConfig(
 		}
 	}
 
-	if AccessType == "Shared" {
-		if AssignedUserIdsProvided {
+	if accessType == "Shared" {
+		if assignedUserIdsProvided {
 			var AssignedUserIds []types.String
 			diags := config.AssignedUserIds.ElementsAs(ctx, &AssignedUserIds, false)
 			resp.Diagnostics.Append(diags...)
@@ -500,7 +488,7 @@ func (r *itAutomationTaskGroupResource) ValidateConfig(
 				"The argument assigned_user_ids is required when access_type is Shared",
 			)
 		}
-	} else if AssignedUserIdsProvided {
+	} else if assignedUserIdsProvided {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("assigned_user_ids"),
 			"Invalid field",

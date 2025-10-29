@@ -72,7 +72,7 @@ func idsDiff(
 	ctx context.Context,
 	currentIds []string,
 	plannedIds types.Set,
-) (diag.Diagnostics, []string, []string) {
+) ([]string, []string, diag.Diagnostics) {
 	var planIds []string
 	diags := plannedIds.ElementsAs(ctx, &planIds, false)
 	currentIdsMap := make(map[string]bool)
@@ -92,7 +92,7 @@ func idsDiff(
 	for id := range currentIdsMap {
 		idsToRemove = append(idsToRemove, id)
 	}
-	return diags, idsToAdd, idsToRemove
+	return idsToAdd, idsToRemove, diags
 }
 
 // getItAutomationTask retrieves a task by ID.
@@ -100,7 +100,7 @@ func getItAutomationTask(
 	ctx context.Context,
 	client *client.CrowdStrikeAPISpecification,
 	taskID string,
-) (*models.ItautomationTask, diag.Diagnostics) {
+) (models.ItautomationTask, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	getResponse, err := client.ItAutomation.ITAutomationGetTasks(
@@ -109,8 +109,8 @@ func getItAutomationTask(
 			Ids:     []string{taskID},
 		})
 
-	if getResponse != nil && getResponse.Payload != nil && len(getResponse.Payload.Resources) > 0 {
-		return getResponse.Payload.Resources[0], diags
+	if getResponse != nil && getResponse.Payload != nil && len(getResponse.Payload.Resources) > 0 && getResponse.Payload.Resources[0] != nil {
+		return *getResponse.Payload.Resources[0], diags
 	}
 
 	if err != nil {
@@ -134,7 +134,7 @@ func getItAutomationTask(
 		)
 	}
 
-	return nil, diags
+	return models.ItautomationTask{}, diags
 }
 
 // getItAutomationTaskGroup retrieves a task group by ID.
@@ -142,7 +142,7 @@ func getItAutomationTaskGroup(
 	ctx context.Context,
 	client *client.CrowdStrikeAPISpecification,
 	groupID string,
-) (*models.ItautomationTaskGroup, diag.Diagnostics) {
+) (models.ItautomationTaskGroup, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	ok, multi, err := client.ItAutomation.ITAutomationGetTaskGroups(
@@ -151,12 +151,12 @@ func getItAutomationTaskGroup(
 			Ids:     []string{groupID},
 		})
 
-	if ok != nil && ok.Payload != nil && len(ok.Payload.Resources) > 0 {
-		return ok.Payload.Resources[0], diags
+	if ok != nil && ok.Payload != nil && len(ok.Payload.Resources) > 0 && ok.Payload.Resources[0] != nil {
+		return *ok.Payload.Resources[0], diags
 	}
 
-	if multi != nil && multi.Payload != nil && len(multi.Payload.Resources) > 0 {
-		return multi.Payload.Resources[0], diags
+	if multi != nil && multi.Payload != nil && len(multi.Payload.Resources) > 0 && multi.Payload.Resources[0] != nil {
+		return *multi.Payload.Resources[0], diags
 	}
 
 	if err != nil {
@@ -180,7 +180,7 @@ func getItAutomationTaskGroup(
 		)
 	}
 
-	return nil, diags
+	return models.ItautomationTaskGroup{}, diags
 }
 
 // getItAutomationPolicy retrieves a policy by ID.
@@ -188,9 +188,8 @@ func getItAutomationPolicy(
 	ctx context.Context,
 	client *client.CrowdStrikeAPISpecification,
 	policyID string,
-) (*models.ItautomationPolicy, diag.Diagnostics) {
+) (models.ItautomationPolicy, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	var policy *models.ItautomationPolicy
 
 	params := &it_automation.ITAutomationGetPoliciesParams{
 		Context: ctx,
@@ -198,9 +197,8 @@ func getItAutomationPolicy(
 	}
 
 	ok, err := client.ItAutomation.ITAutomationGetPolicies(params)
-	if ok != nil && ok.Payload != nil && len(ok.Payload.Resources) > 0 {
-		policy = ok.Payload.Resources[0]
-		return policy, diags
+	if ok != nil && ok.Payload != nil && len(ok.Payload.Resources) > 0 && ok.Payload.Resources[0] != nil {
+		return *ok.Payload.Resources[0], diags
 	}
 
 	if err != nil {
@@ -224,7 +222,7 @@ func getItAutomationPolicy(
 		)
 	}
 
-	return nil, diags
+	return models.ItautomationPolicy{}, diags
 }
 
 // isDefaultPolicy checks if a policy name matches the Default Policy pattern.

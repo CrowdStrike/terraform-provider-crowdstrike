@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -23,9 +24,8 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                   = &itAutomationPolicyPrecedenceResource{}
-	_ resource.ResourceWithConfigure      = &itAutomationPolicyPrecedenceResource{}
-	_ resource.ResourceWithValidateConfig = &itAutomationPolicyPrecedenceResource{}
+	_ resource.Resource              = &itAutomationPolicyPrecedenceResource{}
+	_ resource.ResourceWithConfigure = &itAutomationPolicyPrecedenceResource{}
 )
 
 var (
@@ -51,7 +51,6 @@ type itAutomationPolicyPrecedenceResource struct {
 
 // itAutomationPolicyPrecedenceResourceModel is the resource model.
 type itAutomationPolicyPrecedenceResourceModel struct {
-	ID           types.String `tfsdk:"id"`
 	IDs          types.List   `tfsdk:"ids"`
 	Enforcement  types.String `tfsdk:"enforcement"`
 	LastUpdated  types.String `tfsdk:"last_updated"`
@@ -119,13 +118,6 @@ func (r *itAutomationPolicyPrecedenceResource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(precedenceDocumentationSection, precedenceMarkdownDescription, precedenceRequiredScopes),
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Computed:    true,
-				Description: "Unique identifier for this precedence resource. Based on platform to ensure one precedence resource per platform.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
 			"ids": schema.ListAttribute{
 				Required:            true,
 				ElementType:         types.StringType,
@@ -153,10 +145,9 @@ func (r *itAutomationPolicyPrecedenceResource) Schema(
 				Computed:    true,
 				Description: "Timestamp of the last Terraform update of the resource.",
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			
 		},
 	}
 }
@@ -191,7 +182,7 @@ func (r *itAutomationPolicyPrecedenceResource) Create(
 		}
 
 		planPolicyIDs = dynamicOrderedPolicyIDs
-	} else if strings.EqualFold(plan.Enforcement.ValueString(), strictEnforcement) {
+	} else {
 		strictOrderedPolicyIDs, diags := r.generateStrictPolicyOrder(
 			ctx,
 			planPolicyIDs,
@@ -230,11 +221,6 @@ func (r *itAutomationPolicyPrecedenceResource) Create(
 		policies = policies[:len(plan.IDs.Elements())]
 	}
 
-	plan.ID = types.StringValue(
-		fmt.Sprintf("it_automation_policy_precedence_%s",
-			strings.ToLower(plan.PlatformName.ValueString()),
-		),
-	)
 	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 	resp.Diagnostics.Append(plan.wrap(ctx, policies)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -303,7 +289,7 @@ func (r *itAutomationPolicyPrecedenceResource) Update(
 		}
 
 		planPolicyIDs = dynamicOrderedPolicyIDs
-	} else if strings.EqualFold(plan.Enforcement.ValueString(), strictEnforcement) {
+	} else {
 		strictOrderedPolicyIDs, diags := r.generateStrictPolicyOrder(
 			ctx,
 			planPolicyIDs,
@@ -343,9 +329,6 @@ func (r *itAutomationPolicyPrecedenceResource) Update(
 		policies = policies[:len(plan.IDs.Elements())]
 	}
 
-	plan.ID = types.StringValue(fmt.Sprintf(
-		"it_automation_policy_precedence_%s",
-		strings.ToLower(plan.PlatformName.ValueString())))
 	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 
 	resp.Diagnostics.Append(plan.wrap(ctx, policies)...)
@@ -358,27 +341,6 @@ func (r *itAutomationPolicyPrecedenceResource) Delete(
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-}
-
-// ValidateConfig validates the resource configuration.
-func (r *itAutomationPolicyPrecedenceResource) ValidateConfig(
-	ctx context.Context,
-	req resource.ValidateConfigRequest,
-	resp *resource.ValidateConfigResponse,
-) {
-	var config itAutomationPolicyPrecedenceResourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if config.IDs.IsUnknown() || config.Enforcement.IsUnknown() || config.PlatformName.IsUnknown() {
-		return
-	}
-
-	if config.IDs.IsNull() {
-		return
-	}
 }
 
 // setItAutomationPolicyPrecedence sets the precedence order for policies.
@@ -424,6 +386,20 @@ func (r *itAutomationPolicyPrecedenceResource) generateDynamicPolicyOrder(
 		return nil, diags
 	}
 
+	missingPolicies := utils.MissingElements(managedPolicyIDs, currentPrecedence)
+	if len(missingPolicies) > 0 {
+		diags.AddAttributeError(
+			path.Root("ids"),
+			"Invalid policy ids provided.",
+			fmt.Sprintf(
+				"ids contains policy ids that do not exist for platform: %s, the following ids are invalid:\n\n%s",
+				platform,
+				strings.Join(missingPolicies, "\n"),
+			),
+		)
+		return nil, diags
+	}
+
 	managedPolicyMap := make(map[string]bool)
 	for _, policyID := range managedPolicyIDs {
 		managedPolicyMap[policyID] = true
@@ -451,6 +427,20 @@ func (r *itAutomationPolicyPrecedenceResource) generateStrictPolicyOrder(
 	_, currentPrecedence, policyDiags := getItAutomationPolicies(ctx, r.client, platform)
 	diags.Append(policyDiags...)
 	if diags.HasError() {
+		return nil, diags
+	}
+
+	missingPolicies := utils.MissingElements(managedPolicyIDs, currentPrecedence)
+	if len(missingPolicies) > 0 {
+		diags.AddAttributeError(
+			path.Root("ids"),
+			"Invalid policy ids provided.",
+			fmt.Sprintf(
+				"ids contains policy ids that do not exist for platform: %s, the following ids are invalid:\n\n%s",
+				platform,
+				strings.Join(missingPolicies, "\n"),
+			),
+		)
 		return nil, diags
 	}
 

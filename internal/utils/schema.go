@@ -241,7 +241,6 @@ func ConvertModelToTerraformObject[T TerraformObjectConvertible](
 	return obj, diags
 }
 
-
 // PlanAwareStringValue converts a string pointer to a types.String, treating null and empty string as equivalent.
 // This is useful for properties like description where the API often returns "" for descriptions that are unset.
 // This allows us to handle cases where an omitted field and a field with "" value should be treated the same.

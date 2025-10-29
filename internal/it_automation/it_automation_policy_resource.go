@@ -82,11 +82,7 @@ func (t *itAutomationPolicyResourceModel) wrap(
 	t.ID = types.StringPointerValue(policy.ID)
 	t.Name = types.StringPointerValue(policy.Name)
 	t.Enabled = types.BoolValue(policy.IsEnabled)
-	if policy.Description == nil || *policy.Description == "" {
-		t.Description = types.StringNull()
-	} else {
-		t.Description = types.StringPointerValue(policy.Description)
-	}
+	t.Description = types.StringPointerValue(policy.Description)
 	t.PlatformName = types.StringPointerValue(policy.Target)
 
 	hostGroups, diag := stringSliceToSet(ctx, policy.HostGroups)
@@ -95,39 +91,66 @@ func (t *itAutomationPolicyResourceModel) wrap(
 		t.HostGroups = hostGroups
 	}
 
-	if policy.Config != nil {
-		c := policy.Config.Concurrency
-		if c != nil {
-			t.ConcurrentHostFileTransferLimit = types.Int32Value(c.ConcurrentHostFileTransferLimit)
-			t.ConcurrentHostLimit = types.Int32Value(c.ConcurrentHostLimit)
-			t.ConcurrentTaskLimit = types.Int32Value(c.ConcurrentTaskLimit)
-		}
-
-		e := policy.Config.Execution
-		if e != nil {
-			t.EnableOsQuery = types.BoolPointerValue(e.EnableOsQuery)
-			t.EnablePythonExecution = types.BoolPointerValue(e.EnablePythonExecution)
-			t.EnableScriptExecution = types.BoolPointerValue(e.EnableScriptExecution)
-			t.ExecutionTimeout = types.Int32Value(e.ExecutionTimeout)
-			t.ExecutionTimeoutUnit = types.StringValue(e.ExecutionTimeoutUnit)
-		}
-
-		r := policy.Config.Resources
-		if r != nil {
-			isMac := policy.Target != nil && *policy.Target == "Mac"
-
-			if isMac {
-				t.CPUSchedulingPriority = types.StringValue(r.CPUScheduling)
-				t.MemoryPressureLevel = types.StringValue(r.MemoryPressureLevel)
-			} else {
-				t.CPUThrottle = types.Int32Value(r.CPUThrottle)
-				t.MemoryAllocation = types.Int32Value(r.MemoryAllocation)
-				t.MemoryAllocationUnit = types.StringValue(r.MemoryAllocationUnit)
-			}
-		}
-	}
+	t.wrapConcurrency(policy.Config)
+	t.wrapExecution(policy.Config)
+	t.wrapResources(policy.Config, policy.Target)
 
 	return diags
+}
+
+func (t *itAutomationPolicyResourceModel) wrapConcurrency(config *models.ItautomationPolicyConfig) {
+	if config == nil || config.Concurrency == nil {
+		t.ConcurrentHostFileTransferLimit = types.Int32Null()
+		t.ConcurrentHostLimit = types.Int32Null()
+		t.ConcurrentTaskLimit = types.Int32Null()
+		return
+	}
+
+	c := config.Concurrency
+	t.ConcurrentHostFileTransferLimit = types.Int32Value(c.ConcurrentHostFileTransferLimit)
+	t.ConcurrentHostLimit = types.Int32Value(c.ConcurrentHostLimit)
+	t.ConcurrentTaskLimit = types.Int32Value(c.ConcurrentTaskLimit)
+}
+
+func (t *itAutomationPolicyResourceModel) wrapExecution(config *models.ItautomationPolicyConfig) {
+	if config == nil || config.Execution == nil {
+		t.EnableOsQuery = types.BoolNull()
+		t.EnablePythonExecution = types.BoolNull()
+		t.EnableScriptExecution = types.BoolNull()
+		t.ExecutionTimeout = types.Int32Null()
+		t.ExecutionTimeoutUnit = types.StringNull()
+		return
+	}
+
+	e := config.Execution
+	t.EnableOsQuery = types.BoolPointerValue(e.EnableOsQuery)
+	t.EnablePythonExecution = types.BoolPointerValue(e.EnablePythonExecution)
+	t.EnableScriptExecution = types.BoolPointerValue(e.EnableScriptExecution)
+	t.ExecutionTimeout = types.Int32Value(e.ExecutionTimeout)
+	t.ExecutionTimeoutUnit = types.StringValue(e.ExecutionTimeoutUnit)
+}
+
+func (t *itAutomationPolicyResourceModel) wrapResources(config *models.ItautomationPolicyConfig, target *string) {
+	t.CPUSchedulingPriority = types.StringNull()
+	t.MemoryPressureLevel = types.StringNull()
+	t.CPUThrottle = types.Int32Null()
+	t.MemoryAllocation = types.Int32Null()
+	t.MemoryAllocationUnit = types.StringNull()
+
+	if config == nil || config.Resources == nil {
+		return
+	}
+
+	r := config.Resources
+
+	if target != nil && *target == "Mac" {
+		t.CPUSchedulingPriority = types.StringValue(r.CPUScheduling)
+		t.MemoryPressureLevel = types.StringValue(r.MemoryPressureLevel)
+	} else {
+		t.CPUThrottle = types.Int32Value(r.CPUThrottle)
+		t.MemoryAllocation = types.Int32Value(r.MemoryAllocation)
+		t.MemoryAllocationUnit = types.StringValue(r.MemoryAllocationUnit)
+	}
 }
 
 // Configure adds the provider configured client to the resource.
@@ -190,6 +213,9 @@ func (r *itAutomationPolicyResource) Schema(
 			"last_updated": schema.StringAttribute{
 				Computed:    true,
 				Description: "Timestamp of the last Terraform update of the resource.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
@@ -335,20 +361,13 @@ func createPolicyConfigFromModel(
 	}
 
 	config.Resources = &models.ItautomationResourceConfig{}
-	if !plan.CPUSchedulingPriority.IsNull() {
+	if plan.PlatformName.ValueString() == "Mac" {
 		config.Resources.CPUScheduling = plan.CPUSchedulingPriority.ValueString()
-	}
-	if !plan.CPUThrottle.IsNull() {
-		config.Resources.CPUThrottle = plan.CPUThrottle.ValueInt32()
-	}
-	if !plan.MemoryAllocation.IsNull() {
-		config.Resources.MemoryAllocation = plan.MemoryAllocation.ValueInt32()
-	}
-	if !plan.MemoryAllocationUnit.IsNull() {
-		config.Resources.MemoryAllocationUnit = plan.MemoryAllocationUnit.ValueString()
-	}
-	if !plan.MemoryPressureLevel.IsNull() {
 		config.Resources.MemoryPressureLevel = plan.MemoryPressureLevel.ValueString()
+	} else {
+		config.Resources.CPUThrottle = plan.CPUThrottle.ValueInt32()
+		config.Resources.MemoryAllocation = plan.MemoryAllocation.ValueInt32()
+		config.Resources.MemoryAllocationUnit = plan.MemoryAllocationUnit.ValueString()
 	}
 
 	return config
@@ -378,7 +397,7 @@ func (r *itAutomationPolicyResource) Create(
 		Body:    body,
 	}
 
-	ok, err := r.client.ItAutomation.ITAutomationCreatePolicy(params)
+	res, err := r.client.ItAutomation.ITAutomationCreatePolicy(params)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating IT automation policy",
@@ -387,7 +406,7 @@ func (r *itAutomationPolicyResource) Create(
 		return
 	}
 
-	if ok == nil || ok.Payload == nil || len(ok.Payload.Resources) == 0 {
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
 		resp.Diagnostics.AddError(
 			"Error creating IT automation policy",
 			"API returned empty response",
@@ -395,7 +414,7 @@ func (r *itAutomationPolicyResource) Create(
 		return
 	}
 
-	policy := ok.Payload.Resources[0]
+	policy := res.Payload.Resources[0]
 	plan.ID = types.StringPointerValue(policy.ID)
 	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 
@@ -415,33 +434,29 @@ func (r *itAutomationPolicyResource) Create(
 		}
 	}
 
-	if !plan.HostGroups.IsNull() && !plan.HostGroups.IsUnknown() {
+	if !plan.HostGroups.IsNull() && len(plan.HostGroups.Elements()) != 0 {
 		hostGroups, diags := setToStringSlice(ctx, plan.HostGroups)
 		resp.Diagnostics.Append(diags...)
 		if diags.HasError() {
 			return
 		}
 
-		if len(hostGroups) > 0 {
-			action := "assign"
+		body := &models.ItautomationUpdatePoliciesHostGroupsRequest{
+			Action:       utils.Addr("assign"),
+			HostGroupIds: hostGroups,
+			PolicyID:     policy.ID,
+		}
 
-			body := &models.ItautomationUpdatePoliciesHostGroupsRequest{
-				Action:       &action,
-				HostGroupIds: hostGroups,
-				PolicyID:     policy.ID,
-			}
+		params := &it_automation.ITAutomationUpdatePolicyHostGroupsParams{
+			Body: body,
+		}
 
-			params := &it_automation.ITAutomationUpdatePolicyHostGroupsParams{
-				Body: body,
-			}
-
-			_, err := r.client.ItAutomation.ITAutomationUpdatePolicyHostGroups(params)
-			if err != nil {
-				resp.Diagnostics.AddError(
-					"Error updating IT automation policy host groups",
-					"Could not update host groups for policy ID: "+*policy.ID+", error: "+err.Error(),
-				)
-			}
+		_, err := r.client.ItAutomation.ITAutomationUpdatePolicyHostGroups(params)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error updating IT automation policy host groups",
+				"Could not update host groups for policy ID: "+*policy.ID+", error: "+err.Error(),
+			)
 		}
 	}
 
@@ -451,7 +466,7 @@ func (r *itAutomationPolicyResource) Create(
 		return
 	}
 
-	resp.Diagnostics.Append(plan.wrap(ctx, *updatedPolicy)...)
+	resp.Diagnostics.Append(plan.wrap(ctx, updatedPolicy)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -470,9 +485,6 @@ func (r *itAutomationPolicyResource) Read(
 	policyID := state.ID.ValueString()
 	policy, diags := getItAutomationPolicy(ctx, r.client, policyID)
 	if diags.HasError() {
-		// manually parse diagnostic errors.
-		// helper functions return standardized diagnostics for consistency.
-		// this is due to some IT Automation endpoints not returning structured/generic 404s.
 		for _, d := range diags.Errors() {
 			if d.Summary() == policyNotFoundErrorSummary {
 				tflog.Warn(
@@ -490,7 +502,7 @@ func (r *itAutomationPolicyResource) Read(
 		return
 	}
 
-	resp.Diagnostics.Append(state.wrap(ctx, *policy)...)
+	resp.Diagnostics.Append(state.wrap(ctx, policy)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -526,7 +538,7 @@ func (r *itAutomationPolicyResource) Update(
 		Body:    body,
 	}
 
-	ok, err := r.client.ItAutomation.ITAutomationUpdatePolicies(params)
+	res, err := r.client.ItAutomation.ITAutomationUpdatePolicies(params)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating IT automation policy",
@@ -535,7 +547,7 @@ func (r *itAutomationPolicyResource) Update(
 		return
 	}
 
-	if ok == nil || ok.Payload == nil || len(ok.Payload.Resources) == 0 {
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
 		resp.Diagnostics.AddError(
 			"Error updating IT automation policy",
 			"API returned empty response",
@@ -556,83 +568,79 @@ func (r *itAutomationPolicyResource) Update(
 		}
 	}
 
-	if !plan.HostGroups.Equal(state.HostGroups) {
-		hostGroupsToAdd, hostGroupsToRemove, diags := utils.SetIDsToModify(
-			ctx,
-			plan.HostGroups,
-			state.HostGroups,
-		)
-		resp.Diagnostics.Append(diags...)
-		if diags.HasError() {
+	hostGroupsToAdd, hostGroupsToRemove, diags := utils.SetIDsToModify(
+		ctx,
+		plan.HostGroups,
+		state.HostGroups,
+	)
+	resp.Diagnostics.Append(diags...)
+	if diags.HasError() {
+		return
+	}
+
+	if len(hostGroupsToAdd) > 0 {
+		body := &models.ItautomationUpdatePoliciesHostGroupsRequest{
+			Action:       utils.Addr("assign"),
+			HostGroupIds: hostGroupsToAdd,
+			PolicyID:     &policyID,
+		}
+
+		params := &it_automation.ITAutomationUpdatePolicyHostGroupsParams{
+			Context: ctx,
+			Body:    body,
+		}
+
+		_, err := r.client.ItAutomation.ITAutomationUpdatePolicyHostGroups(params)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error adding IT automation policy host groups",
+				fmt.Sprintf(
+					"Could not add host groups: (%s) to policy with id: %s\n\n%s",
+					strings.Join(hostGroupsToAdd, ", "),
+					policyID,
+					err.Error(),
+				),
+			)
 			return
-		}
-
-		if len(hostGroupsToAdd) > 0 {
-			action := "assign"
-			body := &models.ItautomationUpdatePoliciesHostGroupsRequest{
-				Action:       &action,
-				HostGroupIds: hostGroupsToAdd,
-				PolicyID:     &policyID,
-			}
-
-			params := &it_automation.ITAutomationUpdatePolicyHostGroupsParams{
-				Context: ctx,
-				Body:    body,
-			}
-
-			_, err := r.client.ItAutomation.ITAutomationUpdatePolicyHostGroups(params)
-			if err != nil {
-				resp.Diagnostics.AddError(
-					"Error adding IT automation policy host groups",
-					fmt.Sprintf(
-						"Could not add host groups: (%s) to policy with id: %s\n\n%s",
-						strings.Join(hostGroupsToAdd, ", "),
-						policyID,
-						err.Error(),
-					),
-				)
-				return
-			}
-		}
-
-		if len(hostGroupsToRemove) > 0 {
-			action := "unassign"
-			body := &models.ItautomationUpdatePoliciesHostGroupsRequest{
-				Action:       &action,
-				HostGroupIds: hostGroupsToRemove,
-				PolicyID:     &policyID,
-			}
-
-			params := &it_automation.ITAutomationUpdatePolicyHostGroupsParams{
-				Context: ctx,
-				Body:    body,
-			}
-
-			_, err := r.client.ItAutomation.ITAutomationUpdatePolicyHostGroups(params)
-			if err != nil {
-				resp.Diagnostics.AddError(
-					"Error removing IT automation policy host groups",
-					fmt.Sprintf(
-						"Could not remove host groups: (%s) from policy with id: %s\n\n%s",
-						strings.Join(hostGroupsToRemove, ", "),
-						policyID,
-						err.Error(),
-					),
-				)
-				return
-			}
 		}
 	}
 
-	if !plan.Enabled.Equal(state.Enabled) || !plan.HostGroups.Equal(state.HostGroups) {
+	if len(hostGroupsToRemove) > 0 {
+		body := &models.ItautomationUpdatePoliciesHostGroupsRequest{
+			Action:       utils.Addr("unassign"),
+			HostGroupIds: hostGroupsToRemove,
+			PolicyID:     &policyID,
+		}
+
+		params := &it_automation.ITAutomationUpdatePolicyHostGroupsParams{
+			Context: ctx,
+			Body:    body,
+		}
+
+		_, err := r.client.ItAutomation.ITAutomationUpdatePolicyHostGroups(params)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error removing IT automation policy host groups",
+				fmt.Sprintf(
+					"Could not remove host groups: (%s) from policy with id: %s\n\n%s",
+					strings.Join(hostGroupsToRemove, ", "),
+					policyID,
+					err.Error(),
+				),
+			)
+			return
+		}
+	}
+
+	if !plan.Enabled.Equal(state.Enabled) || len(hostGroupsToAdd) > 0 || len(hostGroupsToRemove) > 0 {
 		updatedPolicy, diags := getItAutomationPolicy(ctx, r.client, policyID)
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
 			return
 		}
-		resp.Diagnostics.Append(plan.wrap(ctx, *updatedPolicy)...)
+		resp.Diagnostics.Append(plan.wrap(ctx, updatedPolicy)...)
 	} else {
-		resp.Diagnostics.Append(plan.wrap(ctx, *ok.Payload.Resources[0])...)
+		resp.Diagnostics.Append(plan.wrap(ctx, *res.Payload.Resources[0])...)
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -745,8 +753,12 @@ func (r *itAutomationPolicyResource) Delete(
 						return
 					}
 				}
+
+				resp.Diagnostics.Append(checkDiags...)
+				return
 			}
-			if checkPolicy == nil {
+
+			if checkPolicy.ID == nil {
 				return
 			}
 		}
@@ -796,9 +808,7 @@ func (r *itAutomationPolicyResource) ValidateConfig(
 		return
 	}
 
-	isMac := config.PlatformName.ValueString() == "Mac"
-
-	if isMac {
+	if config.PlatformName.ValueString() == "Mac" {
 		if utils.IsNull(config.CPUSchedulingPriority) {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("cpu_scheduling_priority"),

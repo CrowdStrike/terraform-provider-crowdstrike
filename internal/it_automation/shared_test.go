@@ -170,7 +170,7 @@ func createRTRFile(
 		return "", fmt.Errorf("RTRListPutFiles failed: %w", err)
 	}
 
-	if listResp.Payload == nil || len(listResp.Payload.Resources) == 0 {
+	if listResp == nil || listResp.Payload == nil || len(listResp.Payload.Resources) == 0 {
 		return "", fmt.Errorf("no file ID found after creation")
 	}
 
@@ -203,7 +203,7 @@ func createUser(
 		return "", fmt.Errorf("CreateUserV1 failed: %w", err)
 	}
 
-	if resp.Payload == nil || len(resp.Payload.Resources) == 0 {
+	if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 {
 		return "", fmt.Errorf("no user ID returned")
 	}
 

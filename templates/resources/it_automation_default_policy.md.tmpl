@@ -11,8 +11,6 @@ description: |-
 
 ~> **Important** Default policies are created by CrowdStrike and cannot be created or deleted via Terraform. You can only manage the description and configuration settings (concurrency, execution, and resources). Default policies cannot be enabled/disabled, assigned to host groups, or have their names changed.
 
-~> **Warning** All configuration settings (concurrency, execution, and resources) must be fully configured in this resource. Omitting any required setting will result in a validation error. Default values are not automatically applied by the provider.
-
 {{ if .HasExample -}}
 ## Example Usage
 

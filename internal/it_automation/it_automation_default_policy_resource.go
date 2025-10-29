@@ -143,18 +143,18 @@ func (t *itAutomationDefaultPolicyResourceModel) wrapResources(config *models.It
 func (r *itAutomationDefaultPolicyResource) getDefaultPolicyByPlatform(
 	ctx context.Context,
 	platform string,
-) (*models.ItautomationPolicy, diag.Diagnostics) {
+) (models.ItautomationPolicy, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	policies, _, policyDiags := getItAutomationPolicies(ctx, r.client, platform)
 	diags.Append(policyDiags...)
 	if diags.HasError() {
-		return nil, diags
+		return models.ItautomationPolicy{}, diags
 	}
 
 	for _, policy := range policies {
 		if policy != nil && policy.Name != nil && isDefaultPolicy(*policy.Name) {
-			return policy, diags
+			return *policy, diags
 		}
 	}
 
@@ -162,7 +162,7 @@ func (r *itAutomationDefaultPolicyResource) getDefaultPolicyByPlatform(
 		"Default policy not found",
 		fmt.Sprintf("No default policy found for platform %s", platform),
 	)
-	return nil, diags
+	return models.ItautomationPolicy{}, diags
 }
 
 // Configure adds the provider configured client to the resource.
@@ -226,7 +226,7 @@ func (r *itAutomationDefaultPolicyResource) Schema(
 				Computed:    true,
 				Description: "Timestamp of the last Terraform update of the resource.",
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"platform_name": schema.StringAttribute{
@@ -361,21 +361,16 @@ func (r *itAutomationDefaultPolicyResource) Create(
 	plan.ID = types.StringPointerValue(policy.ID)
 	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 
-	if r.hasConfigChanges(&plan) {
-		updatedPolicy, err := r.updateDefaultPolicyConfig(ctx, &plan)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating default policy configuration",
-				err.Error(),
-			)
-			return
-		}
-		plan.wrap(*updatedPolicy)
-	} else {
-		plan.wrap(*policy)
+	updatedPolicy, err := r.updateDefaultPolicyConfig(ctx, &plan)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error updating default policy configuration",
+			err.Error(),
+		)
+		return
 	}
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	plan.wrap(*updatedPolicy)
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -408,7 +403,7 @@ func (r *itAutomationDefaultPolicyResource) Read(
 		return
 	}
 
-	state.wrap(*policy)
+	state.wrap(policy)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -476,9 +471,7 @@ func (r *itAutomationDefaultPolicyResource) ValidateConfig(
 		return
 	}
 
-	isMac := config.PlatformName.ValueString() == "Mac"
-
-	if isMac {
+	if config.PlatformName.ValueString() == "Mac" {
 		if utils.IsNull(config.CPUSchedulingPriority) {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("cpu_scheduling_priority"),
@@ -567,24 +560,6 @@ func (r *itAutomationDefaultPolicyResource) ValidateConfig(
 	}
 }
 
-// hasConfigChanges checks if any configuration fields or description are provided.
-func (r *itAutomationDefaultPolicyResource) hasConfigChanges(plan *itAutomationDefaultPolicyResourceModel) bool {
-	return !plan.ConcurrentHostFileTransferLimit.IsNull() ||
-		!plan.ConcurrentHostLimit.IsNull() ||
-		!plan.ConcurrentTaskLimit.IsNull() ||
-		!plan.EnableOsQuery.IsNull() ||
-		!plan.EnablePythonExecution.IsNull() ||
-		!plan.EnableScriptExecution.IsNull() ||
-		!plan.ExecutionTimeout.IsNull() ||
-		!plan.ExecutionTimeoutUnit.IsNull() ||
-		!plan.CPUSchedulingPriority.IsNull() ||
-		!plan.CPUThrottle.IsNull() ||
-		!plan.MemoryAllocation.IsNull() ||
-		!plan.MemoryAllocationUnit.IsNull() ||
-		!plan.MemoryPressureLevel.IsNull() ||
-		(!plan.Description.IsNull() && !plan.Description.IsUnknown())
-}
-
 // updateDefaultPolicyConfig updates the default policy configuration.
 func (r *itAutomationDefaultPolicyResource) updateDefaultPolicyConfig(
 	ctx context.Context,
@@ -604,12 +579,12 @@ func (r *itAutomationDefaultPolicyResource) updateDefaultPolicyConfig(
 		Body:    body,
 	}
 
-	ok, err := r.client.ItAutomation.ITAutomationUpdatePolicies(params)
+	res, err := r.client.ItAutomation.ITAutomationUpdatePolicies(params)
 	if err != nil {
 		return nil, fmt.Errorf("could not update default policy ID %s: %w", policyID, err)
 	}
 
-	if ok == nil || ok.Payload == nil || len(ok.Payload.Resources) == 0 {
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
 		return nil, fmt.Errorf("API returned empty response")
 	}
 
@@ -622,7 +597,7 @@ func (r *itAutomationDefaultPolicyResource) updateDefaultPolicyConfig(
 		),
 	)
 
-	return ok.Payload.Resources[0], nil
+	return res.Payload.Resources[0], nil
 }
 
 // createPolicyConfigFromModelDefault creates a policy configuration from the default policy resource model.
@@ -646,20 +621,13 @@ func createPolicyConfigFromModelDefault(
 	}
 
 	config.Resources = &models.ItautomationResourceConfig{}
-	if !plan.CPUSchedulingPriority.IsNull() {
+	if plan.PlatformName.ValueString() == "Mac" {
 		config.Resources.CPUScheduling = plan.CPUSchedulingPriority.ValueString()
-	}
-	if !plan.CPUThrottle.IsNull() {
-		config.Resources.CPUThrottle = plan.CPUThrottle.ValueInt32()
-	}
-	if !plan.MemoryAllocation.IsNull() {
-		config.Resources.MemoryAllocation = plan.MemoryAllocation.ValueInt32()
-	}
-	if !plan.MemoryAllocationUnit.IsNull() {
-		config.Resources.MemoryAllocationUnit = plan.MemoryAllocationUnit.ValueString()
-	}
-	if !plan.MemoryPressureLevel.IsNull() {
 		config.Resources.MemoryPressureLevel = plan.MemoryPressureLevel.ValueString()
+	} else {
+		config.Resources.CPUThrottle = plan.CPUThrottle.ValueInt32()
+		config.Resources.MemoryAllocation = plan.MemoryAllocation.ValueInt32()
+		config.Resources.MemoryAllocationUnit = plan.MemoryAllocationUnit.ValueString()
 	}
 
 	return config

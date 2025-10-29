@@ -224,7 +224,7 @@ func (r *itAutomationTaskResource) constructUpdatePayload(
 		currentUserIds := currentTask.AssignedUserIds
 		plannedUserIds := plan.AssignedUserIds
 
-		diags, usersToAdd, usersToRemove := idsDiff(ctx, currentUserIds, plannedUserIds)
+		usersToAdd, usersToRemove, diags := idsDiff(ctx, currentUserIds, plannedUserIds)
 		if !diags.HasError() {
 			if len(usersToAdd) > 0 {
 				body.AddAssignedUserIds = usersToAdd
@@ -537,7 +537,7 @@ func (r *itAutomationTaskResource) Schema(
 				Computed:    true,
 				Description: "Timestamp of the last Terraform update of the resource.",
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"access_type": schema.StringAttribute{
@@ -547,9 +547,6 @@ func (r *itAutomationTaskResource) Schema(
 				Description: "Access control configuration for the task (Public, Shared). Cannot be configured when the task belongs to a task group; inherited from the group instead.",
 				Validators: []validator.String{
 					stringvalidator.OneOf("Public", "Shared"),
-				},
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"assigned_user_ids": schema.SetAttribute{
@@ -735,7 +732,7 @@ func (r *itAutomationTaskResource) Schema(
 			},
 			"verification_condition": schema.ListNestedAttribute{
 				Optional:    true,
-				Description: "Verification conditions for action tasks to determine success (only valid for action tasks). Maps directly to the API's FalconforitapiConditionGroup model.",
+				Description: "Verification conditions for action tasks to determine success (only valid for action tasks).",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"operator": schema.StringAttribute{
@@ -816,7 +813,7 @@ func (r *itAutomationTaskResource) ModifyPlan(
 		return
 	}
 
-	if !state.InTaskGroup.IsNull() && state.InTaskGroup.ValueBool() {
+	if utils.IsKnown(state.InTaskGroup) && state.InTaskGroup.ValueBool() {
 		var accessTypeFromConfig types.String
 		diags := req.Config.GetAttribute(ctx, path.Root("access_type"), &accessTypeFromConfig)
 		if !diags.HasError() && !accessTypeFromConfig.IsNull() {
@@ -1023,7 +1020,7 @@ func (r *itAutomationTaskResource) Read(
 		return
 	}
 
-	resp.Diagnostics.Append(state.wrap(ctx, *task)...)
+	resp.Diagnostics.Append(state.wrap(ctx, task)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -1053,7 +1050,7 @@ func (r *itAutomationTaskResource) Update(
 		return
 	}
 
-	body, constructDiags := r.constructUpdatePayload(ctx, currentTask, &plan)
+	body, constructDiags := r.constructUpdatePayload(ctx, &currentTask, &plan)
 	resp.Diagnostics.Append(constructDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -1081,7 +1078,7 @@ func (r *itAutomationTaskResource) Update(
 	}
 
 	plan.LastUpdated = utils.GenerateUpdateTimestamp()
-	resp.Diagnostics.Append(plan.wrap(ctx, *updatedTask)...)
+	resp.Diagnostics.Append(plan.wrap(ctx, updatedTask)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 

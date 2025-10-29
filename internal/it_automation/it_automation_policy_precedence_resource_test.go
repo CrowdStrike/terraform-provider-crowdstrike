@@ -3,6 +3,7 @@ package itautomation_test
 import (
 	"fmt"
 	"math/rand"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -50,7 +51,6 @@ func (config *precedenceConfig) TestChecks() resource.TestCheckFunc {
 	var checks []resource.TestCheckFunc
 
 	checks = append(checks,
-		resource.TestCheckResourceAttrSet(precedenceResourceName, "id"),
 		resource.TestCheckResourceAttrSet(precedenceResourceName, "last_updated"),
 		resource.TestCheckResourceAttr(precedenceResourceName, "platform_name", config.Platform),
 		resource.TestCheckResourceAttr(precedenceResourceName, "enforcement", config.Enforcement),
@@ -265,6 +265,45 @@ func TestAccITAutomationPolicyPrecedenceResource_Mac(t *testing.T) {
 			{
 				Config: baseConfig + strictReorderedConfig.String(),
 				Check:  strictReorderedConfig.TestChecks(),
+			},
+		},
+	})
+}
+
+func TestAccITAutomationPolicyPrecedenceResource_InvalidPolicyIDs(t *testing.T) {
+	fixtures := getTestFixtures()
+	baseConfig := acctest.ProviderConfig + fixtures.WindowsHostGroupsOnly()
+
+	invalidDynamicConfig := `
+resource "crowdstrike_it_automation_policy_precedence" "test" {
+  platform_name = "Windows"
+  enforcement   = "dynamic"
+  ids           = ["invalid-id-1", "invalid-id-2"]
+}
+`
+
+	invalidStrictConfig := `
+resource "crowdstrike_it_automation_policy_precedence" "test" {
+  platform_name = "Windows"
+  enforcement   = "strict"
+  ids           = ["invalid-id-1", "invalid-id-2"]
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
+		},
+		Steps: []resource.TestStep{
+			{
+				Config:      baseConfig + invalidDynamicConfig,
+				ExpectError: regexp.MustCompile(`Invalid policy ids provided`),
+			},
+			{
+				Config:      baseConfig + invalidStrictConfig,
+				ExpectError: regexp.MustCompile(`Invalid policy ids provided`),
 			},
 		},
 	})
