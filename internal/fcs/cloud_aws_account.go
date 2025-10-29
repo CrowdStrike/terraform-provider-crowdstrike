@@ -62,6 +62,11 @@ type dspmOptions struct {
 	RoleName types.String `tfsdk:"role_name"`
 }
 
+type vulnerabilityScanningOptions struct {
+	Enabled  types.Bool   `tfsdk:"enabled"`
+	RoleName types.String `tfsdk:"role_name"`
+}
+
 // cloudStateKey the private state key used in terraform.
 const cloudStateKey = "accountState"
 
@@ -71,29 +76,33 @@ type cloudAccState struct {
 }
 
 type cloudAWSAccountModel struct {
-	AccountID              types.String               `tfsdk:"account_id"`
-	OrganizationID         types.String               `tfsdk:"organization_id"`
-	TargetOUs              types.List                 `tfsdk:"target_ous"`
-	IsOrgManagementAccount types.Bool                 `tfsdk:"is_organization_management_account"`
-	AccountType            types.String               `tfsdk:"account_type"`
-	DeploymentMethod       types.String               `tfsdk:"deployment_method"`
-	AssetInventory         *assetInventoryOptions     `tfsdk:"asset_inventory"`
-	RealtimeVisibility     *realtimeVisibilityOptions `tfsdk:"realtime_visibility"`
-	IDP                    *idpOptions                `tfsdk:"idp"`
-	SensorManagement       *sensorManagementOptions   `tfsdk:"sensor_management"`
-	DSPM                   *dspmOptions               `tfsdk:"dspm"`
-	ResourceNamePrefix     types.String               `tfsdk:"resource_name_prefix"`
-	ResourceNameSuffix     types.String               `tfsdk:"resource_name_suffix"`
+	AccountID              types.String                  `tfsdk:"account_id"`
+	OrganizationID         types.String                  `tfsdk:"organization_id"`
+	TargetOUs              types.List                    `tfsdk:"target_ous"`
+	IsOrgManagementAccount types.Bool                    `tfsdk:"is_organization_management_account"`
+	AccountType            types.String                  `tfsdk:"account_type"`
+	DeploymentMethod       types.String                  `tfsdk:"deployment_method"`
+	AssetInventory         *assetInventoryOptions        `tfsdk:"asset_inventory"`
+	RealtimeVisibility     *realtimeVisibilityOptions    `tfsdk:"realtime_visibility"`
+	IDP                    *idpOptions                   `tfsdk:"idp"`
+	SensorManagement       *sensorManagementOptions      `tfsdk:"sensor_management"`
+	DSPM                   *dspmOptions                  `tfsdk:"dspm"`
+	VulnerabilityScanning  *vulnerabilityScanningOptions `tfsdk:"vulnerability_scanning"`
+	ResourceNamePrefix     types.String                  `tfsdk:"resource_name_prefix"`
+	ResourceNameSuffix     types.String                  `tfsdk:"resource_name_suffix"`
 	// Computed
-	ExternalID           types.String `tfsdk:"external_id"`
-	IntermediateRoleArn  types.String `tfsdk:"intermediate_role_arn"`
-	IamRoleArn           types.String `tfsdk:"iam_role_arn"`
-	IamRoleName          types.String `tfsdk:"iam_role_name"`
-	EventbusName         types.String `tfsdk:"eventbus_name"`
-	EventbusArn          types.String `tfsdk:"eventbus_arn"`
-	CloudTrailBucketName types.String `tfsdk:"cloudtrail_bucket_name"`
-	DspmRoleArn          types.String `tfsdk:"dspm_role_arn"`
-	DspmRoleName         types.String `tfsdk:"dspm_role_name"`
+	ExternalID                    types.String `tfsdk:"external_id"`
+	IntermediateRoleArn           types.String `tfsdk:"intermediate_role_arn"`
+	IamRoleArn                    types.String `tfsdk:"iam_role_arn"`
+	IamRoleName                   types.String `tfsdk:"iam_role_name"`
+	EventbusName                  types.String `tfsdk:"eventbus_name"`
+	EventbusArn                   types.String `tfsdk:"eventbus_arn"`
+	CloudTrailBucketName          types.String `tfsdk:"cloudtrail_bucket_name"`
+	DspmRoleArn                   types.String `tfsdk:"dspm_role_arn"`
+	DspmRoleName                  types.String `tfsdk:"dspm_role_name"`
+	VulnerabilityScanningRoleArn  types.String `tfsdk:"vulnerability_scanning_role_arn"`
+	VulnerabilityScanningRoleName types.String `tfsdk:"vulnerability_scanning_role_name"`
+	AgentlessScanningRoleName     types.String `tfsdk:"agentless_scanning_role_name"`
 }
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -411,6 +420,42 @@ func (r *cloudAWSAccountResource) Schema(
 					objectplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"vulnerability_scanning": schema.SingleNestedAttribute{
+				Required: false,
+				Optional: true,
+				Computed: true,
+				Attributes: map[string]schema.Attribute{
+					"enabled": schema.BoolAttribute{
+						Required:    true,
+						Description: "Enable Vulnerability Scanning",
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"role_name": schema.StringAttribute{
+						Optional:    true,
+						Description: "Custom AWS IAM role name for Vulnerability Scanning",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+				},
+				Default: objectdefault.StaticValue(
+					types.ObjectValueMust(
+						map[string]attr.Type{
+							"enabled":   types.BoolType,
+							"role_name": types.StringType,
+						},
+						map[string]attr.Value{
+							"enabled":   types.BoolValue(false),
+							"role_name": types.StringNull(),
+						},
+					),
+				),
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
+			},
 			// Computed values
 			"is_organization_management_account": schema.BoolAttribute{
 				Computed:    true,
@@ -472,14 +517,35 @@ func (r *cloudAWSAccountResource) Schema(
 				Computed:    true,
 				Description: "The ARN of the IAM role to be used by CrowdStrike Data Security Posture Management",
 				PlanModifiers: []planmodifier.String{
-					DSPMArnStateModifier(),
+					dspmARNStateModifier(),
 				},
 			},
 			"dspm_role_name": schema.StringAttribute{
 				Computed:    true,
 				Description: "The name of the IAM role to be used by CrowdStrike Data Security Posture Management",
 				PlanModifiers: []planmodifier.String{
-					DSPMArnStateModifier(),
+					dspmARNStateModifier(),
+				},
+			},
+			"vulnerability_scanning_role_arn": schema.StringAttribute{
+				Computed:    true,
+				Description: "The ARN of the IAM role to be used by CrowdStrike Vulnerability Scanning",
+				PlanModifiers: []planmodifier.String{
+					vulnScanningArnStateModifier(),
+				},
+			},
+			"vulnerability_scanning_role_name": schema.StringAttribute{
+				Computed:    true,
+				Description: "The name of the IAM role to be used by CrowdStrike Vulnerability Scanning",
+				PlanModifiers: []planmodifier.String{
+					vulnScanningArnStateModifier(),
+				},
+			},
+			"agentless_scanning_role_name": schema.StringAttribute{
+				Computed:    true,
+				Description: "The name of the IAM role to be used by CrowdStrike Agentless Scanning(DSPM/Vulnerability scanning)",
+				PlanModifiers: []planmodifier.String{
+					agentlessScanningRoleNameStateModifier(),
 				},
 			},
 		},
@@ -529,6 +595,23 @@ func (r *cloudAWSAccountResource) Create(
 	state.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
 	state.DspmRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.DspmRoleArn))
 
+	settings, err := getAccountSettings(cspmAccount)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to get account settings", err.Error())
+		return
+	}
+
+	state.VulnerabilityScanningRoleArn = types.StringValue(settings.VulnerabilityScanningRole)
+	state.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(settings.VulnerabilityScanningRole))
+
+	agentlessRoleName, err := computeAgentlessScanningRoleName(cspmAccount)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to compute agentless scanning role name", err.Error())
+		return
+	}
+
+	state.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
+
 	// for each feature options
 	// update with data from backend
 
@@ -542,6 +625,7 @@ func (r *cloudAWSAccountResource) Create(
 	state.SensorManagement.Enabled = types.BoolPointerValue(cspmAccount.SensorManagementEnabled)
 
 	state.DSPM.Enabled = types.BoolValue(cspmAccount.DspmEnabled)
+	state.VulnerabilityScanning.Enabled = types.BoolValue(cspmAccount.VulnerabilityScanningEnabled)
 
 	// save current state
 	diags = resp.State.Set(ctx, state)
@@ -609,17 +693,25 @@ func (r *cloudAWSAccountResource) createCSPMAccount(
 		)
 		createAccount.IamRoleArn = &roleArn
 	}
+
 	if model.RealtimeVisibility != nil {
 		createAccount.BehaviorAssessmentEnabled = model.RealtimeVisibility.Enabled.ValueBool()
 		createAccount.CloudtrailRegion = model.RealtimeVisibility.CloudTrailRegion.ValueStringPointer()
 		createAccount.UseExistingCloudtrail = model.RealtimeVisibility.UseExistingCloudTrail.ValueBool()
 	}
+
 	if model.SensorManagement != nil {
 		createAccount.SensorManagementEnabled = model.SensorManagement.Enabled.ValueBool()
 	}
+
 	if model.DSPM != nil {
 		createAccount.DspmEnabled = model.DSPM.Enabled.ValueBool()
 		createAccount.DspmRole = model.DSPM.RoleName.ValueString()
+	}
+
+	if model.VulnerabilityScanning != nil {
+		createAccount.VulnerabilityScanningEnabled = model.VulnerabilityScanning.Enabled.ValueBool()
+		createAccount.VulnerabilityScanningRole = model.VulnerabilityScanning.RoleName.ValueString()
 	}
 
 	tflog.Info(ctx, "creating CSPM account")
@@ -827,6 +919,23 @@ func (r *cloudAWSAccountResource) Read(
 	state.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
 	state.DspmRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.DspmRoleArn))
 
+	settings, err := getAccountSettings(cspmAccount)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to get account settings", err.Error())
+		return
+	}
+
+	state.VulnerabilityScanningRoleArn = types.StringValue(settings.VulnerabilityScanningRole)
+	state.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(settings.VulnerabilityScanningRole))
+
+	agentlessRoleName, err := computeAgentlessScanningRoleName(cspmAccount)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to compute agentless scanning role name", err.Error())
+		return
+	}
+
+	state.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
+
 	// for each feature options
 	// if old state is nil, we are importing
 	// if not, copy old state and then update with data from backend
@@ -865,6 +974,14 @@ func (r *cloudAWSAccountResource) Read(
 		state.DSPM = &dspmOptions{}
 	}
 	state.DSPM.Enabled = types.BoolValue(cspmAccount.DspmEnabled)
+
+	if oldState.VulnerabilityScanning != nil {
+		state.VulnerabilityScanning = oldState.VulnerabilityScanning
+	} else {
+		state.VulnerabilityScanning = &vulnerabilityScanningOptions{}
+	}
+
+	state.VulnerabilityScanning.Enabled = types.BoolValue(cspmAccount.VulnerabilityScanningEnabled)
 
 	// save current state
 	diags = resp.State.Set(ctx, &state)
@@ -1088,6 +1205,23 @@ func (r *cloudAWSAccountResource) Update(
 	plan.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
 	plan.DspmRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.DspmRoleArn))
 
+	settings, err := getAccountSettings(cspmAccount)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to get account settings", err.Error())
+		return
+	}
+
+	plan.VulnerabilityScanningRoleArn = types.StringValue(settings.VulnerabilityScanningRole)
+	plan.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(settings.VulnerabilityScanningRole))
+
+	agentlessRoleName, err := computeAgentlessScanningRoleName(cspmAccount)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to compute agentless scanning role name", err.Error())
+		return
+	}
+
+	plan.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
+
 	plan.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
 	if cspmAccount.AwsCloudtrailRegion != "" {
 		plan.RealtimeVisibility.CloudTrailRegion = types.StringValue(
@@ -1098,6 +1232,8 @@ func (r *cloudAWSAccountResource) Update(
 	plan.SensorManagement.Enabled = types.BoolPointerValue(cspmAccount.SensorManagementEnabled)
 
 	plan.DSPM.Enabled = types.BoolValue(cspmAccount.DspmEnabled)
+
+	plan.VulnerabilityScanning.Enabled = types.BoolValue(cspmAccount.VulnerabilityScanningEnabled)
 
 	// save current state
 	diags = resp.State.Set(ctx, plan)
@@ -1160,6 +1296,11 @@ func (r *cloudAWSAccountResource) updateCSPMAccount(
 		patchAccount.DspmEnabled = model.DSPM.Enabled.ValueBoolPointer()
 		patchAccount.DspmRole = model.DSPM.RoleName.ValueString()
 	}
+	if model.VulnerabilityScanning != nil {
+		patchAccount.VulnerabilityScanningEnabled = model.VulnerabilityScanning.Enabled.ValueBoolPointer()
+		patchAccount.VulnerabilityScanningRole = model.VulnerabilityScanning.RoleName.ValueString()
+	}
+
 	res, status, err := r.client.CspmRegistration.PatchCSPMAwsAccount(
 		&cspm_registration.PatchCSPMAwsAccountParams{
 			Context: ctx,
@@ -1442,5 +1583,18 @@ func (r *cloudAWSAccountResource) ValidateConfig(
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	// Validate DSPM and vulnerability scanning role name consistency
+	if config.DSPM != nil && config.DSPM.Enabled.ValueBool() && config.VulnerabilityScanning != nil && config.VulnerabilityScanning.Enabled.ValueBool() {
+		dspmRole := config.DSPM.RoleName.ValueString()
+		vulnRole := config.VulnerabilityScanning.RoleName.ValueString()
+
+		if dspmRole != vulnRole {
+			resp.Diagnostics.AddError(
+				"Role Name Mismatch",
+				fmt.Sprintf("When both DSPM and Vulnerability Scanning are enabled role names must be identical. DSPM role: '%s', Vulnerability Scanning role: '%s'", dspmRole, vulnRole),
+			)
+		}
 	}
 }
