@@ -32,11 +32,10 @@ import (
 )
 
 var (
-	_ resource.Resource                   = &cloudPostureCustomRuleResource{}
-	_ resource.ResourceWithConfigure      = &cloudPostureCustomRuleResource{}
-	_ resource.ResourceWithImportState    = &cloudPostureCustomRuleResource{}
-	_ resource.ResourceWithModifyPlan     = &cloudPostureCustomRuleResource{}
-	_ resource.ResourceWithValidateConfig = &cloudPostureCustomRuleResource{}
+	_ resource.Resource                = &cloudPostureCustomRuleResource{}
+	_ resource.ResourceWithConfigure   = &cloudPostureCustomRuleResource{}
+	_ resource.ResourceWithImportState = &cloudPostureCustomRuleResource{}
+	_ resource.ResourceWithModifyPlan  = &cloudPostureCustomRuleResource{}
 )
 
 var (
@@ -420,37 +419,6 @@ func (r cloudPostureCustomRuleResource) ConfigValidators(ctx context.Context) []
 	}
 }
 
-func (r *cloudPostureCustomRuleResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var config cloudPostureCustomRuleResourceModel
-
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Validate duplicate rule attributes due to varying behavior for empty lists/sets between rule types.
-	if !config.ParentRuleId.IsNull() && !config.ParentRuleId.IsUnknown() {
-		if !config.AlertInfo.IsNull() && !config.AlertInfo.IsUnknown() {
-			if len(config.AlertInfo.Elements()) == 0 {
-				resp.Diagnostics.AddAttributeError(
-					path.Root("alert_info"),
-					"Invalid Configuration",
-					"When parent_rule_id is set, alert_info cannot be an empty list. It must either be omitted (in which case it will be inherited from the parent rule) or contain at least one element.",
-				)
-			}
-		}
-		if !config.RemediationInfo.IsNull() && !config.RemediationInfo.IsUnknown() {
-			if len(config.RemediationInfo.Elements()) == 0 {
-				resp.Diagnostics.AddAttributeError(
-					path.Root("remediation_info"),
-					"Invalid Configuration",
-					"When parent_rule_id is set, remediation_info cannot be an empty list. It must either be omitted (in which case it will be inherited from the parent rule) or contain at least one element.",
-				)
-			}
-		}
-	}
-}
-
 func (r *cloudPostureCustomRuleResource) ModifyPlan(
 	ctx context.Context,
 	req resource.ModifyPlanRequest,
@@ -608,6 +576,7 @@ func (m *cloudPostureCustomRuleResourceModel) wrap(
 
 func (r *cloudPostureCustomRuleResource) createCloudPolicyRule(ctx context.Context, plan *cloudPostureCustomRuleResourceModel) (*models.ApimodelsRule, diag.Diagnostics) {
 	var diags diag.Diagnostics
+	var newRule *models.ApimodelsRule
 	isDuplicateRule := !plan.ParentRuleId.IsNull()
 
 	body := &models.CommonCreateRuleRequest{
@@ -764,7 +733,30 @@ func (r *cloudPostureCustomRuleResource) createCloudPolicyRule(ctx context.Conte
 		)
 		return nil, diags
 	}
-	return payload.Resources[0], diags
+
+	newRule = payload.Resources[0]
+
+	// Duplicate rules can only set remediation_info and alert_info
+	// to empty during an update, not on initial creation
+	if isDuplicateRule {
+		configRemdiationInfo := plan.RemediationInfo
+		configAlertInfo := plan.AlertInfo
+		diags = plan.wrap(ctx, payload.Resources[0])
+		if diags.HasError() {
+			return nil, diags
+		}
+
+		plan.RemediationInfo = configRemdiationInfo
+		plan.AlertInfo = configAlertInfo
+
+		rule, diags := r.updateCloudPolicyRule(ctx, plan)
+		if diags.HasError() {
+			return nil, diags
+		}
+		newRule = rule
+	}
+
+	return newRule, diags
 }
 
 func (r *cloudPostureCustomRuleResource) getCloudPolicyRule(ctx context.Context, id string) (*models.ApimodelsRule, diag.Diagnostics) {

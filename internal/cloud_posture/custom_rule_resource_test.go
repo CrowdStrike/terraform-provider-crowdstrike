@@ -139,9 +139,7 @@ func TestCloudPostureCustomRuleResource(t *testing.T) {
 	steps = append(steps, generateRuleRegoDefinedToEmptyTests(awsCopyConfig, "AWS_Empty_Rego")...)
 	steps = append(steps, generateRuleRegoDefinedToEmptyTests(azureCopyConfig, "Azure_Empty_Rego")...)
 	steps = append(steps, generateRuleRegoDefinedToEmptyTests(gcpCopyConfig, "GCP_Empty_Rego")...)
-	steps = append(steps, generateRuleCopyDefinedToEmptyAlertInfoTests(awsCopyConfig)...)
-	steps = append(steps, generateRuleCopyDefinedToEmptyRemediationInfoTests(awsCopyConfig)...)
-	steps = append(steps, generateRuleCopyDefinedToEmptyControlsTests(awsCopyConfig)...)
+	steps = append(steps, generateRuleCopyDefinedToEmptyTests(awsCopyConfig)...)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -480,10 +478,11 @@ data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
 	return steps
 }
 
-// Ensure alert_info fail when set to empty for duplicate rules
-func generateRuleCopyDefinedToEmptyAlertInfoTests(config ruleCustomConfig) []resource.TestStep {
+// Ensure alert_info, remediation_info, and controls are set to empty for duplicate rules
+// Duplicate rules can only be set to empty on update
+func generateRuleCopyDefinedToEmptyTests(config ruleCustomConfig) []resource.TestStep {
 	var steps []resource.TestStep
-	resourceName := "definedToEmptyAlertInfoCopyRule"
+	resourceName := "definedToEmptyCopyRule"
 	fullResourceName := fmt.Sprintf("crowdstrike_cloud_posture_custom_rule.%s", resourceName)
 
 	alertInfo := strings.Join([]string{
@@ -507,188 +506,6 @@ resource "crowdstrike_cloud_posture_custom_rule" "%s" {
   ]
   alert_info     = [%s]
   parent_rule_id = one(data.crowdstrike_cloud_posture_rules.rule_%[1]s.rules).id
-}
-
-data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
-  rule_name = "%[10]s"
-  benchmark = "%[11]s"
-}
-`, resourceName, config.resourceType, config.ruleBaseConfig.ruleNamePrefix+resourceName, config.ruleBaseConfig.description[0],
-			config.cloudProvider, config.severity[0], remediationInfo,
-			testGenerateControlBlock(config.ruleBaseConfig.controls[0]), alertInfo,
-			config.parentRule.ruleName, config.parentRule.benchmark),
-		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(fullResourceName, "subdomain", config.ruleBaseConfig.subdomain),
-			resource.TestCheckResourceAttr(fullResourceName, "domain", config.ruleBaseConfig.domain),
-			resource.TestCheckResourceAttr(fullResourceName, "resource_type", config.resourceType),
-			resource.TestCheckResourceAttr(fullResourceName, "name", config.ruleBaseConfig.ruleNamePrefix+resourceName),
-			resource.TestCheckResourceAttr(fullResourceName, "description", config.ruleBaseConfig.description[0]),
-			resource.TestCheckResourceAttr(fullResourceName, "cloud_platform", config.cloudPlatform),
-			resource.TestCheckResourceAttr(fullResourceName, "cloud_provider", config.cloudProvider),
-			resource.TestCheckResourceAttr(fullResourceName, "severity", config.severity[0]),
-			resource.TestCheckResourceAttr(fullResourceName, "controls.0.authority", config.ruleBaseConfig.controls[0].authority),
-			resource.TestCheckResourceAttr(fullResourceName, "controls.0.code", config.ruleBaseConfig.controls[0].code),
-			resource.TestCheckResourceAttr(fullResourceName, fmt.Sprintf("alert_info.%d", len(config.ruleBaseConfig.alertInfo[0])-1), config.ruleBaseConfig.alertInfo[0][len(config.ruleBaseConfig.alertInfo[0])-1]),
-			resource.TestCheckResourceAttr(fullResourceName, fmt.Sprintf("remediation_info.%d", len(config.ruleBaseConfig.remediationInfo[0])-1), config.ruleBaseConfig.remediationInfo[0][len(config.ruleBaseConfig.remediationInfo[0])-1]),
-			resource.TestCheckResourceAttrSet(fullResourceName, "id"),
-			resource.TestCheckResourceAttrSet(fullResourceName, "parent_rule_id"),
-		),
-	}
-
-	undefinedStep := resource.TestStep{
-		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule" "%s" {
-  resource_type    = "%s"
-  name             = "%s"
-  description      = "%s"
-  cloud_provider   = "%s"
-  severity         = "%s"
-  controls         = [%s]
-  remediation_info = [%s]
-  alert_info       = []
-  parent_rule_id   = one(data.crowdstrike_cloud_posture_rules.rule_%[1]s.rules).id
-}
-
-data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
-  rule_name = "%[9]s"
-  benchmark = "%[10]s"
-}
-`, resourceName, config.resourceType, config.ruleBaseConfig.ruleNamePrefix+resourceName, config.ruleBaseConfig.description[0],
-			config.cloudProvider, config.severity[0], testGenerateControlBlock(config.ruleBaseConfig.controls[0]),
-			remediationInfo, config.parentRule.ruleName, config.parentRule.benchmark),
-		ExpectError: regexp.MustCompile(
-			"Invalid Configuration",
-		),
-	}
-
-	steps = append(steps, definedStep)
-	steps = append(steps, undefinedStep)
-
-	// Required config to perform deletion after test
-	steps = append(steps, definedStep)
-
-	return steps
-}
-
-// Ensure remediation_info fail when set to empty for duplicate rules
-func generateRuleCopyDefinedToEmptyRemediationInfoTests(config ruleCustomConfig) []resource.TestStep {
-	var steps []resource.TestStep
-	resourceName := "definedToEmptyRemediationInfoCopyRule"
-	fullResourceName := fmt.Sprintf("crowdstrike_cloud_posture_custom_rule.%s", resourceName)
-
-	alertInfo := strings.Join([]string{
-		`"` + strings.Join(config.ruleBaseConfig.alertInfo[0], `","`) + `"`,
-	}, "")
-	remediationInfo := strings.Join([]string{
-		`"` + strings.Join(config.ruleBaseConfig.remediationInfo[0], `","`) + `"`,
-	}, "")
-
-	definedStep := resource.TestStep{
-		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule" "%s" {
-  resource_type    = "%s"
-  name             = "%s"
-  description      = "%s"
-  cloud_provider   = "%s"
-  severity         = "%s"
-  remediation_info = [%s]
-  controls = [
-    %s
-  ]
-  alert_info     = [%s]
-  parent_rule_id = one(data.crowdstrike_cloud_posture_rules.rule_%[1]s.rules).id
-}
-
-data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
-  rule_name = "%[10]s"
-  benchmark = "%[11]s"
-}
-`, resourceName, config.resourceType, config.ruleBaseConfig.ruleNamePrefix+resourceName, config.ruleBaseConfig.description[0],
-			config.cloudProvider, config.severity[0], remediationInfo,
-			testGenerateControlBlock(config.ruleBaseConfig.controls[0]), alertInfo,
-			config.parentRule.ruleName, config.parentRule.benchmark),
-		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(fullResourceName, "subdomain", config.ruleBaseConfig.subdomain),
-			resource.TestCheckResourceAttr(fullResourceName, "domain", config.ruleBaseConfig.domain),
-			resource.TestCheckResourceAttr(fullResourceName, "resource_type", config.resourceType),
-			resource.TestCheckResourceAttr(fullResourceName, "name", config.ruleBaseConfig.ruleNamePrefix+resourceName),
-			resource.TestCheckResourceAttr(fullResourceName, "description", config.ruleBaseConfig.description[0]),
-			resource.TestCheckResourceAttr(fullResourceName, "cloud_platform", config.cloudPlatform),
-			resource.TestCheckResourceAttr(fullResourceName, "cloud_provider", config.cloudProvider),
-			resource.TestCheckResourceAttr(fullResourceName, "severity", config.severity[0]),
-			resource.TestCheckResourceAttr(fullResourceName, "controls.0.authority", config.ruleBaseConfig.controls[0].authority),
-			resource.TestCheckResourceAttr(fullResourceName, "controls.0.code", config.ruleBaseConfig.controls[0].code),
-			resource.TestCheckResourceAttr(fullResourceName, fmt.Sprintf("alert_info.%d", len(config.ruleBaseConfig.alertInfo[0])-1), config.ruleBaseConfig.alertInfo[0][len(config.ruleBaseConfig.alertInfo[0])-1]),
-			resource.TestCheckResourceAttr(fullResourceName, fmt.Sprintf("remediation_info.%d", len(config.ruleBaseConfig.remediationInfo[0])-1), config.ruleBaseConfig.remediationInfo[0][len(config.ruleBaseConfig.remediationInfo[0])-1]),
-			resource.TestCheckResourceAttrSet(fullResourceName, "id"),
-			resource.TestCheckResourceAttrSet(fullResourceName, "parent_rule_id"),
-		),
-	}
-
-	undefinedStep := resource.TestStep{
-		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule" "%s" {
-  resource_type    = "%s"
-  name             = "%s"
-  description      = "%s"
-  cloud_provider   = "%s"
-  severity         = "%s"
-  controls         = [%s]
-  remediation_info = []
-  alert_info       = [%s]
-  parent_rule_id   = one(data.crowdstrike_cloud_posture_rules.rule_%[1]s.rules).id
-}
-
-data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
-  rule_name = "%[9]s"
-  benchmark = "%[10]s"
-}
-`, resourceName, config.resourceType, config.ruleBaseConfig.ruleNamePrefix, config.ruleBaseConfig.description[0],
-			config.cloudProvider, config.severity[0],
-			testGenerateControlBlock(config.ruleBaseConfig.controls[0]), alertInfo,
-			config.parentRule.ruleName, config.parentRule.benchmark),
-		ExpectError: regexp.MustCompile(
-			"Invalid Configuration",
-		),
-	}
-
-	steps = append(steps, definedStep)
-	steps = append(steps, undefinedStep)
-
-	// Required config to perform deletion after test
-	steps = append(steps, definedStep)
-
-	return steps
-}
-
-// Ensure controls fail on empty alert_info for duplicate rules
-func generateRuleCopyDefinedToEmptyControlsTests(config ruleCustomConfig) []resource.TestStep {
-	var steps []resource.TestStep
-	resourceName := "definedToEmptyControlsCopyRule"
-	fullResourceName := fmt.Sprintf("crowdstrike_cloud_posture_custom_rule.%s", resourceName)
-
-	alertInfo := strings.Join([]string{
-		`"` + strings.Join(config.ruleBaseConfig.alertInfo[0], `","`) + `"`,
-	}, "")
-	remediationInfo := strings.Join([]string{
-		`"` + strings.Join(config.ruleBaseConfig.remediationInfo[0], `","`) + `"`,
-	}, "")
-
-	definedStep := resource.TestStep{
-		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule" "%s" {
-  resource_type    = "%s"
-  name             = "%s"
-  description      = "%s"
-  cloud_provider   = "%s"
-  severity         = "%s"
-  remediation_info = [%s]
-  controls = [
-    %s
-  ]
-  alert_info     = [%s]
-  parent_rule_id = one(data.crowdstrike_cloud_posture_rules.rule_%[1]s.rules).id
-
 }
 
 data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
@@ -726,8 +543,8 @@ resource "crowdstrike_cloud_posture_custom_rule" "%s" {
   cloud_provider   = "%s"
   severity         = "%s"
   controls         = []
-  remediation_info = [%s]
-  alert_info       = [%s]
+  remediation_info = []
+  alert_info       = []
   parent_rule_id   = one(data.crowdstrike_cloud_posture_rules.rule_%[1]s.rules).id
 }
 
@@ -736,9 +553,8 @@ data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
   benchmark = "%[10]s"
 }
 `, resourceName, config.resourceType, config.ruleBaseConfig.ruleNamePrefix+resourceName, config.ruleBaseConfig.description[0],
-			config.cloudProvider, config.severity[0],
-			remediationInfo, alertInfo,
-			config.parentRule.ruleName, config.parentRule.benchmark),
+			config.cloudProvider, config.severity[0], testGenerateControlBlock(config.ruleBaseConfig.controls[0]),
+			remediationInfo, config.parentRule.ruleName, config.parentRule.benchmark),
 		Check: resource.ComposeAggregateTestCheckFunc(
 			resource.TestCheckResourceAttr(fullResourceName, "subdomain", config.ruleBaseConfig.subdomain),
 			resource.TestCheckResourceAttr(fullResourceName, "domain", config.ruleBaseConfig.domain),
@@ -749,8 +565,8 @@ data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
 			resource.TestCheckResourceAttr(fullResourceName, "cloud_provider", config.cloudProvider),
 			resource.TestCheckResourceAttr(fullResourceName, "severity", config.severity[0]),
 			resource.TestCheckResourceAttr(fullResourceName, "controls.#", "0"),
-			resource.TestCheckResourceAttr(fullResourceName, fmt.Sprintf("alert_info.%d", len(config.ruleBaseConfig.alertInfo[0])-1), config.ruleBaseConfig.alertInfo[0][len(config.ruleBaseConfig.alertInfo[0])-1]),
-			resource.TestCheckResourceAttr(fullResourceName, fmt.Sprintf("remediation_info.%d", len(config.ruleBaseConfig.remediationInfo[0])-1), config.ruleBaseConfig.remediationInfo[0][len(config.ruleBaseConfig.remediationInfo[0])-1]),
+			resource.TestCheckResourceAttr(fullResourceName, "alert_info.#", "0"),
+			resource.TestCheckResourceAttr(fullResourceName, "remediation_info.#", "0"),
 			resource.TestCheckResourceAttrSet(fullResourceName, "id"),
 			resource.TestCheckResourceAttrSet(fullResourceName, "parent_rule_id"),
 		),
