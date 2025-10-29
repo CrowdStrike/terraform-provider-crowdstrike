@@ -18,7 +18,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -541,6 +543,9 @@ func (r *itAutomationTaskResource) Schema(
 				Validators: []validator.String{
 					stringvalidator.OneOf("Public", "Shared"),
 				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"assigned_user_ids": schema.SetAttribute{
 				Optional:    true,
@@ -671,19 +676,31 @@ func (r *itAutomationTaskResource) Schema(
 			"effective_access_type": schema.StringAttribute{
 				Computed:    true,
 				Description: "Effective access type for the task. May differ from configured access_type if the task is part of a group.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"effective_assigned_user_ids": schema.SetAttribute{
 				Computed:    true,
 				ElementType: types.StringType,
 				Description: "Effective assigned user IDs for the task. May differ from configured assigned_user_ids if the task is part of a group.",
+				PlanModifiers: []planmodifier.Set{
+					setplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"in_task_group": schema.BoolAttribute{
 				Computed:    true,
 				Description: "Indicates whether this task is part of a task group.",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"task_group_id": schema.StringAttribute{
 				Computed:    true,
 				Description: "The ID of the task group this task belongs to, if any.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"script_columns": schema.SingleNestedAttribute{
 				Optional:    true,
