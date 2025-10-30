@@ -2,26 +2,13 @@
 page_title: "crowdstrike_it_automation_policy Resource - crowdstrike"
 subcategory: "IT Automation"
 description: |-
-  IT Automation --- IT Automation policies --- This resource allows management of IT Automation policies in the CrowdStrike Falcon platform. IT Automation policies allow you to configure settings related to the module and apply them to host groups.
-  API Scopes
-  The following API scopes are required:
-  IT Automation - Policies | Read & WriteIT Automation - Task Executions | Read & WriteIT Automation - Tasks | Read & WriteIT Automation - User Groups | Read & Write
+  IT Automation policies
 ---
 
 # crowdstrike_it_automation_policy (Resource)
 
-IT Automation --- IT Automation policies --- This resource allows management of IT Automation policies in the CrowdStrike Falcon platform. IT Automation policies allow you to configure settings related to the module and apply them to host groups.
+IT Automation policies
 
-## API Scopes
-
-The following API scopes are required:
-
-- IT Automation - Policies | Read & Write
-- IT Automation - Task Executions | Read & Write
-- IT Automation - Tasks | Read & Write
-- IT Automation - User Groups | Read & Write
-
-~> **Warning** All configuration settings (concurrency, execution, and resources) must be fully configured in this resource. Omitting any required setting will result in a validation error. Default values are not automatically applied by the provider.
 
 ## Example Usage
 
@@ -150,7 +137,7 @@ output "mac_policy" {
 
 - `cpu_scheduling_priority` (String) Sets priority for CPU scheduling.
 - `cpu_throttle` (Number) CPU usage limit as a percentage (1-100).
-- `host_groups` (Set of String) List of host group IDs associated with this policy.
+- `host_groups` (Set of String) Set of host group IDs where this policy will be applied. Hosts in these groups will use this policy's configuration for IT automation tasks.
 - `memory_allocation` (Number) Amount of memory allocated.
 - `memory_allocation_unit` (String) Unit for memory allocation.
 - `memory_pressure_level` (String) Sets memory pressure level to control system resource allocation during task execution.

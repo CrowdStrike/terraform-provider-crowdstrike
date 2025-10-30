@@ -196,8 +196,8 @@ output "osquery_task" {
 
 ### Optional
 
-- `access_type` (String) Access control configuration for the task (Public, Shared).
-- `assigned_user_ids` (Set of String) Assigned user IDs of the task, when access_type is Shared.
+- `access_type` (String) Access control configuration for the task (Public, Shared). Cannot be configured when the task belongs to a task group; inherited from the group instead.
+- `assigned_user_ids` (Set of String) Assigned user IDs of the task, when access_type is Shared. Required when access_type is 'Shared' and the task is not part of a task group.
 - `description` (String) Description of the task.
 - `file_ids` (Set of String) Set of RTR Response file IDs (65 characters) to be used by the task.
 - `linux_script_content` (String) Linux script content.
@@ -209,7 +209,7 @@ output "osquery_task" {
 - `os_query` (String) OSQuery string. This option will disable the task script options. See https://osquery.readthedocs.io/en/stable for syntax.
 - `script_columns` (Attributes) Column configuration for the script output. (see [below for nested schema](#nestedatt--script_columns))
 - `target` (String) Target of the task in FQL string syntax. See https://falconpy.io/Usage/Falcon-Query-Language.html.
-- `verification_condition` (Attributes List) Verification conditions for action tasks to determine success (only valid for action tasks). Maps directly to the API's FalconforitapiConditionGroup model. (see [below for nested schema](#nestedatt--verification_condition))
+- `verification_condition` (Attributes List) Verification conditions for action tasks to determine success (only valid for action tasks). (see [below for nested schema](#nestedatt--verification_condition))
 - `windows_script_content` (String) Windows script content.
 - `windows_script_file_id` (String) Windows RTR Response script ID (65 characters) to be used by the task. This option disables windows_script_content.
 - `windows_script_language` (String) Windows script language (powershell, python).
@@ -219,7 +219,6 @@ output "osquery_task" {
 - `effective_access_type` (String) Effective access type for the task. May differ from configured access_type if the task is part of a group.
 - `effective_assigned_user_ids` (Set of String) Effective assigned user IDs for the task. May differ from configured assigned_user_ids if the task is part of a group.
 - `id` (String) Identifier for the task.
-- `in_task_group` (Boolean) Indicates whether this task is part of a task group.
 - `last_updated` (String) Timestamp of the last Terraform update of the resource.
 - `task_group_id` (String) The ID of the task group this task belongs to, if any.
 

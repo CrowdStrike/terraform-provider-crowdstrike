@@ -31,13 +31,9 @@ This resource supports two enforcement modes:
 
 With strict enforcement, you are managing **ALL** IT Automation policies for the specified platform. All policies must be specified in the `policy_ids` list, even if they were not created by Terraform. If any policy exists on the platform but is not in your list, Terraform will report drift and attempt to reconcile the precedence order.
 
-~> **Note** In strict enforcement mode, you must specify every policy that exists for the platform, including policies created outside of Terraform. This ensures complete control over policy precedence.
-
 ### Dynamic Enforcement (`enforcement = "dynamic"`)
 
-With dynamic enforcement, you can manage a **subset** of IT Automation policies for the specified platform. The policies you specify will have precedence **before** any policies not managed by Terraform. Policies outside of Terraform management will be ordered after your managed policies.
-
-~> **Note** In dynamic enforcement mode, managed policies are always placed before non-managed policies. You only need to specify the policies you want to control the precedence for. This is useful when you want to ensure certain policies always execute first without managing the complete policy list.
+With dynamic enforcement, you can manage a **subset** of IT Automation policies for the specified platform. The policies you specify will have precedence **before** any policies not managed by Terraform. Policies outside of Terraform management will be ordered after your managed policies. This is useful when you want to ensure certain policies always execute first without managing the complete policy list.
 
 ## Example Usage
 
@@ -99,7 +95,6 @@ output "dynamic_policy_precedence" {
 
 ### Read-Only
 
-- `id` (String) Unique identifier for this precedence resource. Based on platform to ensure one precedence resource per platform.
 - `last_updated` (String) Timestamp of the last Terraform update of the resource.
 
 ## Import

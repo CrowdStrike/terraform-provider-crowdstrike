@@ -64,13 +64,13 @@ output "task_group" {
 
 ### Required
 
-- `access_type` (String) Access control configuration for the task.
-- `name` (String) Name of the task.
+- `access_type` (String) Access control configuration for the task (Public, Shared).
+- `name` (String) Name of the task group.
 
 ### Optional
 
-- `assigned_user_ids` (Set of String) Assigned user IDs of the group, when access_type is Shared.
-- `description` (String) Description of the task.
+- `assigned_user_ids` (Set of String) Assigned user IDs of the group, when access_type is Shared. Required when access_type is 'Shared'.
+- `description` (String) Description of the task group.
 - `task_ids` (Set of String) Assigned task IDs of the group.
 
 ### Read-Only

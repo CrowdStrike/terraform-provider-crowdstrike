@@ -23,8 +23,6 @@ The following API scopes are required:
 
 ~> **Important** Default policies are created by CrowdStrike and cannot be created or deleted via Terraform. You can only manage the description and configuration settings (concurrency, execution, and resources). Default policies cannot be enabled/disabled, assigned to host groups, or have their names changed.
 
-~> **Warning** All configuration settings (concurrency, execution, and resources) must be fully configured in this resource. Omitting any required setting will result in a validation error. Default values are not automatically applied by the provider.
-
 ## Example Usage
 
 ```terraform
@@ -127,11 +125,11 @@ output "mac_default_policy" {
 
 ### Optional
 
-- `cpu_scheduling_priority` (String) Sets priority for CPU scheduling.
-- `cpu_throttle` (Number) CPU usage limit as a percentage (1-100).
-- `memory_allocation` (Number) Amount of memory allocated.
-- `memory_allocation_unit` (String) Unit for memory allocation.
-- `memory_pressure_level` (String) Sets memory pressure level to control system resource allocation during task execution.
+- `cpu_scheduling_priority` (String) Sets priority for CPU scheduling (Mac only). Required for Mac platform, cannot be used for Windows or Linux.
+- `cpu_throttle` (Number) CPU usage limit as a percentage (1-100) (Windows/Linux only). Required for Windows and Linux platforms, cannot be used for Mac.
+- `memory_allocation` (Number) Amount of memory allocated (Windows/Linux only). Required for Windows and Linux platforms, cannot be used for Mac.
+- `memory_allocation_unit` (String) Unit for memory allocation (Windows/Linux only). Required for Windows and Linux platforms, cannot be used for Mac.
+- `memory_pressure_level` (String) Sets memory pressure level to control system resource allocation during task execution (Mac only). Required for Mac platform, cannot be used for Windows or Linux.
 
 ### Read-Only
 
