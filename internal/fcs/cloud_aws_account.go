@@ -543,7 +543,7 @@ func (r *cloudAWSAccountResource) Schema(
 			},
 			"agentless_scanning_role_name": schema.StringAttribute{
 				Computed:    true,
-				Description: "The name of the IAM role to be used by CrowdStrike Agentless Scanning(DSPM/Vulnerability scanning)",
+				Description: "The name of the IAM role to be used by CrowdStrike Agentless Scanning (DSPM/Vulnerability scanning)",
 				PlanModifiers: []planmodifier.String{
 					agentlessScanningRoleNameStateModifier(),
 				},

@@ -29,28 +29,32 @@ type cloudAwsAccountsDataSource struct {
 }
 
 type cloudAWSAccountDataModel struct {
-	AccountID                 types.String `tfsdk:"account_id"`
-	OrganizationID            types.String `tfsdk:"organization_id"`
-	TargetOUs                 types.List   `tfsdk:"target_ous"`
-	IsOrgManagementAccount    types.Bool   `tfsdk:"is_organization_management_account"`
-	ResourceNamePrefix        types.String `tfsdk:"resource_name_prefix"`
-	ResourceNameSuffix        types.String `tfsdk:"resource_name_suffix"`
-	AccountType               types.String `tfsdk:"account_type"`
-	ExternalID                types.String `tfsdk:"external_id"`
-	IntermediateRoleArn       types.String `tfsdk:"intermediate_role_arn"`
-	IamRoleArn                types.String `tfsdk:"iam_role_arn"`
-	IamRoleName               types.String `tfsdk:"iam_role_name"`
-	EventbusName              types.String `tfsdk:"eventbus_name"`
-	EventbusArn               types.String `tfsdk:"eventbus_arn"`
-	CloudTrailRegion          types.String `tfsdk:"cloudtrail_region"`
-	CloudTrailBucketName      types.String `tfsdk:"cloudtrail_bucket_name"`
-	DspmRoleArn               types.String `tfsdk:"dspm_role_arn"`
-	DspmRoleName              types.String `tfsdk:"dspm_role_name"`
-	AssetInventoryEnabled     types.Bool   `tfsdk:"asset_inventory_enabled"`
-	RealtimeVisibilityEnabled types.Bool   `tfsdk:"realtime_visibility_enabled"`
-	IDPEnabled                types.Bool   `tfsdk:"idp_enabled"`
-	SensorManagementEnabled   types.Bool   `tfsdk:"sensor_management_enabled"`
-	DSPMEnabled               types.Bool   `tfsdk:"dspm_enabled"`
+	AccountID                     types.String `tfsdk:"account_id"`
+	OrganizationID                types.String `tfsdk:"organization_id"`
+	TargetOUs                     types.List   `tfsdk:"target_ous"`
+	IsOrgManagementAccount        types.Bool   `tfsdk:"is_organization_management_account"`
+	ResourceNamePrefix            types.String `tfsdk:"resource_name_prefix"`
+	ResourceNameSuffix            types.String `tfsdk:"resource_name_suffix"`
+	AccountType                   types.String `tfsdk:"account_type"`
+	ExternalID                    types.String `tfsdk:"external_id"`
+	IntermediateRoleArn           types.String `tfsdk:"intermediate_role_arn"`
+	IamRoleArn                    types.String `tfsdk:"iam_role_arn"`
+	IamRoleName                   types.String `tfsdk:"iam_role_name"`
+	EventbusName                  types.String `tfsdk:"eventbus_name"`
+	EventbusArn                   types.String `tfsdk:"eventbus_arn"`
+	CloudTrailRegion              types.String `tfsdk:"cloudtrail_region"`
+	CloudTrailBucketName          types.String `tfsdk:"cloudtrail_bucket_name"`
+	DspmRoleArn                   types.String `tfsdk:"dspm_role_arn"`
+	DspmRoleName                  types.String `tfsdk:"dspm_role_name"`
+	VulnerabilityScanningRoleArn  types.String `tfsdk:"vulnerability_scanning_role_arn"`
+	VulnerabilityScanningRoleName types.String `tfsdk:"vulnerability_scanning_role_name"`
+	AgentlessScanningRoleName     types.String `tfsdk:"agentless_scanning_role_name"`
+	AssetInventoryEnabled         types.Bool   `tfsdk:"asset_inventory_enabled"`
+	RealtimeVisibilityEnabled     types.Bool   `tfsdk:"realtime_visibility_enabled"`
+	IDPEnabled                    types.Bool   `tfsdk:"idp_enabled"`
+	SensorManagementEnabled       types.Bool   `tfsdk:"sensor_management_enabled"`
+	DSPMEnabled                   types.Bool   `tfsdk:"dspm_enabled"`
+	VulnerabilityScanningEnabled  types.Bool   `tfsdk:"vulnerability_scanning_enabled"`
 }
 
 type cloudAwsAccountsDataSourceModel struct {
@@ -159,6 +163,18 @@ func (d *cloudAwsAccountsDataSource) Schema(
 							Computed:    true,
 							Description: "The name of the IAM role to be used by CrowdStrike DSPM",
 						},
+						"vulnerability_scanning_role_arn": schema.StringAttribute{
+							Computed:    true,
+							Description: "The ARN of the IAM role to be used by CrowdStrike Vulnerability Scanning",
+						},
+						"vulnerability_scanning_role_name": schema.StringAttribute{
+							Computed:    true,
+							Description: "The name of the IAM role to be used by CrowdStrike Vulnerability Scanning",
+						},
+						"agentless_scanning_role_name": schema.StringAttribute{
+							Computed:    true,
+							Description: "The name of the IAM role to be used by CrowdStrike Agentless Scanning (DSPM/Vulnerability scanning)",
+						},
 						"asset_inventory_enabled": schema.BoolAttribute{
 							Computed:    true,
 							Description: "Whether asset inventory is enabled",
@@ -178,6 +194,10 @@ func (d *cloudAwsAccountsDataSource) Schema(
 						"dspm_enabled": schema.BoolAttribute{
 							Computed:    true,
 							Description: "Whether Data Security Posture Management is enabled",
+						},
+						"vulnerability_scanning_enabled": schema.BoolAttribute{
+							Computed:    true,
+							Description: "Whether Vulnerability Scanning is enabled",
 						},
 						"resource_name_prefix": schema.StringAttribute{
 							Optional:    true,
@@ -346,8 +366,27 @@ func (d *cloudAwsAccountsDataSource) Read(
 			SensorManagementEnabled: types.BoolValue(
 				a.SensorManagementEnabled != nil && *a.SensorManagementEnabled,
 			),
-			DSPMEnabled: types.BoolValue(a.DspmEnabled),
+			DSPMEnabled:                  types.BoolValue(a.DspmEnabled),
+			VulnerabilityScanningEnabled: types.BoolValue(a.VulnerabilityScanningEnabled),
 		}
+
+		// populate Vulnerability scanning fields
+		settings, err := getAccountSettings(a)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to get account settings", err.Error())
+			return
+		}
+
+		m.VulnerabilityScanningRoleArn = types.StringValue(settings.VulnerabilityScanningRole)
+		m.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(settings.VulnerabilityScanningRole))
+
+		agentlessRoleName, err := computeAgentlessScanningRoleName(a)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to compute agentless scanning role name", err.Error())
+			return
+		}
+		m.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
+
 		// For org child accounts, the feature values are not always set.
 		// The management account should be the source of truth in this case.
 		if !a.IsMaster && a.OrganizationID != "" {
@@ -362,6 +401,7 @@ func (d *cloudAwsAccountsDataSource) Read(
 						*managementAcct.SensorManagementEnabled,
 				)
 				m.DSPMEnabled = types.BoolValue(managementAcct.DspmEnabled)
+				m.VulnerabilityScanningEnabled = types.BoolValue(managementAcct.VulnerabilityScanningEnabled)
 			} else {
 				tflog.Warn(ctx, "Got a child account from a different organization.", map[string]interface{}{"account_id": a.AccountID, "organization_id": a.OrganizationID})
 			}

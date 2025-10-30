@@ -73,6 +73,7 @@ Read-Only:
 
 - `account_id` (String) The AWS Account ID
 - `account_type` (String) The AWS account type. Value is 'commercial' for Commercial cloud accounts. For GovCloud environments, value can be either 'commercial' or 'gov' depending on the account type
+- `agentless_scanning_role_name` (String) The name of the IAM role to be used by CrowdStrike Agentless Scanning (DSPM/Vulnerability scanning)
 - `asset_inventory_enabled` (Boolean) Whether asset inventory is enabled
 - `cloudtrail_bucket_name` (String) The name of the CloudTrail S3 bucket used for real-time visibility
 - `cloudtrail_region` (String) The AWS region of the CloudTrail bucket
@@ -91,3 +92,6 @@ Read-Only:
 - `realtime_visibility_enabled` (Boolean) Whether real-time visibility is enabled
 - `sensor_management_enabled` (Boolean) Whether 1-click sensor deployment is enabled
 - `target_ous` (List of String) The list of AWS Organizational Units (OUs) targeted for this account
+- `vulnerability_scanning_enabled` (Boolean) Whether Vulnerability Scanning is enabled
+- `vulnerability_scanning_role_arn` (String) The ARN of the IAM role to be used by CrowdStrike Vulnerability Scanning
+- `vulnerability_scanning_role_name` (String) The name of the IAM role to be used by CrowdStrike Vulnerability Scanning

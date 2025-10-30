@@ -86,7 +86,7 @@ resource "crowdstrike_cloud_aws_account" "org" {
 
 ### Read-Only
 
-- `agentless_scanning_role_name` (String) The name of the IAM role to be used by CrowdStrike Agentless Scanning(DSPM/Vulnerability scanning)
+- `agentless_scanning_role_name` (String) The name of the IAM role to be used by CrowdStrike Agentless Scanning (DSPM/Vulnerability scanning)
 - `cloudtrail_bucket_name` (String) The name of the CloudTrail S3 bucket used for real-time visibility
 - `dspm_role_arn` (String) The ARN of the IAM role to be used by CrowdStrike Data Security Posture Management
 - `dspm_role_name` (String) The name of the IAM role to be used by CrowdStrike Data Security Posture Management
