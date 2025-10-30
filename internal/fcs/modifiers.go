@@ -23,11 +23,6 @@ func (m roleArnStateModifier) PlanModifyString(ctx context.Context, req planmodi
 		return
 	}
 
-	// Do nothing if there is a known planned value.
-	if !req.PlanValue.IsUnknown() {
-		return
-	}
-
 	// Do nothing if there is an unknown configuration value, otherwise interpolation gets messed up.
 	if req.ConfigValue.IsUnknown() {
 		return
