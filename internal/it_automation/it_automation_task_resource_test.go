@@ -609,7 +609,7 @@ resource "crowdstrike_it_automation_task_group" "test" {
 				RefreshState: true,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(taskResourceName, "name", taskName),
-					resource.TestCheckResourceAttr(taskResourceName, "in_task_group", "true"),
+					resource.TestCheckResourceAttrSet(taskResourceName, "task_group_id"),
 					resource.TestCheckResourceAttr(taskResourceName, "effective_access_type", "Shared"),
 					resource.TestCheckResourceAttr(taskResourceName, "effective_assigned_user_ids.#", "1"),
 				),
@@ -680,7 +680,7 @@ resource "crowdstrike_it_automation_task_group" "test" {
 			{
 				RefreshState: true,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(taskResourceName, "in_task_group", "true"),
+					resource.TestCheckResourceAttrSet(taskResourceName, "task_group_id"),
 					resource.TestCheckResourceAttr(taskResourceName, "effective_access_type", "Shared"),
 					resource.TestCheckResourceAttr(taskResourceName, "effective_assigned_user_ids.#", "1"),
 				),
@@ -699,7 +699,7 @@ resource "crowdstrike_it_automation_task" "test" {
 			{
 				RefreshState: true,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(taskResourceName, "in_task_group", "false"),
+					resource.TestCheckNoResourceAttr(taskResourceName, "task_group_id"),
 					resource.TestCheckResourceAttr(taskResourceName, "access_type", "Shared"),
 					resource.TestCheckResourceAttr(taskResourceName, "effective_access_type", "Shared"),
 					resource.TestCheckResourceAttr(taskResourceName, "effective_assigned_user_ids.#", "1"),
@@ -825,7 +825,7 @@ resource "crowdstrike_it_automation_task" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(taskResourceName, "name", taskName),
 					resource.TestCheckResourceAttr(taskResourceName, "access_type", "Public"),
-					resource.TestCheckResourceAttr(taskResourceName, "in_task_group", "false"),
+					resource.TestCheckNoResourceAttr(taskResourceName, "task_group_id"),
 				),
 			},
 			{
@@ -892,7 +892,7 @@ resource "crowdstrike_it_automation_task_group" "test" {
 				RefreshState: true,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(taskResourceName, "name", taskName),
-					resource.TestCheckResourceAttr(taskResourceName, "in_task_group", "true"),
+					resource.TestCheckResourceAttrSet(taskResourceName, "task_group_id"),
 					resource.TestCheckResourceAttr(taskResourceName, "effective_access_type", "Public"),
 					resource.TestCheckResourceAttrPair(taskResourceName, "task_group_id", "crowdstrike_it_automation_task_group.test", "id"),
 				),
@@ -940,7 +940,7 @@ resource "crowdstrike_it_automation_task_group" "test" {
 			{
 				RefreshState: true,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(taskResourceName, "in_task_group", "true"),
+					resource.TestCheckResourceAttrSet(taskResourceName, "task_group_id"),
 					resource.TestCheckResourceAttr(taskResourceName, "effective_access_type", "Shared"),
 					resource.TestCheckResourceAttr(taskResourceName, "effective_assigned_user_ids.#", "1"),
 				),
@@ -966,7 +966,7 @@ resource "crowdstrike_it_automation_task_group" "test" {
 			{
 				RefreshState: true,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(taskResourceName, "in_task_group", "true"),
+					resource.TestCheckResourceAttrSet(taskResourceName, "task_group_id"),
 					resource.TestCheckResourceAttr(taskResourceName, "effective_access_type", "Public"),
 					resource.TestCheckResourceAttr(taskResourceName, "effective_assigned_user_ids.#", "0"),
 				),
