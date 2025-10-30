@@ -17,6 +17,10 @@ func SetIDsToModify(
 	ctx context.Context,
 	plan, state types.Set,
 ) (idsToAdd []string, idsToRemove []string, diags diag.Diagnostics) {
+	if len(plan.Elements()) == 0 && len(state.Elements()) == 0 {
+		return
+	}
+
 	var planIDs, stateIDs []types.String
 	planMap := make(map[string]bool)
 	stateMap := make(map[string]bool)
