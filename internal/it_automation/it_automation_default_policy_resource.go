@@ -15,7 +15,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -225,9 +224,6 @@ func (r *itAutomationDefaultPolicyResource) Schema(
 			"last_updated": schema.StringAttribute{
 				Computed:    true,
 				Description: "Timestamp of the last Terraform update of the resource.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"platform_name": schema.StringAttribute{
 				Required:    true,
@@ -242,9 +238,6 @@ func (r *itAutomationDefaultPolicyResource) Schema(
 			"name": schema.StringAttribute{
 				Computed:    true,
 				Description: "Name of the default policy. This is read-only as default policy names cannot be changed.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"description": schema.StringAttribute{
 				Required:    true,
@@ -256,9 +249,6 @@ func (r *itAutomationDefaultPolicyResource) Schema(
 			"enabled": schema.BoolAttribute{
 				Computed:    true,
 				Description: "Whether the default policy is enabled or disabled. This is read-only as default policies cannot be enabled or disabled.",
-				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"concurrent_host_file_transfer_limit": schema.Int32Attribute{
 				Required:    true,
@@ -359,7 +349,6 @@ func (r *itAutomationDefaultPolicyResource) Create(
 	}
 
 	plan.ID = types.StringPointerValue(policy.ID)
-	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 
 	updatedPolicy, err := r.updateDefaultPolicyConfig(ctx, &plan)
 	if err != nil {
@@ -370,6 +359,7 @@ func (r *itAutomationDefaultPolicyResource) Create(
 		return
 	}
 	plan.wrap(*updatedPolicy)
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 

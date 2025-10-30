@@ -145,9 +145,6 @@ func (r *itAutomationTaskGroupResource) Schema(
 			"last_updated": schema.StringAttribute{
 				Computed:    true,
 				Description: "Timestamp of the last Terraform update of the resource.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"access_type": schema.StringAttribute{
 				Required:    true,

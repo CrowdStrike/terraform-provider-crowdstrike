@@ -19,7 +19,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -532,9 +531,6 @@ func (r *itAutomationTaskResource) Schema(
 			"last_updated": schema.StringAttribute{
 				Computed:    true,
 				Description: "Timestamp of the last Terraform update of the resource.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"access_type": schema.StringAttribute{
 				Optional:    true,
@@ -674,24 +670,15 @@ func (r *itAutomationTaskResource) Schema(
 			"effective_access_type": schema.StringAttribute{
 				Computed:    true,
 				Description: "Effective access type for the task. May differ from configured access_type if the task is part of a group.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"effective_assigned_user_ids": schema.SetAttribute{
 				Computed:    true,
 				ElementType: types.StringType,
 				Description: "Effective assigned user IDs for the task. May differ from configured assigned_user_ids if the task is part of a group.",
-				PlanModifiers: []planmodifier.Set{
-					setplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"task_group_id": schema.StringAttribute{
 				Computed:    true,
 				Description: "The ID of the task group this task belongs to, if any.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"script_columns": schema.SingleNestedAttribute{
 				Optional:    true,
