@@ -19,7 +19,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -535,7 +534,6 @@ func (r *itAutomationTaskResource) Schema(
 			"access_type": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
-				Default:     stringdefault.StaticString("Public"),
 				Description: "Access control configuration for the task (Public, Shared). Cannot be configured when the task belongs to a task group; inherited from the group instead.",
 				Validators: []validator.String{
 					stringvalidator.OneOf("Public", "Shared"),
@@ -832,10 +830,16 @@ func (r *itAutomationTaskResource) Create(
 	// convert type value for api compatibility.
 	apiType := convertType(plan.Type.ValueString(), "api")
 
+	// default access_type to public if not specified.
+	accessType := plan.AccessType.ValueString()
+	if accessType == "" {
+		accessType = AccessTypePublic
+	}
+
 	body := &models.ItautomationCreateTaskRequest{
 		Name:       plan.Name.ValueStringPointer(),
 		TaskType:   &apiType,
-		AccessType: plan.AccessType.ValueStringPointer(),
+		AccessType: &accessType,
 	}
 
 	params := it_automation.ITAutomationCreateTaskParams{
@@ -1149,6 +1153,9 @@ func (r *itAutomationTaskResource) ValidateConfig(
 	}
 
 	accessType := config.AccessType.ValueString()
+	if accessType == "" {
+		accessType = AccessTypePublic
+	}
 
 	if accessType == AccessTypeShared && utils.IsNull(config.AssignedUserIds) {
 		resp.Diagnostics.AddAttributeError(path.Root("access_type"),
