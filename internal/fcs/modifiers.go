@@ -91,11 +91,6 @@ func (m agentlessScanningRoleNameModifier) PlanModifyString(ctx context.Context,
 		return
 	}
 
-	// Do nothing if there is a known planned value.
-	if !req.PlanValue.IsUnknown() {
-		return
-	}
-
 	// Do nothing if there is an unknown configuration value, otherwise interpolation gets messed up.
 	if req.ConfigValue.IsUnknown() {
 		return

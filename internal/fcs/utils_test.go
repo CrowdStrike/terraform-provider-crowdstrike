@@ -9,14 +9,14 @@ import (
 )
 
 const (
-	testAccountID = "123456789012"
-	testDSPMRole  = "dspm-role"
-	testVulnRole  = "vuln-role"
+	testAccountID    = "123456789012"
+	testDSPMRoleName = "dspm-role"
+	testVulnRoleName = "vuln-role"
 )
 
 var (
-	testDSPMRoleArn = fmt.Sprintf("arn:aws:iam::%s:role/%s", testAccountID, testDSPMRole)
-	testVulnRoleArn = fmt.Sprintf("arn:aws:iam::%s:role/%s", testAccountID, testVulnRole)
+	testDSPMRoleArn = fmt.Sprintf("arn:aws:iam::%s:role/%s", testAccountID, testDSPMRoleName)
+	testVulnRoleArn = fmt.Sprintf("arn:aws:iam::%s:role/%s", testAccountID, testVulnRoleName)
 )
 
 func TestGetRoleNameFromArn(t *testing.T) {
@@ -28,12 +28,7 @@ func TestGetRoleNameFromArn(t *testing.T) {
 		{
 			name:   "Valid DSPM role arn",
 			arn:    testDSPMRoleArn,
-			output: testDSPMRole,
-		},
-		{
-			name:   "Valid Vuln role arn",
-			arn:    testVulnRoleArn,
-			output: testVulnRole,
+			output: testDSPMRoleName,
 		},
 		{
 			name:   "Invalid role arn",
@@ -75,7 +70,7 @@ func TestComputeAgentlessScanningRoleName(t *testing.T) {
 				DspmRoleArn:                  testDSPMRoleArn,
 				VulnerabilityScanningEnabled: false,
 			},
-			expected:      testDSPMRole,
+			expected:      testDSPMRoleName,
 			expectedError: false,
 		},
 		{
@@ -88,7 +83,7 @@ func TestComputeAgentlessScanningRoleName(t *testing.T) {
 					AWSVulnerabilityScanningCustomRoleKey: testVulnRoleArn,
 				},
 			},
-			expected:      testDSPMRole,
+			expected:      testDSPMRoleName,
 			expectedError: false,
 		},
 		{
@@ -100,7 +95,7 @@ func TestComputeAgentlessScanningRoleName(t *testing.T) {
 					AWSVulnerabilityScanningCustomRoleKey: testVulnRoleArn,
 				},
 			},
-			expected:      testVulnRole,
+			expected:      testVulnRoleName,
 			expectedError: false,
 		},
 		{
@@ -168,7 +163,7 @@ func TestComputeAgentlessScanningRoleName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := computeAgentlessScanningRoleName(tt.cspmAccount)
+			got, err := resolveAgentlessScanningRoleName(tt.cspmAccount)
 			assert.Equal(t, tt.expected, got)
 			if tt.expectedError {
 				assert.Error(t, err)
