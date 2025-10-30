@@ -84,7 +84,7 @@ type itAutomationTaskResourceModel struct {
 	AssignedUserIds          types.Set    `tfsdk:"assigned_user_ids"`
 	EffectiveAccessType      types.String `tfsdk:"effective_access_type"`
 	EffectiveAssignedUserIds types.Set    `tfsdk:"effective_assigned_user_ids"`
-	FileIds                  types.Set    `tfsdk:"file_ids"`
+	AdditionalFileIds        types.Set    `tfsdk:"additional_file_ids"`
 	LastUpdated              types.String `tfsdk:"last_updated"`
 	LinuxScriptContent       types.String `tfsdk:"linux_script_content"`
 	LinuxScriptFileId        types.String `tfsdk:"linux_script_file_id"`
@@ -153,9 +153,9 @@ func createScriptsFromPlan(
 	scripts := &models.ItautomationScripts{}
 
 	var fileIDs []string
-	if !model.FileIds.IsNull() && !model.FileIds.IsUnknown() {
+	if !model.AdditionalFileIds.IsNull() && !model.AdditionalFileIds.IsUnknown() {
 		var err diag.Diagnostics
-		fileIDs, err = setToStringSlice(ctx, model.FileIds)
+		fileIDs, err = setToStringSlice(ctx, model.AdditionalFileIds)
 
 		diags.Append(err...)
 		if diags.HasError() {
@@ -232,9 +232,7 @@ func (r *itAutomationTaskResource) constructUpdatePayload(
 		}
 	}
 
-	if !plan.Description.IsNull() {
-		body.Description = plan.Description.ValueString()
-	}
+	body.Description = plan.Description.ValueString()
 
 	if !plan.Target.IsNull() {
 		body.Target = plan.Target.ValueString()
@@ -329,24 +327,9 @@ func (t *itAutomationTaskResourceModel) wrap(
 	t.Type = types.StringValue(convertType(*task.TaskType, "terraform"))
 	t.EffectiveAccessType = types.StringValue(task.AccessType)
 	t.AccessType = types.StringValue(task.AccessType)
-
-	if task.Description == nil || *task.Description == "" {
-		t.Description = types.StringNull()
-	} else {
-		t.Description = types.StringPointerValue(task.Description)
-	}
-
-	if task.OsQuery == "" {
-		t.OsQuery = types.StringNull()
-	} else {
-		t.OsQuery = types.StringValue(task.OsQuery)
-	}
-
-	if task.Target == nil || *task.Target == "" {
-		t.Target = types.StringNull()
-	} else {
-		t.Target = types.StringPointerValue(task.Target)
-	}
+	t.Description = utils.PlanAwareStringValue(t.Description, task.Description)
+	t.OsQuery = utils.OptionalString(&task.OsQuery)
+	t.Target = utils.OptionalString(task.Target)
 
 	if hasTaskGroupMembership(task.Groups) {
 		if task.Groups[0].ID != nil {
@@ -458,14 +441,14 @@ func (t *itAutomationTaskResourceModel) wrap(
 				fileIds, fileDiags := stringSliceToSet(ctx, s.script.FileIds)
 				diags.Append(fileDiags...)
 				if !diags.HasError() {
-					t.FileIds = fileIds
+					t.AdditionalFileIds = fileIds
 				}
 			}
 		}
 	}
 
-	if t.FileIds.IsNull() {
-		t.FileIds = types.SetNull(types.StringType)
+	if t.AdditionalFileIds.IsNull() {
+		t.AdditionalFileIds = types.SetNull(types.StringType)
 	}
 
 	return diags
@@ -653,10 +636,10 @@ func (r *itAutomationTaskResource) Schema(
 					stringvalidator.OneOf("powershell", "python"),
 				},
 			},
-			"file_ids": schema.SetAttribute{
+			"additional_file_ids": schema.SetAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
-				Description: "Set of RTR Response file IDs (65 characters) to be used by the task.",
+				Description: "Additional RTR Response file IDs (65 characters) to be available for the task.",
 				Validators: []validator.Set{
 					setvalidator.NoNullValues(),
 					setvalidator.SizeBetween(1, 100),
@@ -861,9 +844,7 @@ func (r *itAutomationTaskResource) Create(
 		body.AssignedUserIds = assignedUserIds
 	}
 
-	if !plan.Target.IsNull() {
-		body.Target = plan.Target.ValueStringPointer()
-	}
+	body.Target = plan.Target.ValueStringPointer()
 
 	if !plan.OsQuery.IsNull() {
 		body.OsQuery = plan.OsQuery.ValueString()
@@ -1264,9 +1245,9 @@ func (r *itAutomationTaskResource) ValidateConfig(
 
 	switch config.Type.ValueString() {
 	case TaskTypeQuery:
-		if !config.FileIds.IsNull() {
-			resp.Diagnostics.AddAttributeError(path.Root("file_ids"),
-				"Invalid argument", "file_ids cannot be used with query tasks")
+		if !config.AdditionalFileIds.IsNull() {
+			resp.Diagnostics.AddAttributeError(path.Root("additional_file_ids"),
+				"Invalid argument", "additional_file_ids cannot be used with query tasks")
 		}
 
 		if !config.VerificationCondition.IsNull() &&

@@ -52,7 +52,7 @@ resource "crowdstrike_it_automation_task" "script_file_example" {
   linux_script_file_id  = "378e984aee3511efb8a2bef47e6c96ec_a4eb840ff5424cbd89ba28497b6fcb6b"
   linux_script_language = "bash"
 
-  file_ids = [
+  additional_file_ids = [
     "1b08868dee3511efa739d6ef9e24a20c_a4eb840ff5424cbd89ba28497b6fcb6b"
   ]
 

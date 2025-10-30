@@ -343,16 +343,18 @@ func (r *itAutomationTaskGroupResource) Update(
 
 	body.Description = plan.Description.ValueString()
 
-	currentUserIds := currentGroup.AssignedUserIds
-	plannedUserIds := plan.AssignedUserIds
-	usersToAdd, usersToRemove, diags := idsDiff(ctx, currentUserIds, plannedUserIds)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	if !plan.AssignedUserIds.IsNull() {
+		currentUserIds := currentGroup.AssignedUserIds
+		plannedUserIds := plan.AssignedUserIds
+		usersToAdd, usersToRemove, diags := idsDiff(ctx, currentUserIds, plannedUserIds)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 
-	body.AddAssignedUserIds = usersToAdd
-	body.RemoveAssignedUserIds = usersToRemove
+		body.AddAssignedUserIds = usersToAdd
+		body.RemoveAssignedUserIds = usersToRemove
+	}
 
 	currentTaskIds := currentGroup.TaskIds
 	plannedTaskIds := plan.TaskIds

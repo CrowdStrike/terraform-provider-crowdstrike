@@ -114,7 +114,7 @@ resource "crowdstrike_it_automation_task" "test" {
 	}
 
 	if len(config.FileIds) > 0 {
-		result += "\n  file_ids = [\n"
+		result += "\n  additional_file_ids = [\n"
 		for _, fid := range config.FileIds {
 			result += fmt.Sprintf("    %q,\n", fid)
 		}
@@ -151,11 +151,12 @@ resource "crowdstrike_it_automation_task" "test" {
 			taskID := stmt.TaskID
 			if taskID == "placeholder" {
 				platform := ""
-				if config.LinuxScriptFileId != nil || config.LinuxScriptContent != nil {
+				switch {
+				case config.LinuxScriptFileId != nil || config.LinuxScriptContent != nil:
 					platform = "linux"
-				} else if config.MacScriptFileId != nil || config.MacScriptContent != nil {
+				case config.MacScriptFileId != nil || config.MacScriptContent != nil:
 					platform = "mac"
-				} else if config.WindowsScriptFileId != nil || config.WindowsScriptContent != nil {
+				case config.WindowsScriptFileId != nil || config.WindowsScriptContent != nil:
 					platform = "windows"
 				}
 				if platform != "" {
@@ -242,7 +243,7 @@ func (config *taskConfig) TestChecks() resource.TestCheckFunc {
 
 	if len(config.FileIds) > 0 {
 		checks = append(checks,
-			resource.TestCheckResourceAttr(taskResourceName, "file_ids.#", fmt.Sprintf("%d", len(config.FileIds))),
+			resource.TestCheckResourceAttr(taskResourceName, "additional_file_ids.#", fmt.Sprintf("%d", len(config.FileIds))),
 		)
 	}
 
@@ -345,7 +346,7 @@ Write-Output "OS|$((Get-WmiObject Win32_OperatingSystem).Caption)"`),
 		},
 	}
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
@@ -480,7 +481,7 @@ func TestAccITAutomationTaskResource_ScriptFile(t *testing.T) {
 		},
 	}
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
@@ -541,7 +542,7 @@ func TestAccITAutomationTaskResource_OSQuery(t *testing.T) {
 		},
 	}
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
@@ -577,7 +578,7 @@ func TestAccITAutomationTaskResource_InTaskGroup(t *testing.T) {
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
@@ -649,7 +650,7 @@ func TestAccITAutomationTaskResource_RemovedFromGroup(t *testing.T) {
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
@@ -717,7 +718,7 @@ func TestAccITAutomationTaskResource_ConfigureWhileInGroup(t *testing.T) {
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
@@ -804,7 +805,7 @@ func TestAccITAutomationTaskResource_ExplicitAccessTypeOverride(t *testing.T) {
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
@@ -863,7 +864,7 @@ func TestAccITAutomationTaskResource_PublicAccessInheritance(t *testing.T) {
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
@@ -909,7 +910,7 @@ func TestAccITAutomationTaskResource_GroupAccessTypeChange(t *testing.T) {
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
@@ -975,10 +976,162 @@ resource "crowdstrike_it_automation_task_group" "test" {
 	})
 }
 
+func TestAccITAutomationTaskResource_AddRemoveUsers(t *testing.T) {
+	sdk := createSDKFixtures(t)
+	t.Cleanup(func() { sdk.Cleanup(t) })
+
+	// Ensure we have at least 3 users to test with
+	if len(sdk.UserIDs) < 3 {
+		t.Skip("Skipping test: requires at least 3 users")
+	}
+
+	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
+		},
+		Steps: []resource.TestStep{
+			// Step 1: Create task with 2 users
+			{
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_it_automation_task" "test" {
+  name                  = %[1]q
+  description           = "Test add/remove users"
+  type                  = "query"
+  access_type           = "Shared"
+  assigned_user_ids     = [%[2]q, %[3]q]
+  linux_script_language = "bash"
+  linux_script_content  = "echo 'test'"
+}
+`, rName, sdk.UserIDs[0], sdk.UserIDs[1]),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(taskResourceName, "id"),
+					resource.TestCheckResourceAttr(taskResourceName, "name", rName),
+					resource.TestCheckResourceAttr(taskResourceName, "access_type", "Shared"),
+					resource.TestCheckResourceAttr(taskResourceName, "assigned_user_ids.#", "2"),
+					resource.TestCheckTypeSetElemAttr(taskResourceName, "assigned_user_ids.*", sdk.UserIDs[0]),
+					resource.TestCheckTypeSetElemAttr(taskResourceName, "assigned_user_ids.*", sdk.UserIDs[1]),
+				),
+			},
+			// Step 2: Remove user[1] and add user[2] (tests AddAssignedUserIds and RemoveAssignedUserIds in same update)
+			{
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_it_automation_task" "test" {
+  name                  = %[1]q
+  description           = "Test add/remove users"
+  type                  = "query"
+  access_type           = "Shared"
+  assigned_user_ids     = [%[2]q, %[4]q]
+  linux_script_language = "bash"
+  linux_script_content  = "echo 'test'"
+}
+`, rName, sdk.UserIDs[0], sdk.UserIDs[1], sdk.UserIDs[2]),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(taskResourceName, "id"),
+					resource.TestCheckResourceAttr(taskResourceName, "name", rName),
+					resource.TestCheckResourceAttr(taskResourceName, "access_type", "Shared"),
+					resource.TestCheckResourceAttr(taskResourceName, "assigned_user_ids.#", "2"),
+					resource.TestCheckTypeSetElemAttr(taskResourceName, "assigned_user_ids.*", sdk.UserIDs[0]),
+					resource.TestCheckTypeSetElemAttr(taskResourceName, "assigned_user_ids.*", sdk.UserIDs[2]),
+				),
+			},
+			// Step 3: Add back user[1] (now all 3 users - tests AddAssignedUserIds only)
+			{
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_it_automation_task" "test" {
+  name                  = %[1]q
+  description           = "Test add/remove users"
+  type                  = "query"
+  access_type           = "Shared"
+  assigned_user_ids     = [%[2]q, %[3]q, %[4]q]
+  linux_script_language = "bash"
+  linux_script_content  = "echo 'test'"
+}
+`, rName, sdk.UserIDs[0], sdk.UserIDs[1], sdk.UserIDs[2]),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(taskResourceName, "id"),
+					resource.TestCheckResourceAttr(taskResourceName, "name", rName),
+					resource.TestCheckResourceAttr(taskResourceName, "access_type", "Shared"),
+					resource.TestCheckResourceAttr(taskResourceName, "assigned_user_ids.#", "3"),
+					resource.TestCheckTypeSetElemAttr(taskResourceName, "assigned_user_ids.*", sdk.UserIDs[0]),
+					resource.TestCheckTypeSetElemAttr(taskResourceName, "assigned_user_ids.*", sdk.UserIDs[1]),
+					resource.TestCheckTypeSetElemAttr(taskResourceName, "assigned_user_ids.*", sdk.UserIDs[2]),
+				),
+			},
+			// Step 4: Remove two users (tests RemoveAssignedUserIds only)
+			{
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_it_automation_task" "test" {
+  name                  = %[1]q
+  description           = "Test add/remove users"
+  type                  = "query"
+  access_type           = "Shared"
+  assigned_user_ids     = [%[2]q]
+  linux_script_language = "bash"
+  linux_script_content  = "echo 'test'"
+}
+`, rName, sdk.UserIDs[0]),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(taskResourceName, "id"),
+					resource.TestCheckResourceAttr(taskResourceName, "name", rName),
+					resource.TestCheckResourceAttr(taskResourceName, "access_type", "Shared"),
+					resource.TestCheckResourceAttr(taskResourceName, "assigned_user_ids.#", "1"),
+					resource.TestCheckTypeSetElemAttr(taskResourceName, "assigned_user_ids.*", sdk.UserIDs[0]),
+				),
+			},
+			// Step 5: Change to Public (removes all users)
+			{
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_it_automation_task" "test" {
+  name                  = %[1]q
+  description           = "Test add/remove users"
+  type                  = "query"
+  access_type           = "Public"
+  linux_script_language = "bash"
+  linux_script_content  = "echo 'test'"
+}
+`, rName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(taskResourceName, "id"),
+					resource.TestCheckResourceAttr(taskResourceName, "name", rName),
+					resource.TestCheckResourceAttr(taskResourceName, "access_type", "Public"),
+					resource.TestCheckNoResourceAttr(taskResourceName, "assigned_user_ids.#"),
+				),
+			},
+			// Step 6: Change back to Shared and add all users back (tests adding users after removal)
+			{
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_it_automation_task" "test" {
+  name                  = %[1]q
+  description           = "Test add/remove users"
+  type                  = "query"
+  access_type           = "Shared"
+  assigned_user_ids     = [%[2]q, %[3]q, %[4]q]
+  linux_script_language = "bash"
+  linux_script_content  = "echo 'test'"
+}
+`, rName, sdk.UserIDs[0], sdk.UserIDs[1], sdk.UserIDs[2]),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(taskResourceName, "id"),
+					resource.TestCheckResourceAttr(taskResourceName, "name", rName),
+					resource.TestCheckResourceAttr(taskResourceName, "access_type", "Shared"),
+					resource.TestCheckResourceAttr(taskResourceName, "assigned_user_ids.#", "3"),
+					resource.TestCheckTypeSetElemAttr(taskResourceName, "assigned_user_ids.*", sdk.UserIDs[0]),
+					resource.TestCheckTypeSetElemAttr(taskResourceName, "assigned_user_ids.*", sdk.UserIDs[1]),
+					resource.TestCheckTypeSetElemAttr(taskResourceName, "assigned_user_ids.*", sdk.UserIDs[2]),
+				),
+			},
+		},
+	})
+}
+
 func TestAccITAutomationTaskResource_OmittedOptionalFields(t *testing.T) {
 	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		TerraformVersionChecks: []tfversion.TerraformVersionCheck{

@@ -1,7 +1,6 @@
 package itautomation_test
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -72,7 +71,7 @@ func createSDKFixtures(t *testing.T) *sdkFixtures {
 		ClientId:     clientID,
 		ClientSecret: clientSecret,
 		Cloud:        falcon.Cloud(cloud),
-		Context:      context.Background(),
+		Context:      t.Context(),
 	})
 
 	if err != nil {
@@ -119,7 +118,7 @@ func createSDKFixtures(t *testing.T) *sdkFixtures {
 		fixtures.FileIDs[platform] = fileID
 	}
 
-	for i := range 2 {
+	for i := range 3 {
 		email := fmt.Sprintf("%s-%d@crowdstrike.com", randomSuffix, i)
 		userID, err := createUser(t, falconClient, email)
 
@@ -146,7 +145,7 @@ func createRTRFile(
 		Description: description,
 		Name:        &fileName,
 		File:        newNamedReadCloser(content, fileName),
-		Context:     context.Background(),
+		Context:     t.Context(),
 	}
 
 	platformComment := fmt.Sprintf("platform:%s", platform)
@@ -161,7 +160,7 @@ func createRTRFile(
 	fqlFilter := fmt.Sprintf("name:'%s'", fileName)
 	listParams := &real_time_response_admin.RTRListPutFilesParams{
 		Filter:  &fqlFilter,
-		Context: context.Background(),
+		Context: t.Context(),
 	}
 
 	listResp, err := falconClient.RealTimeResponseAdmin.RTRListPutFiles(listParams)
@@ -194,7 +193,7 @@ func createUser(
 			LastName:  lastName,
 			UID:       email,
 		},
-		Context: context.Background(),
+		Context: t.Context(),
 	}
 
 	resp, err := falconClient.UserManagement.CreateUserV1(params)
@@ -214,7 +213,7 @@ func createUser(
 		Body: &models.DomainRoleIDs{
 			RoleIds: []string{"falcon_for_it_admin"},
 		},
-		Context: context.Background(),
+		Context: t.Context(),
 	}
 
 	_, err = falconClient.UserManagement.GrantUserRoleIds(grantParams)
@@ -260,7 +259,7 @@ func deleteRTRFile(
 
 	params := &real_time_response_admin.RTRDeletePutFilesParams{
 		Ids:     fileID,
-		Context: context.Background(),
+		Context: t.Context(),
 	}
 
 	_, err := falconClient.RealTimeResponseAdmin.RTRDeletePutFiles(params)
@@ -282,7 +281,7 @@ func deleteUser(
 
 	params := &user_management.DeleteUserV1Params{
 		UserUUID: userID,
-		Context:  context.Background(),
+		Context:  t.Context(),
 	}
 
 	_, err := falconClient.UserManagement.DeleteUserV1(params)
@@ -304,7 +303,7 @@ func (f *sdkFixtures) GetExistingPolicyIDs(t *testing.T, platform string) []stri
 
 	for {
 		queryParams := &it_automation.ITAutomationQueryPoliciesParams{
-			Context:  context.Background(),
+			Context:  t.Context(),
 			Limit:    &limit,
 			Offset:   &offset,
 			Platform: platform,
@@ -335,7 +334,7 @@ func (f *sdkFixtures) GetExistingPolicyIDs(t *testing.T, platform string) []stri
 	}
 
 	getParams := &it_automation.ITAutomationGetPoliciesParams{
-		Context: context.Background(),
+		Context: t.Context(),
 		Ids:     allPolicyIDs,
 	}
 

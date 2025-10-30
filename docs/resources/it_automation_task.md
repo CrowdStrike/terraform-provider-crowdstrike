@@ -80,7 +80,7 @@ resource "crowdstrike_it_automation_task" "script_file_example" {
   linux_script_file_id  = "378e984aee3511efb8a2bef47e6c96ec_a4eb840ff5424cbd89ba28497b6fcb6b"
   linux_script_language = "bash"
 
-  file_ids = [
+  additional_file_ids = [
     "1b08868dee3511efa739d6ef9e24a20c_a4eb840ff5424cbd89ba28497b6fcb6b"
   ]
 
@@ -197,9 +197,9 @@ output "osquery_task" {
 ### Optional
 
 - `access_type` (String) Access control configuration for the task (Public, Shared). Cannot be configured when the task belongs to a task group; inherited from the group instead.
+- `additional_file_ids` (Set of String) Additional RTR Response file IDs (65 characters) to be available for the task.
 - `assigned_user_ids` (Set of String) Assigned user IDs of the task, when access_type is Shared. Required when access_type is 'Shared' and the task is not part of a task group.
 - `description` (String) Description of the task.
-- `file_ids` (Set of String) Set of RTR Response file IDs (65 characters) to be used by the task.
 - `linux_script_content` (String) Linux script content.
 - `linux_script_file_id` (String) Linux RTR Response script ID (65 characters) to be used by the task. This option disables linux_script_content.
 - `linux_script_language` (String) Linux script language (bash, python).
