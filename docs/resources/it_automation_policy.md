@@ -2,12 +2,24 @@
 page_title: "crowdstrike_it_automation_policy Resource - crowdstrike"
 subcategory: "IT Automation"
 description: |-
-  IT Automation policies
+  This resource allows management of IT Automation policies in the CrowdStrike Falcon platform. IT Automation policies allow you to configure settings related to the module and apply them to host groups.
+  API Scopes
+  The following API scopes are required:
+  IT Automation - Policies | Read & WriteIT Automation - Task Executions | Read & WriteIT Automation - Tasks | Read & WriteIT Automation - User Groups | Read & Write
 ---
 
 # crowdstrike_it_automation_policy (Resource)
 
-IT Automation policies
+This resource allows management of IT Automation policies in the CrowdStrike Falcon platform. IT Automation policies allow you to configure settings related to the module and apply them to host groups.
+
+## API Scopes
+
+The following API scopes are required:
+
+- IT Automation - Policies | Read & Write
+- IT Automation - Task Executions | Read & Write
+- IT Automation - Tasks | Read & Write
+- IT Automation - User Groups | Read & Write
 
 
 ## Example Usage
