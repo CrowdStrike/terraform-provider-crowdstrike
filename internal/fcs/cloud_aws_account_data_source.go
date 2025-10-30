@@ -370,7 +370,7 @@ func (d *cloudAwsAccountsDataSource) Read(
 			VulnerabilityScanningEnabled: types.BoolValue(a.VulnerabilityScanningEnabled),
 		}
 
-		// populate Vulnerability scanning fields
+		// Calculate Vulnerability scanning fields
 		settings, err := getAccountSettings(a)
 		if err != nil {
 			resp.Diagnostics.AddError("Failed to get account settings", err.Error())
@@ -385,6 +385,7 @@ func (d *cloudAwsAccountsDataSource) Read(
 			resp.Diagnostics.AddError("Failed to compute agentless scanning role name", err.Error())
 			return
 		}
+
 		m.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
 
 		// For org child accounts, the feature values are not always set.

@@ -17,11 +17,9 @@ func getRoleNameFromArn(arn string) string {
 
 // computeAgentlessScanningRoleName computes the agentless scanning role name using OR logic.
 func computeAgentlessScanningRoleName(cspmAccount *models.DomainAWSAccountV2) (string, error) {
-	agentlessScanningRoleName := getRoleNameFromArn(cspmAccount.DspmRoleArn)
-
 	// DSPM has precedence
 	if cspmAccount.DspmEnabled {
-		return agentlessScanningRoleName, nil
+		return getRoleNameFromArn(cspmAccount.DspmRoleArn), nil
 	}
 
 	// try fallback to vulnerability scanning role if DSPM is not enabled
@@ -30,9 +28,8 @@ func computeAgentlessScanningRoleName(cspmAccount *models.DomainAWSAccountV2) (s
 		if err != nil {
 			return "", fmt.Errorf("failed to get vulnerability scanning role arn: %w", err)
 		}
-		agentlessScanningRoleName = getRoleNameFromArn(settings.VulnerabilityScanningRole)
+		return getRoleNameFromArn(settings.VulnerabilityScanningRole), nil
 	}
 
-	// return DSPM value if none enabled.
-	return agentlessScanningRoleName, nil
+	return "", nil
 }

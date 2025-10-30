@@ -980,7 +980,6 @@ func (r *cloudAWSAccountResource) Read(
 	} else {
 		state.VulnerabilityScanning = &vulnerabilityScanningOptions{}
 	}
-
 	state.VulnerabilityScanning.Enabled = types.BoolValue(cspmAccount.VulnerabilityScanningEnabled)
 
 	// save current state

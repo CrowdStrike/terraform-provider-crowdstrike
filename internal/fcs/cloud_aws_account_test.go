@@ -154,9 +154,9 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
-					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_arn", ""), //TODO: consult with max regarding the initial value.
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_arn", ""),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", ""),
-					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
+					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", ""),
 				),
 			},
 			// Import testing
@@ -198,7 +198,7 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
-					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_arn", ""), //TODO: consult with max regarding the initial value.
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_arn", ""),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", ""),
 					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
 				),
@@ -221,9 +221,9 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
-					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_arn", ""), //TODO: consult with max regarding the initial value.
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_arn", ""),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", ""),
-					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
+					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", ""),
 				),
 			},
 		},
@@ -257,9 +257,9 @@ func TestAccCloudAwsAccountResourceMinimal(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
-					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_arn", ""), //TODO: consult with max regarding the initial value.
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_arn", ""),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", ""),
-					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
+					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", ""),
 				),
 			},
 		},
