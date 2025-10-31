@@ -70,6 +70,9 @@ func TestAccCloudAwsAccountDataSource(t *testing.T) {
 						dataSourceNameAcc,
 						"accounts.0.dspm_role_arn",
 					),
+					resource.TestCheckResourceAttr(dataSourceNameAcc, "accounts.0.vulnerability_scanning_role_arn", ""),
+					resource.TestCheckResourceAttr(dataSourceNameAcc, "accounts.0.vulnerability_scanning_role_name", ""),
+					resource.TestCheckResourceAttr(dataSourceNameAcc, "accounts.0.agentless_scanning_role_name", ""), // Nor DSPM or Vulnerability scanning enabled
 				),
 			},
 			// Test data source by organization_id
@@ -120,6 +123,9 @@ func TestAccCloudAwsAccountDataSource(t *testing.T) {
 						dataSourceNameOrg,
 						"accounts.0.dspm_role_arn",
 					),
+					resource.TestCheckResourceAttr(dataSourceNameOrg, "accounts.0.vulnerability_scanning_role_arn", ""),
+					resource.TestCheckResourceAttr(dataSourceNameOrg, "accounts.0.vulnerability_scanning_role_name", ""),
+					resource.TestCheckResourceAttr(dataSourceNameOrg, "accounts.0.agentless_scanning_role_name", ""), // Nor DSPM or Vulnerability scanning enabled
 				),
 			},
 		},

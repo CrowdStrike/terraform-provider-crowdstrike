@@ -23,6 +23,10 @@ resource "crowdstrike_cloud_aws_account" "org" {
     enabled = true
   }
 
+  vulnerability_scanning = {
+    enabled = true
+  }
+
   idp = {
     enabled = true
   }
