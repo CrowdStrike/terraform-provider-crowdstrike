@@ -35,7 +35,7 @@ var (
 
 var (
 	policiesDocumentationSection string         = "IT Automation"
-	policiesMarkdownDescription  string         = "IT Automation policies --- This resource allows management of IT Automation policies in the CrowdStrike Falcon platform. IT Automation policies allow you to configure settings related to the module and apply them to host groups."
+	policiesMarkdownDescription  string         = "This resource allows management of IT Automation policies in the CrowdStrike Falcon platform. IT Automation policies allow you to configure settings related to the module and apply them to host groups."
 	policiesRequiredScopes       []scopes.Scope = itAutomationScopes
 )
 

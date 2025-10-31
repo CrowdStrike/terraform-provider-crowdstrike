@@ -33,7 +33,7 @@ var (
 
 var (
 	taskGroupsDocumentationSection string         = "IT Automation"
-	taskGroupsMarkdownDescription  string         = "IT Automation Task groups --- This resource allows management of IT Automation task groups in the CrowdStrike Falcon platform. Task groups allow you to group tasks for RBAC and organization."
+	taskGroupsMarkdownDescription  string         = "This resource allows management of IT Automation task groups in the CrowdStrike Falcon platform. Task groups allow you to group tasks for RBAC and organization."
 	taskGroupsRequiredScopes       []scopes.Scope = itAutomationScopes
 )
 

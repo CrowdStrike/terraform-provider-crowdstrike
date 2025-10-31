@@ -28,7 +28,7 @@ var (
 
 var (
 	precedenceDocumentationSection string         = "IT Automation"
-	precedenceMarkdownDescription  string         = "IT Automation policy precedence --- This resource allows you to set the precedence of IT Automation policies based on the order of policy IDs."
+	precedenceMarkdownDescription  string         = "This resource allows you to set the precedence of IT Automation policies based on the order of policy IDs."
 	precedenceRequiredScopes       []scopes.Scope = itAutomationScopes
 )
 

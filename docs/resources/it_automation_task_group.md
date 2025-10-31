@@ -2,7 +2,7 @@
 page_title: "crowdstrike_it_automation_task_group Resource - crowdstrike"
 subcategory: "IT Automation"
 description: |-
-  IT Automation --- IT Automation Task groups --- This resource allows management of IT Automation task groups in the CrowdStrike Falcon platform. Task groups allow you to group tasks for RBAC and organization.
+  This resource allows management of IT Automation task groups in the CrowdStrike Falcon platform. Task groups allow you to group tasks for RBAC and organization.
   API Scopes
   The following API scopes are required:
   IT Automation - Policies | Read & WriteIT Automation - Task Executions | Read & WriteIT Automation - Tasks | Read & WriteIT Automation - User Groups | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_it_automation_task_group (Resource)
 
-IT Automation --- IT Automation Task groups --- This resource allows management of IT Automation task groups in the CrowdStrike Falcon platform. Task groups allow you to group tasks for RBAC and organization.
+This resource allows management of IT Automation task groups in the CrowdStrike Falcon platform. Task groups allow you to group tasks for RBAC and organization.
 
 ## API Scopes
 
@@ -20,6 +20,7 @@ The following API scopes are required:
 - IT Automation - Task Executions | Read & Write
 - IT Automation - Tasks | Read & Write
 - IT Automation - User Groups | Read & Write
+
 
 ~> **Note** When tasks are added to a task group, they automatically inherit the group's `access_type` and `assigned_user_ids` settings. Tasks in a group cannot have these fields configured individually on the task resource.
 

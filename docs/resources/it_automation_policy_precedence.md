@@ -2,7 +2,7 @@
 page_title: "crowdstrike_it_automation_policy_precedence Resource - crowdstrike"
 subcategory: "IT Automation"
 description: |-
-  IT Automation --- IT Automation policy precedence --- This resource allows you to set the precedence of IT Automation policies based on the order of policy IDs.
+  This resource allows you to set the precedence of IT Automation policies based on the order of policy IDs.
   API Scopes
   The following API scopes are required:
   IT Automation - Policies | Read & WriteIT Automation - Task Executions | Read & WriteIT Automation - Tasks | Read & WriteIT Automation - User Groups | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_it_automation_policy_precedence (Resource)
 
-IT Automation --- IT Automation policy precedence --- This resource allows you to set the precedence of IT Automation policies based on the order of policy IDs.
+This resource allows you to set the precedence of IT Automation policies based on the order of policy IDs.
 
 ## API Scopes
 
@@ -20,6 +20,7 @@ The following API scopes are required:
 - IT Automation - Task Executions | Read & Write
 - IT Automation - Tasks | Read & Write
 - IT Automation - User Groups | Read & Write
+
 
 ~> **Important** Only one precedence resource per platform is allowed. Multiple precedence resources for the same platform will conflict.
 
