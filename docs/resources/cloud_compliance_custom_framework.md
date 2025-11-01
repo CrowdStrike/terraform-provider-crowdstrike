@@ -39,21 +39,26 @@ resource "crowdstrike_cloud_compliance_custom_framework" "example" {
   name        = "example-framework"
   description = "An example framework created with Terraform"
   sections = {
-    "Section 1" = {
+    "section-1" = { // immutable unique key
+      name = "Section 1"
       controls = {
-        "Control 1" = {
+        "control-1a" = { // immutable unique key
+          name        = "Control 1a"
           description = "This is the first control"
           rules       = ["id1", "id2", "id3"]
         }
-        "Control 1b" = {
+        "control-1b" = {
+          name        = "Control 1b"
           description = "This is another control in section 1"
           rules       = ["id4", "id5"]
         }
       }
     }
-    "Section 2" = {
+    "section-2" = {
+      name = "Section 2"
       controls = {
-        "Control 2" = {
+        "control-2" = {
+          name        = "Control 2"
           description = "This is the second control"
           rules       = []
         }
@@ -78,7 +83,7 @@ output "cloud_compliance_custom_framework" {
 ### Optional
 
 - `active` (Boolean) Whether the custom compliance framework is active. Defaults to false on create. Once set to true, cannot be changed back to false.
-- `sections` (Attributes Map) Map of sections within the framework. Key is the section name. Sections cannot exist without controls. (see [below for nested schema](#nestedatt--sections))
+- `sections` (Attributes Map) Map of sections within the framework. Key is an immutable unique string. Changing the section key will trigger a complete delete and create of the section. Sections cannot exist without controls. (see [below for nested schema](#nestedatt--sections))
 
 ### Read-Only
 
@@ -89,7 +94,8 @@ output "cloud_compliance_custom_framework" {
 
 Required:
 
-- `controls` (Attributes Map) Map of controls within the section. Key is the control name. (see [below for nested schema](#nestedatt--sections--controls))
+- `controls` (Attributes Map) Map of controls within the section. Key is an immutable unique string. Changing the control key will trigger a complete delete and create of the control. (see [below for nested schema](#nestedatt--sections--controls))
+- `name` (String) Display name of the compliance framework section.
 
 <a id="nestedatt--sections--controls"></a>
 ### Nested Schema for `sections.controls`
@@ -97,6 +103,7 @@ Required:
 Required:
 
 - `description` (String) Description of the control.
+- `name` (String) Display name of the compliance framework control.
 
 Optional:
 
@@ -104,7 +111,7 @@ Optional:
 
 Read-Only:
 
-- `id` (String) Identifier for the framework control.
+- `id` (String) Identifier for the compliance framework control.
 
 ## Import
 

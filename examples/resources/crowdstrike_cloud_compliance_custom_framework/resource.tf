@@ -15,21 +15,26 @@ resource "crowdstrike_cloud_compliance_custom_framework" "example" {
   name        = "example-framework"
   description = "An example framework created with Terraform"
   sections = {
-    "Section 1" = {
+    "section-1" = { // immutable unique key
+      name = "Section 1"
       controls = {
-        "Control 1" = {
+        "control-1a" = { // immutable unique key
+          name        = "Control 1a"
           description = "This is the first control"
           rules       = ["id1", "id2", "id3"]
         }
-        "Control 1b" = {
+        "control-1b" = {
+          name        = "Control 1b"
           description = "This is another control in section 1"
           rules       = ["id4", "id5"]
         }
       }
     }
-    "Section 2" = {
+    "section-2" = {
+      name = "Section 2"
       controls = {
-        "Control 2" = {
+        "control-2" = {
+          name        = "Control 2"
           description = "This is the second control"
           rules       = []
         }
