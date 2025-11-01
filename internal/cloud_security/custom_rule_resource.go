@@ -1,4 +1,4 @@
-package cloudposture
+package cloudsecurity
 
 import (
 	"context"
@@ -32,32 +32,32 @@ import (
 )
 
 var (
-	_ resource.Resource                = &cloudPostureCustomRuleResource{}
-	_ resource.ResourceWithConfigure   = &cloudPostureCustomRuleResource{}
-	_ resource.ResourceWithImportState = &cloudPostureCustomRuleResource{}
-	_ resource.ResourceWithModifyPlan  = &cloudPostureCustomRuleResource{}
+	_ resource.Resource                = &cloudSecurityCustomRuleResource{}
+	_ resource.ResourceWithConfigure   = &cloudSecurityCustomRuleResource{}
+	_ resource.ResourceWithImportState = &cloudSecurityCustomRuleResource{}
+	_ resource.ResourceWithModifyPlan  = &cloudSecurityCustomRuleResource{}
 )
 
 var (
-	documentationSection        string = "Cloud Posture"
-	resourceMarkdownDescription string = "This resource manages custom cloud posture rules. " +
+	documentationSection        string = "Cloud Security"
+	resourceMarkdownDescription string = "This resource manages custom cloud security rules. " +
 		"These rules can be created either by inheriting properties from a parent rule with minimal customization, or by fully customizing all attributes for maximum flexibility. " +
-		"To create a rule based on a parent rule, utilize the `crowdstrike_cloud_posture_rules` data source to gather parent rule information to use in the new custom rule. " +
+		"To create a rule based on a parent rule, utilize the `crowdstrike_cloud_security_rules` data source to gather parent rule information to use in the new custom rule. " +
 		"The `crowdstrike_cloud_compliance_framework_controls` data source can be used to query Falcon for compliance benchmark controls to associate with custom rules created with this resource. "
-	requiredScopes   []scopes.Scope = cloudPostureRuleScopes
+	requiredScopes   []scopes.Scope = cloudSecurityRuleScopes
 	includeNumbering bool           = true
 	excludeNumbering bool           = false
 )
 
-func NewCloudPostureCustomRuleResource() resource.Resource {
-	return &cloudPostureCustomRuleResource{}
+func NewCloudSecurityCustomRuleResource() resource.Resource {
+	return &cloudSecurityCustomRuleResource{}
 }
 
-type cloudPostureCustomRuleResource struct {
+type cloudSecurityCustomRuleResource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-type cloudPostureCustomRuleResourceModel struct {
+type cloudSecurityCustomRuleResourceModel struct {
 	ID              types.String `tfsdk:"id"`
 	AlertInfo       types.List   `tfsdk:"alert_info"`
 	Controls        types.Set    `tfsdk:"controls"`
@@ -75,7 +75,7 @@ type cloudPostureCustomRuleResourceModel struct {
 	Subdomain       types.String `tfsdk:"subdomain"`
 }
 
-func (r *cloudPostureCustomRuleResource) Configure(
+func (r *cloudSecurityCustomRuleResource) Configure(
 	ctx context.Context,
 	req resource.ConfigureRequest,
 	resp *resource.ConfigureResponse,
@@ -101,15 +101,15 @@ func (r *cloudPostureCustomRuleResource) Configure(
 	r.client = client
 }
 
-func (r *cloudPostureCustomRuleResource) Metadata(
+func (r *cloudSecurityCustomRuleResource) Metadata(
 	_ context.Context,
 	req resource.MetadataRequest,
 	resp *resource.MetadataResponse,
 ) {
-	resp.TypeName = req.ProviderTypeName + "_cloud_posture_custom_rule"
+	resp.TypeName = req.ProviderTypeName + "_cloud_security_custom_rule"
 }
 
-func (r *cloudPostureCustomRuleResource) Schema(
+func (r *cloudSecurityCustomRuleResource) Schema(
 	_ context.Context,
 	_ resource.SchemaRequest,
 	resp *resource.SchemaResponse,
@@ -212,7 +212,7 @@ func (r *cloudPostureCustomRuleResource) Schema(
 			"parent_rule_id": schema.StringAttribute{
 				Optional: true,
 				MarkdownDescription: "Id of the parent rule to inherit properties from. " +
-					"The `crowdstrike_cloud_posture_rules` data source can be used to query Falcon for parent rule information to use in this field. " +
+					"The `crowdstrike_cloud_security_rules` data source can be used to query Falcon for parent rule information to use in this field. " +
 					"Required if `logic` is not specified.",
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(
@@ -290,12 +290,12 @@ func (r *cloudPostureCustomRuleResource) Schema(
 	}
 }
 
-func (r *cloudPostureCustomRuleResource) Create(
+func (r *cloudSecurityCustomRuleResource) Create(
 	ctx context.Context,
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-	var plan cloudPostureCustomRuleResourceModel
+	var plan cloudSecurityCustomRuleResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -323,12 +323,12 @@ func (r *cloudPostureCustomRuleResource) Create(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func (r *cloudPostureCustomRuleResource) Read(
+func (r *cloudSecurityCustomRuleResource) Read(
 	ctx context.Context,
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-	var state cloudPostureCustomRuleResourceModel
+	var state cloudSecurityCustomRuleResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -358,12 +358,12 @@ func (r *cloudPostureCustomRuleResource) Read(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (r *cloudPostureCustomRuleResource) Update(
+func (r *cloudSecurityCustomRuleResource) Update(
 	ctx context.Context,
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	var plan cloudPostureCustomRuleResourceModel
+	var plan cloudSecurityCustomRuleResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -384,12 +384,12 @@ func (r *cloudPostureCustomRuleResource) Update(
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
-func (r *cloudPostureCustomRuleResource) Delete(
+func (r *cloudSecurityCustomRuleResource) Delete(
 	ctx context.Context,
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-	var state cloudPostureCustomRuleResourceModel
+	var state cloudSecurityCustomRuleResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -398,7 +398,7 @@ func (r *cloudPostureCustomRuleResource) Delete(
 	resp.Diagnostics.Append(r.deleteCloudPolicyRule(ctx, state.ID.ValueString())...)
 }
 
-func (r *cloudPostureCustomRuleResource) ImportState(
+func (r *cloudSecurityCustomRuleResource) ImportState(
 	ctx context.Context,
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
@@ -406,7 +406,7 @@ func (r *cloudPostureCustomRuleResource) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r cloudPostureCustomRuleResource) ConfigValidators(ctx context.Context) []resource.ConfigValidator {
+func (r cloudSecurityCustomRuleResource) ConfigValidators(ctx context.Context) []resource.ConfigValidator {
 	return []resource.ConfigValidator{
 		resourcevalidator.ExactlyOneOf(
 			path.MatchRoot("logic"),
@@ -419,7 +419,7 @@ func (r cloudPostureCustomRuleResource) ConfigValidators(ctx context.Context) []
 	}
 }
 
-func (r *cloudPostureCustomRuleResource) ModifyPlan(
+func (r *cloudSecurityCustomRuleResource) ModifyPlan(
 	ctx context.Context,
 	req resource.ModifyPlanRequest,
 	resp *resource.ModifyPlanResponse,
@@ -432,7 +432,7 @@ func (r *cloudPostureCustomRuleResource) ModifyPlan(
 		return
 	}
 
-	var plan, state, config cloudPostureCustomRuleResourceModel
+	var plan, state, config cloudSecurityCustomRuleResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -502,7 +502,7 @@ func (r *cloudPostureCustomRuleResource) ModifyPlan(
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }
 
-func (m *cloudPostureCustomRuleResourceModel) wrap(
+func (m *cloudSecurityCustomRuleResourceModel) wrap(
 	ctx context.Context,
 	rule *models.ApimodelsRule,
 ) diag.Diagnostics {
@@ -574,7 +574,7 @@ func (m *cloudPostureCustomRuleResourceModel) wrap(
 	return diags
 }
 
-func (r *cloudPostureCustomRuleResource) createCloudPolicyRule(ctx context.Context, plan *cloudPostureCustomRuleResourceModel) (*models.ApimodelsRule, diag.Diagnostics) {
+func (r *cloudSecurityCustomRuleResource) createCloudPolicyRule(ctx context.Context, plan *cloudSecurityCustomRuleResourceModel) (*models.ApimodelsRule, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var newRule *models.ApimodelsRule
 	isDuplicateRule := !plan.ParentRuleId.IsNull()
@@ -590,7 +590,7 @@ func (r *cloudPostureCustomRuleResource) createCloudPolicyRule(ctx context.Conte
 	}
 
 	if isDuplicateRule {
-		var parent cloudPostureCustomRuleResourceModel
+		var parent cloudSecurityCustomRuleResourceModel
 		body.ParentRuleID = plan.ParentRuleId.ValueStringPointer()
 
 		emptyRemediationInfo := plan.RemediationInfo.IsUnknown() || plan.RemediationInfo.IsNull()
@@ -677,14 +677,14 @@ func (r *cloudPostureCustomRuleResource) createCloudPolicyRule(ctx context.Conte
 
 	body.Severity = severityToInt64[plan.Severity.ValueString()]
 
-	params := cloud_policies.CreateRuleParams{
+	params := cloud_policies.CreateRuleMixin0Params{
 		Context: ctx,
 		Body:    body,
 	}
 
-	resp, err := r.client.CloudPolicies.CreateRule(&params)
+	resp, err := r.client.CloudPolicies.CreateRuleMixin0(&params)
 	if err != nil {
-		if badRequest, ok := err.(*cloud_policies.CreateRuleBadRequest); ok {
+		if badRequest, ok := err.(*cloud_policies.CreateRuleMixin0BadRequest); ok {
 			diags.AddError(
 				"Error Creating Rule",
 				fmt.Sprintf("Failed to create rule (400): %+v", *badRequest.Payload.Errors[0].Message),
@@ -692,7 +692,7 @@ func (r *cloudPostureCustomRuleResource) createCloudPolicyRule(ctx context.Conte
 			return nil, diags
 		}
 
-		if ruleConflict, ok := err.(*cloud_policies.CreateRuleConflict); ok {
+		if ruleConflict, ok := err.(*cloud_policies.CreateRuleMixin0Conflict); ok {
 			diags.AddError(
 				"Error Creating Rule",
 				fmt.Sprintf("Failed to create rule (409): %+v", *ruleConflict.Payload.Errors[0].Message),
@@ -700,7 +700,7 @@ func (r *cloudPostureCustomRuleResource) createCloudPolicyRule(ctx context.Conte
 			return nil, diags
 		}
 
-		if internalServerError, ok := err.(*cloud_policies.CreateRuleInternalServerError); ok {
+		if internalServerError, ok := err.(*cloud_policies.CreateRuleMixin0InternalServerError); ok {
 			diags.AddError(
 				"Error Creating Rule",
 				fmt.Sprintf("Failed to create rule (500): %+v", *internalServerError.Payload.Errors[0].Message),
@@ -759,7 +759,7 @@ func (r *cloudPostureCustomRuleResource) createCloudPolicyRule(ctx context.Conte
 	return newRule, diags
 }
 
-func (r *cloudPostureCustomRuleResource) getCloudPolicyRule(ctx context.Context, id string) (*models.ApimodelsRule, diag.Diagnostics) {
+func (r *cloudSecurityCustomRuleResource) getCloudPolicyRule(ctx context.Context, id string) (*models.ApimodelsRule, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	params := cloud_policies.GetRuleParams{
@@ -810,7 +810,7 @@ func (r *cloudPostureCustomRuleResource) getCloudPolicyRule(ctx context.Context,
 	return payload.Resources[0], diags
 }
 
-func (r *cloudPostureCustomRuleResource) updateCloudPolicyRule(ctx context.Context, plan *cloudPostureCustomRuleResourceModel) (*models.ApimodelsRule, diag.Diagnostics) {
+func (r *cloudSecurityCustomRuleResource) updateCloudPolicyRule(ctx context.Context, plan *cloudSecurityCustomRuleResourceModel) (*models.ApimodelsRule, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var remediationInfo, alertInfo string
 	isDuplicaterule := !plan.ParentRuleId.IsNull()
@@ -823,7 +823,7 @@ func (r *cloudPostureCustomRuleResource) updateCloudPolicyRule(ctx context.Conte
 	}
 
 	if isDuplicaterule {
-		var parentRule cloudPostureCustomRuleResourceModel
+		var parentRule cloudSecurityCustomRuleResourceModel
 		var ruleResp *models.ApimodelsRule
 		emptyRemediationInfo := plan.RemediationInfo.IsUnknown() || plan.RemediationInfo.IsNull()
 		emptyAlertInfo := plan.AlertInfo.IsUnknown() || plan.AlertInfo.IsNull()
@@ -851,7 +851,7 @@ func (r *cloudPostureCustomRuleResource) updateCloudPolicyRule(ctx context.Conte
 		body.RuleLogicList = []*models.ApimodelsRuleLogic{
 			{
 				Platform:        plan.CloudPlatform.ValueStringPointer(),
-				RemediationInfo: remediationInfo,
+				RemediationInfo: &remediationInfo,
 			},
 		}
 
@@ -865,7 +865,7 @@ func (r *cloudPostureCustomRuleResource) updateCloudPolicyRule(ctx context.Conte
 			return nil, diags
 		}
 
-		body.AlertInfo = alertInfo
+		body.AlertInfo = &alertInfo
 
 		if emptyControls {
 			plan.Controls = parentRule.Controls
@@ -878,7 +878,7 @@ func (r *cloudPostureCustomRuleResource) updateCloudPolicyRule(ctx context.Conte
 					return nil, diags
 				}
 			}
-			body.AlertInfo = alertInfo
+			body.AlertInfo = &alertInfo
 		}
 
 		if !plan.RemediationInfo.IsNull() {
@@ -892,7 +892,7 @@ func (r *cloudPostureCustomRuleResource) updateCloudPolicyRule(ctx context.Conte
 				{
 					Platform:        plan.CloudPlatform.ValueStringPointer(),
 					Logic:           plan.Logic.ValueString(),
-					RemediationInfo: remediationInfo,
+					RemediationInfo: &remediationInfo,
 				},
 			}
 		}
@@ -978,17 +978,17 @@ func (r *cloudPostureCustomRuleResource) updateCloudPolicyRule(ctx context.Conte
 	return payload.Resources[0], diags
 }
 
-func (r *cloudPostureCustomRuleResource) deleteCloudPolicyRule(ctx context.Context, id string) diag.Diagnostics {
+func (r *cloudSecurityCustomRuleResource) deleteCloudPolicyRule(ctx context.Context, id string) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	params := cloud_policies.DeleteRuleParams{
+	params := cloud_policies.DeleteRuleMixin0Params{
 		Context: ctx,
 		Ids:     []string{id},
 	}
 
-	_, err := r.client.CloudPolicies.DeleteRule(&params)
+	_, err := r.client.CloudPolicies.DeleteRuleMixin0(&params)
 	if err != nil {
-		if internalServerError, ok := err.(*cloud_policies.DeleteRuleInternalServerError); ok {
+		if internalServerError, ok := err.(*cloud_policies.DeleteRuleMixin0InternalServerError); ok {
 			diags.AddError(
 				"Error Deleting Rule",
 				fmt.Sprintf("Failed to delete rule (500) %s: %+v", id, *internalServerError.Payload.Errors[0].Message),

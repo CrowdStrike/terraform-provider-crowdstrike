@@ -1,4 +1,4 @@
-package cloudposture_test
+package cloudsecurity_test
 
 type dataRuleConfig struct {
 	cloudProvider string

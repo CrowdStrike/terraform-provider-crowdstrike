@@ -1,4 +1,4 @@
-package cloudposture
+package cloudsecurity
 
 import (
 	"context"
@@ -22,19 +22,19 @@ import (
 )
 
 var (
-	_ datasource.DataSource              = &cloudPostureRulesDataSource{}
-	_ datasource.DataSourceWithConfigure = &cloudPostureRulesDataSource{}
+	_ datasource.DataSource              = &cloudSecurityRulesDataSource{}
+	_ datasource.DataSourceWithConfigure = &cloudSecurityRulesDataSource{}
 )
 
-func NewCloudPostureRulesDataSource() datasource.DataSource {
-	return &cloudPostureRulesDataSource{}
+func NewCloudSecurityRulesDataSource() datasource.DataSource {
+	return &cloudSecurityRulesDataSource{}
 }
 
-type cloudPostureRulesDataSource struct {
+type cloudSecurityRulesDataSource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-type cloudPostureRulesDataSourceModel struct {
+type cloudSecurityRulesDataSourceModel struct {
 	CloudProvider types.String `tfsdk:"cloud_provider"`
 	RuleName      types.String `tfsdk:"rule_name"`
 	ResourceType  types.String `tfsdk:"resource_type"`
@@ -45,7 +45,7 @@ type cloudPostureRulesDataSourceModel struct {
 	Rules         types.Set    `tfsdk:"rules"`
 }
 
-type cloudPostureRulesDataSourceRuleModel struct {
+type cloudSecurityRulesDataSourceRuleModel struct {
 	ID              types.String `tfsdk:"id"`
 	AlertInfo       types.List   `tfsdk:"alert_info"`
 	Controls        types.Set    `tfsdk:"controls"`
@@ -69,7 +69,7 @@ type fqlFilters struct {
 	value    string
 }
 
-func (m cloudPostureRulesDataSourceRuleModel) AttributeTypes() map[string]attr.Type {
+func (m cloudSecurityRulesDataSourceRuleModel) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"id": types.StringType,
 		"alert_info": types.ListType{
@@ -104,7 +104,7 @@ func (m cloudPostureRulesDataSourceRuleModel) AttributeTypes() map[string]attr.T
 	}
 }
 
-func (r *cloudPostureRulesDataSource) Configure(
+func (r *cloudSecurityRulesDataSource) Configure(
 	ctx context.Context,
 	req datasource.ConfigureRequest,
 	resp *datasource.ConfigureResponse,
@@ -129,28 +129,28 @@ func (r *cloudPostureRulesDataSource) Configure(
 	r.client = client
 }
 
-func (r *cloudPostureRulesDataSource) Metadata(
+func (r *cloudSecurityRulesDataSource) Metadata(
 	_ context.Context,
 	req datasource.MetadataRequest,
 	resp *datasource.MetadataResponse,
 ) {
-	resp.TypeName = req.ProviderTypeName + "_cloud_posture_rules"
+	resp.TypeName = req.ProviderTypeName + "_cloud_security_rules"
 }
 
-func (r *cloudPostureRulesDataSource) Schema(
+func (r *cloudSecurityRulesDataSource) Schema(
 	_ context.Context,
 	_ datasource.SchemaRequest,
 	resp *datasource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
-			"Cloud Posture",
-			"This data source retrieves detailed information about a specific cloud posture rule, including its unique identifier (ID) and associated attributes."+
+			"Cloud Security",
+			"This data source retrieves detailed information about a specific cloud security rule, including its unique identifier (ID) and associated attributes."+
 				"All non-FQL fields can accept wildcards `*` and query Falcon using logical AND. If FQL is defined, all other fields will be ignored. "+
 				"For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter. "+
 				"For additional information on FQL filtering and usage, refer to the official CrowdStrike documentation: "+
 				"[Falcon Query Language (FQL)](https://falcon.crowdstrike.com/documentation/page/d3c84a1b/falcon-query-language-fql)",
-			cloudPostureRuleScopes,
+			cloudSecurityRuleScopes,
 		),
 		Attributes: map[string]schema.Attribute{
 			"cloud_provider": schema.StringAttribute{
@@ -224,7 +224,7 @@ func (r *cloudPostureRulesDataSource) Schema(
 			},
 			"rules": schema.SetNestedAttribute{
 				Computed:    true,
-				Description: "List of cloud posture rules",
+				Description: "List of cloud security rules",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"id": schema.StringAttribute{
@@ -331,12 +331,12 @@ func (r *cloudPostureRulesDataSource) Schema(
 	}
 }
 
-func (r *cloudPostureRulesDataSource) Read(
+func (r *cloudSecurityRulesDataSource) Read(
 	ctx context.Context,
 	req datasource.ReadRequest,
 	resp *datasource.ReadResponse,
 ) {
-	var data cloudPostureRulesDataSourceModel
+	var data cloudSecurityRulesDataSourceModel
 	var diags diag.Diagnostics
 
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
@@ -383,17 +383,17 @@ func (r *cloudPostureRulesDataSource) Read(
 	}
 }
 
-func (r *cloudPostureRulesDataSource) getRules(
+func (r *cloudSecurityRulesDataSource) getRules(
 	ctx context.Context,
 	fql string,
 	fqlFilters []fqlFilters,
 ) (types.Set, diag.Diagnostics) {
-	var rules []cloudPostureRulesDataSourceRuleModel
+	var rules []cloudSecurityRulesDataSourceRuleModel
 	var diags diag.Diagnostics
 	var filter string
 	limit := int64(500)
 	offset := int64(0)
-	defaultResponse := types.SetValueMust(types.ObjectType{AttrTypes: cloudPostureRulesDataSourceRuleModel{}.AttributeTypes()}, []attr.Value{})
+	defaultResponse := types.SetValueMust(types.ObjectType{AttrTypes: cloudSecurityRulesDataSourceRuleModel{}.AttributeTypes()}, []attr.Value{})
 
 	queryParams := cloud_policies.QueryRuleParams{
 		Context: ctx,
@@ -430,7 +430,7 @@ func (r *cloudPostureRulesDataSource) getRules(
 					"Error Querying Rules",
 					fmt.Sprintf("Failed to query rules: %s", *badRequest.Payload.Errors[0].Message),
 				)
-				return types.SetValueMust(types.ObjectType{AttrTypes: cloudPostureRulesDataSourceRuleModel{}.AttributeTypes()}, []attr.Value{}), diags
+				return types.SetValueMust(types.ObjectType{AttrTypes: cloudSecurityRulesDataSourceRuleModel{}.AttributeTypes()}, []attr.Value{}), diags
 			}
 
 			if internalServerError, ok := err.(*cloud_policies.QueryRuleInternalServerError); ok {
@@ -502,7 +502,7 @@ func (r *cloudPostureRulesDataSource) getRules(
 		}
 
 		for _, resource := range getRulesPayload.Resources {
-			rule := cloudPostureRulesDataSourceRuleModel{
+			rule := cloudSecurityRulesDataSourceRuleModel{
 				ID:             types.StringValue(*resource.UUID),
 				Description:    types.StringPointerValue(resource.Description),
 				AutoRemediable: types.BoolPointerValue(resource.AutoRemediable),
@@ -539,7 +539,7 @@ func (r *cloudPostureRulesDataSource) getRules(
 			}
 
 			if len(resource.RuleLogicList) > 0 {
-				rule.RemediationInfo = convertAlertRemediationInfoToTerraformState(&resource.RuleLogicList[0].RemediationInfo)
+				rule.RemediationInfo = convertAlertRemediationInfoToTerraformState(resource.RuleLogicList[0].RemediationInfo)
 			}
 
 			if resource.AlertInfo != nil {
@@ -570,7 +570,7 @@ func (r *cloudPostureRulesDataSource) getRules(
 
 	rulesSet, diags := types.SetValueFrom(
 		ctx,
-		types.ObjectType{AttrTypes: cloudPostureRulesDataSourceRuleModel{}.AttributeTypes()},
+		types.ObjectType{AttrTypes: cloudSecurityRulesDataSourceRuleModel{}.AttributeTypes()},
 		rules,
 	)
 	if diags.HasError() {

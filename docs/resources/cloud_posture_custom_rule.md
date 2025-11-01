@@ -1,5 +1,5 @@
 ---
-page_title: "crowdstrike_cloud_posture_custom_rule Resource - crowdstrike"
+page_title: "crowdstrike_cloud_security_custom_rule Resource - crowdstrike"
 subcategory: "Cloud Posture"
 description: |-
   This resource manages custom cloud posture rules. These rules can be created either by inheriting properties from a parent rule with minimal customization, or by fully customizing all attributes for maximum flexibility. To create a rule based on a parent rule, utilize the crowdstrike_cloud_posture_rules data source to gather parent rule information to use in the new custom rule. The crowdstrike_cloud_compliance_framework_controls data source can be used to query Falcon for compliance benchmark controls to associate with custom rules created with this resource.
@@ -8,7 +8,7 @@ description: |-
   Cloud Security Policies | Read & Write
 ---
 
-# crowdstrike_cloud_posture_custom_rule (Resource)
+# crowdstrike_cloud_security_custom_rule (Resource)
 
 This resource manages custom cloud posture rules. These rules can be created either by inheriting properties from a parent rule with minimal customization, or by fully customizing all attributes for maximum flexibility. To create a rule based on a parent rule, utilize the `crowdstrike_cloud_posture_rules` data source to gather parent rule information to use in the new custom rule. The `crowdstrike_cloud_compliance_framework_controls` data source can be used to query Falcon for compliance benchmark controls to associate with custom rules created with this resource. 
 
@@ -35,7 +35,7 @@ provider "crowdstrike" {
 }
 
 # Custom rule derived from a parent rule with specific modifications
-resource "crowdstrike_cloud_posture_custom_rule" "copy_rule" {
+resource "crowdstrike_cloud_security_custom_rule" "copy_rule" {
   resource_type  = "AWS::EC2::Instance"
   name           = "Test Terraform"
   description    = "Test Terraform"
@@ -63,7 +63,7 @@ resource "crowdstrike_cloud_posture_custom_rule" "copy_rule" {
   parent_rule_id = "190c2d3d-8b0e-4838-bf11-4c6e044b9cb1"
 }
 
-resource "crowdstrike_cloud_posture_custom_rule" "minimal_copy_rule" {
+resource "crowdstrike_cloud_security_custom_rule" "minimal_copy_rule" {
   resource_type  = "AWS::EC2::Instance"
   name           = "Test Terraform"
   description    = "Test Terraform"
@@ -79,7 +79,7 @@ resource "crowdstrike_cloud_posture_custom_rule" "minimal_copy_rule" {
   }
 }
 
-resource "crowdstrike_cloud_posture_custom_rule" "custom_rule" {
+resource "crowdstrike_cloud_security_custom_rule" "custom_rule" {
   resource_type  = "AWS::EC2::Instance"
   name           = "Test Terraform"
   description    = "Test Terraform"
@@ -117,7 +117,7 @@ EOF
   ]
 }
 
-resource "crowdstrike_cloud_posture_custom_rule" "custom_rule_from_file" {
+resource "crowdstrike_cloud_security_custom_rule" "custom_rule_from_file" {
   resource_type  = "AWS::EC2::Instance"
   name           = "Test Terraform Rego from file"
   description    = "Test Terraform Rego from file"
@@ -191,5 +191,5 @@ Import is supported using the following syntax:
 
 ```shell
 # Cloud Posture Custom Rule resources can be imported using their UUID, e.g.
-terraform import crowdstrike_cloud_posture_custom_rule.example 123e4567-e89b-12d3-a456-426614174000
+terraform import crowdstrike_cloud_security_custom_rule.example 123e4567-e89b-12d3-a456-426614174000
 ```

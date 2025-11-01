@@ -1,4 +1,4 @@
-package cloudposture_test
+package cloudsecurity_test
 
 import (
 	"fmt"
@@ -111,7 +111,7 @@ var gcpCopyConfig = ruleCustomConfig{
 	parentRule:     gcpConfig,
 }
 
-func TestCloudPostureCustomRuleResource(t *testing.T) {
+func TestCloudSecurityCustomRuleResource(t *testing.T) {
 	var steps []resource.TestStep
 
 	// Steps that don't produce resources
@@ -151,7 +151,7 @@ func TestCloudPostureCustomRuleResource(t *testing.T) {
 // In-place updates of user defined remediation_info, alert_info, and controls for duplicate rules
 func generateRuleCopyTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
-	resourceName := "crowdstrike_cloud_posture_custom_rule.rule" + "_" + ruleName
+	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName
 
 	for i := range 2 {
 		alertInfo := strings.Join([]string{
@@ -162,7 +162,7 @@ func generateRuleCopyTests(config ruleCustomConfig, ruleName string) []resource.
 		}, "")
 		newStep := resource.TestStep{
 			Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule" "rule_%s" {
+resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -173,10 +173,10 @@ resource "crowdstrike_cloud_posture_custom_rule" "rule_%s" {
     %s
   ]
   alert_info     = [%s]
-  parent_rule_id = one(data.crowdstrike_cloud_posture_rules.rule_%[1]s.rules).id
+  parent_rule_id = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
 }
 
-data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
+data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[10]s"
   benchmark = "%[11]s"
 }
@@ -210,7 +210,7 @@ data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
 // In-place updates of user defined remediation_info, alert_info, controls, and attack_types
 func generateRuleLogicTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
-	resourceName := "crowdstrike_cloud_posture_custom_rule.rule" + "_" + ruleName
+	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName
 
 	for i := range 2 {
 		alertInfo := strings.Join([]string{
@@ -224,7 +224,7 @@ func generateRuleLogicTests(config ruleCustomConfig, ruleName string) []resource
 		}, "")
 		resourceStep := resource.TestStep{
 			Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule" "rule_%s" {
+resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -287,20 +287,20 @@ EOF
 // Minimum configuration for duplicate rules
 func generateMinimalRuleCopyTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
-	resourceName := "crowdstrike_cloud_posture_custom_rule.rule" + "_" + ruleName
+	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName
 
 	for i := range 2 {
 		newStep := resource.TestStep{
 			Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule" "rule_%s" {
+resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
   cloud_provider   = "%s"
-  parent_rule_id   = one(data.crowdstrike_cloud_posture_rules.rule_%[1]s.rules).id
+  parent_rule_id   = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
 }
 
-data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
+data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[6]s"
   benchmark = "%[7]s"
 }
@@ -332,12 +332,12 @@ data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
 // Minimum configuration for rego rules
 func generateMinimalRuleLogicTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
-	resourceName := "crowdstrike_cloud_posture_custom_rule.rule" + "_" + ruleName
+	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName
 
 	for i := range 2 {
 		resourceStep := resource.TestStep{
 			Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule" "rule_%s" {
+resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -386,7 +386,7 @@ EOF
 // Ensure duplicate rules will inherit fields from parent when fields are omitted in-place
 func generateRuleCopyDefinedToOmittedTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
-	resourceName := "crowdstrike_cloud_posture_custom_rule.rule" + "_" + ruleName + "_definedToOmitted"
+	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName + "_definedToOmitted"
 
 	alertInfo := strings.Join([]string{
 		`"` + strings.Join(config.ruleBaseConfig.alertInfo[0], `","`) + `"`,
@@ -397,7 +397,7 @@ func generateRuleCopyDefinedToOmittedTests(config ruleCustomConfig, ruleName str
 
 	definedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule" "rule_%s_definedToOmitted" {
+resource "crowdstrike_cloud_security_custom_rule" "rule_%s_definedToOmitted" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -408,10 +408,10 @@ resource "crowdstrike_cloud_posture_custom_rule" "rule_%s_definedToOmitted" {
     %s
   ]
   alert_info       = [%s]
-  parent_rule_id   = one(data.crowdstrike_cloud_posture_rules.rule_%[1]s.rules).id
+  parent_rule_id   = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
 }
 
-data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
+data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[10]s"
   benchmark = "%[11]s"
 }
@@ -439,16 +439,16 @@ data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
 
 	undefinedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule" "rule_%s_definedToOmitted" {
+resource "crowdstrike_cloud_security_custom_rule" "rule_%s_definedToOmitted" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
   cloud_provider   = "%s"
   severity         = "%s"
-  parent_rule_id   = one(data.crowdstrike_cloud_posture_rules.rule_%[1]s.rules).id
+  parent_rule_id   = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
 }
 
-data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
+data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[7]s"
   benchmark = "%[8]s"
 }
@@ -483,7 +483,7 @@ data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
 func generateRuleCopyDefinedToEmptyTests(config ruleCustomConfig) []resource.TestStep {
 	var steps []resource.TestStep
 	resourceName := "definedToEmptyCopyRule"
-	fullResourceName := fmt.Sprintf("crowdstrike_cloud_posture_custom_rule.%s", resourceName)
+	fullResourceName := fmt.Sprintf("crowdstrike_cloud_security_custom_rule.%s", resourceName)
 
 	alertInfo := strings.Join([]string{
 		`"` + strings.Join(config.ruleBaseConfig.alertInfo[0], `","`) + `"`,
@@ -494,7 +494,7 @@ func generateRuleCopyDefinedToEmptyTests(config ruleCustomConfig) []resource.Tes
 
 	definedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule" "%s" {
+resource "crowdstrike_cloud_security_custom_rule" "%s" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -505,10 +505,10 @@ resource "crowdstrike_cloud_posture_custom_rule" "%s" {
     %s
   ]
   alert_info     = [%s]
-  parent_rule_id = one(data.crowdstrike_cloud_posture_rules.rule_%[1]s.rules).id
+  parent_rule_id = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
 }
 
-data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
+data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[10]s"
   benchmark = "%[11]s"
 }
@@ -536,7 +536,7 @@ data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
 
 	undefinedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule" "%s" {
+resource "crowdstrike_cloud_security_custom_rule" "%s" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -545,10 +545,10 @@ resource "crowdstrike_cloud_posture_custom_rule" "%s" {
   controls         = []
   remediation_info = []
   alert_info       = []
-  parent_rule_id   = one(data.crowdstrike_cloud_posture_rules.rule_%[1]s.rules).id
+  parent_rule_id   = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
 }
 
-data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
+data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[9]s"
   benchmark = "%[10]s"
 }
@@ -584,7 +584,7 @@ data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
 // Validating fields set to empty when omitted in-place
 func generateRuleRegoDefinedToOmittedTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
-	resourceName := "crowdstrike_cloud_posture_custom_rule.rule" + "_" + ruleName + "_definedToOmitted"
+	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName + "_definedToOmitted"
 
 	alertInfo := strings.Join([]string{
 		`"` + strings.Join(config.ruleBaseConfig.alertInfo[0], `","`) + `"`,
@@ -595,7 +595,7 @@ func generateRuleRegoDefinedToOmittedTests(config ruleCustomConfig, ruleName str
 
 	definedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule" "rule_%s_definedToOmitted" {
+resource "crowdstrike_cloud_security_custom_rule" "rule_%s_definedToOmitted" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -633,7 +633,7 @@ EOF
 
 	undefinedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule" "rule_%s_definedToOmitted" {
+resource "crowdstrike_cloud_security_custom_rule" "rule_%s_definedToOmitted" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -671,7 +671,7 @@ EOF
 // Validating fields set to empty when set to empty list/set in-place
 func generateRuleRegoDefinedToEmptyTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
-	resourceName := "crowdstrike_cloud_posture_custom_rule.rule" + "_" + ruleName + "_definedToEmpty"
+	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName + "_definedToEmpty"
 
 	alertInfo := strings.Join([]string{
 		`"` + strings.Join(config.ruleBaseConfig.alertInfo[0], `","`) + `"`,
@@ -682,7 +682,7 @@ func generateRuleRegoDefinedToEmptyTests(config ruleCustomConfig, ruleName strin
 
 	definedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule" "rule_%s_definedToEmpty" {
+resource "crowdstrike_cloud_security_custom_rule" "rule_%s_definedToEmpty" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -720,7 +720,7 @@ EOF
 
 	undefinedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule" "rule_%s_definedToEmpty" {
+resource "crowdstrike_cloud_security_custom_rule" "rule_%s_definedToEmpty" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -772,7 +772,7 @@ func generateRuleCopyDefinedAttackTypeTests(config ruleCustomConfig) []resource.
 	return []resource.TestStep{
 		{
 			Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_posture_custom_rule" "%s" {
+resource "crowdstrike_cloud_security_custom_rule" "%s" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -784,10 +784,10 @@ resource "crowdstrike_cloud_posture_custom_rule" "%s" {
   ]
   alert_info     = [%s]
   attack_types   = ["test"]
-  parent_rule_id = one(data.crowdstrike_cloud_posture_rules.rule_%[1]s.rules).id
+  parent_rule_id = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
 }
 
-data "crowdstrike_cloud_posture_rules" "rule_%[1]s" {
+data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[10]s"
   benchmark = "%[11]s"
 }

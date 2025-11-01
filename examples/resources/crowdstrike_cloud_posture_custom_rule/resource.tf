@@ -11,10 +11,10 @@ provider "crowdstrike" {
 }
 
 # Custom rule derived from a parent rule with specific modifications
-resource "crowdstrike_cloud_posture_custom_rule" "copy_rule" {
+resource "crowdstrike_cloud_security_custom_rule" "copy_rule" {
   resource_type  = "AWS::EC2::Instance"
-  name           = "Test Terraform"
-  description    = "Test Terraform"
+  name           = "copy_rule"
+  description    = "Test Terraform Frank"
   cloud_provider = "AWS"
   severity       = "informational"
   remediation_info = [
@@ -39,10 +39,10 @@ resource "crowdstrike_cloud_posture_custom_rule" "copy_rule" {
   parent_rule_id = "190c2d3d-8b0e-4838-bf11-4c6e044b9cb1"
 }
 
-resource "crowdstrike_cloud_posture_custom_rule" "minimal_copy_rule" {
+resource "crowdstrike_cloud_security_custom_rule" "minimal_copy_rule" {
   resource_type  = "AWS::EC2::Instance"
-  name           = "Test Terraform"
-  description    = "Test Terraform"
+  name           = "minimal_copy_rule"
+  description    = "Test Terraform Frank"
   cloud_provider = "AWS"
   severity       = "informational"
   parent_rule_id = "190c2d3d-8b0e-4838-bf11-4c6e044b9cb1"
@@ -50,15 +50,15 @@ resource "crowdstrike_cloud_posture_custom_rule" "minimal_copy_rule" {
   # When controls, remediation_info, or alert_info are omitted, each will be defined
   # from the parent rule during every terraform run, so ignoring their changes may help with
   # maintaining a clean plan and state.
-  lifecycle {
-    ignore_changes = [controls, remediation_info, alert_info]
-  }
+  # lifecycle {
+  #   ignore_changes = [controls, remediation_info, alert_info]
+  # }
 }
 
-resource "crowdstrike_cloud_posture_custom_rule" "custom_rule" {
+resource "crowdstrike_cloud_security_custom_rule" "custom_rule" {
   resource_type  = "AWS::EC2::Instance"
-  name           = "Test Terraform"
-  description    = "Test Terraform"
+  name           = "custom_rule"
+  description    = "Test Terraform Frank"
   cloud_provider = "AWS"
   attack_types = [
     "Attack Type 1",
@@ -93,37 +93,6 @@ EOF
   ]
 }
 
-resource "crowdstrike_cloud_posture_custom_rule" "custom_rule_from_file" {
-  resource_type  = "AWS::EC2::Instance"
-  name           = "Test Terraform Rego from file"
-  description    = "Test Terraform Rego from file"
-  cloud_provider = "AWS"
-  attack_types = [
-    "Attack Type 1",
-    "Attack Type 2"
-  ]
-  remediation_info = [
-    "Remediation step 1",
-    "Remediation step 2",
-    "Remediation step 3",
-  ]
-  severity = "medium"
-  logic    = file("${path.module}/logic.rego")
-  alert_info = [
-    "First item in alert info",
-    "Second item in alert info"
-  ]
-  controls = [
-    {
-      authority = "CIS",
-      code      = "89"
-    },
-    {
-      authority = "CIS",
-      code      = "791"
-    },
-  ]
-}
 
 
 

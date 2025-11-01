@@ -1,8 +1,8 @@
-package cloudposture
+package cloudsecurity
 
 import "github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 
-var cloudPostureRuleScopes = []scopes.Scope{
+var cloudSecurityRuleScopes = []scopes.Scope{
 	{
 		Name:  "Cloud Security Policies",
 		Read:  true,

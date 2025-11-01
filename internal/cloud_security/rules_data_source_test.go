@@ -1,4 +1,4 @@
-package cloudposture_test
+package cloudsecurity_test
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-func TestCloudPostureRulesDataSource(t *testing.T) {
+func TestCloudSecurityRulesDataSource(t *testing.T) {
 	var steps []resource.TestStep
 
 	steps = append(steps, testDatasourceConfigConflicts()...)
@@ -26,11 +26,11 @@ func TestCloudPostureRulesDataSource(t *testing.T) {
 }
 
 func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
-	resourceName := fmt.Sprintf("data.crowdstrike_cloud_posture_rules.%s", config.cloudProvider)
+	resourceName := fmt.Sprintf("data.crowdstrike_cloud_security_rules.%s", config.cloudProvider)
 	steps = []resource.TestStep{
 		{
 			Config: fmt.Sprintf(`
-data "crowdstrike_cloud_posture_rules" "%[1]s" {
+data "crowdstrike_cloud_security_rules" "%[1]s" {
   cloud_provider = "%[1]s"
   resource_type  = "%[2]s"
 }
@@ -63,7 +63,7 @@ data "crowdstrike_cloud_posture_rules" "%[1]s" {
 		},
 		{
 			Config: fmt.Sprintf(`
-data "crowdstrike_cloud_posture_rules" "%[1]s" {
+data "crowdstrike_cloud_security_rules" "%[1]s" {
   cloud_provider = "%[1]s"
   rule_name = "%[2]s"
 }
@@ -95,7 +95,7 @@ data "crowdstrike_cloud_posture_rules" "%[1]s" {
 		},
 		{
 			Config: fmt.Sprintf(`
-data "crowdstrike_cloud_posture_rules" "%[1]s" {
+data "crowdstrike_cloud_security_rules" "%[1]s" {
   cloud_provider = "%[1]s"
   rule_name = "%[2]s"
   benchmark = "%[3]s"
@@ -130,7 +130,7 @@ data "crowdstrike_cloud_posture_rules" "%[1]s" {
 		},
 		{
 			Config: fmt.Sprintf(`
-data "crowdstrike_cloud_posture_rules" "%s" {
+data "crowdstrike_cloud_security_rules" "%s" {
   fql = "rule_name:'%s'"
 }
 `, config.cloudProvider, config.ruleName),
@@ -168,7 +168,7 @@ func testDatasourceConfigConflicts() []resource.TestStep {
 	return []resource.TestStep{
 		{
 			Config: `
-data "crowdstrike_cloud_posture_rules" "test" {
+data "crowdstrike_cloud_security_rules" "test" {
 	fql = "test"
 	cloud_provider = "test"
 }
@@ -177,7 +177,7 @@ data "crowdstrike_cloud_posture_rules" "test" {
 		},
 		{
 			Config: `
-data "crowdstrike_cloud_posture_rules" "test" {
+data "crowdstrike_cloud_security_rules" "test" {
 	fql       = "test"
 	rule_name = "test"
 }
@@ -186,7 +186,7 @@ data "crowdstrike_cloud_posture_rules" "test" {
 		},
 		{
 			Config: `
-data "crowdstrike_cloud_posture_rules" "test" {
+data "crowdstrike_cloud_security_rules" "test" {
 	fql         = "test"
 	resource_type = "test"
 }
@@ -195,7 +195,7 @@ data "crowdstrike_cloud_posture_rules" "test" {
 		},
 		{
 			Config: `
-data "crowdstrike_cloud_posture_rules" "test" {
+data "crowdstrike_cloud_security_rules" "test" {
 	fql     = "test"
 	benchmark = "test"
 }
@@ -204,7 +204,7 @@ data "crowdstrike_cloud_posture_rules" "test" {
 		},
 		{
 			Config: `
-data "crowdstrike_cloud_posture_rules" "test" {
+data "crowdstrike_cloud_security_rules" "test" {
 	fql     = "test"
 	framework = "test"
 }
@@ -213,7 +213,7 @@ data "crowdstrike_cloud_posture_rules" "test" {
 		},
 		{
 			Config: `
-data "crowdstrike_cloud_posture_rules" "test" {
+data "crowdstrike_cloud_security_rules" "test" {
 	fql     = "test"
 	service = "test"
 }

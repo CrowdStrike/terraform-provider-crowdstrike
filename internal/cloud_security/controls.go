@@ -1,4 +1,4 @@
-package cloudposture
+package cloudsecurity
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
