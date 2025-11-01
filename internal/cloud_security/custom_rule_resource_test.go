@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
@@ -333,6 +334,8 @@ func TestCloudSecurityCustomRuleResource_GCP_CopyDefinedAttackType(t *testing.T)
 // In-place updates of user defined remediation_info, alert_info, and controls for duplicate rules
 func generateRuleCopyTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
+	randomSuffix := sdkacctest.RandString(8)
+	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
 	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName
 
 	for i := range 2 {
@@ -392,6 +395,8 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 // In-place updates of user defined remediation_info, alert_info, controls, and attack_types
 func generateRuleLogicTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
+	randomSuffix := sdkacctest.RandString(8)
+	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
 	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName
 
 	for i := range 2 {
@@ -469,6 +474,8 @@ EOF
 // Minimum configuration for duplicate rules
 func generateMinimalRuleCopyTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
+	randomSuffix := sdkacctest.RandString(8)
+	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
 	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName
 
 	for i := range 2 {
@@ -513,6 +520,8 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 // Minimum configuration for rego rules
 func generateMinimalRuleLogicTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
+	randomSuffix := sdkacctest.RandString(8)
+	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
 	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName
 
 	for i := range 2 {
@@ -567,6 +576,8 @@ EOF
 // Ensure duplicate rules will inherit fields from parent when fields are omitted in-place
 func generateRuleCopyDefinedToOmittedTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
+	randomSuffix := sdkacctest.RandString(8)
+	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
 	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName + "_definedToOmitted"
 
 	alertInfo := strings.Join([]string{
@@ -663,7 +674,8 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 // Duplicate rules can only be set to empty on update
 func generateRuleCopyDefinedToEmptyTests(config ruleCustomConfig) []resource.TestStep {
 	var steps []resource.TestStep
-	resourceName := "definedToEmptyCopyRule"
+	randomSuffix := sdkacctest.RandString(8)
+	resourceName := fmt.Sprintf("tfacc_definedToEmptyCopyRule_%s", randomSuffix)
 	fullResourceName := fmt.Sprintf("crowdstrike_cloud_security_custom_rule.%s", resourceName)
 
 	alertInfo := strings.Join([]string{
@@ -765,6 +777,8 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 // Validating fields set to empty when omitted in-place
 func generateRuleRegoDefinedToOmittedTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
+	randomSuffix := sdkacctest.RandString(8)
+	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
 	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName + "_definedToOmitted"
 
 	alertInfo := strings.Join([]string{
@@ -852,6 +866,8 @@ EOF
 // Validating fields set to empty when set to empty list/set in-place
 func generateRuleRegoDefinedToEmptyTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
+	randomSuffix := sdkacctest.RandString(8)
+	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
 	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName + "_definedToEmpty"
 
 	alertInfo := strings.Join([]string{
@@ -941,7 +957,8 @@ EOF
 
 // Validate attack_types cannot be set for duplicate rules
 func generateRuleCopyDefinedAttackTypeTests(config ruleCustomConfig) []resource.TestStep {
-	resourceName := "definedToEmptyAttackTypesCopyRule"
+	randomSuffix := sdkacctest.RandString(8)
+	resourceName := fmt.Sprintf("tfacc_definedToEmptyAttackTypesCopyRule_%s", randomSuffix)
 
 	alertInfo := strings.Join([]string{
 		`"` + strings.Join(config.ruleBaseConfig.alertInfo[0], `","`) + `"`,

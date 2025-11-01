@@ -448,7 +448,7 @@ func (r *cloudSecurityCustomRuleResource) ModifyPlan(
 		return
 	}
 
-	isDuplicateRule := !config.ParentRuleId.IsUnknown() && !config.ParentRuleId.IsNull()
+	isDuplicateRule := utils.IsKnown(config.ParentRuleId)
 
 	// This is needed to assign duplicate rules and rego rules different sets of defaults.
 	// Duplicate rules will default to the parent rule, therefore need to be set after apply, and rego rules will default to empty.
