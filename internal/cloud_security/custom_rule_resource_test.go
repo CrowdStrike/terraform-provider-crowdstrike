@@ -111,40 +111,222 @@ var gcpCopyConfig = ruleCustomConfig{
 	parentRule:     gcpConfig,
 }
 
-func TestCloudSecurityCustomRuleResource(t *testing.T) {
-	var steps []resource.TestStep
-
-	// Steps that don't produce resources
-	steps = append(steps, generateRuleCopyDefinedAttackTypeTests(awsCopyConfig)...)
-
-	// Steps that produce resources that require destroy
-	steps = append(steps, generateRuleCopyTests(awsCopyConfig, "AWS")...)
-	steps = append(steps, generateRuleCopyTests(azureCopyConfig, "Azure")...)
-	steps = append(steps, generateRuleCopyTests(gcpCopyConfig, "GCP")...)
-	steps = append(steps, generateRuleLogicTests(awsCopyConfig, "AWS_Rego")...)
-	steps = append(steps, generateRuleLogicTests(azureCopyConfig, "Azure_Rego")...)
-	steps = append(steps, generateRuleLogicTests(gcpCopyConfig, "GCP_Rego")...)
-	steps = append(steps, generateMinimalRuleCopyTests(awsCopyConfig, "AWS_Min")...)
-	steps = append(steps, generateMinimalRuleCopyTests(azureCopyConfig, "Azure_Min")...)
-	steps = append(steps, generateMinimalRuleCopyTests(gcpCopyConfig, "GCP_Min")...)
-	steps = append(steps, generateMinimalRuleLogicTests(awsCopyConfig, "AWS_Min_Rego")...)
-	steps = append(steps, generateMinimalRuleLogicTests(azureCopyConfig, "Azure_Min_Rego")...)
-	steps = append(steps, generateMinimalRuleLogicTests(gcpCopyConfig, "GCP_Min_Rego")...)
-	steps = append(steps, generateRuleCopyDefinedToOmittedTests(awsCopyConfig, "AWS_Omit")...)
-	steps = append(steps, generateRuleCopyDefinedToOmittedTests(azureCopyConfig, "Azure_Omit")...)
-	steps = append(steps, generateRuleCopyDefinedToOmittedTests(gcpCopyConfig, "GCP_Omit")...)
-	steps = append(steps, generateRuleRegoDefinedToOmittedTests(awsCopyConfig, "AWS_Omit_Rego")...)
-	steps = append(steps, generateRuleRegoDefinedToOmittedTests(azureCopyConfig, "Azure_Omit_Rego")...)
-	steps = append(steps, generateRuleRegoDefinedToOmittedTests(gcpCopyConfig, "GCP_Omit_Rego")...)
-	steps = append(steps, generateRuleRegoDefinedToEmptyTests(awsCopyConfig, "AWS_Empty_Rego")...)
-	steps = append(steps, generateRuleRegoDefinedToEmptyTests(azureCopyConfig, "Azure_Empty_Rego")...)
-	steps = append(steps, generateRuleRegoDefinedToEmptyTests(gcpCopyConfig, "GCP_Empty_Rego")...)
-	steps = append(steps, generateRuleCopyDefinedToEmptyTests(awsCopyConfig)...)
-
+// AWS Tests
+func TestCloudSecurityCustomRuleResource_AWS_Copy(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    steps,
+		Steps:                    generateRuleCopyTests(awsCopyConfig, "AWS"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_AWS_Logic(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleLogicTests(awsCopyConfig, "AWS_Rego"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_AWS_Minimal(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateMinimalRuleCopyTests(awsCopyConfig, "AWS_Min"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_AWS_MinimalLogic(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateMinimalRuleLogicTests(awsCopyConfig, "AWS_Min_Rego"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_AWS_DefinedToOmitted(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleCopyDefinedToOmittedTests(awsCopyConfig, "AWS_Omit"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_AWS_RegoDefinedToOmitted(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleRegoDefinedToOmittedTests(awsCopyConfig, "AWS_Omit_Rego"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_AWS_RegoDefinedToEmpty(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleRegoDefinedToEmptyTests(awsCopyConfig, "AWS_Empty_Rego"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_AWS_CopyDefinedToEmpty(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleCopyDefinedToEmptyTests(awsCopyConfig),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_AWS_CopyDefinedAttackType(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleCopyDefinedAttackTypeTests(awsCopyConfig),
+	})
+}
+
+// Azure Tests
+func TestCloudSecurityCustomRuleResource_Azure_Copy(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleCopyTests(azureCopyConfig, "Azure"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_Azure_Logic(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleLogicTests(azureCopyConfig, "Azure_Rego"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_Azure_Minimal(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateMinimalRuleCopyTests(azureCopyConfig, "Azure_Min"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_Azure_MinimalLogic(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateMinimalRuleLogicTests(azureCopyConfig, "Azure_Min_Rego"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_Azure_DefinedToOmitted(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleCopyDefinedToOmittedTests(azureCopyConfig, "Azure_Omit"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_Azure_RegoDefinedToOmitted(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleRegoDefinedToOmittedTests(azureCopyConfig, "Azure_Omit_Rego"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_Azure_RegoDefinedToEmpty(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleRegoDefinedToEmptyTests(azureCopyConfig, "Azure_Empty_Rego"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_Azure_CopyDefinedToEmpty(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleCopyDefinedToEmptyTests(azureCopyConfig),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_Azure_CopyDefinedAttackType(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleCopyDefinedAttackTypeTests(azureCopyConfig),
+	})
+}
+
+// GCP Tests
+func TestCloudSecurityCustomRuleResource_GCP_Copy(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleCopyTests(gcpCopyConfig, "GCP"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_GCP_Logic(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleLogicTests(gcpCopyConfig, "GCP_Rego"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_GCP_Minimal(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateMinimalRuleCopyTests(gcpCopyConfig, "GCP_Min"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_GCP_MinimalLogic(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateMinimalRuleLogicTests(gcpCopyConfig, "GCP_Min_Rego"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_GCP_DefinedToOmitted(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleCopyDefinedToOmittedTests(gcpCopyConfig, "GCP_Omit"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_GCP_RegoDefinedToOmitted(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleRegoDefinedToOmittedTests(gcpCopyConfig, "GCP_Omit_Rego"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_GCP_RegoDefinedToEmpty(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleRegoDefinedToEmptyTests(gcpCopyConfig, "GCP_Empty_Rego"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_GCP_CopyDefinedToEmpty(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleCopyDefinedToEmptyTests(gcpCopyConfig),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_GCP_CopyDefinedAttackType(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleCopyDefinedAttackTypeTests(gcpCopyConfig),
 	})
 }
 
@@ -321,7 +503,6 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 				resource.TestCheckResourceAttrSet(resourceName, "parent_rule_id"),
 				resource.TestCheckResourceAttrSet(resourceName, "severity"),
 			),
-			ExpectNonEmptyPlan: true,
 		}
 		steps = append(steps, newStep)
 	}
