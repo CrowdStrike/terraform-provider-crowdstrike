@@ -145,11 +145,7 @@ func (r *cloudSecurityRulesDataSource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
 			"Cloud Security",
-			"This data source retrieves detailed information about a specific cloud security rule, including its unique identifier (ID) and associated attributes."+
-				"All non-FQL fields can accept wildcards `*` and query Falcon using logical AND. If FQL is defined, all other fields will be ignored. "+
-				"For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter. "+
-				"For additional information on FQL filtering and usage, refer to the official CrowdStrike documentation: "+
-				"[Falcon Query Language (FQL)](https://falcon.crowdstrike.com/documentation/page/d3c84a1b/falcon-query-language-fql)",
+			"This data source retrieves detailed information about a specific cloud security rule, including its unique identifier (ID) and associated attributes. All non-FQL fields can accept wildcards `*` and query Falcon using logical AND. If FQL is defined, all other fields will be ignored. For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter. For additional information on FQL filtering and usage, refer to the official CrowdStrike documentation: [Falcon Query Language (FQL)](https://falcon.crowdstrike.com/documentation/page/d3c84a1b/falcon-query-language-fql)",
 			cloudSecurityRuleScopes,
 		),
 		Attributes: map[string]schema.Attribute{
@@ -162,7 +158,7 @@ func (r *cloudSecurityRulesDataSource) Schema(
 			},
 			"rule_name": schema.StringAttribute{
 				Optional:    true,
-				Description: "Name of the rule to search for. If no name is defined all rules in a cloud provider will be returned.",
+				Description: "Name of the rule to search for.",
 				Validators: []validator.String{
 					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
 				},
@@ -196,31 +192,8 @@ func (r *cloudSecurityRulesDataSource) Schema(
 				},
 			},
 			"fql": schema.StringAttribute{
-				Optional: true,
-				MarkdownDescription: "Falcon Query Language (FQL) filter for advanced control searches. " +
-					"FQL filter, allowed props: " +
-					"`rule_origin`, " +
-					"`rule_parent_uuid`, " +
-					"`rule_name`, " +
-					"`rule_description`, " +
-					"`rule_domain`, " +
-					"`rule_status`, " +
-					"`rule_severity`, " +
-					"`rule_short_code`, " +
-					"`rule_service`, " +
-					"`rule_resource_type`, " +
-					"`rule_provider`, " +
-					"`rule_subdomain`, " +
-					"`rule_auto_remediable`, " +
-					"`rule_control_requirement`, " +
-					"`rule_control_section`, " +
-					"`rule_compliance_benchmark`, " +
-					"`rule_compliance_framework`, " +
-					"`rule_mitre_tactic`, " +
-					"`rule_mitre_technique`, " +
-					"`rule_created_at`, " +
-					"`rule_updated_at`, " +
-					"`rule_updated_by`",
+				Optional:            true,
+				MarkdownDescription: "Falcon Query Language (FQL) filter for advanced control searches. FQL filter, allowed props: `rule_origin`, `rule_parent_uuid`, `rule_name`, `rule_description`, `rule_domain`, `rule_status`, `rule_severity`, `rule_short_code`, `rule_service`, `rule_resource_type`, `rule_provider`, `rule_subdomain`, `rule_auto_remediable`, `rule_control_requirement`, `rule_control_section`, `rule_compliance_benchmark`, `rule_compliance_framework`, `rule_mitre_tactic`, `rule_mitre_technique`, `rule_created_at`, `rule_updated_at`, `rule_updated_by`",
 			},
 			"rules": schema.SetNestedAttribute{
 				Computed:    true,
@@ -307,11 +280,8 @@ func (r *cloudSecurityRulesDataSource) Schema(
 							ElementType: types.StringType,
 						},
 						"resource_type": schema.StringAttribute{
-							Computed: true,
-							MarkdownDescription: "The full resource type. Format examples: " +
-								"`AWS::IAM::CredentialReport`, " +
-								"`Microsoft.Compute/virtualMachines`, " +
-								"`container.googleapis.com/Cluster`",
+							Computed:            true,
+							MarkdownDescription: "The full resource type. Format examples: `AWS::IAM::CredentialReport`, `Microsoft.Compute/virtualMachines`, `container.googleapis.com/Cluster`",
 						},
 						"severity": schema.StringAttribute{
 							Computed:    true,
@@ -322,7 +292,7 @@ func (r *cloudSecurityRulesDataSource) Schema(
 						},
 						"subdomain": schema.StringAttribute{
 							Computed:    true,
-							Description: "Subdomain for the policy rule. Valid values are 'IOM' (Indicators of Misconfiguration) or 'IAC' (Infrastructure as Code). IOM is only supported at this time.",
+							Description: "Subdomain for the policy rule. Valid values are 'IOM' (Indicators of Misconfiguration) or 'IAC' (Infrastructure as Code).",
 						},
 					},
 				},

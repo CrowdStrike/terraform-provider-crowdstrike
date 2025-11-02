@@ -14,9 +14,11 @@ func TestCloudSecurityRulesDataSource(t *testing.T) {
 	var steps []resource.TestStep
 
 	steps = append(steps, testDatasourceConfigConflicts()...)
+	steps = append(steps, testEmptyResultSet()...)
 	steps = append(steps, testCloudRules(awsConfig)...)
 	steps = append(steps, testCloudRules(azureConfig)...)
 	steps = append(steps, testCloudRules(gcpConfig)...)
+	steps = append(steps, testWildcardPatterns(awsConfig)...)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -43,18 +45,10 @@ data "crowdstrike_cloud_security_rules" "%[1]s" {
 					if !ok {
 						return fmt.Errorf("Not found: %s", resourceName)
 					}
-					UUIDs := []string{}
 					for i := 0; ; i++ {
 						key := fmt.Sprintf("rules.%d.id", i)
-						if v, ok := rs.Primary.Attributes[key]; ok {
-							UUIDs = append(UUIDs, v)
-						} else {
+						if _, ok := rs.Primary.Attributes[key]; !ok {
 							break
-						}
-					}
-					for i, uuid := range UUIDs {
-						if v, ok := rs.Primary.Attributes[fmt.Sprintf("rules.%d.id", i)]; !ok || v != uuid {
-							return fmt.Errorf("Expected Id %s for rule %d, got %s", uuid, i, v)
 						}
 					}
 					return nil
@@ -81,16 +75,6 @@ data "crowdstrike_cloud_security_rules" "%[1]s" {
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.attack_types.#"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.resource_type"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.subdomain"),
-				func(s *terraform.State) error {
-					rs, ok := s.RootModule().Resources[resourceName]
-					if !ok {
-						return fmt.Errorf("Not found: %s", resourceName)
-					}
-					if v, ok := rs.Primary.Attributes["rules.0.id"]; !ok || v == "" {
-						return fmt.Errorf("Id not set for rule")
-					}
-					return nil
-				},
 			),
 		},
 		{
@@ -116,16 +100,6 @@ data "crowdstrike_cloud_security_rules" "%[1]s" {
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.attack_types.#"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.resource_type"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.subdomain"),
-				func(s *terraform.State) error {
-					rs, ok := s.RootModule().Resources[resourceName]
-					if !ok {
-						return fmt.Errorf("Not found: %s", resourceName)
-					}
-					if v, ok := rs.Primary.Attributes["rules.0.id"]; !ok || v == "" {
-						return fmt.Errorf("Id not set for rule")
-					}
-					return nil
-				},
 			),
 		},
 		{
@@ -147,16 +121,6 @@ data "crowdstrike_cloud_security_rules" "%s" {
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.attack_types.#"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.resource_type"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.subdomain"),
-				func(s *terraform.State) error {
-					rs, ok := s.RootModule().Resources[resourceName]
-					if !ok {
-						return fmt.Errorf("Not found: %s", resourceName)
-					}
-					if v, ok := rs.Primary.Attributes["rules.0.id"]; !ok || v == "" {
-						return fmt.Errorf("Id not set for rule")
-					}
-					return nil
-				},
 			),
 		},
 	}
@@ -219,6 +183,40 @@ data "crowdstrike_cloud_security_rules" "test" {
 }
 			`,
 			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+	}
+}
+
+func testEmptyResultSet() []resource.TestStep {
+	return []resource.TestStep{
+		{
+			Config: `
+data "crowdstrike_cloud_security_rules" "empty" {
+  cloud_provider = "AWS"
+  rule_name = "NonExistentRuleThatShouldNeverExist12345"
+}
+			`,
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("data.crowdstrike_cloud_security_rules.empty", "rules.#", "0"),
+			),
+		},
+	}
+}
+
+func testWildcardPatterns(config dataRuleConfig) []resource.TestStep {
+	resourceName := "data.crowdstrike_cloud_security_rules.wildcard"
+	return []resource.TestStep{
+		{
+			Config: fmt.Sprintf(`
+data "crowdstrike_cloud_security_rules" "wildcard" {
+  cloud_provider = "%[1]s"
+  rule_name = "%[2]s"
+}
+`, config.cloudProvider, "NLB/ALB*"),
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttrSet(resourceName, "rules.#"),
+				resource.TestMatchResourceAttr(resourceName, "rules.#", regexp.MustCompile(`^[1-9]\d*$`)),
+			),
 		},
 	}
 }
