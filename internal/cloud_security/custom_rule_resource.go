@@ -133,10 +133,7 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 				Optional:    true,
 				Computed:    true,
 				ElementType: types.StringType,
-				MarkdownDescription: "A list of the alert logic and detection criteria for rule violations. " +
-					"When `alert_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `alert_info`. " +
-					"Do not include numbering within this list. The Falcon console will automatically add numbering. " +
-					"`alert_info` must contain at least one element when defined with `parent_rule_id`.",
+				MarkdownDescription: "A list of the alert logic and detection criteria for rule violations. Do not include numbering within this list. The Falcon console will automatically add numbering.When `alert_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `alert_info`.",
 				Validators: []validator.List{
 					listvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
@@ -146,9 +143,7 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 			"controls": schema.SetNestedAttribute{
 				Optional: true,
 				Computed: true,
-				MarkdownDescription: "Security framework and compliance rule information. " +
-					"Utilize the `crowdstrike_cloud_compliance_framework_controls` data source to obtain this information. " +
-					"When `controls` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `controls`.",
+				MarkdownDescription: "Security framework and compliance rule information. Utilize the `crowdstrike_cloud_compliance_framework_controls` data source to obtain this information. When `controls` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `controls`.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"authority": schema.StringAttribute{
@@ -176,8 +171,7 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 			"attack_types": schema.SetAttribute{
 				Optional: true,
 				Computed: true,
-				MarkdownDescription: "Specific attack types associated with the rule. " +
-					"If `parent_rule_id` is defined, `attack_types` will be inherited from the parent rule and cannot be specified using this field. ",
+				MarkdownDescription: "Specific attack types associated with the rule. If `parent_rule_id` is defined, `attack_types` will be inherited from the parent rule and cannot be specified using this field. ",
 				ElementType: types.StringType,
 				Validators: []validator.Set{
 					setvalidator.ValueStringsAre(
@@ -186,10 +180,8 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 				},
 			},
 			"logic": schema.StringAttribute{
-				Optional: true,
-				MarkdownDescription: "Rego logic for the rule. " +
-					"If this is not defined, then parent_rule_id must be defined. " +
-					"When `parent_rule_id` is defined, the rego `logic` from the parent rule is not visible, but it is used for triggering this rule.",
+				Optional:            true,
+				MarkdownDescription: "Rego logic for the rule. Either `logic` or `parent_rule_id` must be defined. When `parent_rule_id` is set, the rule inherits the Rego logic from the parent rule. Note: The API does not return Rego logic for rules created from a parent rule, so this field will not appear in state when using `parent_rule_id`.",
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
@@ -200,9 +192,7 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 			},
 			"parent_rule_id": schema.StringAttribute{
 				Optional: true,
-				MarkdownDescription: "Id of the parent rule to inherit properties from. " +
-					"The `crowdstrike_cloud_security_rules` data source can be used to query Falcon for parent rule information to use in this field. " +
-					"Required if `logic` is not specified.",
+				MarkdownDescription: "Id of the parent rule to inherit properties from. The `crowdstrike_cloud_security_rules` data source can be used to query Falcon for parent rule information to use in this field. Required if `logic` is not specified.",
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(
 						regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`),
@@ -238,10 +228,7 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 				Optional:    true,
 				Computed:    true,
 				ElementType: types.StringType,
-				MarkdownDescription: "Information about how to remediate issues detected by this rule. " +
-					"Do not include numbering within this list. The Falcon console will automatically add numbering. " +
-					"When `remediation_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `remediation_info`. " +
-					"`remediation_info` must contain at least one element when defined with `parent_rule_id`.",
+				MarkdownDescription: "Information about how to remediate issues detected by this rule. Do not include numbering within this list. The Falcon console will automatically add numbering. When `remediation_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `remediation_info`.",
 				Validators: []validator.List{
 					listvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
@@ -249,11 +236,8 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 				},
 			},
 			"resource_type": schema.StringAttribute{
-				Required: true,
-				MarkdownDescription: "The full resource type. Examples: " +
-					"`AWS::IAM::CredentialReport`, " +
-					"`Microsoft.Compute/virtualMachines`, " +
-					"`container.googleapis.com/Cluster`",
+				Required:            true,
+				MarkdownDescription: "The full resource type. Examples: `AWS::IAM::CredentialReport`, `Microsoft.Compute/virtualMachines`, `container.googleapis.com/Cluster`",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -269,7 +253,7 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 			},
 			"subdomain": schema.StringAttribute{
 				Computed:    true,
-				Description: "Subdomain for the policy rule. Valid values are 'IOM' (Indicators of Misconfiguration) or 'IAC' (Infrastructure as Code). IOM is only supported at this time.",
+				Description: "Subdomain for the policy rule.",
 				Default:     stringdefault.StaticString("IOM"),
 			},
 		},
