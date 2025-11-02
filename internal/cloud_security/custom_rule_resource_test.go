@@ -185,6 +185,14 @@ func TestCloudSecurityCustomRuleResource_AWS_CopyDefinedAttackType(t *testing.T)
 	})
 }
 
+func TestCloudSecurityCustomRuleResource_AWS_CopyInheritToEmptyToInherit(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleCopyInheritToEmptyToInheritTests(awsCopyConfig, "AWS_InheritCycle"),
+	})
+}
+
 // Azure Tests
 func TestCloudSecurityCustomRuleResource_Azure_Copy(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
@@ -661,7 +669,6 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 			resource.TestCheckResourceAttrSet(resourceName, "id"),
 			resource.TestCheckResourceAttrSet(resourceName, "parent_rule_id"),
 		),
-		ExpectNonEmptyPlan: true,
 	}
 
 	steps = append(steps, definedStep)
@@ -1008,4 +1015,129 @@ func testGenerateControlBlock(c control) string {
 		code = "%s"
 	}
 	`, c.authority, c.code)
+}
+
+// Test inheritance cycle: inherit from parent -> set to empty -> inherit from parent again
+func generateRuleCopyInheritToEmptyToInheritTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
+	var steps []resource.TestStep
+	randomSuffix := sdkacctest.RandString(8)
+	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
+	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName
+
+	// Step 1: Create minimal copy rule - should inherit controls, remediation_info, and alert_info from parent
+	inheritStep := resource.TestStep{
+		Config: fmt.Sprintf(`
+resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
+  resource_type  = "%s"
+  name           = "%s"
+  description    = "%s - Step 1"
+  cloud_provider = "%s"
+  severity       = "%s"
+  parent_rule_id = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
+}
+
+data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
+  rule_name = "%[7]s"
+  benchmark = "%[8]s"
+}
+`, ruleName, config.resourceType, config.ruleBaseConfig.ruleNamePrefix+ruleName,
+			config.ruleBaseConfig.description[0], config.cloudProvider, config.severity[0],
+			config.parentRule.ruleName, config.parentRule.benchmark),
+		Check: resource.ComposeAggregateTestCheckFunc(
+			resource.TestCheckResourceAttr(resourceName, "subdomain", config.ruleBaseConfig.subdomain),
+			resource.TestCheckResourceAttr(resourceName, "domain", config.ruleBaseConfig.domain),
+			resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
+			resource.TestCheckResourceAttr(resourceName, "name", config.ruleBaseConfig.ruleNamePrefix+ruleName),
+			resource.TestCheckResourceAttr(resourceName, "description", config.ruleBaseConfig.description[0]+" - Step 1"),
+			resource.TestCheckResourceAttr(resourceName, "cloud_platform", config.cloudPlatform),
+			resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
+			resource.TestCheckResourceAttr(resourceName, "severity", config.severity[0]),
+			resource.TestMatchResourceAttr(resourceName, "controls.#", regexp.MustCompile(`^[1-9]\d*$`)),         // Should have inherited controls
+			resource.TestMatchResourceAttr(resourceName, "alert_info.#", regexp.MustCompile(`^[1-9]\d*$`)),       // Should have inherited alert_info
+			resource.TestMatchResourceAttr(resourceName, "remediation_info.#", regexp.MustCompile(`^[1-9]\d*$`)), // Should have inherited remediation_info
+			resource.TestCheckResourceAttrSet(resourceName, "id"),
+			resource.TestCheckResourceAttrSet(resourceName, "parent_rule_id"),
+		),
+	}
+
+	// Step 2: Set all fields to empty arrays - should override inherited values
+	emptyStep := resource.TestStep{
+		Config: fmt.Sprintf(`
+resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
+  resource_type    = "%s"
+  name             = "%s"
+  description      = "%s - Step 2"
+  cloud_provider   = "%s"
+  severity         = "%s"
+  controls         = []
+  remediation_info = []
+  alert_info       = []
+  parent_rule_id   = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
+}
+
+data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
+  rule_name = "%[7]s"
+  benchmark = "%[8]s"
+}
+`, ruleName, config.resourceType, config.ruleBaseConfig.ruleNamePrefix+ruleName,
+			config.ruleBaseConfig.description[0], config.cloudProvider, config.severity[0],
+			config.parentRule.ruleName, config.parentRule.benchmark),
+		Check: resource.ComposeAggregateTestCheckFunc(
+			resource.TestCheckResourceAttr(resourceName, "subdomain", config.ruleBaseConfig.subdomain),
+			resource.TestCheckResourceAttr(resourceName, "domain", config.ruleBaseConfig.domain),
+			resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
+			resource.TestCheckResourceAttr(resourceName, "name", config.ruleBaseConfig.ruleNamePrefix+ruleName),
+			resource.TestCheckResourceAttr(resourceName, "description", config.ruleBaseConfig.description[0]+" - Step 2"),
+			resource.TestCheckResourceAttr(resourceName, "cloud_platform", config.cloudPlatform),
+			resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
+			resource.TestCheckResourceAttr(resourceName, "severity", config.severity[0]),
+			resource.TestCheckResourceAttr(resourceName, "controls.#", "0"),         // Should be empty
+			resource.TestCheckResourceAttr(resourceName, "alert_info.#", "0"),       // Should be empty
+			resource.TestCheckResourceAttr(resourceName, "remediation_info.#", "0"), // Should be empty
+			resource.TestCheckResourceAttrSet(resourceName, "id"),
+			resource.TestCheckResourceAttrSet(resourceName, "parent_rule_id"),
+		),
+	}
+
+	// Step 3: Remove the explicit fields - should inherit from parent again
+	inheritAgainStep := resource.TestStep{
+		Config: fmt.Sprintf(`
+resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
+  resource_type  = "%s"
+  name           = "%s"
+  description    = "%s - Step 3"
+  cloud_provider = "%s"
+  severity       = "%s"
+  parent_rule_id = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
+}
+
+data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
+  rule_name = "%[7]s"
+  benchmark = "%[8]s"
+}
+`, ruleName, config.resourceType, config.ruleBaseConfig.ruleNamePrefix+ruleName,
+			config.ruleBaseConfig.description[0], config.cloudProvider, config.severity[0],
+			config.parentRule.ruleName, config.parentRule.benchmark),
+		Check: resource.ComposeAggregateTestCheckFunc(
+			resource.TestCheckResourceAttr(resourceName, "subdomain", config.ruleBaseConfig.subdomain),
+			resource.TestCheckResourceAttr(resourceName, "domain", config.ruleBaseConfig.domain),
+			resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
+			resource.TestCheckResourceAttr(resourceName, "name", config.ruleBaseConfig.ruleNamePrefix+ruleName),
+			resource.TestCheckResourceAttr(resourceName, "description", config.ruleBaseConfig.description[0]+" - Step 3"),
+			resource.TestCheckResourceAttr(resourceName, "cloud_platform", config.cloudPlatform),
+			resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
+			resource.TestCheckResourceAttr(resourceName, "severity", config.severity[0]),
+			resource.TestMatchResourceAttr(resourceName, "controls.#", regexp.MustCompile(`^[1-9]\d*$`)),         // Should have inherited controls again
+			resource.TestMatchResourceAttr(resourceName, "alert_info.#", regexp.MustCompile(`^[1-9]\d*$`)),       // Should have inherited alert_info again
+			resource.TestMatchResourceAttr(resourceName, "remediation_info.#", regexp.MustCompile(`^[1-9]\d*$`)), // Should have inherited remediation_info again
+			resource.TestCheckResourceAttrSet(resourceName, "id"),
+			resource.TestCheckResourceAttrSet(resourceName, "parent_rule_id"),
+		),
+	}
+
+	steps = append(steps, inheritStep)
+	steps = append(steps, emptyStep)
+	steps = append(steps, inheritAgainStep)
+
+	return steps
 }

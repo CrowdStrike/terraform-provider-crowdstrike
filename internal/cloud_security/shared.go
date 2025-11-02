@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
@@ -37,8 +38,8 @@ var (
 )
 
 func convertAlertRemediationInfoToTerraformState(input *string) basetypes.ListValue {
-	if input == nil {
-		return basetypes.NewListValueMust(basetypes.StringType{}, []attr.Value{})
+	if input == nil || *input == "" {
+		return types.ListValueMust(types.StringType, []attr.Value{})
 	}
 	*input = strings.TrimSpace(*input)
 	*input = strings.TrimSuffix(*input, "|")
@@ -54,9 +55,9 @@ func convertAlertRemediationInfoToTerraformState(input *string) basetypes.ListVa
 			trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, fmt.Sprintf("%d. ", index+1)))
 		}
 		if trimmed != "" {
-			values = append(values, basetypes.NewStringValue(trimmed))
+			values = append(values, types.StringValue(trimmed))
 		}
 	}
 
-	return basetypes.NewListValueMust(basetypes.StringType{}, values)
+	return types.ListValueMust(types.StringType, values)
 }

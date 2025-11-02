@@ -21,9 +21,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -144,9 +142,6 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 						stringvalidator.LengthAtLeast(1),
 					),
 				},
-				PlanModifiers: []planmodifier.List{
-					listplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"controls": schema.SetNestedAttribute{
 				Optional: true,
@@ -168,9 +163,6 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 						},
 					},
 				},
-				PlanModifiers: []planmodifier.Set{
-					setplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"description": schema.StringAttribute{
 				Required:    true,
@@ -191,9 +183,6 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 					setvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
 					),
-				},
-				PlanModifiers: []planmodifier.Set{
-					setplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"logic": schema.StringAttribute{
@@ -257,9 +246,6 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 					listvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
 					),
-				},
-				PlanModifiers: []planmodifier.List{
-					listplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"resource_type": schema.StringAttribute{
@@ -448,54 +434,44 @@ func (r *cloudSecurityCustomRuleResource) ModifyPlan(
 		return
 	}
 
-	isDuplicateRule := utils.IsKnown(config.ParentRuleId)
+	if utils.IsKnown(config.ParentRuleId) {
+		if utils.IsNull(config.AlertInfo) || utils.IsNull(config.Controls) || utils.IsNull(config.RemediationInfo) {
+			var parent cloudSecurityCustomRuleResourceModel
+			rule, diags := r.getCloudPolicyRule(ctx, plan.ParentRuleId.ValueString())
+			resp.Diagnostics.Append(diags...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
 
-	// This is needed to assign duplicate rules and rego rules different sets of defaults.
-	// Duplicate rules will default to the parent rule, therefore need to be set after apply, and rego rules will default to empty.
-	if isDuplicateRule {
-		if config.AlertInfo.IsNull() {
-			plan.AlertInfo = types.ListUnknown(types.StringType)
-		} else {
-			plan.AlertInfo = config.AlertInfo
+			resp.Diagnostics.Append(parent.wrap(ctx, rule)...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+
+			if utils.IsNull(config.AlertInfo) {
+				plan.AlertInfo = parent.AlertInfo
+			}
+
+			if utils.IsNull(config.RemediationInfo) {
+				plan.RemediationInfo = parent.RemediationInfo
+			}
+
+			if utils.IsNull(config.Controls) {
+				plan.Controls = parent.Controls
+			}
 		}
-
-		if config.RemediationInfo.IsNull() {
-			plan.RemediationInfo = types.ListUnknown(types.StringType)
-		} else {
-			plan.RemediationInfo = config.RemediationInfo
-		}
-
-		if config.Controls.IsNull() {
-			plan.Controls = types.SetUnknown(types.ObjectType{AttrTypes: policyControl{}.AttributeTypes()})
-		} else {
-			plan.Controls = config.Controls
-		}
-
 	} else {
-		if !config.AlertInfo.IsUnknown() && !config.RemediationInfo.IsUnknown() && !config.AttackTypes.IsUnknown() && !config.Controls.IsUnknown() {
-			if config.AlertInfo.IsNull() {
-				plan.AlertInfo = types.ListValueMust(types.StringType, []attr.Value{})
-			} else {
-				plan.AlertInfo = config.AlertInfo
-			}
+		// If config value is null and plan value is not null and not an empty list, set to unkown to force update.
+		if utils.IsNull(config.AlertInfo) && utils.IsKnown(plan.AlertInfo) && len(plan.AlertInfo.Elements()) != 0 {
+			plan.AlertInfo = types.ListUnknown(plan.AlertInfo.ElementType(ctx))
+		}
 
-			if config.RemediationInfo.IsNull() {
-				plan.RemediationInfo = types.ListValueMust(types.StringType, []attr.Value{})
-			} else {
-				plan.RemediationInfo = config.RemediationInfo
-			}
+		if utils.IsNull(config.RemediationInfo) && utils.IsKnown(plan.RemediationInfo) && len(plan.RemediationInfo.Elements()) != 0 {
+			plan.RemediationInfo = types.ListUnknown(plan.RemediationInfo.ElementType(ctx))
+		}
 
-			if config.AttackTypes.IsNull() {
-				plan.AttackTypes = types.SetValueMust(types.StringType, []attr.Value{})
-			} else {
-				plan.AttackTypes = config.AttackTypes
-			}
-
-			if config.Controls.IsNull() {
-				plan.Controls = types.SetValueMust(types.ObjectType{AttrTypes: policyControl{}.AttributeTypes()}, []attr.Value{})
-			} else {
-				plan.Controls = config.Controls
-			}
+		if utils.IsNull(config.Controls) && utils.IsKnown(plan.Controls) && len(plan.Controls.Elements()) != 0 {
+			plan.Controls = types.SetUnknown(plan.Controls.ElementType(ctx))
 		}
 	}
 
@@ -636,18 +612,14 @@ func (r *cloudSecurityCustomRuleResource) createCloudPolicyRule(ctx context.Cont
 		}
 	} else {
 		body.Logic = plan.Logic.ValueStringPointer()
-		if !plan.AlertInfo.IsNull() {
-			body.AlertInfo, diags = convertAlertInfoToAPIFormat(ctx, plan.AlertInfo, excludeNumbering)
-			if diags.HasError() {
-				return nil, diags
-			}
+		body.AlertInfo, diags = convertAlertInfoToAPIFormat(ctx, plan.AlertInfo, excludeNumbering)
+		if diags.HasError() {
+			return nil, diags
 		}
 
-		if !plan.RemediationInfo.IsNull() {
-			body.RemediationInfo, diags = convertRemediationInfoToAPIFormat(ctx, plan.RemediationInfo, excludeNumbering)
-			if diags.HasError() {
-				return nil, diags
-			}
+		body.RemediationInfo, diags = convertRemediationInfoToAPIFormat(ctx, plan.RemediationInfo, excludeNumbering)
+		if diags.HasError() {
+			return nil, diags
 		}
 
 		if !plan.AttackTypes.IsUnknown() && !plan.AttackTypes.IsNull() {
@@ -660,9 +632,9 @@ func (r *cloudSecurityCustomRuleResource) createCloudPolicyRule(ctx context.Cont
 		}
 	}
 
-	if !plan.Controls.IsUnknown() && !plan.Controls.IsNull() {
+	body.Controls = []*models.DbmodelsControlReference{}
+	if len(plan.Controls.Elements()) > 0 {
 		var controls []policyControl
-		body.Controls = []*models.DbmodelsControlReference{}
 		diags = plan.Controls.ElementsAs(ctx, &controls, false)
 		if diags.HasError() {
 			return nil, diags
@@ -871,30 +843,23 @@ func (r *cloudSecurityCustomRuleResource) updateCloudPolicyRule(ctx context.Cont
 			plan.Controls = parentRule.Controls
 		}
 	} else {
-		if !plan.AlertInfo.IsNull() {
-			if len(plan.AlertInfo.Elements()) > 0 {
-				alertInfo, diags = convertAlertInfoToAPIFormat(ctx, plan.AlertInfo, excludeNumbering)
-				if diags.HasError() {
-					return nil, diags
-				}
-			}
-			body.AlertInfo = &alertInfo
-		}
 
-		if !plan.RemediationInfo.IsNull() {
-			if len(plan.RemediationInfo.Elements()) > 0 {
-				remediationInfo, diags = convertRemediationInfoToAPIFormat(ctx, plan.RemediationInfo, excludeNumbering)
-				if diags.HasError() {
-					return nil, diags
-				}
-			}
-			body.RuleLogicList = []*models.ApimodelsRuleLogic{
-				{
-					Platform:        plan.CloudPlatform.ValueStringPointer(),
-					Logic:           plan.Logic.ValueString(),
-					RemediationInfo: &remediationInfo,
-				},
-			}
+		alertInfo, diags = convertAlertInfoToAPIFormat(ctx, plan.AlertInfo, excludeNumbering)
+		if diags.HasError() {
+			return nil, diags
+		}
+		body.AlertInfo = &alertInfo
+
+		remediationInfo, diags = convertRemediationInfoToAPIFormat(ctx, plan.RemediationInfo, excludeNumbering)
+		if diags.HasError() {
+			return nil, diags
+		}
+		body.RuleLogicList = []*models.ApimodelsRuleLogic{
+			{
+				Platform:        plan.CloudPlatform.ValueStringPointer(),
+				Logic:           plan.Logic.ValueString(),
+				RemediationInfo: &remediationInfo,
+			},
 		}
 	}
 
@@ -908,10 +873,12 @@ func (r *cloudSecurityCustomRuleResource) updateCloudPolicyRule(ctx context.Cont
 	}
 
 	body.Controls = []*models.ApimodelsControlReference{}
-	if !plan.Controls.IsNull() {
+	if len(plan.Controls.Elements()) > 0 {
 		var controls []policyControl
-		body.Controls = []*models.ApimodelsControlReference{}
-		plan.Controls.ElementsAs(ctx, &controls, false)
+		diags = plan.Controls.ElementsAs(ctx, &controls, false)
+		if diags.HasError() {
+			return nil, diags
+		}
 		for _, control := range controls {
 			body.Controls = append(body.Controls, &models.ApimodelsControlReference{
 				Authority: control.Authority.ValueStringPointer(),
