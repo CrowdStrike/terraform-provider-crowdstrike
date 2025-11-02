@@ -46,13 +46,6 @@ resource "crowdstrike_cloud_security_custom_rule" "minimal_copy_rule" {
   cloud_provider = "AWS"
   severity       = "informational"
   parent_rule_id = "190c2d3d-8b0e-4838-bf11-4c6e044b9cb1"
-
-  # When controls, remediation_info, or alert_info are omitted, each will be defined
-  # from the parent rule during every terraform run, so ignoring their changes may help with
-  # maintaining a clean plan and state.
-  # lifecycle {
-  #   ignore_changes = [controls, remediation_info, alert_info]
-  # }
 }
 
 resource "crowdstrike_cloud_security_custom_rule" "custom_rule" {
