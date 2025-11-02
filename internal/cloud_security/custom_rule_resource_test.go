@@ -121,7 +121,7 @@ func TestCloudSecurityCustomRuleResource_AWS_Copy(t *testing.T) {
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_AWS_Logic(t *testing.T) {
+func TestCloudSecurityCustomRuleResource_AWS_Rego(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -210,7 +210,7 @@ func TestCloudSecurityCustomRuleResource_Azure_Copy(t *testing.T) {
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_Azure_Logic(t *testing.T) {
+func TestCloudSecurityCustomRuleResource_Azure_Rego(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -299,7 +299,7 @@ func TestCloudSecurityCustomRuleResource_GCP_Copy(t *testing.T) {
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_GCP_Logic(t *testing.T) {
+func TestCloudSecurityCustomRuleResource_GCP_Rego(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },

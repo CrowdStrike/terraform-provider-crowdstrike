@@ -11,6 +11,9 @@ import (
 )
 
 func TestCloudSecurityRulesDataSource(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long-running test in short mode")
+	}
 	var steps []resource.TestStep
 
 	steps = append(steps, testDatasourceConfigConflicts()...)
