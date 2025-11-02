@@ -44,9 +44,7 @@ var (
 		"These rules can be created either by inheriting properties from a parent rule with minimal customization, or by fully customizing all attributes for maximum flexibility. " +
 		"To create a rule based on a parent rule, utilize the `crowdstrike_cloud_security_rules` data source to gather parent rule information to use in the new custom rule. " +
 		"The `crowdstrike_cloud_compliance_framework_controls` data source can be used to query Falcon for compliance benchmark controls to associate with custom rules created with this resource. "
-	requiredScopes   []scopes.Scope = cloudSecurityRuleScopes
-	includeNumbering bool           = true
-	excludeNumbering bool           = false
+	requiredScopes []scopes.Scope = cloudSecurityRuleScopes
 )
 
 func NewCloudSecurityCustomRuleResource() resource.Resource {
@@ -430,7 +428,7 @@ func (r *cloudSecurityCustomRuleResource) ModifyPlan(
 			}
 		}
 	} else {
-		// If config value is null and plan value is not null and not an empty list, set to unkown to force update.
+		// If config value is null and plan value is not null and not an empty list, set to unknown to force update.
 		if utils.IsNull(config.AlertInfo) && utils.IsKnown(plan.AlertInfo) && len(plan.AlertInfo.Elements()) != 0 {
 			plan.AlertInfo = types.ListUnknown(plan.AlertInfo.ElementType(ctx))
 		}

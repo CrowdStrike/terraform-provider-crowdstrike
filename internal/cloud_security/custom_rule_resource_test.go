@@ -112,7 +112,7 @@ var gcpCopyConfig = ruleCustomConfig{
 	parentRule:     gcpConfig,
 }
 
-// AWS Tests
+// AWS Tests.
 func TestCloudSecurityCustomRuleResource_AWS_Copy(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -201,7 +201,7 @@ func TestCloudSecurityCustomRuleResource_AWS_CopyEmptyOnCreate(t *testing.T) {
 	})
 }
 
-// Azure Tests
+// Azure Tests.
 func TestCloudSecurityCustomRuleResource_Azure_Copy(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -290,7 +290,7 @@ func TestCloudSecurityCustomRuleResource_Azure_CopyEmptyOnCreate(t *testing.T) {
 	})
 }
 
-// GCP Tests
+// GCP Tests.
 func TestCloudSecurityCustomRuleResource_GCP_Copy(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -379,7 +379,7 @@ func TestCloudSecurityCustomRuleResource_GCP_CopyEmptyOnCreate(t *testing.T) {
 	})
 }
 
-// In-place updates of user defined remediation_info, alert_info, and controls for duplicate rules
+// In-place updates of user defined remediation_info, alert_info, and controls for duplicate rules.
 func generateRuleCopyTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
@@ -456,7 +456,7 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 	return steps
 }
 
-// In-place updates of user defined remediation_info, alert_info, controls, and attack_types
+// In-place updates of user defined remediation_info, alert_info, controls, and attack_types.
 func generateRuleLogicTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
@@ -535,7 +535,7 @@ EOF
 	return steps
 }
 
-// Minimum configuration for duplicate rules
+// Minimum configuration for duplicate rules.
 func generateMinimalRuleCopyTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
@@ -581,7 +581,7 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 	return steps
 }
 
-// Minimum configuration for rego rules
+// Minimum configuration for rego rules.
 func generateMinimalRuleLogicTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
@@ -637,7 +637,7 @@ EOF
 	return steps
 }
 
-// Ensure duplicate rules will inherit fields from parent when fields are omitted in-place
+// Ensure duplicate rules will inherit fields from parent when fields are omitted in-place.
 func generateRuleCopyDefinedToOmittedTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
@@ -733,8 +733,7 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 	return steps
 }
 
-// Ensure alert_info, remediation_info, and controls are set to empty for duplicate rules
-// Duplicate rules can only be set to empty on update
+// Duplicate rules can only be set to empty on update.
 func generateRuleCopyDefinedToEmptyTests(config ruleCustomConfig) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
@@ -837,7 +836,7 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 	return steps
 }
 
-// Validating fields set to empty when omitted in-place
+// Validating fields set to empty when omitted in-place.
 func generateRuleRegoDefinedToOmittedTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
@@ -926,7 +925,7 @@ EOF
 	return steps
 }
 
-// Validating fields set to empty when set to empty list/set in-place
+// Validating fields set to empty when set to empty list/set in-place.
 func generateRuleRegoDefinedToEmptyTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
@@ -1018,7 +1017,7 @@ EOF
 	return steps
 }
 
-// Validate attack_types cannot be set for duplicate rules
+// Validate attack_types cannot be set for duplicate rules.
 func generateRuleCopyDefinedAttackTypeTests(config ruleCustomConfig) []resource.TestStep {
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := fmt.Sprintf("tfacc_definedToEmptyAttackTypesCopyRule_%s", randomSuffix)
@@ -1073,7 +1072,7 @@ func testGenerateControlBlock(c control) string {
 	`, c.authority, c.code)
 }
 
-// Test inheritance cycle: inherit from parent -> set to empty -> inherit from parent again
+// Test inheritance cycle: inherit from parent -> set to empty -> inherit from parent again.
 func generateRuleCopyInheritToEmptyToInheritTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
@@ -1198,7 +1197,7 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 	return steps
 }
 
-// Test creating a rule with empty arrays from the start and verify no plan changes on refresh
+// Test creating a rule with empty arrays from the start and verify no plan changes on refresh.
 func generateRuleCopyEmptyOnCreateTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
