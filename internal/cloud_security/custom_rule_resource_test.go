@@ -137,7 +137,7 @@ func TestCloudSecurityCustomRuleResource_AWS_Minimal(t *testing.T) {
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_AWS_MinimalLogic(t *testing.T) {
+func TestCloudSecurityCustomRuleResource_AWS_MinimalRego(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -193,6 +193,14 @@ func TestCloudSecurityCustomRuleResource_AWS_CopyInheritToEmptyToInherit(t *test
 	})
 }
 
+func TestCloudSecurityCustomRuleResource_AWS_CopyEmptyOnCreate(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleCopyEmptyOnCreateTests(awsCopyConfig, "AWS_EmptyCreate"),
+	})
+}
+
 // Azure Tests
 func TestCloudSecurityCustomRuleResource_Azure_Copy(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
@@ -218,7 +226,7 @@ func TestCloudSecurityCustomRuleResource_Azure_Minimal(t *testing.T) {
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_Azure_MinimalLogic(t *testing.T) {
+func TestCloudSecurityCustomRuleResource_Azure_MinimalRego(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -274,6 +282,14 @@ func TestCloudSecurityCustomRuleResource_Azure_CopyInheritToEmptyToInherit(t *te
 	})
 }
 
+func TestCloudSecurityCustomRuleResource_Azure_CopyEmptyOnCreate(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleCopyEmptyOnCreateTests(azureCopyConfig, "Azure_EmptyCreate"),
+	})
+}
+
 // GCP Tests
 func TestCloudSecurityCustomRuleResource_GCP_Copy(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
@@ -299,7 +315,7 @@ func TestCloudSecurityCustomRuleResource_GCP_Minimal(t *testing.T) {
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_GCP_MinimalLogic(t *testing.T) {
+func TestCloudSecurityCustomRuleResource_GCP_MinimalRego(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -352,6 +368,14 @@ func TestCloudSecurityCustomRuleResource_GCP_CopyInheritToEmptyToInherit(t *test
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps:                    generateRuleCopyInheritToEmptyToInheritTests(gcpCopyConfig, "GCP_InheritCycle"),
+	})
+}
+
+func TestCloudSecurityCustomRuleResource_GCP_CopyEmptyOnCreate(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleCopyEmptyOnCreateTests(gcpCopyConfig, "GCP_EmptyCreate"),
 	})
 }
 
@@ -1170,6 +1194,80 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 	steps = append(steps, inheritStep)
 	steps = append(steps, emptyStep)
 	steps = append(steps, inheritAgainStep)
+
+	return steps
+}
+
+// Test creating a rule with empty arrays from the start and verify no plan changes on refresh
+func generateRuleCopyEmptyOnCreateTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
+	var steps []resource.TestStep
+	randomSuffix := sdkacctest.RandString(8)
+	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
+	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName
+
+	configStr := fmt.Sprintf(`
+resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
+  resource_type    = "%s"
+  name             = "%s"
+  description      = "%s"
+  cloud_provider   = "%s"
+  severity         = "%s"
+  controls         = []
+  remediation_info = []
+  alert_info       = []
+  parent_rule_id   = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
+}
+
+data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
+  rule_name = "%[7]s"
+  benchmark = "%[8]s"
+}
+`, ruleName, config.resourceType, config.ruleBaseConfig.ruleNamePrefix+ruleName,
+		config.ruleBaseConfig.description[0], config.cloudProvider, config.severity[0],
+		config.parentRule.ruleName, config.parentRule.benchmark)
+
+	createStep := resource.TestStep{
+		Config: configStr,
+		Check: resource.ComposeAggregateTestCheckFunc(
+			resource.TestCheckResourceAttr(resourceName, "subdomain", config.ruleBaseConfig.subdomain),
+			resource.TestCheckResourceAttr(resourceName, "domain", config.ruleBaseConfig.domain),
+			resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
+			resource.TestCheckResourceAttr(resourceName, "name", config.ruleBaseConfig.ruleNamePrefix+ruleName),
+			resource.TestCheckResourceAttr(resourceName, "description", config.ruleBaseConfig.description[0]),
+			resource.TestCheckResourceAttr(resourceName, "cloud_platform", config.cloudPlatform),
+			resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
+			resource.TestCheckResourceAttr(resourceName, "severity", config.severity[0]),
+			resource.TestCheckResourceAttr(resourceName, "controls.#", "0"),
+			resource.TestCheckResourceAttr(resourceName, "alert_info.#", "0"),
+			resource.TestCheckResourceAttr(resourceName, "remediation_info.#", "0"),
+			resource.TestCheckResourceAttrSet(resourceName, "id"),
+			resource.TestCheckResourceAttrSet(resourceName, "parent_rule_id"),
+		),
+	}
+
+	refreshPlanStep := resource.TestStep{
+		Config:             configStr,
+		PlanOnly:           true,
+		ExpectNonEmptyPlan: false,
+	}
+
+	importTestStep := resource.TestStep{
+		ResourceName:                         resourceName,
+		ImportState:                          true,
+		ImportStateVerify:                    true,
+		ImportStateVerifyIdentifierAttribute: "id",
+		ImportStateIdFunc: func(s *terraform.State) (string, error) {
+			rs, ok := s.RootModule().Resources[resourceName]
+			if !ok {
+				return "", fmt.Errorf("Resource not found: %s", resourceName)
+			}
+			return rs.Primary.Attributes["id"], nil
+		},
+	}
+
+	steps = append(steps, createStep)
+	steps = append(steps, refreshPlanStep)
+	steps = append(steps, importTestStep)
 
 	return steps
 }

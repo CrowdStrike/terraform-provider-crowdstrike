@@ -674,10 +674,9 @@ func (r *cloudSecurityCustomRuleResource) createCloudPolicyRule(ctx context.Cont
 			return nil, diags
 		}
 
-		plan.RemediationInfo = configRemdiationInfo
-		plan.AlertInfo = configAlertInfo
-
 		if !plan.RemediationInfo.Equal(configRemdiationInfo) || !plan.AlertInfo.Equal(configAlertInfo) {
+			plan.RemediationInfo = configRemdiationInfo
+			plan.AlertInfo = configAlertInfo
 			rule, diags := r.updateCloudPolicyRule(ctx, plan)
 			if diags.HasError() {
 				return nil, diags
