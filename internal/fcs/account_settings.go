@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/crowdstrike/gofalcon/falcon/models"
-	"github.com/mitchellh/mapstructure"
+	"github.com/go-viper/mapstructure/v2"
 )
 
 const AWSVulnerabilityScanningCustomRoleKey = "vulnerability_scanning.role"

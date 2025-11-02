@@ -173,7 +173,7 @@ func (d *cloudAwsAccountsDataSource) Schema(
 						},
 						"agentless_scanning_role_name": schema.StringAttribute{
 							Computed:    true,
-							Description: "The name of the IAM role to be used by CrowdStrike Agentless Scanning (DSPM/Vulnerability scanning)",
+							Description: "The name of the IAM role to be used by CrowdStrike Agentless Scanning (DSPM/Vulnerability scanning). If both are configured, the DSPM role takes precedence.",
 						},
 						"asset_inventory_enabled": schema.BoolAttribute{
 							Computed:    true,

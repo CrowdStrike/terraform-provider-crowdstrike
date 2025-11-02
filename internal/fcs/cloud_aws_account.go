@@ -543,7 +543,7 @@ func (r *cloudAWSAccountResource) Schema(
 			},
 			"agentless_scanning_role_name": schema.StringAttribute{
 				Computed:    true,
-				Description: "The name of the IAM role to be used by CrowdStrike Agentless Scanning (DSPM/Vulnerability scanning)",
+				Description: "The name of the IAM role to be used by CrowdStrike Agentless Scanning (DSPM/Vulnerability scanning). If both are configured, the DSPM role takes precedence.",
 				PlanModifiers: []planmodifier.String{
 					agentlessScanningRoleNameStateModifier(),
 				},
@@ -1586,6 +1586,10 @@ func (r *cloudAWSAccountResource) ValidateConfig(
 
 	// Validate DSPM and vulnerability scanning role name consistency
 	if config.DSPM != nil && config.DSPM.Enabled.ValueBool() && config.VulnerabilityScanning != nil && config.VulnerabilityScanning.Enabled.ValueBool() {
+		if config.DSPM.RoleName.IsUnknown() || config.VulnerabilityScanning.RoleName.IsUnknown() {
+			return
+		}
+
 		dspmRole := config.DSPM.RoleName.ValueString()
 		vulnRole := config.VulnerabilityScanning.RoleName.ValueString()
 

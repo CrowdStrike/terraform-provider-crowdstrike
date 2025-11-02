@@ -124,6 +124,35 @@ resource "crowdstrike_cloud_aws_account" "%s" {
 `, resourceName, account, testDSPMRoleName)
 }
 
+func testAccCloudAwsAccountConfig_bothDSPMAndVulnEnabledNoRoles(resourceName, account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "%s" {
+  account_id = "%s"
+  dspm = {
+    enabled = true
+  }
+  vulnerability_scanning = {
+    enabled = true
+  }
+}
+`, resourceName, account)
+}
+
+func testAccCloudAwsAccountConfig_DSPMCustomRoleVulnDefaultRoleConfig(resourceName, account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "%s" {
+  account_id = "%s"
+  dspm = {
+    enabled   = true
+    role_name = "%s"
+  }
+  vulnerability_scanning = {
+    enabled = true
+  }
+}
+`, resourceName, account, testDSPMRoleName)
+}
+
 func TestAccCloudAwsAccountResource(t *testing.T) {
 	testResourceName := "test_main"
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, testResourceName)
@@ -392,6 +421,45 @@ func TestAccCloudAwsAccountResourceAgentlessRoleUpdates(t *testing.T) {
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", testVulnRoleName),
 					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", testVulnRoleName), // Should switch to vuln role
 				),
+			},
+		},
+	})
+}
+
+func TestAccCloudAwsAccountResourceBothEnabledDefaultRoles(t *testing.T) {
+	testResourceName := "test_both_dspm_and_vuln_default_role"
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, testResourceName)
+	account_id := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAwsAccountConfig_bothDSPMAndVulnEnabledNoRoles(testResourceName, account_id),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", account_id),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "true"),
+					// Both should use default roles - no validation error expected
+					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccCloudAwsAccountResourceMixedRoleConfiguration(t *testing.T) {
+	testResourceName := "test_dspm_custom_vuln_default_role"
+	account_id := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccCloudAwsAccountConfig_DSPMCustomRoleVulnDefaultRoleConfig(testResourceName, account_id),
+				ExpectError: regexp.MustCompile("Role Name Mismatch"),
 			},
 		},
 	})
