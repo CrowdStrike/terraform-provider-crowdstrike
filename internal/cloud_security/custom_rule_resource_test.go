@@ -266,6 +266,14 @@ func TestCloudSecurityCustomRuleResource_Azure_CopyDefinedAttackType(t *testing.
 	})
 }
 
+func TestCloudSecurityCustomRuleResource_Azure_CopyInheritToEmptyToInherit(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleCopyInheritToEmptyToInheritTests(azureCopyConfig, "Azure_InheritCycle"),
+	})
+}
+
 // GCP Tests
 func TestCloudSecurityCustomRuleResource_GCP_Copy(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
@@ -339,6 +347,14 @@ func TestCloudSecurityCustomRuleResource_GCP_CopyDefinedAttackType(t *testing.T)
 	})
 }
 
+func TestCloudSecurityCustomRuleResource_GCP_CopyInheritToEmptyToInherit(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateRuleCopyInheritToEmptyToInheritTests(gcpCopyConfig, "GCP_InheritCycle"),
+	})
+}
+
 // In-place updates of user defined remediation_info, alert_info, and controls for duplicate rules
 func generateRuleCopyTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
@@ -353,7 +369,7 @@ func generateRuleCopyTests(config ruleCustomConfig, ruleName string) []resource.
 		remediationInfo := strings.Join([]string{
 			`"` + strings.Join(config.ruleBaseConfig.remediationInfo[i], `","`) + `"`,
 		}, "")
-		newStep := resource.TestStep{
+		resourceStep := resource.TestStep{
 			Config: fmt.Sprintf(`
 resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
   resource_type    = "%s"
@@ -394,7 +410,23 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 				resource.TestCheckResourceAttrSet(resourceName, "parent_rule_id"),
 			),
 		}
-		steps = append(steps, newStep)
+
+		importTestStep := resource.TestStep{
+			ResourceName:                         resourceName,
+			ImportState:                          true,
+			ImportStateVerify:                    true,
+			ImportStateVerifyIdentifierAttribute: "id",
+			ImportStateIdFunc: func(s *terraform.State) (string, error) {
+				rs, ok := s.RootModule().Resources[resourceName]
+				if !ok {
+					return "", fmt.Errorf("Resource not found: %s", resourceName)
+				}
+				return rs.Primary.Attributes["id"], nil
+			},
+		}
+
+		steps = append(steps, resourceStep)
+		steps = append(steps, importTestStep)
 	}
 
 	return steps
