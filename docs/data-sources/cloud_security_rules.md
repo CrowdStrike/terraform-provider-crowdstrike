@@ -1,16 +1,16 @@
 ---
-page_title: "crowdstrike_cloud_posture_rules Data Source - crowdstrike"
-subcategory: "Cloud Posture"
+page_title: "crowdstrike_cloud_security_rules Data Source - crowdstrike"
+subcategory: "Cloud Security"
 description: |-
-  This data source retrieves detailed information about a specific cloud posture rule, including its unique identifier (ID) and associated attributes.All non-FQL fields can accept wildcards * and query Falcon using logical AND. If FQL is defined, all other fields will be ignored. For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter. For additional information on FQL filtering and usage, refer to the official CrowdStrike documentation: Falcon Query Language (FQL) https://falcon.crowdstrike.com/documentation/page/d3c84a1b/falcon-query-language-fql
+  This data source retrieves detailed information about a specific cloud security rule, including its unique identifier (ID) and associated attributes. All non-FQL fields can accept wildcards * and query Falcon using logical AND. If FQL is defined, all other fields will be ignored. For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter. For additional information on FQL filtering and usage, refer to the official CrowdStrike documentation: Falcon Query Language (FQL) https://falcon.crowdstrike.com/documentation/page/d3c84a1b/falcon-query-language-fql
   API Scopes
   The following API scopes are required:
   Cloud Security Policies | Read & Write
 ---
 
-# crowdstrike_cloud_posture_rules (Data Source)
+# crowdstrike_cloud_security_rules (Data Source)
 
-This data source retrieves detailed information about a specific cloud posture rule, including its unique identifier (ID) and associated attributes.All non-FQL fields can accept wildcards `*` and query Falcon using logical AND. If FQL is defined, all other fields will be ignored. For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter. For additional information on FQL filtering and usage, refer to the official CrowdStrike documentation: [Falcon Query Language (FQL)](https://falcon.crowdstrike.com/documentation/page/d3c84a1b/falcon-query-language-fql)
+This data source retrieves detailed information about a specific cloud security rule, including its unique identifier (ID) and associated attributes. All non-FQL fields can accept wildcards `*` and query Falcon using logical AND. If FQL is defined, all other fields will be ignored. For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter. For additional information on FQL filtering and usage, refer to the official CrowdStrike documentation: [Falcon Query Language (FQL)](https://falcon.crowdstrike.com/documentation/page/d3c84a1b/falcon-query-language-fql)
 
 ## API Scopes
 
@@ -35,24 +35,24 @@ provider "crowdstrike" {
 }
 
 # return a single rule within a cloud provider
-data "crowdstrike_cloud_posture_rules" "specific" {
+data "crowdstrike_cloud_security_rules" "specific" {
   cloud_provider = "AWS"
   rule_name      = "NLB/ALB configured publicly with TLS/SSL disabled"
 }
 
 # query by FQL filter
-data "crowdstrike_cloud_posture_rules" "original" {
+data "crowdstrike_cloud_security_rules" "original" {
   fql = "rule_name:'NLB/ALB configured publicly with TLS/SSL disabled'"
 }
 
 # return all rules for a specific resource type within a benchmark
-data "crowdstrike_cloud_posture_rules" "original" {
+data "crowdstrike_cloud_security_rules" "original" {
   resource_type = "AWS::ElasticLoadBalancingV2::*"
   benchmark     = "CIS 1.0.0 AWS Web Architecture"
 }
 
 # return all rules for a specific resource type within an entire framework
-data "crowdstrike_cloud_posture_rules" "original" {
+data "crowdstrike_cloud_security_rules" "original" {
   resource_type = "AWS::ElasticLoadBalancingV2::*"
   framework     = "CIS"
 }
@@ -68,12 +68,12 @@ data "crowdstrike_cloud_posture_rules" "original" {
 - `fql` (String) Falcon Query Language (FQL) filter for advanced control searches. FQL filter, allowed props: `rule_origin`, `rule_parent_uuid`, `rule_name`, `rule_description`, `rule_domain`, `rule_status`, `rule_severity`, `rule_short_code`, `rule_service`, `rule_resource_type`, `rule_provider`, `rule_subdomain`, `rule_auto_remediable`, `rule_control_requirement`, `rule_control_section`, `rule_compliance_benchmark`, `rule_compliance_framework`, `rule_mitre_tactic`, `rule_mitre_technique`, `rule_created_at`, `rule_updated_at`, `rule_updated_by`
 - `framework` (String) Name of the framework that this rule is attached to. Note that rules can be associated with multiple benchmarks. Examples: CIS, NIST
 - `resource_type` (String) Name of the resource type to search for. Examples: `AWS::IAM::CredentialReport`, `Microsoft.Compute/virtualMachines`, `container.googleapis.com/Cluster`.
-- `rule_name` (String) Name of the rule to search for. If no name is defined all rules in a cloud provider will be returned.
+- `rule_name` (String) Name of the rule to search for.
 - `service` (String) Name of the service within the cloud provider that rule is for. Examples: IAM, S3, Microsoft.Compute
 
 ### Read-Only
 
-- `rules` (Attributes Set) List of cloud posture rules (see [below for nested schema](#nestedatt--rules))
+- `rules` (Attributes Set) List of cloud security rules (see [below for nested schema](#nestedatt--rules))
 
 <a id="nestedatt--rules"></a>
 ### Nested Schema for `rules`
@@ -95,7 +95,7 @@ Read-Only:
 - `remediation_info` (List of String) Information about how to remediate issues detected by this rule.
 - `resource_type` (String) The full resource type. Format examples: `AWS::IAM::CredentialReport`, `Microsoft.Compute/virtualMachines`, `container.googleapis.com/Cluster`
 - `severity` (String) Severity of the rule. Valid values are `critical`, `high`, `medium`, `informational`.
-- `subdomain` (String) Subdomain for the policy rule. Valid values are 'IOM' (Indicators of Misconfiguration) or 'IAC' (Infrastructure as Code). IOM is only supported at this time.
+- `subdomain` (String) Subdomain for the policy rule. Valid values are 'IOM' (Indicators of Misconfiguration) or 'IAC' (Infrastructure as Code).
 
 <a id="nestedatt--rules--controls"></a>
 ### Nested Schema for `rules.controls`
