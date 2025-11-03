@@ -203,19 +203,3 @@ func convertSectionsTFMapToDomainMapByName(ctx context.Context, sections map[str
 
 	return sectionsDomainMap, diags
 }
-
-func (r *cloudComplianceCustomFrameworkResource) buildControlsByIDMap(
-	stateControls map[string]map[string]ControlTFModel,
-) map[string]ControlTFModel {
-	controlsByID := make(map[string]ControlTFModel)
-
-	for _, sectionControls := range stateControls {
-		for _, control := range sectionControls {
-			if !control.ID.IsNull() && !control.ID.IsUnknown() {
-				controlsByID[control.ID.ValueString()] = control
-			}
-		}
-	}
-
-	return controlsByID
-}

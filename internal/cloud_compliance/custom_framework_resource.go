@@ -3,9 +3,10 @@ package cloudcompliance
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"regexp"
 	"strings"
+
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
@@ -243,21 +244,11 @@ func (r *cloudComplianceCustomFrameworkResource) Create(
 		"name": plan.Name.ValueString(),
 	})
 
-	params := buildCreateFrameworkParams(ctx, plan)
-	createResp, err := r.client.CloudPolicies.CreateComplianceFramework(params)
-	if err != nil {
-		resp.Diagnostics.Append(handleAPIError(err, apiOperationCreateFramework, "")...)
-		return
-	}
-
-	payload := createResp.GetPayload()
-	resp.Diagnostics.Append(validateAPIResponse(payload, errorCreatingFramework)...)
+	framework, createFrameworkDiags := r.createFramework(ctx, plan)
+	resp.Diagnostics.Append(createFrameworkDiags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	// Get the created framework from response
-	framework := payload.Resources[0]
 
 	// Set the ID early for proper cleanup
 	plan.ID = types.StringValue(framework.UUID)
@@ -289,7 +280,7 @@ func (r *cloudComplianceCustomFrameworkResource) Create(
 
 	// Read controls and sections data if sections were created
 	if !plan.Sections.IsNull() && !plan.Sections.IsUnknown() {
-		sections, sectionsDiags := r.readControlsForFramework(ctx, *framework, planSectionsMapByKey)
+		sections, sectionsDiags := r.readControlsForFramework(ctx, *framework.Name, planSectionsMapByKey)
 		resp.Diagnostics.Append(sectionsDiags...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -318,32 +309,16 @@ func (r *cloudComplianceCustomFrameworkResource) Read(
 		"id": state.ID.ValueString(),
 	})
 
-	params := cloud_policies.NewGetComplianceFrameworksParamsWithContext(ctx)
-	params.SetIds([]string{state.ID.ValueString()})
-
-	getResp, err := r.client.CloudPolicies.GetComplianceFrameworks(params)
-	if err != nil {
-		resp.Diagnostics.Append(handleAPIError(err, apiOperationReadFramework, state.ID.ValueString())...)
-		if _, ok := err.(*cloud_policies.GetComplianceFrameworksNotFound); ok {
-			// Framework not found, remove from state
-			resp.State.RemoveResource(ctx)
-		}
-		return
-	}
-
-	payload := getResp.GetPayload()
-	resp.Diagnostics.Append(validateAPIResponse(payload, errorReadingFramework)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if len(payload.Resources) < 1 {
-		// Framework not found, remove from state
+	framework, getFrameworkDiags, frameworkNotFound := r.getFramework(ctx, state.ID.ValueString())
+	resp.Diagnostics.Append(getFrameworkDiags...)
+	if frameworkNotFound {
 		resp.State.RemoveResource(ctx)
 		return
 	}
 
-	framework := payload.Resources[0]
+	if framework == nil {
+		return
+	}
 
 	// Update state with API response
 	resp.Diagnostics.Append(state.wrap(ctx, framework)...)
@@ -353,7 +328,7 @@ func (r *cloudComplianceCustomFrameworkResource) Read(
 
 	var stateSectionsMap map[string]SectionTFModel
 	resp.Diagnostics.Append(state.Sections.ElementsAs(ctx, &stateSectionsMap, false)...)
-	sectionsMap, sectionsDiags := r.readControlsForFramework(ctx, *framework, stateSectionsMap)
+	sectionsMap, sectionsDiags := r.readControlsForFramework(ctx, *framework.Name, stateSectionsMap)
 	resp.Diagnostics.Append(sectionsDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -375,14 +350,9 @@ func (r *cloudComplianceCustomFrameworkResource) Update(
 	resp *resource.UpdateResponse,
 ) {
 	var plan cloudComplianceCustomFrameworkResourceModel
+	var state cloudComplianceCustomFrameworkResourceModel
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Get current state to check if we're trying to change active from true to false
-	var state cloudComplianceCustomFrameworkResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -398,53 +368,36 @@ func (r *cloudComplianceCustomFrameworkResource) Update(
 		"id": plan.ID.ValueString(),
 	})
 
-	params := buildUpdateFrameworkParams(ctx, plan)
-	updateResp, err := r.client.CloudPolicies.UpdateComplianceFramework(params)
-	if err != nil {
-		resp.Diagnostics.Append(handleAPIError(err, apiOperationUpdateFramework, plan.ID.ValueString())...)
-		return
+	if plan.Name.Equal(state.Name) || plan.Description.Equal(state.Description) || plan.Active.Equal(state.Active) {
+		params := buildUpdateFrameworkParams(ctx, plan)
+		updateResp, err := r.client.CloudPolicies.UpdateComplianceFramework(params)
+		if err != nil {
+			resp.Diagnostics.Append(handleAPIError(err, apiOperationUpdateFramework, state.ID.ValueString())...)
+			return
+		}
+
+		payload := updateResp.GetPayload()
+		resp.Diagnostics.Append(validateAPIResponse(payload, errorUpdatingFramework)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 
-	payload := updateResp.GetPayload()
-	resp.Diagnostics.Append(validateAPIResponse(payload, errorUpdatingFramework)...)
+	frameworkID := state.ID.ValueString()
+	framework, getFrameworkDiags, frameworkNotFound := r.getFramework(ctx, frameworkID)
+	resp.Diagnostics.Append(getFrameworkDiags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Get the updated framework from response
-	framework := payload.Resources[0]
-
-	// Get current state sections to compare
-	stateSections := make(map[string]SectionTFModel)
-	if !state.Sections.IsNull() && !state.Sections.IsUnknown() {
-		resp.Diagnostics.Append(state.Sections.ElementsAs(ctx, &stateSections, false)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
+	if frameworkNotFound {
+		var diags diag.Diagnostics
+		framework, diags = r.createFramework(ctx, plan)
+		resp.Diagnostics.Append(diags...)
 	}
 
-	// Handle sections/controls/rules updates using differential approach
-	// This preserves existing control IDs and only creates/updates/deletes as needed
-	var planSections map[string]SectionTFModel
-	if !plan.Sections.IsNull() && !plan.Sections.IsUnknown() && !plan.Sections.Equal(state.Sections) {
-		resp.Diagnostics.Append(plan.Sections.ElementsAs(ctx, &planSections, false)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		// Update controls differentially
-		updatedPlanSections, updateDiags := r.updateControlsForFramework(ctx, plan.ID.ValueString(), stateSections, planSections)
-		resp.Diagnostics.Append(updateDiags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		plan.Sections = updatedPlanSections
-	} else if !state.Sections.IsNull() && !state.Sections.IsUnknown() {
-		// If plan has no sections but state does, delete all existing controls
-		resp.Diagnostics.Append(r.deleteControlsForFramework(ctx, plan.Name.ValueString())...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
+	if framework == nil || resp.Diagnostics.HasError() {
+		return
 	}
 
 	// Update the plan with the API response
@@ -453,18 +406,49 @@ func (r *cloudComplianceCustomFrameworkResource) Update(
 		return
 	}
 
-	// Read back the controls to ensure state consistency only if sections are configured
+	// If the plan for sections is the same as state, set the new state without processing sections
+	if !plan.Sections.Equal(state.Sections) {
+		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+		return
+	}
+
+	var stateSections map[string]SectionTFModel
+	var planSections map[string]SectionTFModel
+	if !state.Sections.IsNull() && !state.Sections.IsUnknown() {
+		resp.Diagnostics.Append(state.Sections.ElementsAs(ctx, &stateSections, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
 
 	if !plan.Sections.IsNull() && !plan.Sections.IsUnknown() {
-		sectionsSet, sectionsDiags := r.readControlsForFramework(ctx, *framework, planSections)
+		resp.Diagnostics.Append(plan.Sections.ElementsAs(ctx, &planSections, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		resp.Diagnostics.Append(r.processSectionUpdates(ctx, frameworkID, stateSections, planSections)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	} else if !state.Sections.IsNull() && !state.Sections.IsUnknown() {
+		// If plan has no sections but state does, delete all existing controls
+		resp.Diagnostics.Append(r.deleteAllControlsForFramework(ctx, plan.Name.ValueString())...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
+	// Read back the controls to ensure state consistency only if sections are configured
+	if !plan.Sections.IsNull() && !plan.Sections.IsUnknown() {
+		sectionsMap, sectionsDiags := r.readControlsForFramework(ctx, *framework.Name, planSections)
 		resp.Diagnostics.Append(sectionsDiags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		plan.Sections = sectionsSet
+		plan.Sections = sectionsMap
 	}
 
-	// Set state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -486,7 +470,7 @@ func (r *cloudComplianceCustomFrameworkResource) Delete(
 	})
 
 	// First delete all controls associated with this framework
-	resp.Diagnostics.Append(r.deleteControlsForFramework(ctx, state.Name.ValueString())...)
+	resp.Diagnostics.Append(r.deleteAllControlsForFramework(ctx, state.Name.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -529,7 +513,6 @@ func (r *cloudComplianceCustomFrameworkResource) ImportState(
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
 ) {
-	// Retrieve import ID and save to id attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
@@ -574,6 +557,27 @@ func (r *cloudComplianceCustomFrameworkResource) ValidateConfig(
 	}
 }
 
+func (r *cloudComplianceCustomFrameworkResource) createFramework(
+	ctx context.Context,
+	plan cloudComplianceCustomFrameworkResourceModel,
+) (*models.ApimodelsSecurityFramework, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	params := buildCreateFrameworkParams(ctx, plan)
+	createResp, err := r.client.CloudPolicies.CreateComplianceFramework(params)
+	if err != nil {
+		diags.Append(handleAPIError(err, apiOperationCreateFramework, "")...)
+		return nil, diags
+	}
+
+	payload := createResp.GetPayload()
+	diags.Append(validateAPIResponse(payload, errorCreatingFramework)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	return payload.Resources[0], diags
+}
+
 // createControlsForFramework creates controls and assigns rules for a framework
 func (r *cloudComplianceCustomFrameworkResource) createControlsForFramework(
 	ctx context.Context,
@@ -590,27 +594,21 @@ func (r *cloudComplianceCustomFrameworkResource) createControlsForFramework(
 		}
 
 		for _, control := range sectionControls {
-			_, createDiags := r.createSingleControlAndReturn(ctx, frameworkID, section.Name.ValueString(), control)
-			diags.Append(createDiags...)
-			if diags.HasError() {
-				continue
-			}
+			diags.Append(r.createSingleControl(ctx, frameworkID, section.Name.ValueString(), control)...)
 		}
 	}
 
 	return diags
 }
 
-// createSingleControlAndReturn creates a single control and returns the control model with ID
-func (r *cloudComplianceCustomFrameworkResource) createSingleControlAndReturn(
+// createSingleControl creates a single control
+func (r *cloudComplianceCustomFrameworkResource) createSingleControl(
 	ctx context.Context,
 	frameworkID string,
 	sectionName string,
 	control ControlTFModel,
-) (ControlTFModel, diag.Diagnostics) {
+) diag.Diagnostics {
 	diags := diag.Diagnostics{}
-	emptyControl := ControlTFModel{}
-
 	controlDesc := control.Description.ValueString()
 	controlName := control.Name.ValueString()
 	params := buildCreateControlParams(ctx, frameworkID, sectionName, controlName, controlDesc)
@@ -618,13 +616,13 @@ func (r *cloudComplianceCustomFrameworkResource) createSingleControlAndReturn(
 	createResp, err := r.client.CloudPolicies.CreateComplianceControl(params)
 	if err != nil {
 		diags.Append(handleAPIError(err, apiOperationCreateControl, "")...)
-		return emptyControl, diags
+		return diags
 	}
 
 	payload := createResp.GetPayload()
 	diags.Append(validateAPIResponse(payload, errorCreatingControl)...)
 	if diags.HasError() {
-		return emptyControl, diags
+		return diags
 	}
 
 	// Assign rules to control if any
@@ -633,7 +631,7 @@ func (r *cloudComplianceCustomFrameworkResource) createSingleControlAndReturn(
 	if !control.Rules.IsNull() && len(control.Rules.Elements()) > 0 {
 		diags.Append(control.Rules.ElementsAs(ctx, &ruleIds, false)...)
 		if diags.HasError() {
-			return emptyControl, diags
+			return diags
 		}
 
 		tflog.Info(ctx, "Assigning rules to control", map[string]any{
@@ -653,27 +651,51 @@ func (r *cloudComplianceCustomFrameworkResource) createSingleControlAndReturn(
 				"Error Assigning Rules",
 				fmt.Sprintf("Failed to assign rules to control %s: %s", controlName, falcon.ErrorExplain(assignRulesErr)),
 			)
-			return emptyControl, diags
+			return diags
 		}
 	}
 
-	// Return the control model with the new ID
-	return ControlTFModel{
-		ID:          types.StringValue(*controlID),
-		Name:        control.Name,
-		Description: control.Description,
-		Rules:       control.Rules,
-	}, diags
+	return diags
+}
+
+func (r *cloudComplianceCustomFrameworkResource) getFramework(
+	ctx context.Context,
+	frameworkId string,
+) (*models.ApimodelsSecurityFramework, diag.Diagnostics, bool) {
+	var diags diag.Diagnostics
+	params := cloud_policies.NewGetComplianceFrameworksParamsWithContext(ctx)
+	params.SetIds([]string{frameworkId})
+
+	getResp, err := r.client.CloudPolicies.GetComplianceFrameworks(params)
+	if err != nil {
+		diags.Append(handleAPIError(err, apiOperationReadFramework, frameworkId)...)
+		if _, ok := err.(*cloud_policies.GetComplianceFrameworksNotFound); ok {
+			return nil, diags, true
+		}
+
+		return nil, diags, false
+	}
+
+	payload := getResp.GetPayload()
+	diags.Append(validateAPIResponse(payload, errorReadingFramework)...)
+	if diags.HasError() {
+		return nil, diags, false
+	}
+
+	if len(payload.Resources) == 0 {
+		return nil, diags, true
+	}
+
+	return payload.Resources[0], diags, false
 }
 
 // readControlsForFramework reads controls and rules for a framework and returns sections as terraform map
 func (r *cloudComplianceCustomFrameworkResource) readControlsForFramework(
 	ctx context.Context,
-	framework models.ApimodelsSecurityFramework,
+	frameworkName string,
 	sectionsMapByKey map[string]SectionTFModel,
 ) (types.Map, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	frameworkName := *framework.Name
 
 	controlIDs, queryDiags := r.queryFrameworkControls(ctx, frameworkName)
 	diags.Append(queryDiags...)
@@ -695,7 +717,6 @@ func (r *cloudComplianceCustomFrameworkResource) readControlsForFramework(
 		return types.MapNull(types.ObjectType{}), diags
 	}
 
-	// convert sectionsTFModelMap to sectionsDomainModelsMap
 	sectionsDomainMapByName, sectionsDomainMapDiags := convertSectionsTFMapToDomainMapByName(ctx, sectionsMapByKey)
 	diags.Append(sectionsDomainMapDiags...)
 	if diags.HasError() {
@@ -704,7 +725,6 @@ func (r *cloudComplianceCustomFrameworkResource) readControlsForFramework(
 
 	// Organize controls by section
 	nameToKey := make(map[string]string)
-	keyToName := make(map[string]string)
 	respSectionsMapByNames := make(map[string]map[string]ControlTFModel)
 	for _, apiControl := range apiControls {
 		sectionName := apiControl.SectionName
@@ -727,11 +747,9 @@ func (r *cloudComplianceCustomFrameworkResource) readControlsForFramework(
 		}
 
 		if _, exists := nameToKey[sectionName]; !exists {
-			keyToName[sectionKey] = sectionName
 			nameToKey[sectionName] = sectionKey
 		}
 
-		keyToName[controlKey] = controlName
 		nameToKey[controlName] = controlKey
 
 		// Initialize section if it does not exist
@@ -873,148 +891,96 @@ func (r *cloudComplianceCustomFrameworkResource) readControlWithRules(
 	}, diags
 }
 
-// updateControlsForFramework updates controls differentially to preserve existing control IDs
-func (r *cloudComplianceCustomFrameworkResource) updateControlsForFramework(
+func (r *cloudComplianceCustomFrameworkResource) processSectionUpdates(
 	ctx context.Context,
 	frameworkID string,
 	stateSections map[string]SectionTFModel,
 	planSections map[string]SectionTFModel,
-) (types.Map, diag.Diagnostics) {
+) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	for planSectionKey, planSection := range planSections {
-		if planSection.Controls.Equal(stateSections[planSectionKey].Controls) && planSection.Name.Equal(stateSections[planSectionKey].Name) {
+	// Process each section in the plan
+	keyToName := make(map[string]string)
+	for sectionKey, planSection := range planSections {
+		sectionName := planSection.Name.ValueString()
+		keyToName[sectionKey] = sectionName
+		stateSection, isSectionInState := stateSections[sectionKey]
+
+		var stateSectionControls map[string]ControlTFModel
+		if isSectionInState {
+			diags.Append(stateSection.Controls.ElementsAs(ctx, &stateSectionControls, false)...)
+			if diags.HasError() {
+				continue
+			}
+		}
+
+		if isSectionInState && !planSection.Name.Equal(stateSection.Name) {
+			diags.Append(r.handleSectionRename(ctx, frameworkID, stateSection.Name.ValueString(), sectionName)...)
+		}
+
+		var planSectionControls map[string]ControlTFModel
+		diags.Append(planSection.Controls.ElementsAs(ctx, &planSectionControls, false)...)
+		if diags.HasError() {
 			continue
 		}
 
+		diags.Append(r.updateSectionControls(ctx, frameworkID, sectionName, stateSectionControls, planSectionControls)...)
 	}
 
-	// Build existing controls map for lookup
-	stateControls, buildDiags := r.buildControlsMapById(ctx, stateSections)
-	diags.Append(buildDiags...)
-	if diags.HasError() {
-		return types.MapNull(types.ObjectType{}), diags
+	for sectionKey, stateSection := range stateSections {
+		if _, isInPlan := keyToName[sectionKey]; !isInPlan {
+			var stateSectionControls map[string]ControlTFModel
+			diags.Append(stateSection.Controls.ElementsAs(ctx, &stateSectionControls, false)...)
+			if diags.HasError() {
+				continue
+			}
+
+			diags.Append(r.deleteRemovedControls(ctx, stateSectionControls, nil)...)
+		}
 	}
 
-	// Process control updates
-	updatedSections, processDiags := r.processControlUpdates(ctx, frameworkID, stateControls, planSections)
-	diags.Append(processDiags...)
+	return diags
+}
+
+// updateSectionControls updates controls differentially to preserve existing control IDs.
+func (r *cloudComplianceCustomFrameworkResource) updateSectionControls(
+	ctx context.Context,
+	frameworkID, sectionName string,
+	stateControls, planControls map[string]ControlTFModel,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	for controlKey, planControl := range planControls {
+		// If state controls does not exist create all new controls
+		if stateControls == nil {
+			diags.Append(r.createSingleControl(ctx, frameworkID, sectionName, planControl)...)
+			continue
+		}
+
+		stateControl, controlExists := stateControls[controlKey]
+		if controlExists {
+			if !planControl.Name.Equal(stateControl.Name) || !planControl.Description.Equal(stateControl.Description) {
+				diags.Append(r.updateExistingControl(ctx, planControl, sectionName)...)
+			}
+
+			// Update rules, if necessary
+			if !planControl.Rules.Equal(stateControl.Rules) {
+				diags.Append(r.updateControlRules(ctx, planControl)...)
+			}
+
+			continue
+		}
+
+		diags.Append(r.createSingleControl(ctx, frameworkID, sectionName, planControl)...)
+	}
+
 	if diags.HasError() {
-		return types.MapNull(types.ObjectType{}), diags
+		return diags
 	}
 
 	// Delete controls that no longer exist in plan
-	deleteDiags := r.deleteRemovedControls(ctx, stateControls, planSections)
-	diags.Append(deleteDiags...)
-
-	// Convert to Terraform map
-	sectionsMap, mapDiags := convertSectionsMapToTerraformMap(ctx, updatedSections)
-	diags.Append(mapDiags...)
-
-	return sectionsMap, diags
-}
-
-// Helper functions for updateControlsForFramework
-func (r *cloudComplianceCustomFrameworkResource) buildControlsMapById(
-	ctx context.Context,
-	stateSections map[string]SectionTFModel,
-) (map[string]map[string]ControlTFModel, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	stateControls := make(map[string]map[string]ControlTFModel)
-
-	for sectionName, section := range stateSections {
-		var sectionControls map[string]ControlTFModel
-		diags.Append(section.Controls.ElementsAs(ctx, &sectionControls, false)...)
-		if diags.HasError() {
-			continue
-		}
-		stateControls[sectionName] = sectionControls
-	}
-
-	return stateControls, diags
-}
-
-func (r *cloudComplianceCustomFrameworkResource) processControlUpdates(
-	ctx context.Context,
-	frameworkID string,
-	stateControlsByKey map[string]map[string]ControlTFModel,
-	planSections map[string]SectionTFModel,
-) (map[string]SectionTFModel, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	updatedSections := make(map[string]SectionTFModel)
-
-	// Process each section in the plan
-	for sectionKey, planSection := range planSections {
-		sectionName := planSection.Name.ValueString()
-
-		var planControlsByKey map[string]ControlTFModel
-		diags.Append(planSection.Controls.ElementsAs(ctx, &planControlsByKey, false)...)
-		if diags.HasError() {
-			continue
-		}
-
-		updatedControls := make(map[string]ControlTFModel)
-
-		// Process each control in this section
-		nameToKey := make(map[string]string)
-		for controlKey, planControl := range planControlsByKey {
-			// Store map of name to key for later
-			nameToKey[planControl.Name.ValueString()] = controlKey
-
-			// Check if control exists in current state
-			if existingSection, sectionExists := stateControlsByKey[sectionKey]; sectionExists {
-				if existingControl, controlExists := existingSection[controlKey]; controlExists {
-					updateDiags := r.updateExistingControl(ctx, planControl, sectionName)
-					diags.Append(updateDiags...)
-
-					// Update rules, if necessary
-					if existingControl.Rules.Equal(planControl.Rules) {
-						rulesDiags := r.updateControlRules(ctx, planControl)
-						diags.Append(rulesDiags...)
-					}
-
-					updatedControls[controlKey] = planControl
-					continue
-				} else {
-					// No existing control found, create new one
-					tflog.Debug(ctx, "PROCESS: Creating new control", map[string]any{
-						"controlName": planControl.Name.ValueString(),
-						"sectionName": sectionName,
-					})
-					createdControl, createDiags := r.createSingleControlAndReturn(ctx, frameworkID, sectionName, planControl)
-					diags.Append(createDiags...)
-					if !diags.HasError() {
-						updatedControls[controlKey] = createdControl
-					}
-				}
-			}
-
-			// No existing control found, create new one
-			tflog.Debug(ctx, "PROCESS: Creating new control", map[string]any{
-				"controlName": planControl.Name.ValueString(),
-				"sectionName": sectionName,
-			})
-			createdControl, createDiags := r.createSingleControlAndReturn(ctx, frameworkID, sectionName, planControl)
-			diags.Append(createDiags...)
-			if !diags.HasError() {
-				updatedControls[controlKey] = createdControl
-			}
-		}
-
-		// Convert to Terraform map
-		controlsMap, controlsMapDiags := convertControlsMapToTerraformMap(ctx, updatedControls, nameToKey)
-		diags.Append(controlsMapDiags...)
-		if diags.HasError() {
-			continue
-		}
-
-		updatedSections[sectionKey] = SectionTFModel{
-			Name:     planSection.Name,
-			Controls: controlsMap,
-		}
-	}
-
-	return updatedSections, diags
+	diags.Append(r.deleteRemovedControls(ctx, stateControls, planControls)...)
+	return diags
 }
 
 func (r *cloudComplianceCustomFrameworkResource) updateExistingControl(
@@ -1026,10 +992,10 @@ func (r *cloudComplianceCustomFrameworkResource) updateExistingControl(
 
 	controlID := planControl.ID.ValueString()
 	controlName := planControl.Name.ValueString()
-	//controlDesc := planControl.Description.ValueString()
+	controlDesc := planControl.Description.ValueString()
 	updateReq := &models.CommonUpdateComplianceControlRequest{
-		Name: &controlName,
-		//Description: &controlDesc,
+		Name:        &controlName,
+		Description: &controlDesc,
 	}
 
 	updateParams := cloud_policies.NewUpdateComplianceControlParamsWithContext(ctx).
@@ -1039,7 +1005,7 @@ func (r *cloudComplianceCustomFrameworkResource) updateExistingControl(
 	_, err := r.client.CloudPolicies.UpdateComplianceControl(updateParams)
 	if err != nil {
 		diags.AddError(errorUpdatingControl,
-			fmt.Sprintf("Failed to update control %s in section %s: %s", controlName, sectionName, falcon.ErrorExplain(err)))
+			fmt.Sprintf("Failed to update control %s in section %s: %s", controlID, sectionName, falcon.ErrorExplain(err)))
 	}
 
 	return diags
@@ -1079,99 +1045,66 @@ func (r *cloudComplianceCustomFrameworkResource) updateControlRules(
 
 func (r *cloudComplianceCustomFrameworkResource) deleteRemovedControls(
 	ctx context.Context,
-	stateControls map[string]map[string]ControlTFModel,
-	planSections map[string]SectionTFModel,
+	stateControls map[string]ControlTFModel,
+	planControls map[string]ControlTFModel,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
+	controlIDsToDelete := make([]string, 0)
 
 	// Delete controls that exist in state but not in plan
-	for stateSectionName, stateSection := range stateControls {
-		for stateControlName, stateControl := range stateSection {
-			// Check if this control still exists in the plan
-			controlStillExists := false
-			if _, sectionExists := planSections[stateSectionName]; sectionExists {
-				var planControls map[string]ControlTFModel
-				diags.Append(planSections[stateSectionName].Controls.ElementsAs(ctx, &planControls, false)...)
-				if !diags.HasError() {
-					if _, controlExists := planControls[stateControlName]; controlExists {
-						controlStillExists = true
-					}
-				}
-			}
+	for stateControlKey, stateControl := range stateControls {
+		// If plan controls is nil, add all state controls to list of control IDs to be deleted
+		if planControls == nil {
+			controlIDsToDelete = append(controlIDsToDelete, stateControl.ID.ValueString())
+			continue
+		}
 
-			if !controlStillExists {
-				// Delete this control
-				controlID := stateControl.ID.ValueString()
-				deleteParams := cloud_policies.NewDeleteComplianceControlParamsWithContext(ctx).WithIds([]string{controlID})
-				_, err := r.client.CloudPolicies.DeleteComplianceControl(deleteParams)
-				if err != nil {
-					diags.AddWarning("Error Deleting Control",
-						fmt.Sprintf("Failed to delete control %s: %s", stateControlName, falcon.ErrorExplain(err)))
-				}
-			}
+		if _, isControlInPlan := planControls[stateControlKey]; isControlInPlan {
+			continue
+		}
+
+		// Delete the control if there is a plan and the control is not in the plan
+		controlIDsToDelete = append(controlIDsToDelete, stateControl.ID.ValueString())
+	}
+
+	if len(controlIDsToDelete) > 0 {
+		deleteParams := cloud_policies.NewDeleteComplianceControlParamsWithContext(ctx).WithIds(controlIDsToDelete)
+		_, err := r.client.CloudPolicies.DeleteComplianceControl(deleteParams)
+		if err != nil {
+			diags.AddWarning("Error Deleting Control",
+				fmt.Sprintf("Failed to delete controls %s: %s", controlIDsToDelete, falcon.ErrorExplain(err)))
 		}
 	}
 
 	return diags
 }
 
-// detectSectionRenames identifies section renames by comparing section IDs with different names
-func (r *cloudComplianceCustomFrameworkResource) detectSectionRenames(
+func (r *cloudComplianceCustomFrameworkResource) handleSectionRename(
 	ctx context.Context,
-	stateSections, planSections map[string]SectionTFModel,
-) map[string]string {
-	renames := make(map[string]string)
-
-	// Check for sections with same ID but different names
-	for sectionID, planSection := range planSections {
-		if stateSection, exists := stateSections[sectionID]; exists {
-			stateName := stateSection.Name.ValueString()
-			planName := planSection.Name.ValueString()
-
-			// If same ID but different names, it's a rename
-			if stateName != planName {
-				renames[stateName] = planName
-			}
-		}
-	}
-
-	return renames
-}
-
-// handleSectionRenames detects and processes section renames using section IDs
-func (r *cloudComplianceCustomFrameworkResource) handleSectionRenames(
-	ctx context.Context,
-	frameworkID string,
-	stateSections map[string]SectionTFModel,
-	planSections map[string]SectionTFModel,
+	frameworkID, oldSectionName, newSectionName string,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	// Use private state to detect renames
-	sectionRenames := r.detectSectionRenames(ctx, stateSections, planSections)
-
 	// Execute section renames using the special API
-	for oldSectionName, newSectionName := range sectionRenames {
-		tflog.Info(ctx, "Renaming section", map[string]any{
-			"frameworkID":    frameworkID,
-			"oldSectionName": oldSectionName,
-			"newSectionName": newSectionName,
-		})
+	tflog.Info(ctx, "Renaming section", map[string]any{
+		"frameworkID":    frameworkID,
+		"oldSectionName": oldSectionName,
+		"newSectionName": newSectionName,
+	})
 
-		params := buildRenameSectionParams(ctx, frameworkID, oldSectionName, newSectionName)
-		_, err := r.client.CloudPolicies.RenameSectionComplianceFramework(params)
-		if err != nil {
-			diags.AddError(
-				"Error Renaming Section",
-				fmt.Sprintf("Failed to rename section from '%s' to '%s': %s", oldSectionName, newSectionName, falcon.ErrorExplain(err)),
-			)
-		}
+	params := buildRenameSectionParams(ctx, frameworkID, oldSectionName, newSectionName)
+	_, err := r.client.CloudPolicies.RenameSectionComplianceFramework(params)
+	if err != nil {
+		diags.AddError(
+			"Error Renaming Section",
+			fmt.Sprintf("Failed to rename section from '%s' to '%s': %s", oldSectionName, newSectionName, falcon.ErrorExplain(err)),
+		)
 	}
 
 	return diags
 }
 
-func (r *cloudComplianceCustomFrameworkResource) deleteControlsForFramework(
+func (r *cloudComplianceCustomFrameworkResource) deleteAllControlsForFramework(
 	ctx context.Context,
 	frameworkName string,
 ) diag.Diagnostics {
@@ -1198,7 +1131,7 @@ func (r *cloudComplianceCustomFrameworkResource) deleteControlsForFramework(
 // generateKeyFromName converts "Section 1" to "section-1"
 func (r *cloudComplianceCustomFrameworkResource) generateKeyFromName(name string) string {
 	key := strings.ToLower(name)
-	key = regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(key, "-")
+	key = regexp.MustCompile(`[^a-z0-9.]+`).ReplaceAllString(key, "-")
 	key = strings.Trim(key, "-")
 
 	return key
