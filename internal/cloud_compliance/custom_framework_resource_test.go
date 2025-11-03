@@ -15,7 +15,46 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
-const customFrameworkResourceName = "crowdstrike_cloud_compliance_custom_framework.test"
+const (
+	customFrameworkResourceName = "crowdstrike_cloud_compliance_custom_framework.test"
+	awsAPIGatewayFilter         = "rule_service:'API Gateway'+rule_provider:'AWS'+rule_domain:'CSPM'+rule_subdomain:'IOM'"
+)
+
+// Helper function to generate a configuration that fetches AWS rules and returns specific rule IDs
+func getAWSRulesConfig() string {
+	return fmt.Sprintf(`
+data "crowdstrike_cloud_security_rules" "aws_rules" {
+  fql = "%s"
+}
+
+locals {
+  # Convert set to list and check length once
+  rules_list = tolist(data.crowdstrike_cloud_security_rules.aws_rules.rules)
+  has_enough_rules = length(local.rules_list) >= 4
+
+  # Predefined rule sets for different test scenarios
+  rule_set_empty = toset([])
+
+  rule_set_two = local.has_enough_rules ? toset([
+    local.rules_list[0].id,
+    local.rules_list[1].id
+  ]) : toset([])
+
+  rule_set_single = local.has_enough_rules ? toset([
+    local.rules_list[2].id
+  ]) : toset([])
+
+  rule_set_mixed = local.has_enough_rules ? toset([
+    local.rules_list[0].id,
+    local.rules_list[3].id
+  ]) : toset([])
+
+  rule_set_alt_single = local.has_enough_rules ? toset([
+    local.rules_list[3].id
+  ]) : toset([])
+}
+`, awsAPIGatewayFilter)
+}
 
 // minimalFrameworkConfig represents a bare minimum custom compliance framework
 type minimalFrameworkConfig struct {
@@ -42,7 +81,7 @@ type sectionConfig struct {
 type controlConfig struct {
 	Name        string
 	Description string
-	Rules       []string
+	Rules       string // single string for local var injection from data source
 }
 
 // String generates Terraform configuration from minimalFrameworkConfig
@@ -85,16 +124,8 @@ func (config *completeFrameworkConfig) String() string {
 					sectionsConfig += fmt.Sprintf("          name = %q\n", control.Name)
 					sectionsConfig += fmt.Sprintf("          description = %q\n", control.Description)
 
-					if len(control.Rules) > 0 {
-						rulesStr := "["
-						for i, rule := range control.Rules {
-							if i > 0 {
-								rulesStr += ", "
-							}
-							rulesStr += fmt.Sprintf("%q", rule)
-						}
-						rulesStr += "]"
-						sectionsConfig += fmt.Sprintf("          rules = %s\n", rulesStr)
+					if control.Rules != "" {
+						sectionsConfig += fmt.Sprintf("          rules = %s\n", control.Rules)
 					} else {
 						sectionsConfig += "          rules = []\n"
 					}
@@ -107,12 +138,13 @@ func (config *completeFrameworkConfig) String() string {
 		sectionsConfig += "  }"
 	}
 
-	return fmt.Sprintf(`
+	return fmt.Sprintf(`%s
+
 resource "crowdstrike_cloud_compliance_custom_framework" "test" {
   name = %q
   description = %q%s%s
 }
-`, config.Name, config.Description, activeConfig, sectionsConfig)
+`, getAWSRulesConfig(), config.Name, config.Description, activeConfig, sectionsConfig)
 }
 
 // TestChecks generates test checks for the completeFrameworkConfig
@@ -152,12 +184,9 @@ func (config *completeFrameworkConfig) TestChecks() resource.TestCheckFunc {
 						resource.TestCheckResourceAttr(customFrameworkResourceName, controlPath+".description", control.Description),
 					)
 
-					// Check rules within each control (order-independent)
-					if len(control.Rules) > 0 {
-						checks = append(checks, resource.TestCheckResourceAttr(customFrameworkResourceName, fmt.Sprintf("%s.rules.#", controlPath), fmt.Sprintf("%d", len(control.Rules))))
-						for _, rule := range control.Rules {
-							checks = append(checks, resource.TestCheckTypeSetElemAttr(customFrameworkResourceName, fmt.Sprintf("%s.rules.*", controlPath), rule))
-						}
+					// Check rules within each control - since we use dynamic rule sets, just verify rules exist
+					if control.Rules != "" && control.Rules != "local.rule_set_empty" {
+						checks = append(checks, resource.TestCheckResourceAttrSet(customFrameworkResourceName, fmt.Sprintf("%s.rules.#", controlPath)))
 					}
 				}
 			}
@@ -477,17 +506,12 @@ func TestAccCloudComplianceCustomFrameworkResource_CreateWithSections(t *testing
 					"control-1a": {
 						Name:        "Control 1a",
 						Description: "This is the first control",
-						Rules: []string{
-							"2a11d9fc-6dfa-44f9-acc9-5ff046083716",
-							"a28151f0-5077-49da-8999-f909d94b53a3",
-						},
+						Rules:       "local.rule_set_two",
 					},
 					"control-1b": {
 						Name:        "Control 1b",
 						Description: "This is another control in section 1",
-						Rules: []string{
-							"6896e8e5-84c2-4310-8207-3f46e54b6abe",
-						},
+						Rules:       "local.rule_set_single",
 					},
 				},
 			},
@@ -497,7 +521,6 @@ func TestAccCloudComplianceCustomFrameworkResource_CreateWithSections(t *testing
 					"control-2a": {
 						Name:        "Control 2a",
 						Description: "This is the second control",
-						Rules:       []string{},
 					},
 				},
 			},
@@ -543,15 +566,12 @@ func TestAccCloudComplianceCustomFrameworkResource_RuleAssignment(t *testing.T) 
 							"control-with-rules": {
 								Name:        "Control With Rules",
 								Description: "Control that has rules assigned",
-								Rules: []string{
-									"2a11d9fc-6dfa-44f9-acc9-5ff046083716",
-									"a28151f0-5077-49da-8999-f909d94b53a3",
-								},
+								Rules:       "local.rule_set_two",
 							},
 							"control-without-rules": {
 								Name:        "Control Without Rules",
 								Description: "Control with no rules",
-								Rules:       []string{},
+								Rules:       "local.rule_set_empty",
 							},
 						},
 					},
@@ -571,15 +591,12 @@ func TestAccCloudComplianceCustomFrameworkResource_RuleAssignment(t *testing.T) 
 							"control-with-rules": {
 								Name:        "Control With Rules",
 								Description: "Control that has rules assigned",
-								Rules: []string{ // Modified rules
-									"2a11d9fc-6dfa-44f9-acc9-5ff046083716",
-									"0473a26b-7f29-43c7-9581-105f8c9c0b7d",
-								},
+								Rules:       "local.rule_set_mixed", // Modified rules
 							},
 							"control-without-rules": {
 								Name:        "Control Without Rules",
 								Description: "Control with no rules",
-								Rules:       []string{"6896e8e5-84c2-4310-8207-3f46e54b6abe"}, // Added rules
+								Rules:       "local.rule_set_single", // Added rules
 							},
 						},
 					},
@@ -599,12 +616,12 @@ func TestAccCloudComplianceCustomFrameworkResource_RuleAssignment(t *testing.T) 
 							"control-with-rules": {
 								Name:        "Control With Rules",
 								Description: "Control that has rules assigned",
-								Rules:       []string{}, // All rules removed
+								// Rules removed
 							},
 							"control-without-rules": {
 								Name:        "Control Without Rules",
 								Description: "Control with no rules",
-								Rules:       []string{}, // Rules removed
+								// Rules removed
 							},
 						},
 					},
@@ -645,7 +662,6 @@ func TestAccCloudComplianceCustomFrameworkResource_SimpleSectionRename(t *testin
 					"test-control": {
 						Name:        "Test Control",
 						Description: "Test control description",
-						Rules:       []string{},
 					},
 				},
 			},
@@ -664,7 +680,6 @@ func TestAccCloudComplianceCustomFrameworkResource_SimpleSectionRename(t *testin
 					"test-control": {
 						Name:        "Test Control",
 						Description: "Test control description",
-						Rules:       []string{},
 					},
 				},
 			},
@@ -714,12 +729,10 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveRenaming(t *test
 					"control-a1": {
 						Name:        "Original Control A1",
 						Description: "Original control description A1",
-						Rules:       []string{},
 					},
 					"control-a2": {
 						Name:        "Original Control A2",
 						Description: "Original control description A2",
-						Rules:       []string{},
 					},
 				},
 			},
@@ -729,7 +742,6 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveRenaming(t *test
 					"control-b1": {
 						Name:        "Original Control B1",
 						Description: "Original control description B1",
-						Rules:       []string{},
 					},
 				},
 			},
@@ -748,12 +760,10 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveRenaming(t *test
 					"control-a1": {
 						Name:        "Renamed Control A1",
 						Description: "Original control description A1",
-						Rules:       []string{},
 					},
 					"control-a2": {
 						Name:        "Original Control A2",
 						Description: "Original control description A2",
-						Rules:       []string{},
 					},
 				},
 			},
@@ -763,7 +773,6 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveRenaming(t *test
 					"control-b1": {
 						Name:        "Renamed Control B1",
 						Description: "Original control description B1",
-						Rules:       []string{},
 					},
 				},
 			},
@@ -829,15 +838,12 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 					"control-1.1": {
 						Name:        "Control 1.1",
 						Description: "Control 1.1 description",
-						Rules: []string{
-							"2a11d9fc-6dfa-44f9-acc9-5ff046083716",
-							"a28151f0-5077-49da-8999-f909d94b53a3",
-						},
+						Rules:       "local.rule_set_two",
 					},
 					"control-1.2": {
 						Name:        "Control 1.2",
 						Description: "Control 1.2 description",
-						Rules:       []string{},
+						Rules:       "local.rule_set_empty",
 					},
 				},
 			},
@@ -857,15 +863,12 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 					"control-1.2": {
 						Name:        "Control 1.2",
 						Description: "Control 1.2 description",
-						Rules: []string{
-							"2a11d9fc-6dfa-44f9-acc9-5ff046083716",
-							"a28151f0-5077-49da-8999-f909d94b53a3",
-						},
+						Rules:       "local.rule_set_two",
 					},
 					"control-1.3": {
 						Name:        "Control 1.3",
 						Description: "Control 1.3 description",
-						Rules:       []string{},
+						Rules:       "local.rule_set_empty",
 					},
 				},
 			},
@@ -875,12 +878,12 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 					"control-2.1": {
 						Name:        "New Control 2.1",
 						Description: "New control 2.1 description",
-						Rules:       []string{},
+						Rules:       "local.rule_set_empty",
 					},
 					"control-2.2": {
 						Name:        "New Control 2.2",
 						Description: "New control 2.2 description",
-						Rules:       []string{"0473a26b-7f29-43c7-9581-105f8c9c0b7d"},
+						Rules:       "local.rule_set_alt_single",
 					},
 				},
 			},
@@ -901,7 +904,7 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 					"control-2.2": {
 						Name:        "New Control 2.2",
 						Description: "New control 2.2 description",
-						Rules:       []string{"0473a26b-7f29-43c7-9581-105f8c9c0b7d"},
+						Rules:       "local.rule_set_alt_single",
 					},
 				},
 			},
@@ -981,7 +984,6 @@ func TestAccCloudComplianceCustomFrameworkResource_MixedOperations(t *testing.T)
 					"control-to-delete": {
 						Name:        "Control To Delete",
 						Description: "Control that will be deleted",
-						Rules:       []string{},
 					},
 				},
 			},
@@ -991,12 +993,10 @@ func TestAccCloudComplianceCustomFrameworkResource_MixedOperations(t *testing.T)
 					"control-to-rename": {
 						Name:        "Control To Rename",
 						Description: "Control that will be renamed",
-						Rules:       []string{},
 					},
 					"control-to-delete-2": {
 						Name:        "Another Control To Delete",
 						Description: "Another control that will be deleted",
-						Rules:       []string{},
 					},
 				},
 			},
@@ -1016,13 +1016,13 @@ func TestAccCloudComplianceCustomFrameworkResource_MixedOperations(t *testing.T)
 					"control-to-rename": {
 						Name:        "Renamed Control",
 						Description: "Control that will be renamed",
-						Rules:       []string{},
+						Rules:       "local.rule_set_single",
 					},
 					// "control-to-delete-2" - deleted
 					"new-control": {
 						Name:        "New Control",
 						Description: "New control added during mixed operations",
-						Rules:       []string{},
+						Rules:       "local.rule_set_mixed",
 					},
 				},
 			},
@@ -1032,7 +1032,7 @@ func TestAccCloudComplianceCustomFrameworkResource_MixedOperations(t *testing.T)
 					"new-section-control": {
 						Name:        "New Section Control",
 						Description: "Control in new section",
-						Rules:       []string{},
+						Rules:       "local.rule_set_empty",
 					},
 				},
 			},

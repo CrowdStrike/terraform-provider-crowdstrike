@@ -637,7 +637,7 @@ func (r *cloudComplianceCustomFrameworkResource) createSingleControl(
 
 		assignRulesReq := &models.CommonAssignRulesToControlRequest{RuleIds: ruleIds}
 		assignParams := cloud_policies.NewReplaceControlRulesParamsWithContext(ctx).
-			WithUID(*controlID).
+			WithIds(*controlID).
 			WithBody(assignRulesReq)
 
 		_, assignRulesErr := r.client.CloudPolicies.ReplaceControlRules(assignParams)
@@ -1026,7 +1026,7 @@ func (r *cloudComplianceCustomFrameworkResource) updateControlRules(
 	}
 
 	assignParams := cloud_policies.NewReplaceControlRulesParamsWithContext(ctx).
-		WithUID(planControl.ID.ValueString()).
+		WithIds(planControl.ID.ValueString()).
 		WithBody(assignReq)
 
 	_, assignRulesErr := r.client.CloudPolicies.ReplaceControlRules(assignParams)
@@ -1132,7 +1132,7 @@ func (r *cloudComplianceCustomFrameworkResource) generateKeyFromName(name string
 	return key
 }
 
-// Validation and business logic utilities
+// Validation utilities
 
 func validateActiveFieldTransition(currentActive, newActive types.Bool) diag.Diagnostics {
 	var diags diag.Diagnostics
