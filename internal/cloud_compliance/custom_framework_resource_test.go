@@ -74,15 +74,15 @@ func (config *completeFrameworkConfig) String() string {
 	sectionsConfig := ""
 	if len(config.Sections) > 0 {
 		sectionsConfig = "\n  sections = {\n"
-		for sectionName, section := range config.Sections {
-			sectionsConfig += fmt.Sprintf("    %q = {\n", sectionName)
-			sectionsConfig += fmt.Sprintf("      name = %q\n", sectionName)
+		for sectionKey, section := range config.Sections {
+			sectionsConfig += fmt.Sprintf("    %q = {\n", sectionKey)
+			sectionsConfig += fmt.Sprintf("      name = %q\n", section.Name)
 
 			if len(section.Controls) > 0 {
 				sectionsConfig += "      controls = {\n"
-				for controlName, control := range section.Controls {
-					sectionsConfig += fmt.Sprintf("        %q = {\n", controlName)
-					sectionsConfig += fmt.Sprintf("          name = %q\n", controlName)
+				for controlKey, control := range section.Controls {
+					sectionsConfig += fmt.Sprintf("        %q = {\n", controlKey)
+					sectionsConfig += fmt.Sprintf("          name = %q\n", control.Name)
 					sectionsConfig += fmt.Sprintf("          description = %q\n", control.Description)
 
 					if len(control.Rules) > 0 {
@@ -133,7 +133,7 @@ func (config *completeFrameworkConfig) TestChecks() resource.TestCheckFunc {
 
 	// Check sections count
 	if len(config.Sections) > 0 {
-		checks = append(checks, resource.TestCheckResourceAttr(customFrameworkResourceName, "sections.#", fmt.Sprintf("%d", len(config.Sections))))
+		checks = append(checks, resource.TestCheckResourceAttr(customFrameworkResourceName, "sections.%", fmt.Sprintf("%d", len(config.Sections))))
 
 		// For sets, we need to use TestCheckTypeSetElemNestedAttrs to check individual section elements
 		for sectionKey, section := range config.Sections {
@@ -142,6 +142,8 @@ func (config *completeFrameworkConfig) TestChecks() resource.TestCheckFunc {
 
 			// Check controls within each section
 			if len(section.Controls) > 0 {
+				checks = append(checks, resource.TestCheckResourceAttr(customFrameworkResourceName, sectionPath+".controls.%", fmt.Sprintf("%d", len(section.Controls))))
+
 				for controlKey, control := range section.Controls {
 					controlPath := fmt.Sprintf("%s.controls.%s", sectionPath, controlKey)
 					checks = append(checks,
@@ -463,7 +465,7 @@ func TestAccCloudComplianceCustomFrameworkResource_Import(t *testing.T) {
 	})
 }
 
-func TestAccCloudComplianceCustomFrameworkResource_WithSections(t *testing.T) {
+func TestAccCloudComplianceCustomFrameworkResource_CreateWithSections(t *testing.T) {
 	initialConfig := completeFrameworkConfig{
 		Name:        "Test Framework With Sections",
 		Description: "Framework to test sections, controls, and rules",
@@ -518,112 +520,6 @@ func TestAccCloudComplianceCustomFrameworkResource_WithSections(t *testing.T) {
 				ImportState:       true,
 				ImportStateVerify: true,
 			})
-			return steps
-		}(),
-	})
-}
-
-func TestAccCloudComplianceCustomFrameworkResource_Comprehensive(t *testing.T) {
-	testCases := []struct {
-		name   string
-		config completeFrameworkConfig
-	}{
-		{
-			name: "empty_framework",
-			config: completeFrameworkConfig{
-				Name:        "Test Framework Comprehensive CRUD",
-				Description: "Framework to test comprehensive CRUD operations",
-			},
-		},
-		{
-			name: "add_section",
-			config: completeFrameworkConfig{
-				Name:        "Test Framework Comprehensive CRUD",
-				Description: "Framework to test comprehensive CRUD operations",
-				Active:      utils.Addr(false),
-				Sections: map[string]sectionConfig{
-					"new-section": {
-						Name: "New Section",
-						Controls: map[string]controlConfig{
-							"new-control-to-delete": {
-								Name:        "New Control To Delete",
-								Description: "Control in new section",
-								Rules:       []string{"0473a26b-7f29-43c7-9581-105f8c9c0b7d"},
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "add_section_and_controls",
-			config: completeFrameworkConfig{
-				Name:        "Test Framework Comprehensive CRUD",
-				Description: "Framework to test comprehensive CRUD operations",
-				Active:      utils.Addr(false),
-				Sections: map[string]sectionConfig{
-					"new-section": {
-						Name: "New Section",
-						Controls: map[string]controlConfig{
-							"additional-control-1": {
-								Name:        "Additional Control 1",
-								Description: "Additional control 1 description",
-								Rules:       []string{},
-							},
-						},
-					},
-					"another-section": {
-						Name: "Another Section",
-						Controls: map[string]controlConfig{
-							"another-control-1": {
-								Name:        "Another Control 1",
-								Description: "Another control 1 description",
-								Rules:       []string{},
-							},
-							"another-control-2": {
-								Name:        "Another Control 2",
-								Description: "Another control 2 description",
-								Rules:       []string{},
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "delete_section",
-			config: completeFrameworkConfig{
-				Name:        "Test Framework Comprehensive CRUD",
-				Description: "Framework to test comprehensive CRUD operations",
-				Active:      utils.Addr(false),
-				Sections: map[string]sectionConfig{
-					"new-section": {
-						Name: "New Section",
-						Controls: map[string]controlConfig{
-							"additional-control-1": {
-								Name:        "Additional Control 1",
-								Description: "Additional control 1 description",
-								Rules:       []string{},
-							},
-						},
-					},
-					// "another-section" deleted entirely
-				},
-			},
-		},
-	}
-
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		Steps: func() []resource.TestStep {
-			var steps []resource.TestStep
-			for _, tc := range testCases {
-				steps = append(steps, resource.TestStep{
-					Config: acctest.ProviderConfig + tc.config.String(),
-					Check:  tc.config.TestChecks(),
-				})
-			}
 			return steps
 		}(),
 	})
@@ -743,7 +639,7 @@ func TestAccCloudComplianceCustomFrameworkResource_SimpleSectionRename(t *testin
 		Description: "Framework to test simple section renaming",
 		Active:      utils.Addr(false),
 		Sections: map[string]sectionConfig{
-			"original-section": {
+			"section-1": {
 				Name: "Original Section",
 				Controls: map[string]controlConfig{
 					"test-control": {
@@ -762,7 +658,7 @@ func TestAccCloudComplianceCustomFrameworkResource_SimpleSectionRename(t *testin
 		Description: "Framework to test simple section renaming",
 		Active:      utils.Addr(false),
 		Sections: map[string]sectionConfig{
-			"original-section": {
+			"section-1": {
 				Name: "Renamed Section",
 				Controls: map[string]controlConfig{
 					"test-control": {
@@ -795,7 +691,7 @@ func TestAccCloudComplianceCustomFrameworkResource_SimpleSectionRename(t *testin
 						// Verify control ID persists after section renaming (simplified check for sets)
 						plancheck.ExpectKnownValue(
 							customFrameworkResourceName,
-							tfjsonpath.New("sections").AtSliceIndex(0).AtMapKey("controls").AtSliceIndex(0).AtMapKey("id"),
+							tfjsonpath.New("sections").AtMapKey("section-1").AtMapKey("controls").AtMapKey("test-control").AtMapKey("id"),
 							knownvalue.NotNull(),
 						),
 					},
@@ -894,17 +790,17 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveRenaming(t *test
 						// Verify control IDs persist after renaming (simplified checks for sets)
 						plancheck.ExpectKnownValue(
 							customFrameworkResourceName,
-							tfjsonpath.New("sections").AtSliceIndex(0).AtMapKey("controls").AtSliceIndex(0).AtMapKey("id"),
+							tfjsonpath.New("sections").AtMapKey("section-a").AtMapKey("controls").AtMapKey("control-a1").AtMapKey("id"),
 							knownvalue.NotNull(),
 						),
 						plancheck.ExpectKnownValue(
 							customFrameworkResourceName,
-							tfjsonpath.New("sections").AtSliceIndex(0).AtMapKey("controls").AtSliceIndex(1).AtMapKey("id"),
+							tfjsonpath.New("sections").AtMapKey("section-a").AtMapKey("controls").AtMapKey("control-a2").AtMapKey("id"),
 							knownvalue.NotNull(),
 						),
 						plancheck.ExpectKnownValue(
 							customFrameworkResourceName,
-							tfjsonpath.New("sections").AtSliceIndex(1).AtMapKey("controls").AtSliceIndex(0).AtMapKey("id"),
+							tfjsonpath.New("sections").AtMapKey("section-b").AtMapKey("controls").AtMapKey("control-b1").AtMapKey("id"),
 							knownvalue.NotNull(),
 						),
 					},
@@ -919,48 +815,28 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 	initialConfig := completeFrameworkConfig{
 		Name:        "Test Framework Comprehensive CRUD",
 		Description: "Framework to test comprehensive CRUD operations",
-		Active:      utils.Addr(false),
-		Sections: map[string]sectionConfig{
-			"existing-section": {
-				Name: "Existing Section",
-				Controls: map[string]controlConfig{
-					"existing-control": {
-						Name:        "Existing Control",
-						Description: "Existing control description",
-						Rules:       []string{},
-					},
-				},
-			},
-		},
 	}
 
-	// Test 1: Add new section with controls
+	// Test 1: Add a new section with controls and rules
 	addSectionConfig := completeFrameworkConfig{
 		Name:        "Test Framework Comprehensive CRUD",
 		Description: "Framework to test comprehensive CRUD operations",
 		Active:      utils.Addr(false),
 		Sections: map[string]sectionConfig{
-			"existing-section": {
-				Name: "Existing Section",
+			"section-1": {
+				Name: "Section 1",
 				Controls: map[string]controlConfig{
-					"existing-control": {
-						Name:        "Existing Control",
-						Description: "Existing control description",
-						Rules:       []string{},
+					"control-1.1": {
+						Name:        "Control 1.1",
+						Description: "Control 1.1 description",
+						Rules: []string{
+							"2a11d9fc-6dfa-44f9-acc9-5ff046083716",
+							"a28151f0-5077-49da-8999-f909d94b53a3",
+						},
 					},
-				},
-			},
-			"new-section": {
-				Name: "New Section",
-				Controls: map[string]controlConfig{
-					"new-control-1": {
-						Name:        "New Control 1",
-						Description: "New control 1 description",
-						Rules:       []string{},
-					},
-					"new-control-2": {
-						Name:        "New Control 2",
-						Description: "New control 2 description",
+					"control-1.2": {
+						Name:        "Control 1.2",
+						Description: "Control 1.2 description",
 						Rules:       []string{},
 					},
 				},
@@ -968,44 +844,43 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 		},
 	}
 
-	// Test 2: Add controls to existing section
-	addControlsConfig := completeFrameworkConfig{
+	// Test 2: Add new section, and controls to existing section + delete control
+	addSectionAndControlsConfig := completeFrameworkConfig{
 		Name:        "Test Framework Comprehensive CRUD",
 		Description: "Framework to test comprehensive CRUD operations",
 		Active:      utils.Addr(false),
 		Sections: map[string]sectionConfig{
-			"existing-section": {
-				Name: "Existing Section",
+			"section-1": {
+				Name: "Section 1",
 				Controls: map[string]controlConfig{
-					"existing-control": {
-						Name:        "Existing Control",
-						Description: "Existing control description",
-						Rules:       []string{},
+					// deleted control-1.1
+					"control-1.2": {
+						Name:        "Control 1.2",
+						Description: "Control 1.2 description",
+						Rules: []string{
+							"2a11d9fc-6dfa-44f9-acc9-5ff046083716",
+							"a28151f0-5077-49da-8999-f909d94b53a3",
+						},
 					},
-					"additional-control-1": {
-						Name:        "Additional Control 1",
-						Description: "Additional control 1 description",
-						Rules:       []string{},
-					},
-					"additional-control-2": {
-						Name:        "Additional Control 2",
-						Description: "Additional control 2 description",
+					"control-1.3": {
+						Name:        "Control 1.3",
+						Description: "Control 1.3 description",
 						Rules:       []string{},
 					},
 				},
 			},
-			"new-section": {
-				Name: "New Section",
+			"section-2": {
+				Name: "Section 2",
 				Controls: map[string]controlConfig{
-					"new-control-1": {
-						Name:        "New Control 1",
-						Description: "New control 1 description",
+					"control-2.1": {
+						Name:        "New Control 2.1",
+						Description: "New control 2.1 description",
 						Rules:       []string{},
 					},
-					"new-control-2": {
-						Name:        "New Control 2",
-						Description: "New control 2 description",
-						Rules:       []string{},
+					"control-2.2": {
+						Name:        "New Control 2.2",
+						Description: "New control 2.2 description",
+						Rules:       []string{"0473a26b-7f29-43c7-9581-105f8c9c0b7d"},
 					},
 				},
 			},
@@ -1018,17 +893,18 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 		Description: "Framework to test comprehensive CRUD operations",
 		Active:      utils.Addr(false),
 		Sections: map[string]sectionConfig{
-			"existing-section": {
-				Name: "Existing Section",
+			// section-1 deleted entirely
+			"section-2": {
+				Name: "Section 2",
 				Controls: map[string]controlConfig{
-					"existing-control": {
-						Name:        "Existing Control",
-						Description: "Existing control description",
-						Rules:       []string{},
+					// control-2.1 deleted
+					"control-2.2": {
+						Name:        "New Control 2.2",
+						Description: "New control 2.2 description",
+						Rules:       []string{"0473a26b-7f29-43c7-9581-105f8c9c0b7d"},
 					},
 				},
 			},
-			// "new-section" deleted entirely
 		},
 	}
 
@@ -1044,39 +920,31 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 				Config: acctest.ProviderConfig + addSectionConfig.String(),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
-						// Verify resource is updated when adding sections
 						plancheck.ExpectResourceAction(
 							customFrameworkResourceName,
 							plancheck.ResourceActionUpdate,
-						),
-						// Verify existing control ID persists when adding new sections
-						plancheck.ExpectKnownValue(
-							customFrameworkResourceName,
-							tfjsonpath.New("sections").AtSliceIndex(0).AtMapKey("controls").AtSliceIndex(0).AtMapKey("id"),
-							knownvalue.NotNull(),
 						),
 					},
 				},
 				Check: addSectionConfig.TestChecks(),
 			},
 			{
-				Config: acctest.ProviderConfig + addControlsConfig.String(),
+				Config: acctest.ProviderConfig + addSectionAndControlsConfig.String(),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
-						// Verify resource is updated when adding controls
 						plancheck.ExpectResourceAction(
 							customFrameworkResourceName,
 							plancheck.ResourceActionUpdate,
 						),
-						// Verify existing control ID persists when adding new controls
+						// Verify existing control ID persists when adding and deleting controls
 						plancheck.ExpectKnownValue(
 							customFrameworkResourceName,
-							tfjsonpath.New("sections").AtSliceIndex(0).AtMapKey("controls").AtSliceIndex(0).AtMapKey("id"),
+							tfjsonpath.New("sections").AtMapKey("section-1").AtMapKey("controls").AtMapKey("control-1.2").AtMapKey("id"),
 							knownvalue.NotNull(),
 						),
 					},
 				},
-				Check: addControlsConfig.TestChecks(),
+				Check: addSectionAndControlsConfig.TestChecks(),
 			},
 			{
 				Config: acctest.ProviderConfig + deleteConfig.String(),
@@ -1090,7 +958,7 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 						// Verify remaining control ID persists after deletions
 						plancheck.ExpectKnownValue(
 							customFrameworkResourceName,
-							tfjsonpath.New("sections").AtSliceIndex(0).AtMapKey("controls").AtSliceIndex(0).AtMapKey("id"),
+							tfjsonpath.New("sections").AtMapKey("section-2").AtMapKey("controls").AtMapKey("control-2.2").AtMapKey("id"),
 							knownvalue.NotNull(),
 						),
 					},
@@ -1101,7 +969,7 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 	})
 }
 
-func _TestAccCloudComplianceCustomFrameworkResource_MixedOperations(t *testing.T) {
+func TestAccCloudComplianceCustomFrameworkResource_MixedOperations(t *testing.T) {
 	initialConfig := completeFrameworkConfig{
 		Name:        "Test Framework Mixed Operations",
 		Description: "Framework to test mixed operations",
@@ -1126,7 +994,7 @@ func _TestAccCloudComplianceCustomFrameworkResource_MixedOperations(t *testing.T
 						Rules:       []string{},
 					},
 					"control-to-delete-2": {
-						Name:        "Control To Delete",
+						Name:        "Another Control To Delete",
 						Description: "Another control that will be deleted",
 						Rules:       []string{},
 					},
@@ -1147,7 +1015,7 @@ func _TestAccCloudComplianceCustomFrameworkResource_MixedOperations(t *testing.T
 				Controls: map[string]controlConfig{
 					"control-to-rename": {
 						Name:        "Renamed Control",
-						Description: "Control that was renamed with updated description",
+						Description: "Control that will be renamed",
 						Rules:       []string{},
 					},
 					// "control-to-delete-2" - deleted
@@ -1183,7 +1051,6 @@ func _TestAccCloudComplianceCustomFrameworkResource_MixedOperations(t *testing.T
 				Config: acctest.ProviderConfig + mixedOperationsConfig.String(),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
-						// Verify resource is updated during mixed operations
 						plancheck.ExpectResourceAction(
 							customFrameworkResourceName,
 							plancheck.ResourceActionUpdate,
@@ -1191,7 +1058,7 @@ func _TestAccCloudComplianceCustomFrameworkResource_MixedOperations(t *testing.T
 						// Verify that renamed control maintains its ID (proving update vs delete+recreate)
 						plancheck.ExpectKnownValue(
 							customFrameworkResourceName,
-							tfjsonpath.New("sections").AtSliceIndex(0).AtMapKey("controls").AtSliceIndex(0).AtMapKey("id"),
+							tfjsonpath.New("sections").AtMapKey("section-to-rename").AtMapKey("controls").AtMapKey("control-to-rename").AtMapKey("id"),
 							knownvalue.NotNull(),
 						),
 					},
@@ -1220,7 +1087,7 @@ func TestAccCloudComplianceCustomFrameworkResource_EmptySectionsValidation(t *te
 		Steps: []resource.TestStep{
 			{
 				Config:      acctest.ProviderConfig + emptyConfig.String(),
-				ExpectError: regexp.MustCompile("Empty Section Not Allowed|cannot be empty"),
+				ExpectError: regexp.MustCompile("Inappropriate value for attribute \"sections\"|attribute \"controls\" is required"),
 			},
 		},
 	})

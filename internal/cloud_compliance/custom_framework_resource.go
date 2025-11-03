@@ -407,7 +407,7 @@ func (r *cloudComplianceCustomFrameworkResource) Update(
 	}
 
 	// If the plan for sections is the same as state, set the new state without processing sections
-	if !plan.Sections.Equal(state.Sections) {
+	if plan.Sections.Equal(state.Sections) {
 		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 		return
 	}
@@ -946,7 +946,7 @@ func (r *cloudComplianceCustomFrameworkResource) updateSectionControls(
 	var diags diag.Diagnostics
 
 	for controlKey, planControl := range planControls {
-		// If state controls does not exist create all new controls
+		// If state controls does not exist, create all new controls
 		if stateControls == nil {
 			diags.Append(r.createSingleControl(ctx, frameworkID, sectionName, planControl)...)
 			continue
