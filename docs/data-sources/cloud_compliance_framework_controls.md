@@ -1,6 +1,6 @@
 ---
 page_title: "crowdstrike_cloud_compliance_framework_controls Data Source - crowdstrike"
-subcategory: "Cloud Compliance"
+subcategory: "Falcon Cloud Security"
 description: |-
   This data source retrieves all or a subset of controls within compliance benchmarks. All non-FQL fields can accept wildcards * and query Falcon using logical AND. For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter. For additional information on FQL filtering and usage, refer to the official CrowdStrike documentation: Falcon Query Language (FQL) https://falcon.crowdstrike.com/documentation/page/d3c84a1b/falcon-query-language-fql Note that broader searches may result in longer response times due to the larger volume of controls being retrieved and set in the state.
   API Scopes

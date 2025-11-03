@@ -39,7 +39,7 @@ var (
 )
 
 var (
-	documentationSection        string = "Cloud Security"
+	documentationSection        string = "Falcon Cloud Security"
 	resourceMarkdownDescription string = "This resource manages custom cloud security rules. " +
 		"These rules can be created either by inheriting properties from a parent rule with minimal customization, or by fully customizing all attributes for maximum flexibility. " +
 		"To create a rule based on a parent rule, utilize the `crowdstrike_cloud_security_rules` data source to gather parent rule information to use in the new custom rule. " +

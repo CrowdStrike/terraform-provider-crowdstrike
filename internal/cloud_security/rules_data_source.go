@@ -144,7 +144,7 @@ func (r *cloudSecurityRulesDataSource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
-			"Cloud Security",
+			"Falcon Cloud Security",
 			"This data source retrieves detailed information about a specific cloud security rule, including its unique identifier (ID) and associated attributes. All non-FQL fields can accept wildcards `*` and query Falcon using logical AND. If FQL is defined, all other fields will be ignored. For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter. For additional information on FQL filtering and usage, refer to the official CrowdStrike documentation: [Falcon Query Language (FQL)](https://falcon.crowdstrike.com/documentation/page/d3c84a1b/falcon-query-language-fql)",
 			cloudSecurityRuleScopes,
 		),
