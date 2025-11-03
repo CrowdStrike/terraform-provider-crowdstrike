@@ -332,7 +332,7 @@ func TestAccCloudAwsAccountResourceVulnerabilityScanning(t *testing.T) {
 
 func TestAccCloudAwsAccountResourceVulnerabilityScanningNoRoleName(t *testing.T) {
 	t.Skip("skip until CSPM fix for vulnerability scanning role response")
-	testResourceName := "test_vuln"
+	testResourceName := "test_vuln_no_role_name"
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, testResourceName)
 	account_id := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
 
