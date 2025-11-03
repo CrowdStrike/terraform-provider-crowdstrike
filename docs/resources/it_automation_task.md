@@ -2,7 +2,7 @@
 page_title: "crowdstrike_it_automation_task Resource - crowdstrike"
 subcategory: "IT Automation"
 description: |-
-  IT Automation --- IT Automation Tasks --- This resource allows management of IT Automation tasks in the CrowdStrike Falcon platform. Tasks allow you to run queries or actions across your hosts.
+  This resource allows management of IT Automation tasks in the CrowdStrike Falcon platform. Tasks allow you to run queries or actions across your hosts.
   API Scopes
   The following API scopes are required:
   IT Automation - Policies | Read & WriteIT Automation - Task Executions | Read & WriteIT Automation - Tasks | Read & WriteIT Automation - User Groups | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_it_automation_task (Resource)
 
-IT Automation --- IT Automation Tasks --- This resource allows management of IT Automation tasks in the CrowdStrike Falcon platform. Tasks allow you to run queries or actions across your hosts.
+This resource allows management of IT Automation tasks in the CrowdStrike Falcon platform. Tasks allow you to run queries or actions across your hosts.
 
 ## API Scopes
 
@@ -20,6 +20,7 @@ The following API scopes are required:
 - IT Automation - Task Executions | Read & Write
 - IT Automation - Tasks | Read & Write
 - IT Automation - User Groups | Read & Write
+
 
 ~> **Warning** When a task is part of a task group (via `crowdstrike_it_automation_task_group`), the `access_type` and `assigned_user_ids` are inherited from the task group and cannot be configured on the task itself. Attempting to configure these fields will result in an error. Use the `effective_access_type` and `effective_assigned_user_ids` computed attributes to view the actual values when a task is in a group.
 

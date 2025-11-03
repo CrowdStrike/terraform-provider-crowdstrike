@@ -1,13 +1,25 @@
 ---
 page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
-subcategory: "IT Automation"
+{{ if gt (len (split .Description " --- ")) 1 -}}
+subcategory: "{{ index (split .Description " --- ") 0 }}"
+{{- else -}}
+subcategory: ""
+{{- end }}
 description: |-
+{{ if gt (len (split .Description " --- ")) 1 -}}
+{{ index (split .Description " --- ") 1 | plainmarkdown | trimspace | prefixlines "  " }}
+{{- else -}}
 {{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+{{- end }}
 ---
 
 # {{.Name}} ({{.Type}})
 
+{{ if gt (len (split .Description " --- ")) 1 -}}
+{{ index (split .Description " --- ") 1 | trimspace }}
+{{ else }}
 {{ .Description | trimspace }}
+{{- end }}
 
 ~> **Warning** When a task is part of a task group (via `crowdstrike_it_automation_task_group`), the `access_type` and `assigned_user_ids` are inherited from the task group and cannot be configured on the task itself. Attempting to configure these fields will result in an error. Use the `effective_access_type` and `effective_assigned_user_ids` computed attributes to view the actual values when a task is in a group.
 
