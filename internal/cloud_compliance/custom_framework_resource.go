@@ -453,6 +453,7 @@ func (r *cloudComplianceCustomFrameworkResource) Update(
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
+// Deleting the framework also deletes all controls that belong to that framework.
 func (r *cloudComplianceCustomFrameworkResource) Delete(
 	ctx context.Context,
 	req resource.DeleteRequest,
@@ -468,12 +469,6 @@ func (r *cloudComplianceCustomFrameworkResource) Delete(
 	tflog.Info(ctx, "Deleting custom compliance framework", map[string]any{
 		"id": state.ID.ValueString(),
 	})
-
-	// First delete all controls associated with this framework
-	resp.Diagnostics.Append(r.deleteAllControlsForFramework(ctx, state.Name.ValueString())...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 
 	params := cloud_policies.NewDeleteComplianceFrameworkParamsWithContext(ctx)
 	params.SetIds(state.ID.ValueString())
