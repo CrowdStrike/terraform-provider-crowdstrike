@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
@@ -60,14 +59,12 @@ locals {
 type minimalFrameworkConfig struct {
 	Name        string
 	Description string
-	Active      *bool
 }
 
 // completeFrameworkConfig represents a complete custom framework with sections, controls, and rules
 type completeFrameworkConfig struct {
 	Name        string
 	Description string
-	Active      *bool
 	Sections    map[string]sectionConfig
 }
 
@@ -86,11 +83,6 @@ type controlConfig struct {
 
 // String generates Terraform configuration from minimalFrameworkConfig
 func (config *minimalFrameworkConfig) String() string {
-	activeConfig := ""
-	if config.Active != nil {
-		activeConfig = fmt.Sprintf("\n  active = %t", *config.Active)
-	}
-
 	descriptionConfig := ""
 	if config.Description != "" {
 		descriptionConfig = fmt.Sprintf("\n  description = %q", config.Description)
@@ -98,18 +90,13 @@ func (config *minimalFrameworkConfig) String() string {
 
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_compliance_custom_framework" "test" {
-  name = %q%s%s
+  name = %q%s
 }
-`, config.Name, descriptionConfig, activeConfig)
+`, config.Name, descriptionConfig)
 }
 
 // String generates Terraform configuration from completeFrameworkConfig
 func (config *completeFrameworkConfig) String() string {
-	activeConfig := ""
-	if config.Active != nil {
-		activeConfig = fmt.Sprintf("\n  active = %t", *config.Active)
-	}
-
 	sectionsConfig := ""
 	if len(config.Sections) > 0 {
 		sectionsConfig = "\n  sections = {\n"
@@ -142,9 +129,9 @@ func (config *completeFrameworkConfig) String() string {
 
 resource "crowdstrike_cloud_compliance_custom_framework" "test" {
   name = %q
-  description = %q%s%s
+  description = %q%s
 }
-`, getAWSRulesConfig(), config.Name, config.Description, activeConfig, sectionsConfig)
+`, getAWSRulesConfig(), config.Name, config.Description, sectionsConfig)
 }
 
 // TestChecks generates test checks for the completeFrameworkConfig
@@ -156,12 +143,6 @@ func (config *completeFrameworkConfig) TestChecks() resource.TestCheckFunc {
 		resource.TestCheckResourceAttr(customFrameworkResourceName, "name", config.Name),
 		resource.TestCheckResourceAttr(customFrameworkResourceName, "description", config.Description),
 	)
-
-	if config.Active != nil {
-		checks = append(checks, resource.TestCheckResourceAttr(customFrameworkResourceName, "active", fmt.Sprintf("%t", *config.Active)))
-	} else {
-		checks = append(checks, resource.TestCheckResourceAttrSet(customFrameworkResourceName, "active"))
-	}
 
 	// Check sections count
 	if len(config.Sections) > 0 {
@@ -206,12 +187,6 @@ func (config *minimalFrameworkConfig) TestChecks() resource.TestCheckFunc {
 		resource.TestCheckResourceAttr(customFrameworkResourceName, "description", config.Description),
 	)
 
-	if config.Active != nil {
-		checks = append(checks, resource.TestCheckResourceAttr(customFrameworkResourceName, "active", fmt.Sprintf("%t", *config.Active)))
-	} else {
-		checks = append(checks, resource.TestCheckResourceAttrSet(customFrameworkResourceName, "active"))
-	}
-
 	return resource.ComposeAggregateTestCheckFunc(checks...)
 }
 
@@ -225,7 +200,6 @@ func TestAccCloudComplianceCustomFrameworkResource_Basic(t *testing.T) {
 			config: minimalFrameworkConfig{
 				Name:        "Test Framework Basic Initial",
 				Description: "This is a test framework for basic functionality",
-				Active:      utils.Addr(false), // API sets new frameworks to false by default
 			},
 		},
 		{
@@ -233,7 +207,6 @@ func TestAccCloudComplianceCustomFrameworkResource_Basic(t *testing.T) {
 			config: minimalFrameworkConfig{
 				Name:        "Test Framework Basic Updated",
 				Description: "This is an updated test framework description",
-				Active:      utils.Addr(false),
 			},
 		},
 	}
@@ -260,53 +233,6 @@ func TestAccCloudComplianceCustomFrameworkResource_Basic(t *testing.T) {
 	})
 }
 
-func _TestAccCloudComplianceCustomFrameworkResource_ActiveToggle(t *testing.T) {
-	testCases := []struct {
-		name   string
-		config minimalFrameworkConfig
-	}{
-		{
-			name: "active_true",
-			config: minimalFrameworkConfig{
-				Name:        "Test Framework Active Toggle",
-				Description: "Framework to test active field toggling",
-				Active:      utils.Addr(true),
-			},
-		},
-		{
-			name: "active_false",
-			config: minimalFrameworkConfig{
-				Name:        "Test Framework Active Toggle",
-				Description: "Framework to test active field toggling",
-				Active:      utils.Addr(false),
-			},
-		},
-		{
-			name: "active_true_again",
-			config: minimalFrameworkConfig{
-				Name:        "Test Framework Active Toggle",
-				Description: "Framework to test active field toggling",
-				Active:      utils.Addr(true),
-			},
-		},
-	}
-
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		Steps: func() []resource.TestStep {
-			var steps []resource.TestStep
-			for _, tc := range testCases {
-				steps = append(steps, resource.TestStep{
-					Config: acctest.ProviderConfig + tc.config.String(),
-					Check:  tc.config.TestChecks(),
-				})
-			}
-			return steps
-		}(),
-	})
-}
-
 func TestAccCloudComplianceCustomFrameworkResource_Updates(t *testing.T) {
 	testCases := []struct {
 		name   string
@@ -317,7 +243,6 @@ func TestAccCloudComplianceCustomFrameworkResource_Updates(t *testing.T) {
 			config: minimalFrameworkConfig{
 				Name:        "Test Framework Updates Initial",
 				Description: "Initial description for update testing",
-				Active:      utils.Addr(false),
 			},
 		},
 		{
@@ -325,7 +250,6 @@ func TestAccCloudComplianceCustomFrameworkResource_Updates(t *testing.T) {
 			config: minimalFrameworkConfig{
 				Name:        "Test Framework Updates Modified Name",
 				Description: "Initial description for update testing",
-				Active:      utils.Addr(false),
 			},
 		},
 		{
@@ -333,7 +257,6 @@ func TestAccCloudComplianceCustomFrameworkResource_Updates(t *testing.T) {
 			config: minimalFrameworkConfig{
 				Name:        "Test Framework Updates Modified Name",
 				Description: "Updated description after name change",
-				Active:      utils.Addr(false),
 			},
 		},
 		{
@@ -341,7 +264,6 @@ func TestAccCloudComplianceCustomFrameworkResource_Updates(t *testing.T) {
 			config: minimalFrameworkConfig{
 				Name:        "Test Framework Final State",
 				Description: "Final updated description",
-				Active:      utils.Addr(false),
 			},
 		},
 	}
@@ -363,40 +285,20 @@ func TestAccCloudComplianceCustomFrameworkResource_Updates(t *testing.T) {
 }
 
 func TestAccCloudComplianceCustomFrameworkResource_Minimal(t *testing.T) {
-	testCases := []struct {
-		name   string
-		config minimalFrameworkConfig
-	}{
-		{
-			name: "minimal_required_only",
-			config: minimalFrameworkConfig{
-				Name:        "Test Framework Minimal",
-				Description: "Minimal test framework description",
-			},
-		},
-		{
-			name: "minimal_with_active",
-			config: minimalFrameworkConfig{
-				Name:        "Test Framework Minimal With Active",
-				Description: "Minimal test framework with active setting",
-				Active:      utils.Addr(false),
-			},
-		},
+	minimalConfig := minimalFrameworkConfig{
+		Name:        "Test Framework Minimal",
+		Description: "Minimal test framework description",
 	}
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		Steps: func() []resource.TestStep {
-			var steps []resource.TestStep
-			for _, tc := range testCases {
-				steps = append(steps, resource.TestStep{
-					Config: acctest.ProviderConfig + tc.config.String(),
-					Check:  tc.config.TestChecks(),
-				})
-			}
-			return steps
-		}(),
+		Steps: []resource.TestStep{
+			{
+				Config: acctest.ProviderConfig + minimalConfig.String(),
+				Check:  minimalConfig.TestChecks(),
+			},
+		},
 	})
 }
 
@@ -466,7 +368,6 @@ func TestAccCloudComplianceCustomFrameworkResource_Import(t *testing.T) {
 	config := minimalFrameworkConfig{
 		Name:        "Test Framework Import",
 		Description: "Framework for testing import functionality",
-		Active:      utils.Addr(false),
 	}
 
 	resource.Test(t, resource.TestCase{
@@ -498,7 +399,6 @@ func TestAccCloudComplianceCustomFrameworkResource_CreateWithSections(t *testing
 	initialConfig := completeFrameworkConfig{
 		Name:        "Test Framework With Sections",
 		Description: "Framework to test sections, controls, and rules",
-		Active:      utils.Addr(false),
 		Sections: map[string]sectionConfig{
 			"section-1": {
 				Name: "Section 1",
@@ -558,7 +458,6 @@ func TestAccCloudComplianceCustomFrameworkResource_RuleAssignment(t *testing.T) 
 			config: completeFrameworkConfig{
 				Name:        "Test Framework Rule Assignment",
 				Description: "Framework to test rule assignments",
-				Active:      utils.Addr(false),
 				Sections: map[string]sectionConfig{
 					"test-section": {
 						Name: "Test Section",
@@ -583,7 +482,6 @@ func TestAccCloudComplianceCustomFrameworkResource_RuleAssignment(t *testing.T) 
 			config: completeFrameworkConfig{
 				Name:        "Test Framework Rule Assignment",
 				Description: "Framework to test rule assignments",
-				Active:      utils.Addr(false),
 				Sections: map[string]sectionConfig{
 					"test-section": {
 						Name: "Test Section",
@@ -608,7 +506,6 @@ func TestAccCloudComplianceCustomFrameworkResource_RuleAssignment(t *testing.T) 
 			config: completeFrameworkConfig{
 				Name:        "Test Framework Rule Assignment",
 				Description: "Framework to test rule assignments",
-				Active:      utils.Addr(false),
 				Sections: map[string]sectionConfig{
 					"test-section": {
 						Name: "Test Section",
@@ -654,7 +551,6 @@ func TestAccCloudComplianceCustomFrameworkResource_SimpleSectionRename(t *testin
 	initialConfig := completeFrameworkConfig{
 		Name:        frameworkName,
 		Description: "Framework to test simple section renaming",
-		Active:      utils.Addr(false),
 		Sections: map[string]sectionConfig{
 			"section-1": {
 				Name: "Original Section",
@@ -672,7 +568,6 @@ func TestAccCloudComplianceCustomFrameworkResource_SimpleSectionRename(t *testin
 	renamedConfig := completeFrameworkConfig{
 		Name:        frameworkName,
 		Description: "Framework to test simple section renaming",
-		Active:      utils.Addr(false),
 		Sections: map[string]sectionConfig{
 			"section-1": {
 				Name: "Renamed Section",
@@ -721,7 +616,6 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveRenaming(t *test
 	initialConfig := completeFrameworkConfig{
 		Name:        "Test Framework Comprehensive Renaming",
 		Description: "Framework to test comprehensive renaming operations",
-		Active:      utils.Addr(false),
 		Sections: map[string]sectionConfig{
 			"section-a": {
 				Name: "Original Section A",
@@ -752,7 +646,6 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveRenaming(t *test
 	renamedConfig := completeFrameworkConfig{
 		Name:        "Test Framework Comprehensive Renaming",
 		Description: "Framework to test comprehensive renaming operations",
-		Active:      utils.Addr(false),
 		Sections: map[string]sectionConfig{
 			"section-a": {
 				Name: "Renamed Section A",
@@ -830,7 +723,6 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 	addSectionConfig := completeFrameworkConfig{
 		Name:        "Test Framework Comprehensive CRUD",
 		Description: "Framework to test comprehensive CRUD operations",
-		Active:      utils.Addr(false),
 		Sections: map[string]sectionConfig{
 			"section-1": {
 				Name: "Section 1",
@@ -854,7 +746,6 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 	addSectionAndControlsConfig := completeFrameworkConfig{
 		Name:        "Test Framework Comprehensive CRUD",
 		Description: "Framework to test comprehensive CRUD operations",
-		Active:      utils.Addr(false),
 		Sections: map[string]sectionConfig{
 			"section-1": {
 				Name: "Section 1",
@@ -894,7 +785,6 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 	deleteConfig := completeFrameworkConfig{
 		Name:        "Test Framework Comprehensive CRUD",
 		Description: "Framework to test comprehensive CRUD operations",
-		Active:      utils.Addr(false),
 		Sections: map[string]sectionConfig{
 			// section-1 deleted entirely
 			"section-2": {
@@ -976,7 +866,6 @@ func TestAccCloudComplianceCustomFrameworkResource_MixedOperations(t *testing.T)
 	initialConfig := completeFrameworkConfig{
 		Name:        "Test Framework Mixed Operations",
 		Description: "Framework to test mixed operations",
-		Active:      utils.Addr(false),
 		Sections: map[string]sectionConfig{
 			"section-to-delete": {
 				Name: "Section To Delete",
@@ -1007,7 +896,6 @@ func TestAccCloudComplianceCustomFrameworkResource_MixedOperations(t *testing.T)
 	mixedOperationsConfig := completeFrameworkConfig{
 		Name:        "Test Framework Mixed Operations",
 		Description: "Framework to test mixed operations",
-		Active:      utils.Addr(false),
 		Sections: map[string]sectionConfig{
 			// "section-to-delete" - deleted entirely
 			"section-to-rename": {
@@ -1088,51 +976,6 @@ func TestAccCloudComplianceCustomFrameworkResource_EmptySectionsValidation(t *te
 			{
 				Config:      acctest.ProviderConfig + emptyConfig.String(),
 				ExpectError: regexp.MustCompile("Inappropriate value for attribute \"sections\"|attribute \"controls\" is required"),
-			},
-		},
-	})
-}
-
-func _TestAccCloudComplianceCustomFrameworkResource_ActiveValidation(t *testing.T) {
-	initialConfig := minimalFrameworkConfig{
-		Name:        "Test Framework Active Validation",
-		Description: "Framework to test active field validation",
-	}
-
-	activeConfig := minimalFrameworkConfig{
-		Name:        "Test Framework Active Validation",
-		Description: "Framework to test active field validation",
-		Active:      utils.Addr(true),
-	}
-
-	deactivateConfig := minimalFrameworkConfig{
-		Name:        "Test Framework Active Validation",
-		Description: "Framework to test active field validation",
-		Active:      utils.Addr(false),
-	}
-
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			// Step 1: Create framework (defaults to active = false)
-			{
-				Config: acctest.ProviderConfig + initialConfig.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(customFrameworkResourceName, "active", "false"),
-				),
-			},
-			// Step 2: Update to active = true
-			{
-				Config: acctest.ProviderConfig + activeConfig.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(customFrameworkResourceName, "active", "true"),
-				),
-			},
-			// Step 3: Try to change active from true back to false - should fail
-			{
-				Config:      acctest.ProviderConfig + deactivateConfig.String(),
-				ExpectError: regexp.MustCompile("The active field cannot be changed from true to false"),
 			},
 		},
 	})

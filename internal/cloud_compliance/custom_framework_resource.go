@@ -18,7 +18,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -28,13 +27,12 @@ import (
 
 // FQL filter constants
 var (
-	filterComplianceControlsByFramework        = "compliance_control_benchmark_name:'%s'+compliance_control_authority:'Custom'"
-	sortComplianceControlsByRequirementAsc     = "compliance_control_requirement|asc"
-	limitComplianceControlsMax                 = int64(500)
-	complianceControlsByFrameworkSectionFilter = "compliance_control_benchmark_name:'%s'+compliance_control_authority:'Custom'+compliance_control_section:'%s'"
-	filterComplianceRulesByControl             = "rule_compliance_benchmark:'%s'+rule_control_section:'%s'+rule_control_requirement:'%s'+rule_domain:'CSPM'+rule_subdomain:'IOM'"
-	sortComplianceRulesByUpdatedAtAsc          = "rule_updated_at|asc"
-	limitComplianceRulesMax                    = int64(500)
+	filterComplianceControlsByFramework    = "compliance_control_benchmark_name:'%s'+compliance_control_authority:'Custom'"
+	sortComplianceControlsByRequirementAsc = "compliance_control_requirement|asc"
+	limitComplianceControlsMax             = int64(500)
+	filterComplianceRulesByControl         = "rule_compliance_benchmark:'%s'+rule_control_section:'%s'+rule_control_requirement:'%s'+rule_domain:'CSPM'+rule_subdomain:'IOM'"
+	sortComplianceRulesByUpdatedAtAsc      = "rule_updated_at|asc"
+	limitComplianceRulesMax                = int64(500)
 )
 
 var (
@@ -62,7 +60,6 @@ type cloudComplianceCustomFrameworkResourceModel struct {
 	ID          types.String `tfsdk:"id"`
 	Name        types.String `tfsdk:"name"`
 	Description types.String `tfsdk:"description"`
-	Active      types.Bool   `tfsdk:"active"`
 	Sections    types.Map    `tfsdk:"sections"`
 }
 
@@ -88,7 +85,6 @@ func (d *cloudComplianceCustomFrameworkResourceModel) wrap(
 	d.ID = types.StringValue(framework.UUID)
 	d.Name = types.StringPointerValue(framework.Name)
 	d.Description = types.StringValue(framework.Description)
-	d.Active = types.BoolValue(framework.Active)
 
 	// Don't warp Sections here - it is handled by readControlsForFramework
 
@@ -162,12 +158,6 @@ func (r *cloudComplianceCustomFrameworkResource) Schema(
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
-			},
-			"active": schema.BoolAttribute{
-				Optional:            true,
-				Computed:            true,
-				Default:             booldefault.StaticBool(false),
-				MarkdownDescription: "Whether the custom compliance framework is active. Defaults to false on create. Once set to true, cannot be changed back to false.",
 			},
 			"sections": schema.MapNestedAttribute{
 				Optional:            true,
@@ -358,17 +348,11 @@ func (r *cloudComplianceCustomFrameworkResource) Update(
 		return
 	}
 
-	// Validate that active cannot be changed from true to false
-	resp.Diagnostics.Append(validateActiveFieldTransition(state.Active, plan.Active)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	tflog.Info(ctx, "Updating custom compliance framework", map[string]any{
 		"id": plan.ID.ValueString(),
 	})
 
-	if plan.Name.Equal(state.Name) || plan.Description.Equal(state.Description) || plan.Active.Equal(state.Active) {
+	if !plan.Name.Equal(state.Name) || !plan.Description.Equal(state.Description) {
 		params := buildUpdateFrameworkParams(ctx, plan)
 		updateResp, err := r.client.CloudPolicies.UpdateComplianceFramework(params)
 		if err != nil {
@@ -831,32 +815,6 @@ func (r *cloudComplianceCustomFrameworkResource) getControlDetails(
 	return getControlsResp.Payload.Resources, diags
 }
 
-func (r *cloudComplianceCustomFrameworkResource) queryControlRules(
-	ctx context.Context,
-	frameworkName, sectionName, requirement string,
-) ([]string, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	rulesByControlFilter := fmt.Sprintf(filterComplianceRulesByControl, frameworkName, sectionName, requirement)
-	queryRulesParams := cloud_policies.NewQueryRuleParamsWithContext(ctx).
-		WithFilter(&rulesByControlFilter).
-		WithSort(&sortComplianceRulesByUpdatedAtAsc).
-		WithLimit(&limitComplianceRulesMax)
-
-	queryRulesResp, queryRuleErr := r.client.CloudPolicies.QueryRule(queryRulesParams)
-	if queryRuleErr != nil {
-		diags.AddError(errorQueryingRules,
-			fmt.Sprintf("Failed to query rules for control: %s", falcon.ErrorExplain(queryRuleErr)))
-		return nil, diags
-	}
-
-	if queryRulesResp == nil || queryRulesResp.Payload == nil {
-		return []string{}, diags
-	}
-
-	return queryRulesResp.Payload.Resources, diags
-}
-
 func (r *cloudComplianceCustomFrameworkResource) readControlWithRules(
 	ctx context.Context,
 	control *models.ApimodelsControl,
@@ -884,6 +842,32 @@ func (r *cloudComplianceCustomFrameworkResource) readControlWithRules(
 		Description: types.StringValue(control.Description),
 		Rules:       rulesSet,
 	}, diags
+}
+
+func (r *cloudComplianceCustomFrameworkResource) queryControlRules(
+	ctx context.Context,
+	frameworkName, sectionName, requirement string,
+) ([]string, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	rulesByControlFilter := fmt.Sprintf(filterComplianceRulesByControl, frameworkName, sectionName, requirement)
+	queryRulesParams := cloud_policies.NewQueryRuleParamsWithContext(ctx).
+		WithFilter(&rulesByControlFilter).
+		WithSort(&sortComplianceRulesByUpdatedAtAsc).
+		WithLimit(&limitComplianceRulesMax)
+
+	queryRulesResp, queryRuleErr := r.client.CloudPolicies.QueryRule(queryRulesParams)
+	if queryRuleErr != nil {
+		diags.AddError(errorQueryingRules,
+			fmt.Sprintf("Failed to query rules for control: %s", falcon.ErrorExplain(queryRuleErr)))
+		return nil, diags
+	}
+
+	if queryRulesResp == nil || queryRulesResp.Payload == nil {
+		return []string{}, diags
+	}
+
+	return queryRulesResp.Payload.Resources, diags
 }
 
 func (r *cloudComplianceCustomFrameworkResource) processSectionUpdates(
@@ -1130,20 +1114,4 @@ func (r *cloudComplianceCustomFrameworkResource) generateKeyFromName(name string
 	key = strings.Trim(key, "-")
 
 	return key
-}
-
-// Validation utilities
-
-func validateActiveFieldTransition(currentActive, newActive types.Bool) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	if !currentActive.IsNull() && currentActive.ValueBool() && !newActive.ValueBool() {
-		diags.AddAttributeError(
-			path.Root("active"),
-			"Invalid Active Field Change",
-			"The active field cannot be changed from true to false. Once a custom compliance framework is activated, it must remain active.",
-		)
-	}
-
-	return diags
 }

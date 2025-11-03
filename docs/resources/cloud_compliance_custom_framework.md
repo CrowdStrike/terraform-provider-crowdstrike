@@ -82,7 +82,6 @@ output "cloud_compliance_custom_framework" {
 
 ### Optional
 
-- `active` (Boolean) Whether the custom compliance framework is active. Defaults to false on create. Once set to true, cannot be changed back to false.
 - `sections` (Attributes Map) Map of sections within the framework. Key is an immutable unique string. Changing the section key will trigger a complete delete and create of the section. Sections cannot exist without controls. (see [below for nested schema](#nestedatt--sections))
 
 ### Read-Only

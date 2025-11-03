@@ -54,7 +54,6 @@ func buildCreateFrameworkParams(
 	createReq := &models.CommonCreateComplianceFrameworkRequest{
 		Name:        &name,
 		Description: &description,
-		Active:      plan.Active.ValueBool(),
 	}
 
 	params := cloud_policies.NewCreateComplianceFrameworkParamsWithContext(ctx)
@@ -72,7 +71,6 @@ func buildUpdateFrameworkParams(
 	updateReq := &models.CommonUpdateComplianceFrameworkRequest{
 		Name:        &name,
 		Description: &description,
-		Active:      plan.Active.ValueBool(),
 	}
 
 	params := cloud_policies.NewUpdateComplianceFrameworkParamsWithContext(ctx)
