@@ -1,0 +1,511 @@
+package preventionpolicy
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/crowdstrike/gofalcon/falcon/client"
+	"github.com/crowdstrike/gofalcon/falcon/client/prevention_policies"
+	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
+)
+
+// Ensure the implementation satisfies the expected interfaces.
+var (
+	_ datasource.DataSource              = &preventionPoliciesDataSource{}
+	_ datasource.DataSourceWithConfigure = &preventionPoliciesDataSource{}
+)
+
+// preventionPoliciesDataSource is the data source implementation.
+type preventionPoliciesDataSource struct {
+	client *client.CrowdStrikeAPISpecification
+}
+
+type preventionPolicyDataModel struct {
+	ID                types.String `tfsdk:"id"`
+	Name              types.String `tfsdk:"name"`
+	Description       types.String `tfsdk:"description"`
+	PlatformName      types.String `tfsdk:"platform_name"`
+	Enabled           types.Bool   `tfsdk:"enabled"`
+	CreatedBy         types.String `tfsdk:"created_by"`
+	CreatedTimestamp  types.String `tfsdk:"created_timestamp"`
+	ModifiedBy        types.String `tfsdk:"modified_by"`
+	ModifiedTimestamp types.String `tfsdk:"modified_timestamp"`
+	Groups            types.List   `tfsdk:"groups"`
+	IoaRuleGroups     types.List   `tfsdk:"ioa_rule_groups"`
+}
+
+type preventionPoliciesDataSourceModel struct {
+	ID       types.String                 `tfsdk:"id"`
+	Filter   types.String                 `tfsdk:"filter"`
+	IDs      types.List                   `tfsdk:"ids"`
+	Sort     types.String                 `tfsdk:"sort"`
+	Enabled  types.Bool                   `tfsdk:"enabled"`
+	Platform types.String                 `tfsdk:"platform"`
+	Policies []*preventionPolicyDataModel `tfsdk:"policies"`
+}
+
+// NewPreventionPoliciesDataSource is a helper function to simplify the provider implementation.
+func NewPreventionPoliciesDataSource() datasource.DataSource {
+	return &preventionPoliciesDataSource{}
+}
+
+// Metadata returns the data source type name.
+func (d *preventionPoliciesDataSource) Metadata(
+	_ context.Context,
+	req datasource.MetadataRequest,
+	resp *datasource.MetadataResponse,
+) {
+	resp.TypeName = req.ProviderTypeName + "_prevention_policies"
+}
+
+// Schema defines the schema for the data source.
+func (d *preventionPoliciesDataSource) Schema(
+	_ context.Context,
+	_ datasource.SchemaRequest,
+	resp *datasource.SchemaResponse,
+) {
+	resp.Schema = schema.Schema{
+		MarkdownDescription: fmt.Sprintf(
+			"Prevention Policies --- This data source provides information about prevention policies in Falcon.\n\n%s",
+			scopes.GenerateScopeDescription(apiScopes),
+		),
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed:    true,
+				Description: "Identifier for this data source",
+			},
+			"filter": schema.StringAttribute{
+				Optional: true,
+				Description: "FQL filter to apply to the prevention policies query. " +
+					"When specified, only policies matching the filter will be returned. " +
+					"Cannot be used together with 'ids' or other filter attributes. " +
+					"Example: `platform_name:'Windows'`",
+			},
+			"ids": schema.ListAttribute{
+				Optional:    true,
+				ElementType: types.StringType,
+				Description: "List of prevention policy IDs to retrieve. " +
+					"When specified, only policies with matching IDs will be returned. " +
+					"Cannot be used together with 'filter' or other filter attributes.",
+			},
+			"sort": schema.StringAttribute{
+				Optional: true,
+				Description: "Sort order for the results. " +
+					"Valid values include field names with optional '.asc' or '.desc' suffix. " +
+					"Example: 'name.asc', 'precedence.desc'",
+			},
+			"enabled": schema.BoolAttribute{
+				Optional: true,
+				Description: "Filter policies by enabled status. " +
+					"Cannot be used together with 'filter' or 'ids'.",
+			},
+			"platform": schema.StringAttribute{
+				Optional: true,
+				Description: "Filter policies by platform (Windows, Linux, Mac). " +
+					"Cannot be used together with 'filter' or 'ids'.",
+			},
+			"policies": schema.ListNestedAttribute{
+				Computed:    true,
+				Description: "The list of prevention policies",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"id": schema.StringAttribute{
+							Computed:    true,
+							Description: "The prevention policy ID",
+						},
+						"name": schema.StringAttribute{
+							Computed:    true,
+							Description: "The prevention policy name",
+						},
+						"description": schema.StringAttribute{
+							Computed:    true,
+							Description: "The prevention policy description",
+						},
+						"platform_name": schema.StringAttribute{
+							Computed:    true,
+							Description: "The platform name (Windows, Linux, Mac)",
+						},
+						"enabled": schema.BoolAttribute{
+							Computed:    true,
+							Description: "Whether the prevention policy is enabled",
+						},
+						"created_by": schema.StringAttribute{
+							Computed:    true,
+							Description: "User who created the policy",
+						},
+						"created_timestamp": schema.StringAttribute{
+							Computed:    true,
+							Description: "Timestamp when the policy was created",
+						},
+						"modified_by": schema.StringAttribute{
+							Computed:    true,
+							Description: "User who last modified the policy",
+						},
+						"modified_timestamp": schema.StringAttribute{
+							Computed:    true,
+							Description: "Timestamp when the policy was last modified",
+						},
+						"groups": schema.ListAttribute{
+							Computed:    true,
+							ElementType: types.StringType,
+							Description: "List of host group IDs assigned to the policy",
+						},
+						"ioa_rule_groups": schema.ListAttribute{
+							Computed:    true,
+							ElementType: types.StringType,
+							Description: "List of IOA rule group IDs associated with the policy",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// getPreventionPoliciesWithFilter retrieves prevention policies using a filter.
+func (d *preventionPoliciesDataSource) getPreventionPoliciesWithFilter(
+	ctx context.Context,
+	filter string,
+	sort string,
+) ([]*models.PreventionPolicyV1, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	tflog.Info(
+		ctx,
+		"[datasource] Getting prevention policies with filter",
+		map[string]interface{}{"filter": filter, "sort": sort},
+	)
+
+	params := &prevention_policies.QueryCombinedPreventionPoliciesParams{
+		Context: ctx,
+	}
+
+	if filter != "" {
+		params.Filter = &filter
+	}
+
+	if sort != "" {
+		params.Sort = &sort
+	}
+
+	res, err := d.client.PreventionPolicies.QueryCombinedPreventionPolicies(params)
+	if err != nil {
+		diags.AddError(
+			"Failed to query prevention policies",
+			fmt.Sprintf("Failed to query prevention policies: %s", err.Error()),
+		)
+		return nil, diags
+	}
+
+	if res == nil || res.Payload == nil {
+		diags.AddError(
+			"Failed to query prevention policies",
+			"Received empty response from prevention policies query",
+		)
+		return nil, diags
+	}
+
+	return res.Payload.Resources, diags
+}
+
+// getPreventionPoliciesByIDs retrieves prevention policies by their IDs.
+func (d *preventionPoliciesDataSource) getPreventionPoliciesByIDs(
+	ctx context.Context,
+	ids []string,
+) ([]*models.PreventionPolicyV1, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	tflog.Info(
+		ctx,
+		"[datasource] Getting prevention policies by IDs",
+		map[string]interface{}{"ids": ids},
+	)
+
+	res, err := d.client.PreventionPolicies.GetPreventionPolicies(
+		&prevention_policies.GetPreventionPoliciesParams{
+			Context: ctx,
+			Ids:     ids,
+		},
+	)
+
+	if err != nil {
+		diags.AddError(
+			"Failed to get prevention policies",
+			fmt.Sprintf("Failed to get prevention policies by IDs: %s", err.Error()),
+		)
+		return nil, diags
+	}
+
+	if res == nil || res.Payload == nil {
+		diags.AddError(
+			"Failed to get prevention policies",
+			"Received empty response from prevention policies get request",
+		)
+		return nil, diags
+	}
+
+	return res.Payload.Resources, diags
+}
+
+// convertToDataModel converts a prevention policy API model to the data source model.
+func convertToDataModel(policy *models.PreventionPolicyV1) *preventionPolicyDataModel {
+	if policy == nil {
+		return nil
+	}
+
+	// Convert host groups
+	groups := make([]attr.Value, 0, len(policy.Groups))
+	for _, group := range policy.Groups {
+		if group.ID != nil {
+			groups = append(groups, types.StringValue(*group.ID))
+		}
+	}
+
+	// Convert IOA rule groups
+	ioaRuleGroups := make([]attr.Value, 0, len(policy.IoaRuleGroups))
+	for _, group := range policy.IoaRuleGroups {
+		if group.ID != nil {
+			ioaRuleGroups = append(ioaRuleGroups, types.StringValue(*group.ID))
+		}
+	}
+
+	model := &preventionPolicyDataModel{
+		Groups:        types.ListValueMust(types.StringType, groups),
+		IoaRuleGroups: types.ListValueMust(types.StringType, ioaRuleGroups),
+	}
+
+	// Set string fields with null checks
+	if policy.ID != nil {
+		model.ID = types.StringValue(*policy.ID)
+	} else {
+		model.ID = types.StringNull()
+	}
+
+	if policy.Name != nil {
+		model.Name = types.StringValue(*policy.Name)
+	} else {
+		model.Name = types.StringNull()
+	}
+
+	if policy.Description != nil {
+		model.Description = types.StringValue(*policy.Description)
+	} else {
+		model.Description = types.StringNull()
+	}
+
+	if policy.PlatformName != nil {
+		model.PlatformName = types.StringValue(*policy.PlatformName)
+	} else {
+		model.PlatformName = types.StringNull()
+	}
+
+	if policy.CreatedBy != nil {
+		model.CreatedBy = types.StringValue(*policy.CreatedBy)
+	} else {
+		model.CreatedBy = types.StringNull()
+	}
+
+	if policy.CreatedTimestamp != nil {
+		model.CreatedTimestamp = types.StringValue(policy.CreatedTimestamp.String())
+	} else {
+		model.CreatedTimestamp = types.StringNull()
+	}
+
+	if policy.ModifiedBy != nil {
+		model.ModifiedBy = types.StringValue(*policy.ModifiedBy)
+	} else {
+		model.ModifiedBy = types.StringNull()
+	}
+
+	if policy.ModifiedTimestamp != nil {
+		model.ModifiedTimestamp = types.StringValue(policy.ModifiedTimestamp.String())
+	} else {
+		model.ModifiedTimestamp = types.StringNull()
+	}
+
+	// Set boolean field
+	if policy.Enabled != nil {
+		model.Enabled = types.BoolValue(*policy.Enabled)
+	} else {
+		model.Enabled = types.BoolNull()
+	}
+
+	return model
+}
+
+// hasIndividualFilters checks if any of the individual filter attributes are set.
+func (d *preventionPoliciesDataSource) hasIndividualFilters(data *preventionPoliciesDataSourceModel) bool {
+	return (!data.Enabled.IsNull() && !data.Enabled.IsUnknown()) ||
+		(!data.Platform.IsNull() && !data.Platform.IsUnknown())
+}
+
+// buildFQLFromAttributes constructs an FQL filter from individual filter attributes.
+func (d *preventionPoliciesDataSource) buildFQLFromAttributes(ctx context.Context, data *preventionPoliciesDataSourceModel) string {
+	var filters []string
+
+	// enabled filter
+	if !data.Enabled.IsNull() && !data.Enabled.IsUnknown() {
+		enabled := data.Enabled.ValueBool()
+		filters = append(filters, fmt.Sprintf("enabled:%t", enabled))
+	}
+
+	// platform filter (map to platform_name)
+	if !data.Platform.IsNull() && !data.Platform.IsUnknown() {
+		value := data.Platform.ValueString()
+		if value != "" {
+			filters = append(filters, fmt.Sprintf("platform_name:'%s'", value))
+		}
+	}
+
+	// Join all filters with AND (+)
+	if len(filters) == 0 {
+		return ""
+	}
+
+	fqlFilter := strings.Join(filters, "+")
+
+	// Add debug logging to see what filter is generated
+	tflog.Info(
+		ctx,
+		"[datasource] Generated FQL filter from individual attributes",
+		map[string]interface{}{"filter": fqlFilter, "filter_count": len(filters)},
+	)
+
+	return fqlFilter
+}
+
+// Read refreshes the Terraform state with the latest data.
+func (d *preventionPoliciesDataSource) Read(
+	ctx context.Context,
+	req datasource.ReadRequest,
+	resp *datasource.ReadResponse,
+) {
+	var data preventionPoliciesDataSourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Check what filtering methods are being used
+	hasFilter := !data.Filter.IsNull() && !data.Filter.IsUnknown() && data.Filter.ValueString() != ""
+	hasIDs := !data.IDs.IsNull() && !data.IDs.IsUnknown() && len(data.IDs.Elements()) > 0
+	hasIndividualFilters := d.hasIndividualFilters(&data)
+
+	// Validate mutual exclusivity
+	filterCount := 0
+	if hasFilter {
+		filterCount++
+	}
+	if hasIDs {
+		filterCount++
+	}
+	if hasIndividualFilters {
+		filterCount++
+	}
+
+	if filterCount > 1 {
+		resp.Diagnostics.AddError(
+			"Invalid Attribute Combination",
+			"Cannot specify 'filter', 'ids', and individual filter attributes (enabled, platform) together. "+
+				"Please use only one filtering method: either 'filter' for FQL queries, 'ids' for specific IDs, "+
+				"or individual filter attributes.",
+		)
+		return
+	}
+
+	var policies []*models.PreventionPolicyV1
+	var diags diag.Diagnostics
+	var dataSourceID string
+
+	if hasIDs {
+		// Get policies by IDs
+		var ids []string
+		resp.Diagnostics.Append(data.IDs.ElementsAs(ctx, &ids, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		policies, diags = d.getPreventionPoliciesByIDs(ctx, ids)
+		dataSourceID = "ids"
+	} else {
+		// Get policies with filter (or all if no filter)
+		filter := ""
+
+		if hasFilter {
+			filter = data.Filter.ValueString()
+		} else if hasIndividualFilters {
+			// Build FQL filter from individual attributes
+			filter = d.buildFQLFromAttributes(ctx, &data)
+		}
+
+		sort := ""
+		if !data.Sort.IsNull() && !data.Sort.IsUnknown() {
+			sort = data.Sort.ValueString()
+		}
+
+		policies, diags = d.getPreventionPoliciesWithFilter(ctx, filter, sort)
+
+		// Set appropriate data source ID
+		if hasFilter || hasIndividualFilters {
+			dataSourceID = "filtered"
+		} else {
+			dataSourceID = "all"
+		}
+	}
+
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Convert API models to data models
+	data.Policies = make([]*preventionPolicyDataModel, 0, len(policies))
+	for _, policy := range policies {
+		if convertedPolicy := convertToDataModel(policy); convertedPolicy != nil {
+			data.Policies = append(data.Policies, convertedPolicy)
+		}
+	}
+
+	// Set ID based on filtering method used
+	data.ID = types.StringValue(dataSourceID)
+
+	// Set state
+	diags = resp.State.Set(ctx, &data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+}
+
+// Configure adds the provider configured client to the data source.
+func (d *preventionPoliciesDataSource) Configure(
+	_ context.Context,
+	req datasource.ConfigureRequest,
+	resp *datasource.ConfigureResponse,
+) {
+	if req.ProviderData == nil {
+		return
+	}
+
+	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Unexpected Data Source Configure Type",
+			fmt.Sprintf(
+				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				req.ProviderData,
+			),
+		)
+		return
+	}
+
+	d.client = client
+}
