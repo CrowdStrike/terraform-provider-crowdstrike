@@ -2,7 +2,7 @@
 page_title: "crowdstrike_it_automation_default_policy Resource - crowdstrike"
 subcategory: "IT Automation"
 description: |-
-  IT Automation --- IT Automation default policies --- This resource allows management of default IT Automation policy configuration settings in the CrowdStrike Falcon platform.
+  This resource allows management of default IT Automation policy configuration settings in the CrowdStrike Falcon platform.
   API Scopes
   The following API scopes are required:
   IT Automation - Policies | Read & WriteIT Automation - Task Executions | Read & WriteIT Automation - Tasks | Read & WriteIT Automation - User Groups | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_it_automation_default_policy (Resource)
 
-IT Automation --- IT Automation default policies --- This resource allows management of default IT Automation policy configuration settings in the CrowdStrike Falcon platform.
+This resource allows management of default IT Automation policy configuration settings in the CrowdStrike Falcon platform.
 
 ## API Scopes
 
@@ -20,6 +20,7 @@ The following API scopes are required:
 - IT Automation - Task Executions | Read & Write
 - IT Automation - Tasks | Read & Write
 - IT Automation - User Groups | Read & Write
+
 
 ~> **Important** Default policies are created by CrowdStrike and cannot be created or deleted via Terraform. You can only manage the description and configuration settings (concurrency, execution, and resources). Default policies cannot be enabled/disabled, assigned to host groups, or have their names changed.
 
