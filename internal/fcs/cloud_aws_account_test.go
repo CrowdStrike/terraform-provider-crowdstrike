@@ -80,6 +80,17 @@ resource "crowdstrike_cloud_aws_account" "%s" {
 `, resourceName, account, testVulnRoleName)
 }
 
+func testAccCloudAwsAccountConfig_vulnerabilityScanningNoRoleName(resourceName, account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "%s" {
+  account_id = "%s"
+  vulnerability_scanning = {
+    enabled   = true
+  }
+}
+`, resourceName, account)
+}
+
 func testAccCloudAwsAccountConfig_bothDSPMAndVulnScanning(resourceName, account string, roleName string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_aws_account" "%s" {
@@ -185,7 +196,7 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_arn", ""),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", ""),
-					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", ""),
+					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
 				),
 			},
 			// Import testing
@@ -252,7 +263,7 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_arn", ""),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", ""),
-					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", ""),
+					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
 				),
 			},
 		},
@@ -288,7 +299,7 @@ func TestAccCloudAwsAccountResourceMinimal(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_arn", ""),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", ""),
-					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", ""),
+					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
 				),
 			},
 		},
@@ -313,6 +324,31 @@ func TestAccCloudAwsAccountResourceVulnerabilityScanning(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", testVulnRoleName),
 					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", testVulnRoleName),
+				),
+			},
+		},
+	})
+}
+
+func TestAccCloudAwsAccountResourceVulnerabilityScanningNoRoleName(t *testing.T) {
+	t.Skip("skip until CSPM fix for vulnerability scanning role response")
+	testResourceName := "test_vuln"
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, testResourceName)
+	account_id := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAwsAccountConfig_vulnerabilityScanningNoRoleName(testResourceName, account_id),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", account_id),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.role_name", ""),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
 				),
 			},
 		},
