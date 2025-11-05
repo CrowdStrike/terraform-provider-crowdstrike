@@ -334,14 +334,33 @@ func TestAccDefaultContentUpdatePolicyResource_PinnedContentVersionUpdates(t *te
 func TestAccDefaultContentUpdatePolicyResource_PinnedContentVersionValidationErrors(t *testing.T) {
 	// Test ring assignment change errors with pinned versions
 	validationTests := []struct {
-		name        string
-		config      defaultPolicyConfig
-		expectError *regexp.Regexp
+		name          string
+		initialConfig defaultPolicyConfig
+		updateConfig  defaultPolicyConfig
+		expectError   *regexp.Regexp
 	}{
 		{
 			name: "sensor_operations_ring_assignment_change_blocked",
-			config: defaultPolicyConfig{
+			initialConfig: defaultPolicyConfig{
 				Description: "Default policy with pinned sensor operations version",
+				SensorOperations: ringConfig{
+					RingAssignment:       "ga",
+					DelayHours:           utils.Addr(0),
+					PinnedContentVersion: utils.Addr("data.crowdstrike_content_category_versions.test.sensor_operations[0]"),
+				},
+				SystemCritical: ringConfig{
+					RingAssignment: "ga",
+					DelayHours:     utils.Addr(0),
+				},
+				VulnerabilityManagement: ringConfig{
+					RingAssignment: "ea",
+				},
+				RapidResponse: ringConfig{
+					RingAssignment: "pause",
+				},
+			},
+			updateConfig: defaultPolicyConfig{
+				Description: "Default policy attempting to change ring assignment with pinned version",
 				SensorOperations: ringConfig{
 					RingAssignment:       "ea",
 					PinnedContentVersion: utils.Addr("data.crowdstrike_content_category_versions.test.sensor_operations[0]"),
@@ -361,8 +380,26 @@ func TestAccDefaultContentUpdatePolicyResource_PinnedContentVersionValidationErr
 		},
 		{
 			name: "system_critical_ring_assignment_change_blocked",
-			config: defaultPolicyConfig{
+			initialConfig: defaultPolicyConfig{
 				Description: "Default policy with pinned system critical version",
+				SensorOperations: ringConfig{
+					RingAssignment: "ga",
+					DelayHours:     utils.Addr(0),
+				},
+				SystemCritical: ringConfig{
+					RingAssignment:       "ga",
+					DelayHours:           utils.Addr(0),
+					PinnedContentVersion: utils.Addr("data.crowdstrike_content_category_versions.test.system_critical[0]"),
+				},
+				VulnerabilityManagement: ringConfig{
+					RingAssignment: "ea",
+				},
+				RapidResponse: ringConfig{
+					RingAssignment: "pause",
+				},
+			},
+			updateConfig: defaultPolicyConfig{
+				Description: "Default policy attempting to change ring assignment with pinned version",
 				SensorOperations: ringConfig{
 					RingAssignment: "ga",
 					DelayHours:     utils.Addr(0),
@@ -382,8 +419,26 @@ func TestAccDefaultContentUpdatePolicyResource_PinnedContentVersionValidationErr
 		},
 		{
 			name: "sensor_operations_delay_hours_change_blocked",
-			config: defaultPolicyConfig{
+			initialConfig: defaultPolicyConfig{
 				Description: "Default policy with pinned sensor operations version",
+				SensorOperations: ringConfig{
+					RingAssignment:       "ga",
+					DelayHours:           utils.Addr(0),
+					PinnedContentVersion: utils.Addr("data.crowdstrike_content_category_versions.test.sensor_operations[0]"),
+				},
+				SystemCritical: ringConfig{
+					RingAssignment: "ga",
+					DelayHours:     utils.Addr(0),
+				},
+				VulnerabilityManagement: ringConfig{
+					RingAssignment: "ea",
+				},
+				RapidResponse: ringConfig{
+					RingAssignment: "pause",
+				},
+			},
+			updateConfig: defaultPolicyConfig{
+				Description: "Default policy attempting to change delay hours with pinned version",
 				SensorOperations: ringConfig{
 					RingAssignment:       "ga",
 					DelayHours:           utils.Addr(48),
@@ -404,8 +459,26 @@ func TestAccDefaultContentUpdatePolicyResource_PinnedContentVersionValidationErr
 		},
 		{
 			name: "system_critical_delay_hours_change_blocked",
-			config: defaultPolicyConfig{
+			initialConfig: defaultPolicyConfig{
 				Description: "Default policy with pinned system critical version",
+				SensorOperations: ringConfig{
+					RingAssignment: "ga",
+					DelayHours:     utils.Addr(0),
+				},
+				SystemCritical: ringConfig{
+					RingAssignment:       "ga",
+					DelayHours:           utils.Addr(0),
+					PinnedContentVersion: utils.Addr("data.crowdstrike_content_category_versions.test.system_critical[0]"),
+				},
+				VulnerabilityManagement: ringConfig{
+					RingAssignment: "ea",
+				},
+				RapidResponse: ringConfig{
+					RingAssignment: "pause",
+				},
+			},
+			updateConfig: defaultPolicyConfig{
+				Description: "Default policy attempting to change delay hours with pinned version",
 				SensorOperations: ringConfig{
 					RingAssignment: "ga",
 					DelayHours:     utils.Addr(0),
@@ -441,7 +514,11 @@ func TestAccDefaultContentUpdatePolicyResource_PinnedContentVersionValidationErr
 						Check:  cleanInitialConfig.TestChecks(),
 					},
 					{
-						Config:      acctest.ProviderConfig + tc.config.String(),
+						Config: acctest.ProviderConfig + tc.initialConfig.String(),
+						Check:  tc.initialConfig.TestChecks(),
+					},
+					{
+						Config:      acctest.ProviderConfig + tc.updateConfig.String(),
 						ExpectError: tc.expectError,
 					},
 				},
@@ -602,8 +679,7 @@ func TestAccDefaultContentUpdatePolicyResource_PinnedContentVersion(t *testing.T
 					PinnedContentVersion: utils.Addr("data.crowdstrike_content_category_versions.test.sensor_operations[0]"),
 				},
 				SystemCritical: ringConfig{
-					RingAssignment: "ga", // Keep same as clean config
-					DelayHours:     utils.Addr(0),
+					RingAssignment: "ea", // Keep same as clean config
 				},
 				VulnerabilityManagement: ringConfig{
 					RingAssignment:       "ea", // Keep same as clean config
