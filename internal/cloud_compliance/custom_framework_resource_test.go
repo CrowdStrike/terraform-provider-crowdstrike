@@ -222,7 +222,6 @@ func TestAccCloudComplianceCustomFrameworkResource_Basic(t *testing.T) {
 					Check:  tc.config.TestChecks(),
 				})
 			}
-			// Add import test
 			steps = append(steps, resource.TestStep{
 				ResourceName:      customFrameworkResourceName,
 				ImportState:       true,

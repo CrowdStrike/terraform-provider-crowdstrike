@@ -247,9 +247,14 @@ func (r *cloudComplianceCustomFrameworkResource) Create(
 		return
 	}
 
+	resp.Diagnostics.Append(plan.wrap(ctx, framework)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	// Create controls and assign rules if sections are provided
 	var planSectionsMapByKey map[string]SectionTFModel
-	if !plan.Sections.IsNull() && !plan.Sections.IsUnknown() {
+	if utils.IsKnown(plan.Sections) {
 		resp.Diagnostics.Append(plan.Sections.ElementsAs(ctx, &planSectionsMapByKey, false)...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -260,16 +265,7 @@ func (r *cloudComplianceCustomFrameworkResource) Create(
 		if resp.Diagnostics.HasError() {
 			return
 		}
-	}
 
-	// Update the plan with the API response
-	resp.Diagnostics.Append(plan.wrap(ctx, framework)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Read controls and sections data if sections were created
-	if !plan.Sections.IsNull() && !plan.Sections.IsUnknown() {
 		sections, sectionsDiags := r.readControlsForFramework(ctx, *framework.Name, planSectionsMapByKey)
 		resp.Diagnostics.Append(sectionsDiags...)
 		if resp.Diagnostics.HasError() {
@@ -278,7 +274,6 @@ func (r *cloudComplianceCustomFrameworkResource) Create(
 		plan.Sections = sections
 	}
 
-	// Set state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -303,10 +298,6 @@ func (r *cloudComplianceCustomFrameworkResource) Read(
 	resp.Diagnostics.Append(getFrameworkDiags...)
 	if frameworkNotFound {
 		resp.State.RemoveResource(ctx)
-		return
-	}
-
-	if framework == nil {
 		return
 	}
 
