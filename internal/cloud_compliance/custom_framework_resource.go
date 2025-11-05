@@ -355,19 +355,9 @@ func (r *cloudComplianceCustomFrameworkResource) Update(
 	}
 
 	frameworkID := state.ID.ValueString()
-	framework, getFrameworkDiags, frameworkNotFound := r.getFramework(ctx, frameworkID)
+	framework, getFrameworkDiags, _ := r.getFramework(ctx, frameworkID)
 	resp.Diagnostics.Append(getFrameworkDiags...)
 	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if frameworkNotFound {
-		var diags diag.Diagnostics
-		framework, diags = r.createFramework(ctx, plan)
-		resp.Diagnostics.Append(diags...)
-	}
-
-	if framework == nil || resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -646,10 +636,6 @@ func (r *cloudComplianceCustomFrameworkResource) getFramework(
 	diags.Append(validateAPIResponse(payload, errorReadingFramework)...)
 	if diags.HasError() {
 		return nil, diags, false
-	}
-
-	if len(payload.Resources) == 0 {
-		return nil, diags, true
 	}
 
 	return payload.Resources[0], diags, false
