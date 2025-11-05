@@ -315,11 +315,7 @@ func (r *cloudComplianceCustomFrameworkResource) Read(
 		return
 	}
 
-	// Only set sections if the map is not empty or if state.Sections was previously configured
-	// This prevents creating drift for frameworks without any controls
-	if len(sectionsMap.Elements()) > 0 || (!state.Sections.IsNull() && !state.Sections.IsUnknown()) {
-		state.Sections = sectionsMap
-	}
+	state.Sections = sectionsMap
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -670,27 +666,25 @@ func (r *cloudComplianceCustomFrameworkResource) readControlsForFramework(
 	controlIDs, queryDiags := r.queryFrameworkControls(ctx, frameworkName)
 	diags.Append(queryDiags...)
 	if diags.HasError() {
-		return types.MapNull(types.ObjectType{}), diags
+		return types.MapNull(types.ObjectType{AttrTypes: sectionAttrTypes}), diags
 	}
 
-	// If no controls found, return empty sections map
+	// If no controls found, return null sections map
 	if len(controlIDs) == 0 {
-		emptyMap, mapDiags := convertSectionsMapToTerraformMap(ctx, map[string]SectionTFModel{})
-		diags.Append(mapDiags...)
-		return emptyMap, diags
+		return types.MapNull(types.ObjectType{AttrTypes: sectionAttrTypes}), diags
 	}
 
 	// Get detailed control information
 	apiControls, apiControlDiags := r.getControlDetails(ctx, controlIDs)
 	diags.Append(apiControlDiags...)
 	if diags.HasError() {
-		return types.MapNull(types.ObjectType{}), diags
+		return types.MapNull(types.ObjectType{AttrTypes: sectionAttrTypes}), diags
 	}
 
 	sectionsDomainMapByName, sectionsDomainMapDiags := convertSectionsTFMapToDomainMapByName(ctx, sectionsMapByKey)
 	diags.Append(sectionsDomainMapDiags...)
 	if diags.HasError() {
-		return types.MapNull(types.ObjectType{}), diags
+		return types.MapNull(types.ObjectType{AttrTypes: sectionAttrTypes}), diags
 	}
 
 	// Organize controls by section
