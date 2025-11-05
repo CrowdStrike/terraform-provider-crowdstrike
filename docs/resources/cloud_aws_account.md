@@ -138,6 +138,11 @@ Required:
 
 Optional:
 
+- `log_ingestion_kms_key_arn` (String) Optional KMS key ARN for S3 bucket encryption when log_ingestion_method is 's3'
+- `log_ingestion_method` (String) Log ingestion method for real-time visibility. Valid values are 'eventbridge' or 's3'
+- `log_ingestion_s3_bucket_name` (String) S3 bucket name for CloudTrail log ingestion when log_ingestion_method is 's3'. Required when using S3 method
+- `log_ingestion_s3_bucket_prefix` (String) Optional S3 bucket prefix for CloudTrail logs when log_ingestion_method is 's3'
+- `log_ingestion_sns_topic_arn` (String) SNS topic ARN for S3 CloudTrail log notifications when log_ingestion_method is 's3'. Required when using S3 method
 - `use_existing_cloudtrail` (Boolean) Set to true if a CloudTrail already exists
 
 

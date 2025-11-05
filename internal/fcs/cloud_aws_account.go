@@ -43,9 +43,14 @@ type assetInventoryOptions struct {
 	RoleName types.String `tfsdk:"role_name"`
 }
 type realtimeVisibilityOptions struct {
-	Enabled               types.Bool   `tfsdk:"enabled"`
-	CloudTrailRegion      types.String `tfsdk:"cloudtrail_region"`
-	UseExistingCloudTrail types.Bool   `tfsdk:"use_existing_cloudtrail"`
+	Enabled                    types.Bool   `tfsdk:"enabled"`
+	CloudTrailRegion           types.String `tfsdk:"cloudtrail_region"`
+	UseExistingCloudTrail      types.Bool   `tfsdk:"use_existing_cloudtrail"`
+	LogIngestionMethod         types.String `tfsdk:"log_ingestion_method"`
+	LogIngestionS3BucketName   types.String `tfsdk:"log_ingestion_s3_bucket_name"`
+	LogIngestionSnsTopicArn    types.String `tfsdk:"log_ingestion_sns_topic_arn"`
+	LogIngestionS3BucketPrefix types.String `tfsdk:"log_ingestion_s3_bucket_prefix"`
+	LogIngestionKmsKeyArn      types.String `tfsdk:"log_ingestion_kms_key_arn"`
 }
 
 type idpOptions struct {
@@ -293,18 +298,61 @@ func (r *cloudAWSAccountResource) Schema(
 						Default:     booldefault.StaticBool(true),
 						Description: "Set to true if a CloudTrail already exists",
 					},
+					"log_ingestion_method": schema.StringAttribute{
+						Optional:    true,
+						Computed:    true,
+						Default:     stringdefault.StaticString("eventbridge"),
+						Description: "Log ingestion method for real-time visibility. Valid values are 'eventbridge' or 's3'",
+						Validators: []validator.String{
+							stringvalidator.OneOf("eventbridge", "s3"),
+						},
+					},
+					"log_ingestion_s3_bucket_name": schema.StringAttribute{
+						Optional:    true,
+						Computed:    true,
+						Default:     stringdefault.StaticString(""),
+						Description: "S3 bucket name for CloudTrail log ingestion when log_ingestion_method is 's3'. Required when using S3 method",
+					},
+					"log_ingestion_sns_topic_arn": schema.StringAttribute{
+						Optional:    true,
+						Computed:    true,
+						Default:     stringdefault.StaticString(""),
+						Description: "SNS topic ARN for S3 CloudTrail log notifications when log_ingestion_method is 's3'. Required when using S3 method",
+					},
+					"log_ingestion_s3_bucket_prefix": schema.StringAttribute{
+						Optional:    true,
+						Computed:    true,
+						Default:     stringdefault.StaticString(""),
+						Description: "Optional S3 bucket prefix for CloudTrail logs when log_ingestion_method is 's3'",
+					},
+					"log_ingestion_kms_key_arn": schema.StringAttribute{
+						Optional:    true,
+						Computed:    true,
+						Default:     stringdefault.StaticString(""),
+						Description: "Optional KMS key ARN for S3 bucket encryption when log_ingestion_method is 's3'",
+					},
 				},
 				Default: objectdefault.StaticValue(
 					types.ObjectValueMust(
 						map[string]attr.Type{
-							"enabled":                 types.BoolType,
-							"cloudtrail_region":       types.StringType,
-							"use_existing_cloudtrail": types.BoolType,
+							"enabled":                        types.BoolType,
+							"cloudtrail_region":              types.StringType,
+							"use_existing_cloudtrail":        types.BoolType,
+							"log_ingestion_method":           types.StringType,
+							"log_ingestion_s3_bucket_name":   types.StringType,
+							"log_ingestion_sns_topic_arn":    types.StringType,
+							"log_ingestion_s3_bucket_prefix": types.StringType,
+							"log_ingestion_kms_key_arn":      types.StringType,
 						},
 						map[string]attr.Value{
-							"enabled":                 types.BoolValue(false),
-							"cloudtrail_region":       types.StringNull(),
-							"use_existing_cloudtrail": types.BoolValue(true),
+							"enabled":                        types.BoolValue(false),
+							"cloudtrail_region":              types.StringNull(),
+							"use_existing_cloudtrail":        types.BoolValue(true),
+							"log_ingestion_method":           types.StringValue("eventbridge"),
+							"log_ingestion_s3_bucket_name":   types.StringValue(""),
+							"log_ingestion_sns_topic_arn":    types.StringValue(""),
+							"log_ingestion_s3_bucket_prefix": types.StringValue(""),
+							"log_ingestion_kms_key_arn":      types.StringValue(""),
 						},
 					),
 				),
@@ -682,6 +730,24 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 		ResourceNamePrefix: model.ResourceNamePrefix.ValueString(),
 		ResourceNameSuffix: model.ResourceNameSuffix.ValueString(),
 	}
+	// Add S3 log ingestion fields if realtime visibility is configured
+	if model.RealtimeVisibility != nil {
+		if !model.RealtimeVisibility.LogIngestionMethod.IsNull() {
+			createAccount.LogIngestionMethod = model.RealtimeVisibility.LogIngestionMethod.ValueString()
+		}
+		if !model.RealtimeVisibility.LogIngestionS3BucketName.IsNull() {
+			createAccount.S3LogIngestionBucketName = model.RealtimeVisibility.LogIngestionS3BucketName.ValueString()
+		}
+		if !model.RealtimeVisibility.LogIngestionS3BucketPrefix.IsNull() {
+			createAccount.S3LogIngestionBucketPrefix = model.RealtimeVisibility.LogIngestionS3BucketPrefix.ValueString()
+		}
+		if !model.RealtimeVisibility.LogIngestionKmsKeyArn.IsNull() {
+			createAccount.S3LogIngestionKmsKeyArn = model.RealtimeVisibility.LogIngestionKmsKeyArn.ValueString()
+		}
+		if !model.RealtimeVisibility.LogIngestionSnsTopicArn.IsNull() {
+			createAccount.S3LogIngestionSnsTopicArn = model.RealtimeVisibility.LogIngestionSnsTopicArn.ValueString()
+		}
+	}
 	if model.RealtimeVisibility != nil && model.RealtimeVisibility.Enabled.ValueBool() {
 		createAccount.CspEvents = true
 	}
@@ -850,6 +916,68 @@ func (r *cloudAWSAccountResource) Read(
 		state.RealtimeVisibility.CloudTrailRegion = types.StringValue(
 			cspmAccount.AwsCloudtrailRegion,
 		)
+	}
+
+	// Update S3 log ingestion fields from API response settings
+	// TODO: Handle both dot notation (CSPM: 'log.ingestion.method') and underscore notation (Cloud: 'log_ingestion_method')
+	// CSPM API returns: "log.ingestion.method", "s3.log.ingestion.bucket.name", etc.
+	// Cloud Security Registration API returns: "log_ingestion_method", "s3_log_ingestion_bucket_name", etc.
+	if cspmAccount.Settings != nil {
+		if settings, ok := cspmAccount.Settings.(map[string]interface{}); ok {
+			if method, exists := settings["log_ingestion_method"]; exists && method != nil {
+				if methodStr, ok := method.(string); ok {
+					state.RealtimeVisibility.LogIngestionMethod = types.StringValue(methodStr)
+				}
+			} else {
+				state.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
+			}
+
+			if bucketName, exists := settings["s3_log_ingestion_bucket_name"]; exists && bucketName != nil {
+				if bucketNameStr, ok := bucketName.(string); ok {
+					state.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue(bucketNameStr)
+				}
+			} else {
+				state.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue("")
+			}
+
+			if snsTopicArn, exists := settings["s3_log_ingestion_sns_topic_arn"]; exists && snsTopicArn != nil {
+				if snsTopicArnStr, ok := snsTopicArn.(string); ok {
+					state.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue(snsTopicArnStr)
+				}
+			} else {
+				state.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue("")
+			}
+
+			if bucketPrefix, exists := settings["s3_log_ingestion_bucket_prefix"]; exists && bucketPrefix != nil {
+				if bucketPrefixStr, ok := bucketPrefix.(string); ok {
+					state.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue(bucketPrefixStr)
+				}
+			} else {
+				state.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue("")
+			}
+
+			if kmsKeyArn, exists := settings["s3_log_ingestion_kms_key_arn"]; exists && kmsKeyArn != nil {
+				if kmsKeyArnStr, ok := kmsKeyArn.(string); ok {
+					state.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringValue(kmsKeyArnStr)
+				}
+			} else {
+				state.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringValue("")
+			}
+		} else {
+			// Settings is not a map, set default values
+			state.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
+			state.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue("")
+			state.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue("")
+			state.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue("")
+			state.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringValue("")
+		}
+	} else {
+		// Settings is nil, set default values
+		state.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
+		state.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue("")
+		state.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue("")
+		state.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue("")
+		state.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringValue("")
 	}
 
 	if oldState.SensorManagement != nil {
@@ -1095,6 +1223,68 @@ func (r *cloudAWSAccountResource) Update(
 		)
 	}
 
+	// Update S3 log ingestion fields from API response settings
+	// TODO: Handle both dot notation (CSPM: 'log.ingestion.method') and underscore notation (Cloud: 'log_ingestion_method')
+	// CSPM API returns: "log.ingestion.method", "s3.log.ingestion.bucket.name", etc.
+	// Cloud Security Registration API returns: "log_ingestion_method", "s3_log_ingestion_bucket_name", etc.
+	if cspmAccount.Settings != nil {
+		if settings, ok := cspmAccount.Settings.(map[string]interface{}); ok {
+			if method, exists := settings["log_ingestion_method"]; exists && method != nil {
+				if methodStr, ok := method.(string); ok {
+					plan.RealtimeVisibility.LogIngestionMethod = types.StringValue(methodStr)
+				}
+			} else {
+				plan.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
+			}
+
+			if bucketName, exists := settings["s3_log_ingestion_bucket_name"]; exists && bucketName != nil {
+				if bucketNameStr, ok := bucketName.(string); ok {
+					plan.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue(bucketNameStr)
+				}
+			} else {
+				plan.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue("")
+			}
+
+			if snsTopicArn, exists := settings["s3_log_ingestion_sns_topic_arn"]; exists && snsTopicArn != nil {
+				if snsTopicArnStr, ok := snsTopicArn.(string); ok {
+					plan.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue(snsTopicArnStr)
+				}
+			} else {
+				plan.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue("")
+			}
+
+			if bucketPrefix, exists := settings["s3_log_ingestion_bucket_prefix"]; exists && bucketPrefix != nil {
+				if bucketPrefixStr, ok := bucketPrefix.(string); ok {
+					plan.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue(bucketPrefixStr)
+				}
+			} else {
+				plan.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue("")
+			}
+
+			if kmsKeyArn, exists := settings["s3_log_ingestion_kms_key_arn"]; exists && kmsKeyArn != nil {
+				if kmsKeyArnStr, ok := kmsKeyArn.(string); ok {
+					plan.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringValue(kmsKeyArnStr)
+				}
+			} else {
+				plan.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringValue("")
+			}
+		} else {
+			// Settings is not a map, set default values
+			plan.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
+			plan.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue("")
+			plan.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue("")
+			plan.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue("")
+			plan.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringValue("")
+		}
+	} else {
+		// Settings is nil, set default values
+		plan.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
+		plan.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue("")
+		plan.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue("")
+		plan.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue("")
+		plan.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringValue("")
+	}
+
 	plan.SensorManagement.Enabled = types.BoolValue(*cspmAccount.SensorManagementEnabled)
 
 	plan.DSPM.Enabled = types.BoolValue(cspmAccount.DspmEnabled)
@@ -1212,6 +1402,24 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 		AccountID:          model.AccountID.ValueStringPointer(),
 		ResourceNamePrefix: model.ResourceNamePrefix.ValueString(),
 		ResourceNameSuffix: model.ResourceNameSuffix.ValueString(),
+	}
+	// Add S3 log ingestion fields if realtime visibility is configured
+	if model.RealtimeVisibility != nil {
+		if !model.RealtimeVisibility.LogIngestionMethod.IsNull() {
+			patchAccount.LogIngestionMethod = model.RealtimeVisibility.LogIngestionMethod.ValueString()
+		}
+		if !model.RealtimeVisibility.LogIngestionS3BucketName.IsNull() {
+			patchAccount.S3LogIngestionBucketName = model.RealtimeVisibility.LogIngestionS3BucketName.ValueString()
+		}
+		if !model.RealtimeVisibility.LogIngestionS3BucketPrefix.IsNull() {
+			patchAccount.S3LogIngestionBucketPrefix = model.RealtimeVisibility.LogIngestionS3BucketPrefix.ValueString()
+		}
+		if !model.RealtimeVisibility.LogIngestionKmsKeyArn.IsNull() {
+			patchAccount.S3LogIngestionKmsKeyArn = model.RealtimeVisibility.LogIngestionKmsKeyArn.ValueString()
+		}
+		if !model.RealtimeVisibility.LogIngestionSnsTopicArn.IsNull() {
+			patchAccount.S3LogIngestionSnsTopicArn = model.RealtimeVisibility.LogIngestionSnsTopicArn.ValueString()
+		}
 	}
 	if model.AssetInventory != nil && model.AssetInventory.Enabled.ValueBool() {
 		patchAccount.CspEvents = true
@@ -1442,5 +1650,75 @@ func (r *cloudAWSAccountResource) ValidateConfig(
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	// Validate S3 log ingestion requirements
+	if config.RealtimeVisibility != nil && !config.RealtimeVisibility.LogIngestionMethod.IsNull() {
+		method := config.RealtimeVisibility.LogIngestionMethod.ValueString()
+		if method == "s3" {
+			// Validate required S3 fields
+			if config.RealtimeVisibility.LogIngestionS3BucketName.IsNull() ||
+				config.RealtimeVisibility.LogIngestionS3BucketName.ValueString() == "" {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("realtime_visibility").AtName("log_ingestion_s3_bucket_name"),
+					"Missing required field",
+					"log_ingestion_s3_bucket_name is required when log_ingestion_method is 's3'",
+				)
+			}
+
+			if config.RealtimeVisibility.LogIngestionSnsTopicArn.IsNull() ||
+				config.RealtimeVisibility.LogIngestionSnsTopicArn.ValueString() == "" {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("realtime_visibility").AtName("log_ingestion_sns_topic_arn"),
+					"Missing required field",
+					"log_ingestion_sns_topic_arn is required when log_ingestion_method is 's3'",
+				)
+			}
+
+			// Validate SNS topic ARN format
+			if !config.RealtimeVisibility.LogIngestionSnsTopicArn.IsNull() {
+				snsArn := config.RealtimeVisibility.LogIngestionSnsTopicArn.ValueString()
+				if snsArn != "" {
+					snsArnPattern := regexp.MustCompile(`^arn:(aws|aws-us-gov|aws-cn):sns:[a-z0-9-]+:[0-9]+:[a-zA-Z0-9_-]+$`)
+					if !snsArnPattern.MatchString(snsArn) {
+						resp.Diagnostics.AddAttributeError(
+							path.Root("realtime_visibility").AtName("log_ingestion_sns_topic_arn"),
+							"Invalid SNS topic ARN format",
+							"SNS topic ARN must be in the format: arn:partition:sns:region:account:topic-name",
+						)
+					}
+				}
+			}
+
+			// Validate S3 bucket name format
+			if !config.RealtimeVisibility.LogIngestionS3BucketName.IsNull() {
+				bucketName := config.RealtimeVisibility.LogIngestionS3BucketName.ValueString()
+				if bucketName != "" {
+					bucketNamePattern := regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`)
+					if len(bucketName) < 3 || len(bucketName) > 63 || !bucketNamePattern.MatchString(bucketName) {
+						resp.Diagnostics.AddAttributeError(
+							path.Root("realtime_visibility").AtName("log_ingestion_s3_bucket_name"),
+							"Invalid S3 bucket name format",
+							"S3 bucket name must be 3-63 characters, contain only lowercase letters, numbers, dots, and hyphens, and start/end with alphanumeric characters",
+						)
+					}
+				}
+			}
+
+			// Validate KMS key ARN format if provided
+			if !config.RealtimeVisibility.LogIngestionKmsKeyArn.IsNull() {
+				kmsArn := config.RealtimeVisibility.LogIngestionKmsKeyArn.ValueString()
+				if kmsArn != "" {
+					kmsArnPattern := regexp.MustCompile(`^arn:(aws|aws-us-gov|aws-cn):kms:[a-z0-9-]+:[0-9]+:key/[a-f0-9-]+$`)
+					if !kmsArnPattern.MatchString(kmsArn) {
+						resp.Diagnostics.AddAttributeError(
+							path.Root("realtime_visibility").AtName("log_ingestion_kms_key_arn"),
+							"Invalid KMS key ARN format",
+							"KMS key ARN must be in the format: arn:partition:kms:region:account:key/key-id",
+						)
+					}
+				}
+			}
+		}
 	}
 }
