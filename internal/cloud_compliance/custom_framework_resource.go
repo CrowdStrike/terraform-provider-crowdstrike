@@ -25,7 +25,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-// FQL filter constants
+// FQL filter constants.
 var (
 	filterComplianceControlsByFramework    = "compliance_control_benchmark_name:'%s'+compliance_control_authority:'Custom'"
 	sortComplianceControlsByRequirementAsc = "compliance_control_requirement|asc"
@@ -79,16 +79,13 @@ type ControlTFModel struct {
 func (d *cloudComplianceCustomFrameworkResourceModel) wrap(
 	_ context.Context,
 	framework *models.ApimodelsSecurityFramework,
-) diag.Diagnostics {
-	var diags diag.Diagnostics
+) {
 
 	d.ID = types.StringValue(framework.UUID)
 	d.Name = types.StringPointerValue(framework.Name)
 	d.Description = types.StringValue(framework.Description)
 
 	// Don't warp Sections here - it is handled by readControlsForFramework
-
-	return diags
 }
 
 func (r *cloudComplianceCustomFrameworkResource) Configure(
@@ -247,7 +244,7 @@ func (r *cloudComplianceCustomFrameworkResource) Create(
 		return
 	}
 
-	resp.Diagnostics.Append(plan.wrap(ctx, framework)...)
+	plan.wrap(ctx, framework)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -306,7 +303,7 @@ func (r *cloudComplianceCustomFrameworkResource) Read(
 	}
 
 	// Update state with API response
-	resp.Diagnostics.Append(state.wrap(ctx, framework)...)
+	state.wrap(ctx, framework)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -366,7 +363,7 @@ func (r *cloudComplianceCustomFrameworkResource) Update(
 	}
 
 	// Update the plan with the API response
-	resp.Diagnostics.Append(plan.wrap(ctx, framework)...)
+	plan.wrap(ctx, framework)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -537,7 +534,7 @@ func (r *cloudComplianceCustomFrameworkResource) createFramework(
 	return payload.Resources[0], diags
 }
 
-// createControlsForFramework creates controls and assigns rules for a framework
+// createControlsForFramework creates controls and assigns rules for a framework.
 func (r *cloudComplianceCustomFrameworkResource) createControlsForFramework(
 	ctx context.Context,
 	frameworkID string,
@@ -560,7 +557,7 @@ func (r *cloudComplianceCustomFrameworkResource) createControlsForFramework(
 	return diags
 }
 
-// createSingleControl creates a single control
+// createSingleControl creates a single control.
 func (r *cloudComplianceCustomFrameworkResource) createSingleControl(
 	ctx context.Context,
 	frameworkID string,
@@ -644,7 +641,7 @@ func (r *cloudComplianceCustomFrameworkResource) getFramework(
 	return payload.Resources[0], diags, false
 }
 
-// readControlsForFramework reads controls and rules for a framework and returns sections as terraform map
+// readControlsForFramework reads controls and rules for a framework and returns sections as terraform map.
 func (r *cloudComplianceCustomFrameworkResource) readControlsForFramework(
 	ctx context.Context,
 	frameworkName string,
@@ -1081,7 +1078,7 @@ func (r *cloudComplianceCustomFrameworkResource) deleteAllControlsForFramework(
 	return diags
 }
 
-// generateKeyFromName converts "Section 1" to "section-1"
+// generateKeyFromName converts "Section 1" to "section-1".
 func (r *cloudComplianceCustomFrameworkResource) generateKeyFromName(name string) string {
 	key := strings.ToLower(name)
 	key = regexp.MustCompile(`[^a-z0-9.]+`).ReplaceAllString(key, "-")

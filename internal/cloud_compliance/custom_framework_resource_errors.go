@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
 
-// Error message constants
+// Error message constants.
 const (
 	apiOperationCreateFramework = "create_framework"
 	apiOperationUpdateFramework = "update_framework"
@@ -29,7 +29,7 @@ const (
 	errorQueryingRules     = "Error Querying Compliance Rules"
 	errorGettingControls   = "Error Getting Compliance Controls"
 
-	// API response validation messages
+	// API response validation messages.
 	emptyAPIResponse      = "The API returned an empty response"
 	noResourcesReturned   = "No resources returned from API"
 	noFrameworkReturned   = "No framework returned from API"
@@ -39,7 +39,7 @@ const (
 	failedToCreateControl = "Failed to create control %s in section %s: %s"
 )
 
-// Error handling utility functions
+// Error handling utility functions.
 func handleAPIError(err error, operation string, id string) diag.Diagnostics {
 	var diags diag.Diagnostics
 

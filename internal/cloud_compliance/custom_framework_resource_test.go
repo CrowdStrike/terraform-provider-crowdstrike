@@ -19,7 +19,7 @@ const (
 	awsAPIGatewayFilter         = "rule_service:'API Gateway'+rule_provider:'AWS'+rule_domain:'CSPM'+rule_subdomain:'IOM'"
 )
 
-// Helper function to generate a configuration that fetches AWS rules and returns specific rule IDs
+// Helper function to generate a configuration that fetches AWS rules and returns specific rule IDs.
 func getAWSRulesConfig() string {
 	return fmt.Sprintf(`
 data "crowdstrike_cloud_security_rules" "aws_rules" {
@@ -55,33 +55,33 @@ locals {
 `, awsAPIGatewayFilter)
 }
 
-// minimalFrameworkConfig represents a bare minimum custom compliance framework
+// minimalFrameworkConfig represents a bare minimum custom compliance framework.
 type minimalFrameworkConfig struct {
 	Name        string
 	Description string
 }
 
-// completeFrameworkConfig represents a complete custom framework with sections, controls, and rules
+// completeFrameworkConfig represents a complete custom framework with sections, controls, and rules.
 type completeFrameworkConfig struct {
 	Name        string
 	Description string
 	Sections    map[string]sectionConfig
 }
 
-// sectionConfig represents a section within a framework
+// sectionConfig represents a section within a framework.
 type sectionConfig struct {
 	Name     string
 	Controls map[string]controlConfig
 }
 
-// controlConfig represents a control within a section
+// controlConfig represents a control within a section.
 type controlConfig struct {
 	Name        string
 	Description string
 	Rules       string // single string for local var injection from data source
 }
 
-// String generates Terraform configuration from minimalFrameworkConfig
+// String generates Terraform configuration from minimalFrameworkConfig.
 func (config *minimalFrameworkConfig) String() string {
 	descriptionConfig := ""
 	if config.Description != "" {
@@ -95,7 +95,7 @@ resource "crowdstrike_cloud_compliance_custom_framework" "test" {
 `, config.Name, descriptionConfig)
 }
 
-// String generates Terraform configuration from completeFrameworkConfig
+// String generates Terraform configuration from completeFrameworkConfig.
 func (config *completeFrameworkConfig) String() string {
 	sectionsConfig := ""
 	if len(config.Sections) > 0 {
@@ -134,7 +134,7 @@ resource "crowdstrike_cloud_compliance_custom_framework" "test" {
 `, getAWSRulesConfig(), config.Name, config.Description, sectionsConfig)
 }
 
-// TestChecks generates test checks for the completeFrameworkConfig
+// TestChecks generates test checks for the completeFrameworkConfig.
 func (config *completeFrameworkConfig) TestChecks() resource.TestCheckFunc {
 	var checks []resource.TestCheckFunc
 
@@ -177,7 +177,7 @@ func (config *completeFrameworkConfig) TestChecks() resource.TestCheckFunc {
 	return resource.ComposeAggregateTestCheckFunc(checks...)
 }
 
-// TestChecks generates test checks for the framework configuration
+// TestChecks generates test checks for the framework configuration.
 func (config *minimalFrameworkConfig) TestChecks() resource.TestCheckFunc {
 	var checks []resource.TestCheckFunc
 

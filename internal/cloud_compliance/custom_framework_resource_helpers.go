@@ -26,14 +26,14 @@ var sectionAttrTypes = map[string]attr.Type{
 	},
 }
 
-// SectionDomainModel is the Go representation of SectionTFModel
+// SectionDomainModel is the Go representation of SectionTFModel.
 type SectionDomainModel struct {
 	Key      string
 	Name     string
 	Controls map[string]ControlDomainModel
 }
 
-// ControlDomainModel is the Go representation of ControlTFModel
+// ControlDomainModel is the Go representation of ControlTFModel.
 type ControlDomainModel struct {
 	Key         string
 	ID          string
