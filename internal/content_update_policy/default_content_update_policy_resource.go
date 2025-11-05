@@ -276,6 +276,9 @@ func (r *defaultContentUpdatePolicyResource) Schema(
 					"pinned_content_version": schema.StringAttribute{
 						Optional:    true,
 						Description: "Pin content category to a specific version. When set, the content category will not automatically update to newer versions.",
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+						},
 					},
 				},
 			},
@@ -296,6 +299,9 @@ func (r *defaultContentUpdatePolicyResource) Schema(
 					"pinned_content_version": schema.StringAttribute{
 						Optional:    true,
 						Description: "Pin content category to a specific version. When set, the content category will not automatically update to newer versions.",
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+						},
 					},
 				},
 			},
@@ -316,6 +322,9 @@ func (r *defaultContentUpdatePolicyResource) Schema(
 					"pinned_content_version": schema.StringAttribute{
 						Optional:    true,
 						Description: "Pin content category to a specific version. When set, the content category will not automatically update to newer versions.",
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+						},
 					},
 				},
 			},
@@ -336,6 +345,9 @@ func (r *defaultContentUpdatePolicyResource) Schema(
 					"pinned_content_version": schema.StringAttribute{
 						Optional:    true,
 						Description: "Pin content category to a specific version. When set, the content category will not automatically update to newer versions.",
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+						},
 					},
 				},
 			},
@@ -373,19 +385,14 @@ func (r *defaultContentUpdatePolicyResource) Create(
 		return
 	}
 
-	var currentSensorOps, currentSystemCrit, currentVulnMgmt, currentRapidResp *ringAssignmentModel
-
+	var currentSensorOps, currentSystemCrit, currentVulnMgmt, currentRapidResp ringAssignmentModel
 	if policy.Settings != nil && policy.Settings.RingAssignmentSettings != nil {
 		for _, setting := range policy.Settings.RingAssignmentSettings {
-			ringModel := &ringAssignmentModel{
-				RingAssignment: types.StringValue(*setting.RingAssignment),
+			ringModel := ringAssignmentModel{
+				RingAssignment: types.StringPointerValue(setting.RingAssignment),
 			}
 
-			if setting.PinnedContentVersion != nil && *setting.PinnedContentVersion != "" {
-				ringModel.PinnedContentVersion = types.StringValue(*setting.PinnedContentVersion)
-			} else {
-				ringModel.PinnedContentVersion = types.StringNull()
-			}
+			ringModel.PinnedContentVersion = utils.OptionalString(setting.PinnedContentVersion)
 
 			switch *setting.ID {
 			case "sensor_operations":
@@ -414,28 +421,42 @@ func (r *defaultContentUpdatePolicyResource) Create(
 		plannedRapidResp = *plan.rapidResponseSettings
 	}
 
-	err := managePinnedContentVersions(
-		ctx,
-		r.client,
-		plan.ID.ValueString(),
-		currentSensorOps,
-		currentSystemCrit,
-		currentVulnMgmt,
-		currentRapidResp,
-		plannedSensorOps,
-		plannedSystemCrit,
-		plannedVulnMgmt,
-		plannedRapidResp,
-	)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error setting pinned content versions",
-			"Could not set pinned content versions, unexpected error: "+err.Error(),
-		)
+	assignments := categoryAssignments{
+		sensorOperations: pinnedContentVersion{
+			state: currentSensorOps.PinnedContentVersion,
+			plan:  plannedSensorOps.PinnedContentVersion,
+		},
+		systemCritical: pinnedContentVersion{
+			state: currentSystemCrit.PinnedContentVersion,
+			plan:  plannedSystemCrit.PinnedContentVersion,
+		},
+		vulnerabilityManagement: pinnedContentVersion{
+			state: currentVulnMgmt.PinnedContentVersion,
+			plan:  plannedVulnMgmt.PinnedContentVersion,
+		},
+		rapidResponse: pinnedContentVersion{
+			state: currentRapidResp.PinnedContentVersion,
+			plan:  plannedRapidResp.PinnedContentVersion,
+		},
+	}
+
+	resp.Diagnostics.Append(removePinnedContentVersions(ctx, r.client, plan.ID.ValueString(), assignments)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	policy, diags = r.updateDefaultPolicy(ctx, &plan)
+	_, diags = r.updateDefaultPolicy(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(setPinnedContentVersions(ctx, r.client, plan.ID.ValueString(), assignments)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	policy, diags = r.getDefaultPolicy(ctx)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -507,7 +528,6 @@ func (r *defaultContentUpdatePolicyResource) Update(
 		return
 	}
 
-	// Handle pinned content versions FIRST to avoid API conflicts with ring assignment changes
 	var stateSensorOps, stateSystemCrit, stateVulnMgmt, stateRapidResp ringAssignmentModel
 	var plannedSensorOps, plannedSystemCrit, plannedVulnMgmt, plannedRapidResp ringAssignmentModel
 
@@ -537,35 +557,48 @@ func (r *defaultContentUpdatePolicyResource) Update(
 		plannedRapidResp = *plan.rapidResponseSettings
 	}
 
-	err := managePinnedContentVersions(
-		ctx,
-		r.client,
-		plan.ID.ValueString(),
-		&stateSensorOps,
-		&stateSystemCrit,
-		&stateVulnMgmt,
-		&stateRapidResp,
-		plannedSensorOps,
-		plannedSystemCrit,
-		plannedVulnMgmt,
-		plannedRapidResp,
-	)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error updating pinned content versions",
-			"Could not update pinned content versions, unexpected error: "+err.Error(),
-		)
+	assignments := categoryAssignments{
+		sensorOperations: pinnedContentVersion{
+			state: stateSensorOps.PinnedContentVersion,
+			plan:  plannedSensorOps.PinnedContentVersion,
+		},
+		systemCritical: pinnedContentVersion{
+			state: stateSystemCrit.PinnedContentVersion,
+			plan:  plannedSystemCrit.PinnedContentVersion,
+		},
+		vulnerabilityManagement: pinnedContentVersion{
+			state: stateVulnMgmt.PinnedContentVersion,
+			plan:  plannedVulnMgmt.PinnedContentVersion,
+		},
+		rapidResponse: pinnedContentVersion{
+			state: stateRapidResp.PinnedContentVersion,
+			plan:  plannedRapidResp.PinnedContentVersion,
+		},
+	}
+
+	resp.Diagnostics.Append(removePinnedContentVersions(ctx, r.client, plan.ID.ValueString(), assignments)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	policy, diags := r.updateDefaultPolicy(ctx, &plan)
+	_, diags := r.updateDefaultPolicy(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+	resp.Diagnostics.Append(setPinnedContentVersions(ctx, r.client, plan.ID.ValueString(), assignments)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
+	policy, diags := getContentUpdatePolicy(ctx, r.client, state.ID.ValueString())
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	resp.Diagnostics.Append(plan.wrap(ctx, *policy)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 	if resp.Diagnostics.HasError() {
