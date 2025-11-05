@@ -445,8 +445,7 @@ func (r *defaultContentUpdatePolicyResource) Create(
 		return
 	}
 
-	_, diags = r.updateDefaultPolicy(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(r.updateDefaultPolicy(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -581,8 +580,7 @@ func (r *defaultContentUpdatePolicyResource) Update(
 		return
 	}
 
-	_, diags := r.updateDefaultPolicy(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(r.updateDefaultPolicy(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -777,7 +775,7 @@ func (r *defaultContentUpdatePolicyResource) ModifyPlan(
 func (r *defaultContentUpdatePolicyResource) updateDefaultPolicy(
 	ctx context.Context,
 	config *defaultContentUpdatePolicyResourceModel,
-) (*models.ContentUpdatePolicyV1, diag.Diagnostics) {
+) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	// Build ring assignment settings using individual fields
@@ -819,19 +817,17 @@ func (r *defaultContentUpdatePolicyResource) updateDefaultPolicy(
 		},
 	}
 
-	res, err := r.client.ContentUpdatePolicies.UpdateContentUpdatePolicies(&policyParams)
+	_, err := r.client.ContentUpdatePolicies.UpdateContentUpdatePolicies(&policyParams)
 
 	if err != nil {
 		diags.AddError(
 			"Error updating CrowdStrike default content update policy",
 			"Could not update default content update policy with ID: "+config.ID.ValueString()+": "+err.Error(),
 		)
-		return nil, diags
+		return diags
 	}
 
-	policy := res.Payload.Resources[0]
-
-	return policy, diags
+	return diags
 }
 
 func (r *defaultContentUpdatePolicyResource) getDefaultPolicy(
