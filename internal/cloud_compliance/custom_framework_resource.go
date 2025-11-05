@@ -375,14 +375,14 @@ func (r *cloudComplianceCustomFrameworkResource) Update(
 
 	var stateSections map[string]SectionTFModel
 	var planSections map[string]SectionTFModel
-	if !state.Sections.IsNull() && !state.Sections.IsUnknown() {
+	if utils.IsKnown(state.Sections) {
 		resp.Diagnostics.Append(state.Sections.ElementsAs(ctx, &stateSections, false)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 	}
 
-	if !plan.Sections.IsNull() && !plan.Sections.IsUnknown() {
+	if utils.IsKnown(plan.Sections) {
 		resp.Diagnostics.Append(plan.Sections.ElementsAs(ctx, &planSections, false)...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -392,7 +392,7 @@ func (r *cloudComplianceCustomFrameworkResource) Update(
 		if resp.Diagnostics.HasError() {
 			return
 		}
-	} else if !state.Sections.IsNull() && !state.Sections.IsUnknown() {
+	} else if utils.IsKnown(state.Sections) {
 		// If plan has no sections but state does, delete all existing controls
 		resp.Diagnostics.Append(r.deleteAllControlsForFramework(ctx, plan.Name.ValueString())...)
 		if resp.Diagnostics.HasError() {
@@ -401,7 +401,7 @@ func (r *cloudComplianceCustomFrameworkResource) Update(
 	}
 
 	// Read back the controls to ensure state consistency only if sections are configured
-	if !plan.Sections.IsNull() && !plan.Sections.IsUnknown() {
+	if utils.IsKnown(plan.Sections) {
 		sectionsMap, sectionsDiags := r.readControlsForFramework(ctx, *framework.Name, planSections)
 		resp.Diagnostics.Append(sectionsDiags...)
 		if resp.Diagnostics.HasError() {
@@ -488,7 +488,6 @@ func (r *cloudComplianceCustomFrameworkResource) ValidateConfig(
 		return
 	}
 
-	// Validate that no sections are empty
 	var sections map[string]SectionTFModel
 	resp.Diagnostics.Append(config.Sections.ElementsAs(ctx, &sections, false)...)
 	if resp.Diagnostics.HasError() {
