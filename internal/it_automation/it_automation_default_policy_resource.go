@@ -32,7 +32,7 @@ var (
 
 var (
 	defaultPoliciesDocumentationSection string         = "IT Automation"
-	defaultPoliciesMarkdownDescription  string         = "IT Automation default policies --- This resource allows management of default IT Automation policy configuration settings in the CrowdStrike Falcon platform."
+	defaultPoliciesMarkdownDescription  string         = "This resource allows management of default IT Automation policy configuration settings in the CrowdStrike Falcon platform."
 	defaultPoliciesRequiredScopes       []scopes.Scope = itAutomationScopes
 )
 

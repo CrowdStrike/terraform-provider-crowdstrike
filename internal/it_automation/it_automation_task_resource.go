@@ -38,7 +38,7 @@ var (
 
 var (
 	tasksDocumentationSection string         = "IT Automation"
-	tasksMarkdownDescription  string         = "IT Automation Tasks --- This resource allows management of IT Automation tasks in the CrowdStrike Falcon platform. Tasks allow you to run queries or actions across your hosts."
+	tasksMarkdownDescription  string         = "This resource allows management of IT Automation tasks in the CrowdStrike Falcon platform. Tasks allow you to run queries or actions across your hosts."
 	tasksRequiredScopes       []scopes.Scope = itAutomationScopes
 )
 

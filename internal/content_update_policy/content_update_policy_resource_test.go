@@ -1339,6 +1339,140 @@ func TestAccContentUpdatePolicyResource_Validation(t *testing.T) {
 	}
 }
 
+func TestAccContentUpdatePolicyResource_UpdateRingAssignmentAndPinnedVersion(t *testing.T) {
+	testCases := []struct {
+		name        string
+		config      policyConfig
+		expectError *regexp.Regexp
+	}{
+		{
+			name: "initial_pause_state",
+			config: policyConfig{
+				Name:        "test-policy-pause-to-ga-config",
+				Description: "Test pause to GA transition with config addition",
+				Enabled:     utils.Addr(true),
+				SensorOperations: ringConfig{
+					RingAssignment: "ea",
+				},
+				SystemCritical: ringConfig{
+					RingAssignment: "ga",
+					DelayHours:     utils.Addr(24),
+				},
+				VulnerabilityManagement: ringConfig{
+					RingAssignment: "pause",
+				},
+				RapidResponse: ringConfig{
+					RingAssignment: "pause",
+				},
+			},
+		},
+		{
+			name: "update_to_ga_with_delay_and_pinned",
+			config: policyConfig{
+				Name:        "test-policy-pause-to-ga-config",
+				Description: "Test pause to GA transition with config addition",
+				Enabled:     utils.Addr(true),
+				SensorOperations: ringConfig{
+					RingAssignment: "ga",
+					DelayHours:     utils.Addr(0),
+					PinnedContentVersion: utils.Addr(
+						"data.crowdstrike_content_category_versions.test.sensor_operations[0]",
+					),
+				},
+				SystemCritical: ringConfig{
+					RingAssignment: "ea",
+					PinnedContentVersion: utils.Addr(
+						"data.crowdstrike_content_category_versions.test.system_critical[0]",
+					),
+				},
+				VulnerabilityManagement: ringConfig{
+					RingAssignment: "ga",
+					DelayHours:     utils.Addr(0),
+					PinnedContentVersion: utils.Addr(
+						"data.crowdstrike_content_category_versions.test.vulnerability_management[0]",
+					),
+				},
+				RapidResponse: ringConfig{
+					RingAssignment: "ga",
+					DelayHours:     utils.Addr(0),
+					PinnedContentVersion: utils.Addr(
+						"data.crowdstrike_content_category_versions.test.rapid_response[0]",
+					),
+				},
+			},
+		},
+		{
+			name: "update_to_ea_with_pinned_version",
+			config: policyConfig{
+				Name:        "test-policy-pause-to-ga-config",
+				Description: "Test pause to GA transition with config addition",
+				Enabled:     utils.Addr(true),
+				SensorOperations: ringConfig{
+					RingAssignment: "ea",
+					PinnedContentVersion: utils.Addr(
+						"data.crowdstrike_content_category_versions.test.sensor_operations[1]",
+					),
+				},
+				SystemCritical: ringConfig{
+					RingAssignment: "ea",
+					PinnedContentVersion: utils.Addr(
+						"data.crowdstrike_content_category_versions.test.system_critical[0]",
+					),
+				},
+				VulnerabilityManagement: ringConfig{
+					RingAssignment: "ga",
+					DelayHours:     utils.Addr(0),
+					PinnedContentVersion: utils.Addr(
+						"data.crowdstrike_content_category_versions.test.vulnerability_management[0]",
+					),
+				},
+				RapidResponse: ringConfig{
+					RingAssignment: "ga",
+					DelayHours:     utils.Addr(0),
+					PinnedContentVersion: utils.Addr(
+						"data.crowdstrike_content_category_versions.test.rapid_response[0]",
+					),
+				},
+			},
+			expectError: regexp.MustCompile(
+				"Cannot change ring assignment with pinned content version",
+			),
+		},
+	}
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: func() []resource.TestStep {
+			var steps []resource.TestStep
+			for _, tc := range testCases {
+				step := resource.TestStep{
+					Config: tc.config.String(),
+				}
+				if tc.expectError != nil {
+					step.ExpectError = tc.expectError
+				} else {
+					step.Check = tc.config.TestChecks()
+				}
+				steps = append(steps, step)
+
+				// Only add import step if no error is expected
+				if tc.expectError == nil {
+					steps = append(steps, resource.TestStep{
+						ResourceName:      tc.config.resourceName(),
+						ImportState:       true,
+						ImportStateVerify: true,
+						ImportStateVerifyIgnore: []string{
+							"last_updated",
+						},
+					})
+				}
+			}
+			return steps
+		}(),
+	})
+}
+
 func TestAccContentUpdatePolicyResource_FieldBoundaries(t *testing.T) {
 
 	testCases := []struct {
