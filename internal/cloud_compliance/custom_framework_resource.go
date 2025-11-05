@@ -295,9 +295,13 @@ func (r *cloudComplianceCustomFrameworkResource) Read(
 	})
 
 	framework, getFrameworkDiags, frameworkNotFound := r.getFramework(ctx, state.ID.ValueString())
-	resp.Diagnostics.Append(getFrameworkDiags...)
 	if frameworkNotFound {
 		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	resp.Diagnostics.Append(getFrameworkDiags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
