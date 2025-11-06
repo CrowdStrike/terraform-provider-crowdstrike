@@ -194,8 +194,8 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
-					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_arn", ""),
-					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", ""),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
 				),
 			},
@@ -238,8 +238,8 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
-					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_arn", ""),
-					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", ""),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
 				),
 			},
@@ -261,8 +261,8 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
-					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_arn", ""),
-					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", ""),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
 				),
 			},
@@ -297,8 +297,8 @@ func TestAccCloudAwsAccountResourceMinimal(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
-					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_arn", ""),
-					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", ""),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
 				),
 			},
@@ -331,7 +331,6 @@ func TestAccCloudAwsAccountResourceVulnerabilityScanning(t *testing.T) {
 }
 
 func TestAccCloudAwsAccountResourceVulnerabilityScanningNoRoleName(t *testing.T) {
-	t.Skip("skip until CSPM fix for vulnerability scanning role response")
 	testResourceName := "test_vuln_no_role_name"
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, testResourceName)
 	account_id := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
@@ -345,7 +344,6 @@ func TestAccCloudAwsAccountResourceVulnerabilityScanningNoRoleName(t *testing.T)
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "account_id", account_id),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "true"),
-					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.role_name", ""),
 					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
@@ -415,8 +413,8 @@ func TestAccCloudAwsAccountResourceAgentlessRoleUpdates(t *testing.T) {
 					// Computed fields
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
 					resource.TestCheckResourceAttr(fullResourceName, "dspm_role_name", testDSPMRoleName),
-					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_arn", ""),
-					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", ""),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
 					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", testDSPMRoleName),
 				),
 			},
@@ -455,7 +453,7 @@ func TestAccCloudAwsAccountResourceAgentlessRoleUpdates(t *testing.T) {
 					resource.TestCheckResourceAttr(fullResourceName, "dspm_role_name", testDSPMRoleName),
 					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", testVulnRoleName),
-					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", testVulnRoleName), // Should switch to vuln role
+					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", testVulnRoleName),
 				),
 			},
 		},

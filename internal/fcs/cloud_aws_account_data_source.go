@@ -345,40 +345,32 @@ func (d *cloudAwsAccountsDataSource) Read(
 			targetOus = append(targetOus, types.StringValue(ou))
 		}
 		m := &cloudAWSAccountDataModel{
-			AccountID:                 types.StringValue(a.AccountID),
-			OrganizationID:            types.StringValue(a.OrganizationID),
-			TargetOUs:                 types.ListValueMust(types.StringType, targetOus),
-			IsOrgManagementAccount:    types.BoolValue(a.IsMaster),
-			AccountType:               types.StringValue(a.AccountType),
-			ExternalID:                types.StringValue(a.ExternalID),
-			IntermediateRoleArn:       types.StringValue(a.IntermediateRoleArn),
-			IamRoleArn:                types.StringValue(a.IamRoleArn),
-			IamRoleName:               types.StringValue(getRoleNameFromArn(a.IamRoleArn)),
-			EventbusName:              types.StringValue(a.EventbusName),
-			EventbusArn:               types.StringValue(a.AwsEventbusArn),
-			CloudTrailBucketName:      types.StringValue(a.AwsCloudtrailBucketName),
-			CloudTrailRegion:          types.StringValue(a.AwsCloudtrailRegion),
-			DspmRoleArn:               types.StringValue(a.DspmRoleArn),
-			DspmRoleName:              types.StringValue(getRoleNameFromArn(a.DspmRoleArn)),
-			AssetInventoryEnabled:     types.BoolValue(true), // this feature is always enabled
-			RealtimeVisibilityEnabled: types.BoolValue(a.BehaviorAssessmentEnabled),
-			IDPEnabled:                types.BoolValue(false),
+			AccountID:                     types.StringValue(a.AccountID),
+			OrganizationID:                types.StringValue(a.OrganizationID),
+			TargetOUs:                     types.ListValueMust(types.StringType, targetOus),
+			IsOrgManagementAccount:        types.BoolValue(a.IsMaster),
+			AccountType:                   types.StringValue(a.AccountType),
+			ExternalID:                    types.StringValue(a.ExternalID),
+			IntermediateRoleArn:           types.StringValue(a.IntermediateRoleArn),
+			IamRoleArn:                    types.StringValue(a.IamRoleArn),
+			IamRoleName:                   types.StringValue(getRoleNameFromArn(a.IamRoleArn)),
+			EventbusName:                  types.StringValue(a.EventbusName),
+			EventbusArn:                   types.StringValue(a.AwsEventbusArn),
+			CloudTrailBucketName:          types.StringValue(a.AwsCloudtrailBucketName),
+			CloudTrailRegion:              types.StringValue(a.AwsCloudtrailRegion),
+			DspmRoleArn:                   types.StringValue(a.DspmRoleArn),
+			DspmRoleName:                  types.StringValue(getRoleNameFromArn(a.DspmRoleArn)),
+			VulnerabilityScanningRoleArn:  types.StringValue(a.VulnerabilityScanningRoleArn),
+			VulnerabilityScanningRoleName: types.StringValue(getRoleNameFromArn(a.VulnerabilityScanningRoleArn)),
+			AssetInventoryEnabled:         types.BoolValue(true), // this feature is always enabled
+			RealtimeVisibilityEnabled:     types.BoolValue(a.BehaviorAssessmentEnabled),
+			IDPEnabled:                    types.BoolValue(false),
 			SensorManagementEnabled: types.BoolValue(
 				a.SensorManagementEnabled != nil && *a.SensorManagementEnabled,
 			),
 			DSPMEnabled:                  types.BoolValue(a.DspmEnabled),
 			VulnerabilityScanningEnabled: types.BoolValue(a.VulnerabilityScanningEnabled),
 		}
-
-		// Calculate Vulnerability scanning fields
-		settings, err := getAccountSettings(a)
-		if err != nil {
-			resp.Diagnostics.AddError("Failed to get account settings", err.Error())
-			return
-		}
-
-		m.VulnerabilityScanningRoleArn = types.StringValue(settings.VulnerabilityScanningRole)
-		m.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(settings.VulnerabilityScanningRole))
 
 		agentlessRoleName, err := resolveAgentlessScanningRoleName(a)
 		if err != nil {

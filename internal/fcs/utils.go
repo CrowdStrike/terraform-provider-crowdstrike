@@ -1,7 +1,6 @@
 package fcs
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/models"
@@ -25,13 +24,7 @@ func resolveAgentlessScanningRoleName(cspmAccount *models.DomainAWSAccountV2) (s
 
 	// Try fallback to vulnerability scanning role if DSPM is not enabled
 	if cspmAccount.VulnerabilityScanningEnabled {
-		settings, err := getAccountSettings(cspmAccount)
-		if err != nil {
-			return "", fmt.Errorf("failed to get vulnerability scanning role arn: %w", err)
-		}
-		if settings.VulnerabilityScanningRole != "" {
-			agentlessScanningRoleName = getRoleNameFromArn(settings.VulnerabilityScanningRole)
-		}
+		agentlessScanningRoleName = getRoleNameFromArn(cspmAccount.VulnerabilityScanningRoleArn)
 	}
 
 	return agentlessScanningRoleName, nil

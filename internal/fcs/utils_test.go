@@ -79,9 +79,7 @@ func TestComputeAgentlessScanningRoleName(t *testing.T) {
 				DspmEnabled:                  true,
 				DspmRoleArn:                  testDSPMRoleArn,
 				VulnerabilityScanningEnabled: true,
-				Settings: map[string]string{
-					AWSVulnerabilityScanningCustomRoleKey: testVulnRoleArn,
-				},
+				VulnerabilityScanningRoleArn: testVulnRoleArn,
 			},
 			expected:      testDSPMRoleName,
 			expectedError: false,
@@ -91,9 +89,7 @@ func TestComputeAgentlessScanningRoleName(t *testing.T) {
 			cspmAccount: &models.DomainAWSAccountV2{
 				DspmEnabled:                  false,
 				VulnerabilityScanningEnabled: true,
-				Settings: map[string]string{
-					AWSVulnerabilityScanningCustomRoleKey: testVulnRoleArn,
-				},
+				VulnerabilityScanningRoleArn: testVulnRoleArn,
 			},
 			expected:      testVulnRoleName,
 			expectedError: false,
@@ -118,46 +114,23 @@ func TestComputeAgentlessScanningRoleName(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name: "Vuln enabled but no settings - should return empty string",
+			name: "Vuln enabled but no role arn - should return empty string",
 			cspmAccount: &models.DomainAWSAccountV2{
 				DspmEnabled:                  false,
 				VulnerabilityScanningEnabled: true,
-				Settings:                     nil,
 			},
 			expected:      "",
 			expectedError: false,
 		},
 		{
-			name: "Vuln enabled but empty settings map - should return empty string",
+			name: "Vuln enabled with empty role ARN - should return empty string",
 			cspmAccount: &models.DomainAWSAccountV2{
 				DspmEnabled:                  false,
 				VulnerabilityScanningEnabled: true,
-				Settings:                     map[string]string{},
+				VulnerabilityScanningRoleArn: "",
 			},
 			expected:      "",
 			expectedError: false,
-		},
-		{
-			name: "Vuln enabled with empty role ARN in settings - should return empty string",
-			cspmAccount: &models.DomainAWSAccountV2{
-				DspmEnabled:                  false,
-				VulnerabilityScanningEnabled: true,
-				Settings: map[string]string{
-					AWSVulnerabilityScanningCustomRoleKey: "",
-				},
-			},
-			expected:      "",
-			expectedError: false,
-		},
-		{
-			name: "Vuln enabled with invalid settings type - should return error",
-			cspmAccount: &models.DomainAWSAccountV2{
-				DspmEnabled:                  false,
-				VulnerabilityScanningEnabled: true,
-				Settings:                     "invalid-settings-type",
-			},
-			expected:      "",
-			expectedError: true,
 		},
 	}
 

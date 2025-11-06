@@ -594,15 +594,8 @@ func (r *cloudAWSAccountResource) Create(
 	state.CloudTrailBucketName = types.StringValue(cspmAccount.AwsCloudtrailBucketName)
 	state.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
 	state.DspmRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.DspmRoleArn))
-
-	settings, err := getAccountSettings(cspmAccount)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to get account settings", err.Error())
-		return
-	}
-
-	state.VulnerabilityScanningRoleArn = types.StringValue(settings.VulnerabilityScanningRole)
-	state.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(settings.VulnerabilityScanningRole))
+	state.VulnerabilityScanningRoleArn = types.StringValue(cspmAccount.VulnerabilityScanningRoleArn)
+	state.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.VulnerabilityScanningRoleArn))
 
 	agentlessRoleName, err := resolveAgentlessScanningRoleName(cspmAccount)
 	if err != nil {
@@ -918,15 +911,8 @@ func (r *cloudAWSAccountResource) Read(
 	state.CloudTrailBucketName = types.StringValue(cspmAccount.AwsCloudtrailBucketName)
 	state.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
 	state.DspmRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.DspmRoleArn))
-
-	settings, err := getAccountSettings(cspmAccount)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to get account settings", err.Error())
-		return
-	}
-
-	state.VulnerabilityScanningRoleArn = types.StringValue(settings.VulnerabilityScanningRole)
-	state.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(settings.VulnerabilityScanningRole))
+	state.VulnerabilityScanningRoleArn = types.StringValue(cspmAccount.VulnerabilityScanningRoleArn)
+	state.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.VulnerabilityScanningRoleArn))
 
 	agentlessRoleName, err := resolveAgentlessScanningRoleName(cspmAccount)
 	if err != nil {
@@ -1203,15 +1189,8 @@ func (r *cloudAWSAccountResource) Update(
 	plan.CloudTrailBucketName = types.StringValue(cspmAccount.AwsCloudtrailBucketName)
 	plan.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
 	plan.DspmRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.DspmRoleArn))
-
-	settings, err := getAccountSettings(cspmAccount)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to get account settings", err.Error())
-		return
-	}
-
-	plan.VulnerabilityScanningRoleArn = types.StringValue(settings.VulnerabilityScanningRole)
-	plan.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(settings.VulnerabilityScanningRole))
+	plan.VulnerabilityScanningRoleArn = types.StringValue(cspmAccount.VulnerabilityScanningRoleArn)
+	plan.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.VulnerabilityScanningRoleArn))
 
 	agentlessRoleName, err := resolveAgentlessScanningRoleName(cspmAccount)
 	if err != nil {
