@@ -43,13 +43,13 @@ type preventionPolicyDataModel struct {
 }
 
 type preventionPoliciesDataSourceModel struct {
-	ID       types.String                 `tfsdk:"id"`
-	Filter   types.String                 `tfsdk:"filter"`
-	IDs      types.List                   `tfsdk:"ids"`
-	Sort     types.String                 `tfsdk:"sort"`
-	Enabled  types.Bool                   `tfsdk:"enabled"`
-	Platform types.String                 `tfsdk:"platform"`
-	Policies []*preventionPolicyDataModel `tfsdk:"policies"`
+	ID       types.String `tfsdk:"id"`
+	Filter   types.String `tfsdk:"filter"`
+	IDs      types.List   `tfsdk:"ids"`
+	Sort     types.String `tfsdk:"sort"`
+	Enabled  types.Bool   `tfsdk:"enabled"`
+	Platform types.String `tfsdk:"platform"`
+	Policies types.List   `tfsdk:"policies"`
 }
 
 // NewPreventionPoliciesDataSource is a helper function to simplify the provider implementation.
@@ -467,12 +467,57 @@ func (d *preventionPoliciesDataSource) Read(
 	}
 
 	// Convert API models to data models
-	data.Policies = make([]*preventionPolicyDataModel, 0, len(policies))
+	policyModels := make([]*preventionPolicyDataModel, 0, len(policies))
 	for _, policy := range policies {
 		if convertedPolicy := convertToDataModel(policy); convertedPolicy != nil {
-			data.Policies = append(data.Policies, convertedPolicy)
+			policyModels = append(policyModels, convertedPolicy)
 		}
 	}
+
+	// Convert to types.List
+	policyValues := make([]attr.Value, 0, len(policyModels))
+	for _, policy := range policyModels {
+		policyValue, policiesDiag := types.ObjectValueFrom(ctx, map[string]attr.Type{
+			"id":                 types.StringType,
+			"name":               types.StringType,
+			"description":        types.StringType,
+			"platform_name":      types.StringType,
+			"enabled":            types.BoolType,
+			"created_by":         types.StringType,
+			"created_timestamp":  types.StringType,
+			"modified_by":        types.StringType,
+			"modified_timestamp": types.StringType,
+			"groups":             types.ListType{ElemType: types.StringType},
+			"ioa_rule_groups":    types.ListType{ElemType: types.StringType},
+		}, policy)
+		resp.Diagnostics.Append(policiesDiag...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		policyValues = append(policyValues, policyValue)
+	}
+
+	policiesList, policiesListDiag := types.ListValue(types.ObjectType{
+		AttrTypes: map[string]attr.Type{
+			"id":                 types.StringType,
+			"name":               types.StringType,
+			"description":        types.StringType,
+			"platform_name":      types.StringType,
+			"enabled":            types.BoolType,
+			"created_by":         types.StringType,
+			"created_timestamp":  types.StringType,
+			"modified_by":        types.StringType,
+			"modified_timestamp": types.StringType,
+			"groups":             types.ListType{ElemType: types.StringType},
+			"ioa_rule_groups":    types.ListType{ElemType: types.StringType},
+		},
+	}, policyValues)
+	resp.Diagnostics.Append(policiesListDiag...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	data.Policies = policiesList
 
 	// Set ID based on filtering method used
 	data.ID = types.StringValue(dataSourceID)
