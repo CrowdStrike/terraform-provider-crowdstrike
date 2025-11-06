@@ -919,12 +919,10 @@ func (r *cloudAWSAccountResource) Read(
 	}
 
 	// Update S3 log ingestion fields from API response settings
-	// TODO: Handle both dot notation (CSPM: 'log.ingestion.method') and underscore notation (Cloud: 'log_ingestion_method')
-	// CSPM API returns: "log.ingestion.method", "s3.log.ingestion.bucket.name", etc.
-	// Cloud Security Registration API returns: "log_ingestion_method", "s3_log_ingestion_bucket_name", etc.
+	// All APIs now use period notation consistently
 	if cspmAccount.Settings != nil {
 		if settings, ok := cspmAccount.Settings.(map[string]interface{}); ok {
-			if method, exists := settings["log_ingestion_method"]; exists && method != nil {
+			if method, exists := settings["log.ingestion.method"]; exists && method != nil {
 				if methodStr, ok := method.(string); ok {
 					state.RealtimeVisibility.LogIngestionMethod = types.StringValue(methodStr)
 				}
@@ -932,7 +930,7 @@ func (r *cloudAWSAccountResource) Read(
 				state.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
 			}
 
-			if bucketName, exists := settings["s3_log_ingestion_bucket_name"]; exists && bucketName != nil {
+			if bucketName, exists := settings["s3.log.ingestion.bucket.name"]; exists && bucketName != nil {
 				if bucketNameStr, ok := bucketName.(string); ok {
 					state.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue(bucketNameStr)
 				}
@@ -940,7 +938,7 @@ func (r *cloudAWSAccountResource) Read(
 				state.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue("")
 			}
 
-			if snsTopicArn, exists := settings["s3_log_ingestion_sns_topic_arn"]; exists && snsTopicArn != nil {
+			if snsTopicArn, exists := settings["s3.log.ingestion.sns.topic.arn"]; exists && snsTopicArn != nil {
 				if snsTopicArnStr, ok := snsTopicArn.(string); ok {
 					state.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue(snsTopicArnStr)
 				}
@@ -948,7 +946,7 @@ func (r *cloudAWSAccountResource) Read(
 				state.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue("")
 			}
 
-			if bucketPrefix, exists := settings["s3_log_ingestion_bucket_prefix"]; exists && bucketPrefix != nil {
+			if bucketPrefix, exists := settings["s3.log.ingestion.bucket.prefix"]; exists && bucketPrefix != nil {
 				if bucketPrefixStr, ok := bucketPrefix.(string); ok {
 					state.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue(bucketPrefixStr)
 				}
@@ -956,7 +954,7 @@ func (r *cloudAWSAccountResource) Read(
 				state.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue("")
 			}
 
-			if kmsKeyArn, exists := settings["s3_log_ingestion_kms_key_arn"]; exists && kmsKeyArn != nil {
+			if kmsKeyArn, exists := settings["s3.log.ingestion.kms.key.arn"]; exists && kmsKeyArn != nil {
 				if kmsKeyArnStr, ok := kmsKeyArn.(string); ok {
 					state.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringValue(kmsKeyArnStr)
 				}
@@ -1224,12 +1222,10 @@ func (r *cloudAWSAccountResource) Update(
 	}
 
 	// Update S3 log ingestion fields from API response settings
-	// TODO: Handle both dot notation (CSPM: 'log.ingestion.method') and underscore notation (Cloud: 'log_ingestion_method')
-	// CSPM API returns: "log.ingestion.method", "s3.log.ingestion.bucket.name", etc.
-	// Cloud Security Registration API returns: "log_ingestion_method", "s3_log_ingestion_bucket_name", etc.
+	// All APIs now use period notation consistently
 	if cspmAccount.Settings != nil {
 		if settings, ok := cspmAccount.Settings.(map[string]interface{}); ok {
-			if method, exists := settings["log_ingestion_method"]; exists && method != nil {
+			if method, exists := settings["log.ingestion.method"]; exists && method != nil {
 				if methodStr, ok := method.(string); ok {
 					plan.RealtimeVisibility.LogIngestionMethod = types.StringValue(methodStr)
 				}
@@ -1237,7 +1233,7 @@ func (r *cloudAWSAccountResource) Update(
 				plan.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
 			}
 
-			if bucketName, exists := settings["s3_log_ingestion_bucket_name"]; exists && bucketName != nil {
+			if bucketName, exists := settings["s3.log.ingestion.bucket.name"]; exists && bucketName != nil {
 				if bucketNameStr, ok := bucketName.(string); ok {
 					plan.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue(bucketNameStr)
 				}
@@ -1245,7 +1241,7 @@ func (r *cloudAWSAccountResource) Update(
 				plan.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue("")
 			}
 
-			if snsTopicArn, exists := settings["s3_log_ingestion_sns_topic_arn"]; exists && snsTopicArn != nil {
+			if snsTopicArn, exists := settings["s3.log.ingestion.sns.topic.arn"]; exists && snsTopicArn != nil {
 				if snsTopicArnStr, ok := snsTopicArn.(string); ok {
 					plan.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue(snsTopicArnStr)
 				}
@@ -1253,7 +1249,7 @@ func (r *cloudAWSAccountResource) Update(
 				plan.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue("")
 			}
 
-			if bucketPrefix, exists := settings["s3_log_ingestion_bucket_prefix"]; exists && bucketPrefix != nil {
+			if bucketPrefix, exists := settings["s3.log.ingestion.bucket.prefix"]; exists && bucketPrefix != nil {
 				if bucketPrefixStr, ok := bucketPrefix.(string); ok {
 					plan.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue(bucketPrefixStr)
 				}
@@ -1261,7 +1257,7 @@ func (r *cloudAWSAccountResource) Update(
 				plan.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue("")
 			}
 
-			if kmsKeyArn, exists := settings["s3_log_ingestion_kms_key_arn"]; exists && kmsKeyArn != nil {
+			if kmsKeyArn, exists := settings["s3.log.ingestion.kms.key.arn"]; exists && kmsKeyArn != nil {
 				if kmsKeyArnStr, ok := kmsKeyArn.(string); ok {
 					plan.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringValue(kmsKeyArnStr)
 				}
