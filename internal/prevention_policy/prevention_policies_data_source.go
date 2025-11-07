@@ -43,13 +43,15 @@ type preventionPolicyDataModel struct {
 }
 
 type preventionPoliciesDataSourceModel struct {
-	ID       types.String `tfsdk:"id"`
-	Filter   types.String `tfsdk:"filter"`
-	IDs      types.List   `tfsdk:"ids"`
-	Sort     types.String `tfsdk:"sort"`
-	Enabled  types.Bool   `tfsdk:"enabled"`
-	Platform types.String `tfsdk:"platform"`
-	Policies types.List   `tfsdk:"policies"`
+	ID          types.String `tfsdk:"id"`
+	Filter      types.String `tfsdk:"filter"`
+	IDs         types.List   `tfsdk:"ids"`
+	Sort        types.String `tfsdk:"sort"`
+	Name        types.String `tfsdk:"name"`
+	Description types.String `tfsdk:"description"`
+	Enabled     types.Bool   `tfsdk:"enabled"`
+	Platform    types.String `tfsdk:"platform"`
+	Policies    types.List   `tfsdk:"policies"`
 }
 
 // NewPreventionPoliciesDataSource is a helper function to simplify the provider implementation.
@@ -101,6 +103,20 @@ func (d *preventionPoliciesDataSource) Schema(
 				Description: "Sort order for the results. " +
 					"Valid values include field names with optional '.asc' or '.desc' suffix. " +
 					"Example: 'name.asc', 'precedence.desc'",
+			},
+			"name": schema.StringAttribute{
+				Optional: true,
+				Description: "Filter policies by name. Partial matches are supported, but only single words work reliably. " +
+					"Use single words without spaces (e.g., 'production' works, but 'production lab' may not return results). " +
+					"For complex name searches with spaces, use the 'filter' attribute instead. " +
+					"Cannot be used together with 'filter' or 'ids'.",
+			},
+			"description": schema.StringAttribute{
+				Optional: true,
+				Description: "Filter policies by description. Partial matches are supported, but only single words work reliably. " +
+					"Use single words without spaces (e.g., 'malware' works, but 'malware protection' may not return results). " +
+					"For complex description searches with spaces, use the 'filter' attribute instead. " +
+					"Cannot be used together with 'filter' or 'ids'.",
 			},
 			"enabled": schema.BoolAttribute{
 				Optional: true,
@@ -343,13 +359,33 @@ func convertToDataModel(policy *models.PreventionPolicyV1) *preventionPolicyData
 
 // hasIndividualFilters checks if any of the individual filter attributes are set.
 func (d *preventionPoliciesDataSource) hasIndividualFilters(data *preventionPoliciesDataSourceModel) bool {
-	return (!data.Enabled.IsNull() && !data.Enabled.IsUnknown()) ||
+	return (!data.Name.IsNull() && !data.Name.IsUnknown()) ||
+		(!data.Description.IsNull() && !data.Description.IsUnknown()) ||
+		(!data.Enabled.IsNull() && !data.Enabled.IsUnknown()) ||
 		(!data.Platform.IsNull() && !data.Platform.IsUnknown())
 }
 
 // buildFQLFromAttributes constructs an FQL filter from individual filter attributes.
 func (d *preventionPoliciesDataSource) buildFQLFromAttributes(ctx context.Context, data *preventionPoliciesDataSourceModel) string {
 	var filters []string
+
+	// name filter - supports partial matching
+	if !data.Name.IsNull() && !data.Name.IsUnknown() {
+		value := data.Name.ValueString()
+		if value != "" {
+			// Use wildcard syntax for partial matching: name:*'value'
+			filters = append(filters, fmt.Sprintf("name:*'%s'", value))
+		}
+	}
+
+	// description filter - supports partial matching
+	if !data.Description.IsNull() && !data.Description.IsUnknown() {
+		value := data.Description.ValueString()
+		if value != "" {
+			// Use wildcard syntax for partial matching: description:*'value'
+			filters = append(filters, fmt.Sprintf("description:*'%s'", value))
+		}
+	}
 
 	// enabled filter
 	if !data.Enabled.IsNull() && !data.Enabled.IsUnknown() {
@@ -414,7 +450,7 @@ func (d *preventionPoliciesDataSource) Read(
 	if filterCount > 1 {
 		resp.Diagnostics.AddError(
 			"Invalid Attribute Combination",
-			"Cannot specify 'filter', 'ids', and individual filter attributes (enabled, platform) together. "+
+			"Cannot specify 'filter', 'ids', and individual filter attributes (name, description, enabled, platform) together. "+
 				"Please use only one filtering method: either 'filter' for FQL queries, 'ids' for specific IDs, "+
 				"or individual filter attributes.",
 		)
