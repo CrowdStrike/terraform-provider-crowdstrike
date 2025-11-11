@@ -597,11 +597,7 @@ func (r *cloudAWSAccountResource) Create(
 	state.VulnerabilityScanningRoleArn = types.StringValue(cspmAccount.VulnerabilityScanningRoleArn)
 	state.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.VulnerabilityScanningRoleArn))
 
-	agentlessRoleName, err := resolveAgentlessScanningRoleName(cspmAccount)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to compute agentless scanning role name", err.Error())
-		return
-	}
+	agentlessRoleName := resolveAgentlessScanningRoleName(cspmAccount)
 
 	state.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
 
@@ -914,11 +910,7 @@ func (r *cloudAWSAccountResource) Read(
 	state.VulnerabilityScanningRoleArn = types.StringValue(cspmAccount.VulnerabilityScanningRoleArn)
 	state.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.VulnerabilityScanningRoleArn))
 
-	agentlessRoleName, err := resolveAgentlessScanningRoleName(cspmAccount)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to compute agentless scanning role name", err.Error())
-		return
-	}
+	agentlessRoleName := resolveAgentlessScanningRoleName(cspmAccount)
 
 	state.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
 
@@ -1192,11 +1184,7 @@ func (r *cloudAWSAccountResource) Update(
 	plan.VulnerabilityScanningRoleArn = types.StringValue(cspmAccount.VulnerabilityScanningRoleArn)
 	plan.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.VulnerabilityScanningRoleArn))
 
-	agentlessRoleName, err := resolveAgentlessScanningRoleName(cspmAccount)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to compute agentless scanning role name", err.Error())
-		return
-	}
+	agentlessRoleName := resolveAgentlessScanningRoleName(cspmAccount)
 
 	plan.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
 

@@ -58,10 +58,9 @@ func TestGetRoleNameFromArn(t *testing.T) {
 
 func TestComputeAgentlessScanningRoleName(t *testing.T) {
 	tests := []struct {
-		name          string
-		cspmAccount   *models.DomainAWSAccountV2
-		expected      string
-		expectedError bool
+		name        string
+		cspmAccount *models.DomainAWSAccountV2
+		expected    string
 	}{
 		{
 			name: "DSPM enabled with role - should return DSPM role",
@@ -70,8 +69,7 @@ func TestComputeAgentlessScanningRoleName(t *testing.T) {
 				DspmRoleArn:                  testDSPMRoleArn,
 				VulnerabilityScanningEnabled: false,
 			},
-			expected:      testDSPMRoleName,
-			expectedError: false,
+			expected: testDSPMRoleName,
 		},
 		{
 			name: "Both DSPM and Vuln enabled - should return DSPM role (precedence)",
@@ -81,8 +79,7 @@ func TestComputeAgentlessScanningRoleName(t *testing.T) {
 				VulnerabilityScanningEnabled: true,
 				VulnerabilityScanningRoleArn: testVulnRoleArn,
 			},
-			expected:      testDSPMRoleName,
-			expectedError: false,
+			expected: testDSPMRoleName,
 		},
 		{
 			name: "Only Vuln enabled with role - should return Vuln role",
@@ -91,8 +88,7 @@ func TestComputeAgentlessScanningRoleName(t *testing.T) {
 				VulnerabilityScanningEnabled: true,
 				VulnerabilityScanningRoleArn: testVulnRoleArn,
 			},
-			expected:      testVulnRoleName,
-			expectedError: false,
+			expected: testVulnRoleName,
 		},
 		{
 			name: "Neither enabled - should return empty string",
@@ -100,8 +96,7 @@ func TestComputeAgentlessScanningRoleName(t *testing.T) {
 				DspmEnabled:                  false,
 				VulnerabilityScanningEnabled: false,
 			},
-			expected:      "",
-			expectedError: false,
+			expected: "",
 		},
 		{
 			name: "DSPM enabled but empty role ARN - should return empty string",
@@ -110,8 +105,7 @@ func TestComputeAgentlessScanningRoleName(t *testing.T) {
 				DspmRoleArn:                  "",
 				VulnerabilityScanningEnabled: false,
 			},
-			expected:      "",
-			expectedError: false,
+			expected: "",
 		},
 		{
 			name: "Vuln enabled but no role arn - should return empty string",
@@ -119,8 +113,7 @@ func TestComputeAgentlessScanningRoleName(t *testing.T) {
 				DspmEnabled:                  false,
 				VulnerabilityScanningEnabled: true,
 			},
-			expected:      "",
-			expectedError: false,
+			expected: "",
 		},
 		{
 			name: "Vuln enabled with empty role ARN - should return empty string",
@@ -129,20 +122,14 @@ func TestComputeAgentlessScanningRoleName(t *testing.T) {
 				VulnerabilityScanningEnabled: true,
 				VulnerabilityScanningRoleArn: "",
 			},
-			expected:      "",
-			expectedError: false,
+			expected: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := resolveAgentlessScanningRoleName(tt.cspmAccount)
+			got := resolveAgentlessScanningRoleName(tt.cspmAccount)
 			assert.Equal(t, tt.expected, got)
-			if tt.expectedError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
 		})
 	}
 }

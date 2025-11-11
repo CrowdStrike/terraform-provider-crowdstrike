@@ -372,11 +372,7 @@ func (d *cloudAwsAccountsDataSource) Read(
 			VulnerabilityScanningEnabled: types.BoolValue(a.VulnerabilityScanningEnabled),
 		}
 
-		agentlessRoleName, err := resolveAgentlessScanningRoleName(a)
-		if err != nil {
-			resp.Diagnostics.AddError("Failed to compute agentless scanning role name", err.Error())
-			return
-		}
+		agentlessRoleName := resolveAgentlessScanningRoleName(a)
 
 		m.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
 
