@@ -1,11 +1,11 @@
 ---
 page_title: "crowdstrike_prevention_policies Data Source - crowdstrike"
-subcategory: "Prevention Policy"
+subcategory: "Prevention Policies"
 description: |-
   This data source provides information about prevention policies in Falcon.
   API Scopes
   The following API scopes are required:
-  Prevention policies | Read
+  Prevention policies | Read & Write
 ---
 
 # crowdstrike_prevention_policies (Data Source)
@@ -16,7 +16,7 @@ This data source provides information about prevention policies in Falcon.
 
 The following API scopes are required:
 
-- Prevention policies | Read
+- Prevention policies | Read & Write
 
 
 ## Example Usage
@@ -35,31 +35,30 @@ provider "crowdstrike" {
 }
 
 # Get all prevention policies
-data "crowdstrike_prevention_policies" "all" {}
-
-# Get policies using FQL filter
-data "crowdstrike_prevention_policies" "linux_enabled" {
-  filter = "platform_name:'Linux'+enabled:true"
-  sort   = "name.asc"
+data "crowdstrike_prevention_policies" "all" {
+  sort = "name.asc"
 }
 
-# Get policies by specific IDs
-data "crowdstrike_prevention_policies" "specific" {
-  ids = [
-    "12345678-1234-1234-1234-123456789012",
-    "87654321-4321-4321-4321-210987654321"
-  ]
-}
-
-# Get policies using individual filter attributes
+# Get enabled Windows prevention policies using individual attributes
 data "crowdstrike_prevention_policies" "windows_enabled" {
   platform = "Windows"
   enabled  = true
+  sort     = "name.asc"
 }
 
-# Get disabled policies for all platforms
-data "crowdstrike_prevention_policies" "disabled" {
-  enabled = false
+# Get specific prevention policies by their IDs
+data "crowdstrike_prevention_policies" "specific_policies" {
+  ids = [
+    "037a1708a8504b3a9cdbfdefba05f932", # Windows platform default
+    "4979a243c0d84342a66692f4810348ef", # Mac platform default
+    "9913bc2788a449678ab1269f44942463"  # Linux platform default
+  ]
+}
+
+# Get enabled Linux prevention policies using FQL filter
+data "crowdstrike_prevention_policies" "enabled_linux" {
+  filter = "platform_name:'Linux'+enabled:true"
+  sort   = "name.asc"
 }
 ```
 
@@ -68,9 +67,11 @@ data "crowdstrike_prevention_policies" "disabled" {
 
 ### Optional
 
+- `description` (String) Filter policies by description. Partial matches are supported, but only single words work reliably. Use single words without spaces (e.g., 'malware' works, but 'malware protection' may not return results). For complex description searches with spaces, use the 'filter' attribute instead. Cannot be used together with 'filter' or 'ids'.
 - `enabled` (Boolean) Filter policies by enabled status. Cannot be used together with 'filter' or 'ids'.
 - `filter` (String) FQL filter to apply to the prevention policies query. When specified, only policies matching the filter will be returned. Cannot be used together with 'ids' or other filter attributes. Example: `platform_name:'Windows'`
 - `ids` (List of String) List of prevention policy IDs to retrieve. When specified, only policies with matching IDs will be returned. Cannot be used together with 'filter' or other filter attributes.
+- `name` (String) Filter policies by name. Partial matches are supported, but only single words work reliably. Use single words without spaces (e.g., 'production' works, but 'production lab' may not return results). For complex name searches with spaces, use the 'filter' attribute instead. Cannot be used together with 'filter' or 'ids'.
 - `platform` (String) Filter policies by platform (Windows, Linux, Mac). Cannot be used together with 'filter' or 'ids'.
 - `sort` (String) Sort order for the results. Valid values include field names with optional '.asc' or '.desc' suffix. Example: 'name.asc', 'precedence.desc'
 
