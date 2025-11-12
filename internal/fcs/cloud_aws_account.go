@@ -1281,7 +1281,7 @@ func (r *cloudAWSAccountResource) Update(
 		plan.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringValue("")
 	}
 
-	plan.SensorManagement.Enabled = types.BoolValue(*cspmAccount.SensorManagementEnabled)
+	plan.SensorManagement.Enabled = types.BoolPointerValue(cspmAccount.SensorManagementEnabled)
 
 	plan.DSPM.Enabled = types.BoolValue(cspmAccount.DspmEnabled)
 
