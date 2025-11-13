@@ -124,30 +124,36 @@ func validateRingAssignmentWithPinnedVersion(
 	}
 
 	// Check if there's a pinned version that would conflict with changes
-	hasPinnedVersion := !plannedSettings.PinnedContentVersion.IsNull() &&
+	planPinnedVersion := !plannedSettings.PinnedContentVersion.IsNull() &&
 		plannedSettings.PinnedContentVersion.ValueString() != ""
 
 	tflog.Debug(ctx, "Pinned version check", map[string]interface{}{
 		"category":           categoryName,
-		"hasPinnedVersion":   hasPinnedVersion,
+		"planPinnedVersion":  planPinnedVersion,
 		"pinnedVersionValue": plannedSettings.PinnedContentVersion.ValueString(),
 	})
 
-	if !hasPinnedVersion {
+	if !planPinnedVersion {
 		tflog.Debug(ctx, "No pinned version, no conflict possible", map[string]interface{}{
 			"category": categoryName,
 		})
-		return diags // No pinned version, no conflict possible
+		return diags
 	}
 
-	// Check ring assignment changes
-	if !plannedSettings.RingAssignment.IsUnknown() &&
-		currentSettings.RingAssignment.ValueString() != plannedSettings.RingAssignment.ValueString() {
+	// Block ring assignment changes if:
+	// 1. The ring assignment is changing, AND
+	// 2. A pinned version exists in BOTH current and planned state
+	ringAssignmentChanging := !plannedSettings.RingAssignment.IsUnknown() &&
+		currentSettings.RingAssignment.ValueString() != plannedSettings.RingAssignment.ValueString()
+
+	hasPinnedVersion := !currentSettings.PinnedContentVersion.IsNull() &&
+		currentSettings.PinnedContentVersion.ValueString() != ""
+
+	if ringAssignmentChanging && hasPinnedVersion && planPinnedVersion {
 		tflog.Error(ctx, "Ring assignment change blocked by pinned version", map[string]interface{}{
-			"category":               categoryName,
-			"current_ring":           currentSettings.RingAssignment.ValueString(),
-			"planned_ring":           plannedSettings.RingAssignment.ValueString(),
-			"pinned_content_version": plannedSettings.PinnedContentVersion.ValueString(),
+			"category":     categoryName,
+			"current_ring": currentSettings.RingAssignment.ValueString(),
+			"planned_ring": plannedSettings.RingAssignment.ValueString(),
 		})
 		diags.AddAttributeError(
 			attrPath,
@@ -162,7 +168,9 @@ func validateRingAssignmentWithPinnedVersion(
 		)
 	}
 
-	// Check delay hours changes
+	// Block delay hours changes if:
+	// 1. The delay hours is changing, AND
+	// 2. A pinned version exists in BOTH current and planned state
 	if !currentSettings.DelayHours.IsUnknown() && !plannedSettings.DelayHours.IsUnknown() {
 		currentDelayHours := int64(0)
 		plannedDelayHours := int64(0)
@@ -180,12 +188,13 @@ func validateRingAssignmentWithPinnedVersion(
 			"planned_delay_hours": plannedDelayHours,
 		})
 
-		if currentDelayHours != plannedDelayHours {
+		delayHoursChanging := currentDelayHours != plannedDelayHours
+
+		if delayHoursChanging && hasPinnedVersion && planPinnedVersion {
 			tflog.Error(ctx, "Delay hours change blocked by pinned version", map[string]interface{}{
-				"category":               categoryName,
-				"current_delay_hours":    currentDelayHours,
-				"planned_delay_hours":    plannedDelayHours,
-				"pinned_content_version": plannedSettings.PinnedContentVersion.ValueString(),
+				"category":            categoryName,
+				"current_delay_hours": currentDelayHours,
+				"planned_delay_hours": plannedDelayHours,
 			})
 			diags.AddAttributeError(
 				attrPath,

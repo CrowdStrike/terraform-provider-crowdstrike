@@ -30,7 +30,7 @@ func (r ringAssignmentModel) AttributeTypes() map[string]attr.Type {
 	}
 }
 
-// extract extracts the Go values from their terraform wrapped values.
+// wrap transforms Go values to their terraform wrapped values.
 func (r *ringAssignmentModel) wrap(
 	setting *models.ContentUpdateRingAssignmentSettingsV1,
 ) {

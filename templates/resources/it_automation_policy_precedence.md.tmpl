@@ -1,0 +1,52 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+{{ if gt (len (split .Description " --- ")) 1 -}}
+subcategory: "{{ index (split .Description " --- ") 0 }}"
+{{- else -}}
+subcategory: ""
+{{- end }}
+description: |-
+{{ if gt (len (split .Description " --- ")) 1 -}}
+{{ index (split .Description " --- ") 1 | plainmarkdown | trimspace | prefixlines "  " }}
+{{- else -}}
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+{{- end }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ if gt (len (split .Description " --- ")) 1 -}}
+{{ index (split .Description " --- ") 1 | trimspace }}
+{{ else }}
+{{ .Description | trimspace }}
+{{- end }}
+
+~> **Important** Only one precedence resource per platform is allowed. Multiple precedence resources for the same platform will conflict.
+
+## Enforcement Modes
+
+This resource supports two enforcement modes:
+
+### Strict Enforcement (`enforcement = "strict"`)
+
+With strict enforcement, you are managing **ALL** IT Automation policies for the specified platform. All policies must be specified in the `policy_ids` list, even if they were not created by Terraform. If any policy exists on the platform but is not in your list, Terraform will report drift and attempt to reconcile the precedence order.
+
+### Dynamic Enforcement (`enforcement = "dynamic"`)
+
+With dynamic enforcement, you can manage a **subset** of IT Automation policies for the specified platform. The policies you specify will have precedence **before** any policies not managed by Terraform. Policies outside of Terraform management will be ordered after your managed policies. This is useful when you want to ensure certain policies always execute first without managing the complete policy list.
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile (printf "%s%s%s" "examples/resources/" .Name "/resource.tf") }}
+{{- end }}
+
+{{ .SchemaMarkdown | trimspace }}
+{{- if .HasImport }}
+
+## Import
+
+Import is supported using the following syntax:
+
+{{ codefile "shell" (printf "%s%s%s" "examples/resources/" .Name "/import.sh") }}
+{{- end }}

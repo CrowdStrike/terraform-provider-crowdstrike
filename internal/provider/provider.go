@@ -7,10 +7,13 @@ import (
 	"os"
 
 	"github.com/crowdstrike/gofalcon/falcon"
+	cloudcompliance "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_compliance"
+	cloudsecurity "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_security"
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
+	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
@@ -253,6 +256,13 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		contentupdatepolicy.NewDefaultContentUpdatePolicyResource,
 		contentupdatepolicy.NewContentUpdatePolicyPrecedenceResource,
 		sensorvisibilityexclusion.NewSensorVisibilityExclusionResource,
+		itautomation.NewItAutomationTaskResource,
+		itautomation.NewItAutomationTaskGroupResource,
+		itautomation.NewItAutomationPolicyResource,
+		itautomation.NewItAutomationDefaultPolicyResource,
+		itautomation.NewItAutomationPolicyPrecedenceResource,
+		cloudsecurity.NewCloudSecurityCustomRuleResource,
+		cloudcompliance.NewCloudComplianceCustomFrameworkResource,
 	}
 }
 
@@ -261,6 +271,8 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		sensorupdatepolicy.NewSensorUpdateBuildsDataSource,
 		fcs.NewCloudAwsAccountsDataSource,
 		contentupdatepolicy.NewContentCategoryVersionsDataSource,
+		cloudsecurity.NewCloudSecurityRulesDataSource,
+		cloudcompliance.NewCloudComplianceFrameworkControlDataSource,
 	}
 }
 

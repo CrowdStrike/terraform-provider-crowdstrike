@@ -17,6 +17,11 @@ func IsKnown(value attr.Value) bool {
 	return !value.IsNull() && !value.IsUnknown()
 }
 
+// IsNull returns true if an attribute value is known and null.
+func IsNull(value attr.Value) bool {
+	return value.IsNull() && !value.IsUnknown()
+}
+
 // ListTypeAs converts a types.List into a known []T.
 func ListTypeAs[T any](
 	ctx context.Context,
@@ -234,4 +239,18 @@ func ConvertModelToTerraformObject[T TerraformObjectConvertible](
 		"object": obj.String(),
 	})
 	return obj, diags
+}
+
+// PlanAwareStringValue converts a string pointer to a types.String, treating null and empty string as equivalent.
+// This is useful for properties like description where the API often returns "" for descriptions that are unset.
+// This allows us to handle cases where an omitted field and a field with "" value should be treated the same.
+//
+// If the plan value is null and the API returns nil or empty string, the result will be null.
+// Otherwise, the API value is used as-is (nil becomes null, empty string becomes empty string, etc.).
+// This prevents Terraform inconsistent state errors when the API returns "" for omitted fields.
+func PlanAwareStringValue(plan types.String, apiValue *string) types.String {
+	if plan.IsNull() && (apiValue == nil || *apiValue == "") {
+		return types.StringNull()
+	}
+	return types.StringPointerValue(apiValue)
 }
