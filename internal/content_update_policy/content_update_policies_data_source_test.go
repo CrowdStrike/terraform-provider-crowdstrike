@@ -174,6 +174,45 @@ data "crowdstrike_content_update_policies" "combined_with_platform" {
 				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.combined_with_platform", "policies.0.enabled", "true"),
 			),
 		},
+		// Test name filter
+		{
+			Config: acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "name_filter" {
+  name = "policy"
+}
+`,
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.name_filter", "policies.#"),
+				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.name_filter", "id", "filtered"),
+			),
+		},
+		// Test description filter
+		{
+			Config: acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "description_filter" {
+  description = "update"
+}
+`,
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.description_filter", "policies.#"),
+				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.description_filter", "id", "filtered"),
+			),
+		},
+		// Test combination with name and enabled
+		{
+			Config: acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "combined_name_enabled" {
+  name    = "policy"
+  enabled = true
+}
+`,
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.combined_name_enabled", "policies.#"),
+				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.combined_name_enabled", "id", "filtered"),
+				// Verify all returned policies are enabled
+				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.combined_name_enabled", "policies.0.enabled", "true"),
+			),
+		},
 	}
 }
 
@@ -238,12 +277,32 @@ data "crowdstrike_content_update_policies" "invalid_filter_individual" {
 `,
 			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
 		},
+		// Test filter + name attribute
+		{
+			Config: acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "invalid_filter_name" {
+  filter = "enabled:true"
+  name   = "policy"
+}
+`,
+			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
 		// Test ids + individual attributes
 		{
 			Config: acctest.ProviderConfig + `
 data "crowdstrike_content_update_policies" "invalid_ids_individual" {
   ids     = ["policy-id-1"]
   enabled = true
+}
+`,
+			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		// Test ids + description attribute
+		{
+			Config: acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "invalid_ids_description" {
+  ids         = ["policy-id-1"]
+  description = "update"
 }
 `,
 			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
