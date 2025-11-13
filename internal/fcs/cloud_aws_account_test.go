@@ -186,3 +186,128 @@ resource "crowdstrike_cloud_aws_account" "test" {
 }
 `, account)
 }
+
+// TestAccCloudAWSAccount_RealtimeVisibility tests commercial account realtime_visibility configurations.
+func TestAccCloudAWSAccount_RealtimeVisibility(t *testing.T) {
+	resourceName := "crowdstrike_cloud_aws_account.test"
+	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAWSAccountConfigRealtimeVisibilityOmitted(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(resourceName, "account_type", "commercial"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "us-east-1"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
+					resource.TestCheckResourceAttrSet(resourceName, "cloudtrail_bucket_name"),
+				),
+			},
+			{
+				Config: testAccCloudAWSAccountConfigRealtimeVisibility(accountID, false, "us-east-1"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(resourceName, "account_type", "commercial"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "false"),
+					resource.TestCheckResourceAttrSet(resourceName, "cloudtrail_bucket_name"),
+				),
+			},
+			{
+				Config: testAccCloudAWSAccountConfigRealtimeVisibility(accountID, true, "us-east-1"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(resourceName, "account_type", "commercial"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "us-east-1"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
+					resource.TestCheckResourceAttrSet(resourceName, "cloudtrail_bucket_name"),
+				),
+			},
+			{
+				Config: testAccCloudAWSAccountConfigRealtimeVisibility(accountID, true, "us-west-2"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(resourceName, "account_type", "commercial"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "us-west-2"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
+					resource.TestCheckResourceAttrSet(resourceName, "cloudtrail_bucket_name"),
+				),
+			},
+			{
+				Config: testAccCloudAWSAccountConfigRealtimeVisibilityOmitted(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(resourceName, "account_type", "commercial"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "us-east-1"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
+					resource.TestCheckResourceAttrSet(resourceName, "cloudtrail_bucket_name"),
+				),
+			},
+			{
+				Config: testAccCloudAWSAccountConfigRealtimeVisibility(accountID, true, "eu-west-1"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(resourceName, "account_type", "commercial"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "eu-west-1"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
+					resource.TestCheckResourceAttrSet(resourceName, "cloudtrail_bucket_name"),
+				),
+			},
+			{
+				Config: testAccCloudAWSAccountConfigRealtimeVisibility(accountID, false, "us-east-1"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(resourceName, "account_type", "commercial"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "us-east-1"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
+					resource.TestCheckResourceAttrSet(resourceName, "cloudtrail_bucket_name"),
+				),
+			},
+			{
+				ResourceName:                         resourceName,
+				ImportState:                          true,
+				ImportStateId:                        accountID,
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "account_id",
+				ImportStateVerifyIgnore: []string{
+					"id",
+					"deployment_method",
+					"target_ous",
+					"asset_inventory",
+					"idp",
+					"sensor_management",
+					"dspm",
+				},
+			},
+		},
+	})
+}
+
+func testAccCloudAWSAccountConfigRealtimeVisibility(accountID string, enabled bool, cloudtrailRegion string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id   = %[1]q
+  realtime_visibility = {
+    enabled                 = %[2]t
+    cloudtrail_region       = %[3]q
+    use_existing_cloudtrail = true
+  }
+}
+`, accountID, enabled, cloudtrailRegion)
+}
+
+func testAccCloudAWSAccountConfigRealtimeVisibilityOmitted(accountID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = %[1]q
+}
+`, accountID)
+}
