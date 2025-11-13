@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/gofalcon/falcon/models"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -129,7 +128,9 @@ func TestComputeAgentlessScanningRoleName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := resolveAgentlessScanningRoleName(tt.cspmAccount)
-			assert.Equal(t, tt.expected, got)
+			if got != tt.expected {
+				t.Errorf("resolveAgentlessScanningRoleName() = %v, want %v", got, tt.expected)
+			}
 		})
 	}
 }
