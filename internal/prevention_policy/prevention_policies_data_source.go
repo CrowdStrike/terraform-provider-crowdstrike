@@ -8,13 +8,18 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/prevention_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+)
+
+const (
+	dataSourceDocumentationSection        = "Prevention Policies"
+	dataSourceMarkdownDescription         = "This data source provides information about prevention policies in Falcon."
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -74,9 +79,10 @@ func (d *preventionPoliciesDataSource) Schema(
 	resp *datasource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: fmt.Sprintf(
-			"Prevention Policies --- This data source provides information about prevention policies in Falcon.\n\n%s",
-			scopes.GenerateScopeDescription(apiScopes),
+		MarkdownDescription: utils.MarkdownDescription(
+			dataSourceDocumentationSection,
+			dataSourceMarkdownDescription,
+			dataSourceApiScopes,
 		),
 		Attributes: map[string]schema.Attribute{
 			"filter": schema.StringAttribute{
