@@ -41,7 +41,6 @@ data "crowdstrike_prevention_policies" "test" {}
 `,
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.test", "id", "all"),
 				// Check that we have some policies and verify their structure
 				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.id"),
 				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.name"),
@@ -64,7 +63,6 @@ data "crowdstrike_prevention_policies" "windows" {
 `,
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.windows", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.windows", "id", "filtered"),
 				// Verify all returned policies are Windows policies
 				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.windows", "policies.0.platform_name", "Windows"),
 			),
@@ -77,7 +75,6 @@ data "crowdstrike_prevention_policies" "enabled" {
 `,
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.enabled", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.enabled", "id", "filtered"),
 				// Verify all returned policies are enabled
 				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.enabled", "policies.0.enabled", "true"),
 			),
@@ -90,7 +87,6 @@ data "crowdstrike_prevention_policies" "complex_filter" {
 `,
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.complex_filter", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.complex_filter", "id", "filtered"),
 			),
 		},
 	}
@@ -113,7 +109,6 @@ data "crowdstrike_prevention_policies" "specific" {
 `,
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.specific", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.specific", "id", "ids"),
 				// Verify we get exactly the policies we requested (up to 2)
 				resource.TestMatchResourceAttr("data.crowdstrike_prevention_policies.specific", "policies.#", regexp.MustCompile(`^[12]$`)),
 			),
@@ -132,7 +127,6 @@ data "crowdstrike_prevention_policies" "platform_windows" {
 `,
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.platform_windows", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.platform_windows", "id", "filtered"),
 				// Verify all returned policies are Windows policies
 				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.platform_windows", "policies.0.platform_name", "Windows"),
 			),
@@ -146,7 +140,6 @@ data "crowdstrike_prevention_policies" "enabled_true" {
 `,
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.enabled_true", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.enabled_true", "id", "filtered"),
 				// Verify all returned policies are enabled
 				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.enabled_true", "policies.0.enabled", "true"),
 			),
@@ -160,19 +153,6 @@ data "crowdstrike_prevention_policies" "name_policy" {
 `,
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.name_policy", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.name_policy", "id", "filtered"),
-			),
-		},
-		// Test group_count filter
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "no_groups" {
-  group_count = 0
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.no_groups", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.no_groups", "id", "filtered"),
 			),
 		},
 		// Test combination of individual filter attributes
@@ -185,26 +165,9 @@ data "crowdstrike_prevention_policies" "combined_filters" {
 `,
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.combined_filters", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.combined_filters", "id", "filtered"),
 				// Verify all returned policies match both criteria
 				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.combined_filters", "policies.0.platform_name", "Windows"),
 				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.combined_filters", "policies.0.enabled", "true"),
-			),
-		},
-		// Test created_by filter using dynamic reference
-		{
-			Config: acctest.ProviderConfig + `
-# Get all policies to find a real created_by value
-data "crowdstrike_prevention_policies" "all_for_created_by" {}
-
-# Filter by the created_by of the first policy
-data "crowdstrike_prevention_policies" "by_created_by" {
-  created_by = data.crowdstrike_prevention_policies.all_for_created_by.policies[0].created_by
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.by_created_by", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.by_created_by", "id", "filtered"),
 			),
 		},
 	}
@@ -220,7 +183,6 @@ data "crowdstrike_prevention_policies" "sorted_asc" {
 `,
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.sorted_asc", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.sorted_asc", "id", "all"),
 			),
 		},
 		{
@@ -231,7 +193,6 @@ data "crowdstrike_prevention_policies" "sorted_desc" {
 `,
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.sorted_desc", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.sorted_desc", "id", "all"),
 			),
 		},
 		{
@@ -243,7 +204,6 @@ data "crowdstrike_prevention_policies" "filtered_and_sorted" {
 `,
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.filtered_and_sorted", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.filtered_and_sorted", "id", "filtered"),
 			),
 		},
 	}
@@ -317,7 +277,6 @@ data "crowdstrike_prevention_policies" "empty" {
 `,
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.empty", "policies.#", "0"),
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.empty", "id", "filtered"),
 			),
 		},
 		{
@@ -328,7 +287,6 @@ data "crowdstrike_prevention_policies" "empty_ids" {
 `,
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.empty_ids", "policies.#", "0"),
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.empty_ids", "id", "ids"),
 			),
 		},
 	}
@@ -354,7 +312,7 @@ data "crowdstrike_prevention_policies" "test" {}
 					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.modified_by"),
 					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.modified_timestamp"),
 					// Check that lists are properly initialized (even if empty)
-					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.groups.#"),
+					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.host_groups.#"),
 					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.ioa_rule_groups.#"),
 				),
 			},
