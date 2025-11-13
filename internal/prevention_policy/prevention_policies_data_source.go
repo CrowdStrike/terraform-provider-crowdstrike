@@ -193,6 +193,7 @@ func (d *preventionPoliciesDataSource) getPreventionPoliciesWithFilter(
 	sort string,
 ) ([]*models.PreventionPolicyV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
+	var allPolicies []*models.PreventionPolicyV1
 
 	tflog.Info(
 		ctx,
@@ -200,36 +201,72 @@ func (d *preventionPoliciesDataSource) getPreventionPoliciesWithFilter(
 		map[string]interface{}{"filter": filter, "sort": sort},
 	)
 
-	params := &prevention_policies.QueryCombinedPreventionPoliciesParams{
-		Context: ctx,
+	limit := int64(5000)
+	offset := int64(0)
+
+	for {
+		params := &prevention_policies.QueryCombinedPreventionPoliciesParams{
+			Context: ctx,
+			Limit:   &limit,
+			Offset:  &offset,
+		}
+
+		if filter != "" {
+			params.Filter = &filter
+		}
+
+		if sort != "" {
+			params.Sort = &sort
+		}
+
+		res, err := d.client.PreventionPolicies.QueryCombinedPreventionPolicies(params)
+		if err != nil {
+			diags.AddError(
+				"Failed to query prevention policies",
+				fmt.Sprintf("Failed to query prevention policies: %s", err.Error()),
+			)
+			return allPolicies, diags
+		}
+
+		if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
+			tflog.Debug(ctx, "[datasource] No more prevention policies to retrieve",
+				map[string]interface{}{
+					"total_retrieved": len(allPolicies),
+				})
+			break
+		}
+
+		allPolicies = append(allPolicies, res.Payload.Resources...)
+		tflog.Debug(ctx, "[datasource] Retrieved page of prevention policies",
+			map[string]interface{}{
+				"page_count":  len(res.Payload.Resources),
+				"total_count": len(allPolicies),
+				"offset":      offset,
+			})
+
+		if res.Payload.Meta == nil || res.Payload.Meta.Pagination == nil ||
+			res.Payload.Meta.Pagination.Offset == nil || res.Payload.Meta.Pagination.Total == nil {
+
+			tflog.Warn(ctx, "Missing pagination metadata in API response, using offset+limit for next page",
+				map[string]interface{}{
+					"meta": res.Payload.Meta,
+				})
+			offset += limit
+			continue
+		}
+
+		offset = int64(*res.Payload.Meta.Pagination.Offset)
+		if offset >= *res.Payload.Meta.Pagination.Total {
+			tflog.Info(ctx, "[datasource] Pagination complete",
+				map[string]interface{}{
+					"total_retrieved": len(allPolicies),
+					"total_available": *res.Payload.Meta.Pagination.Total,
+				})
+			break
+		}
 	}
 
-	if filter != "" {
-		params.Filter = &filter
-	}
-
-	if sort != "" {
-		params.Sort = &sort
-	}
-
-	res, err := d.client.PreventionPolicies.QueryCombinedPreventionPolicies(params)
-	if err != nil {
-		diags.AddError(
-			"Failed to query prevention policies",
-			fmt.Sprintf("Failed to query prevention policies: %s", err.Error()),
-		)
-		return nil, diags
-	}
-
-	if res == nil || res.Payload == nil {
-		diags.AddError(
-			"Failed to query prevention policies",
-			"Received empty response from prevention policies query",
-		)
-		return nil, diags
-	}
-
-	return res.Payload.Resources, diags
+	return allPolicies, diags
 }
 
 // getPreventionPoliciesByIDs retrieves prevention policies by their IDs.
@@ -280,8 +317,8 @@ func convertToDataModel(policy *models.PreventionPolicyV1) *preventionPolicyData
 	// Convert host groups
 	groups := make([]attr.Value, 0, len(policy.Groups))
 	for _, group := range policy.Groups {
-		if group.ID != nil {
-			groups = append(groups, types.StringValue(*group.ID))
+		if group != nil && group.ID != nil {
+			groups = append(groups, types.StringPointerValue(group.ID))
 		}
 	}
 
