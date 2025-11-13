@@ -77,7 +77,7 @@ resource "crowdstrike_cloud_aws_account" "org" {
 - `dspm` (Attributes) (see [below for nested schema](#nestedatt--dspm))
 - `idp` (Attributes) (see [below for nested schema](#nestedatt--idp))
 - `organization_id` (String) The AWS Organization ID (starts with `o-`). When specified, accounts within the organization will be registered. If `target_ous` is empty, all accounts in the organization will be registered. The `account_id` must be the organization's management account ID.
-- `realtime_visibility` (Attributes) (see [below for nested schema](#nestedatt--realtime_visibility))
+- `realtime_visibility` (Attributes) Configuration for real-time visibility and detection. When not specified, defaults to disabled (enabled=false) with cloudtrail_region set based on account_type (us-gov-west-1 for gov accounts, us-east-1 for commercial accounts) and use_existing_cloudtrail=true (see [below for nested schema](#nestedatt--realtime_visibility))
 - `resource_name_prefix` (String) The prefix to be added to all resource names
 - `resource_name_suffix` (String) The suffix to be added to all resource names
 - `sensor_management` (Attributes) (see [below for nested schema](#nestedatt--sensor_management))
