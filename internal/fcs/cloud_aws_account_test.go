@@ -19,21 +19,21 @@ const (
 )
 
 // Basic configuration.
-func testAccCloudAwsAccountConfig_basic(resourceName, account string, organization_id string) string {
+func testAccCloudAwsAccountConfig_basic(account string, organization_id string) string {
 	return fmt.Sprintf(`
-resource "crowdstrike_cloud_aws_account" "%s" {
+resource "crowdstrike_cloud_aws_account" "test" {
   account_id                         = "%s"
   organization_id                    = "%s"
   target_ous                         = ["ou-abcd-defghijk", "r-abcd"]
   account_type                       = "commercial"
 }
-`, resourceName, account, organization_id)
+`, account, organization_id)
 }
 
 // Updated configuration with multiple products.
-func testAccCloudAwsAccountConfig_update(resourceName, account string, organization_id string) string {
+func testAccCloudAwsAccountConfig_update(account string, organization_id string) string {
 	return fmt.Sprintf(`
-resource "crowdstrike_cloud_aws_account" "%s" {
+resource "crowdstrike_cloud_aws_account" "test" {
   account_id                         = "%s"
   organization_id                    = "%s"
   target_ous                         = ["ou-abcd-defghijk", "r-abcd"]
@@ -56,44 +56,44 @@ resource "crowdstrike_cloud_aws_account" "%s" {
     role_name = "mydspmrole"
   }
 }
-`, resourceName, account, organization_id)
+`, account, organization_id)
 }
 
 // Minimal configuration with only required attributes.
-func testAccCloudAwsAccountConfig_minimal(resourceName, account string) string {
+func testAccCloudAwsAccountConfig_minimal(account string) string {
 	return fmt.Sprintf(`
-resource "crowdstrike_cloud_aws_account" "%s" {
+resource "crowdstrike_cloud_aws_account" "test" {
     account_id                         = "%s"
 }
-`, resourceName, account)
+`, account)
 }
 
-func testAccCloudAwsAccountConfig_vulnerabilityScanning(resourceName, account string) string {
+func testAccCloudAwsAccountConfig_vulnerabilityScanning(account string) string {
 	return fmt.Sprintf(`
-resource "crowdstrike_cloud_aws_account" "%s" {
+resource "crowdstrike_cloud_aws_account" "test" {
   account_id = "%s"
   vulnerability_scanning = {
     enabled   = true
     role_name = "%s"
   }
 }
-`, resourceName, account, testVulnRoleName)
+`, account, testVulnRoleName)
 }
 
-func testAccCloudAwsAccountConfig_vulnerabilityScanningNoRoleName(resourceName, account string) string {
+func testAccCloudAwsAccountConfig_vulnerabilityScanningNoRoleName(account string) string {
 	return fmt.Sprintf(`
-resource "crowdstrike_cloud_aws_account" "%s" {
+resource "crowdstrike_cloud_aws_account" "test" {
   account_id = "%s"
   vulnerability_scanning = {
     enabled   = true
   }
 }
-`, resourceName, account)
+`, account)
 }
 
-func testAccCloudAwsAccountConfig_bothDSPMAndVulnScanning(resourceName, account string, roleName string) string {
+func testAccCloudAwsAccountConfig_bothDSPMAndVulnScanning(account string, roleName string) string {
 	return fmt.Sprintf(`
-resource "crowdstrike_cloud_aws_account" "%s" {
+resource "crowdstrike_cloud_aws_account" "test" {
   account_id = "%s"
   dspm = {
     enabled   = true
@@ -104,12 +104,12 @@ resource "crowdstrike_cloud_aws_account" "%s" {
     role_name = "%s"
   }
 }
-`, resourceName, account, roleName, roleName)
+`, account, roleName, roleName)
 }
 
-func testAccCloudAwsAccountConfig_roleMismatch(resourceName, account string) string {
+func testAccCloudAwsAccountConfig_roleMismatch(account string) string {
 	return fmt.Sprintf(`
-resource "crowdstrike_cloud_aws_account" "%s" {
+resource "crowdstrike_cloud_aws_account" "test" {
   account_id = "%s"
   dspm = {
     enabled   = true
@@ -120,24 +120,24 @@ resource "crowdstrike_cloud_aws_account" "%s" {
     role_name = "%s"
   }
 }
-`, resourceName, account, testDSPMRoleName, testVulnRoleName)
+`, account, testDSPMRoleName, testVulnRoleName)
 }
 
-func testAccCloudAwsAccountConfig_dspmOnly(resourceName, account string) string {
+func testAccCloudAwsAccountConfig_dspmOnly(account string) string {
 	return fmt.Sprintf(`
-resource "crowdstrike_cloud_aws_account" "%s" {
+resource "crowdstrike_cloud_aws_account" "test" {
   account_id = "%s"
   dspm = {
     enabled   = true
     role_name = "%s"
   }
 }
-`, resourceName, account, testDSPMRoleName)
+`, account, testDSPMRoleName)
 }
 
-func testAccCloudAwsAccountConfig_bothDSPMAndVulnEnabledNoRoles(resourceName, account string) string {
+func testAccCloudAwsAccountConfig_bothDSPMAndVulnEnabledNoRoles(account string) string {
 	return fmt.Sprintf(`
-resource "crowdstrike_cloud_aws_account" "%s" {
+resource "crowdstrike_cloud_aws_account" "test" {
   account_id = "%s"
   dspm = {
     enabled = true
@@ -146,12 +146,12 @@ resource "crowdstrike_cloud_aws_account" "%s" {
     enabled = true
   }
 }
-`, resourceName, account)
+`, account)
 }
 
-func testAccCloudAwsAccountConfig_DSPMCustomRoleVulnDefaultRoleConfig(resourceName, account string) string {
+func testAccCloudAwsAccountConfig_DSPMCustomRoleVulnDefaultRoleConfig(account string) string {
 	return fmt.Sprintf(`
-resource "crowdstrike_cloud_aws_account" "%s" {
+resource "crowdstrike_cloud_aws_account" "test" {
   account_id = "%s"
   dspm = {
     enabled   = true
@@ -161,12 +161,11 @@ resource "crowdstrike_cloud_aws_account" "%s" {
     enabled = true
   }
 }
-`, resourceName, account, testDSPMRoleName)
+`, account, testDSPMRoleName)
 }
 
 func TestAccCloudAwsAccountResource(t *testing.T) {
-	testResourceName := "test_main"
-	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, testResourceName)
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
 	orgID := fmt.Sprintf("o-%s", sdkacctest.RandStringFromCharSet(10, sdkacctest.CharSetAlpha))
 
@@ -176,7 +175,7 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: testAccCloudAwsAccountConfig_basic(testResourceName, accountID, orgID),
+				Config: testAccCloudAwsAccountConfig_basic(accountID, orgID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
 					resource.TestCheckResourceAttr(fullResourceName, "organization_id", orgID),
@@ -220,7 +219,7 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 			},
 			// Update testing
 			{
-				Config: testAccCloudAwsAccountConfig_update(testResourceName, accountID, orgID),
+				Config: testAccCloudAwsAccountConfig_update(accountID, orgID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
 					resource.TestCheckResourceAttr(fullResourceName, "organization_id", orgID),
@@ -245,7 +244,7 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 			},
 			// Test minimal configuration
 			{
-				Config: testAccCloudAwsAccountConfig_minimal(testResourceName, accountID),
+				Config: testAccCloudAwsAccountConfig_minimal(accountID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
 					resource.TestCheckResourceAttr(
@@ -271,8 +270,7 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 }
 
 func TestAccCloudAwsAccountResourceMinimal(t *testing.T) {
-	testResourceName := "test_minimal"
-	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, testResourceName)
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -281,7 +279,7 @@ func TestAccCloudAwsAccountResourceMinimal(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Test minimal configuration
 			{
-				Config: testAccCloudAwsAccountConfig_minimal(testResourceName, accountID),
+				Config: testAccCloudAwsAccountConfig_minimal(accountID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
 					resource.TestCheckResourceAttr(
@@ -307,8 +305,7 @@ func TestAccCloudAwsAccountResourceMinimal(t *testing.T) {
 }
 
 func TestAccCloudAwsAccountResourceVulnerabilityScanning(t *testing.T) {
-	testResourceName := "test_vuln"
-	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, testResourceName)
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -316,7 +313,7 @@ func TestAccCloudAwsAccountResourceVulnerabilityScanning(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloudAwsAccountConfig_vulnerabilityScanning(testResourceName, accountID),
+				Config: testAccCloudAwsAccountConfig_vulnerabilityScanning(accountID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "true"),
@@ -331,8 +328,7 @@ func TestAccCloudAwsAccountResourceVulnerabilityScanning(t *testing.T) {
 }
 
 func TestAccCloudAwsAccountResourceVulnerabilityScanningNoRoleName(t *testing.T) {
-	testResourceName := "test_vuln_no_role_name"
-	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, testResourceName)
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -340,7 +336,7 @@ func TestAccCloudAwsAccountResourceVulnerabilityScanningNoRoleName(t *testing.T)
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloudAwsAccountConfig_vulnerabilityScanningNoRoleName(testResourceName, accountID),
+				Config: testAccCloudAwsAccountConfig_vulnerabilityScanningNoRoleName(accountID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "true"),
@@ -354,8 +350,7 @@ func TestAccCloudAwsAccountResourceVulnerabilityScanningNoRoleName(t *testing.T)
 }
 
 func TestAccCloudAwsAccountResourceBothDSPMAndVulnScanning(t *testing.T) {
-	testResourceName := "test_both"
-	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, testResourceName)
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -363,7 +358,7 @@ func TestAccCloudAwsAccountResourceBothDSPMAndVulnScanning(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloudAwsAccountConfig_bothDSPMAndVulnScanning(testResourceName, accountID, testAgentlessScanningRole),
+				Config: testAccCloudAwsAccountConfig_bothDSPMAndVulnScanning(accountID, testAgentlessScanningRole),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
 					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
@@ -378,7 +373,6 @@ func TestAccCloudAwsAccountResourceBothDSPMAndVulnScanning(t *testing.T) {
 }
 
 func TestAccCloudAwsAccountResourceRoleMismatchValidation(t *testing.T) {
-	testResourceName := "test_mismatch"
 	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -386,7 +380,7 @@ func TestAccCloudAwsAccountResourceRoleMismatchValidation(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config:      testAccCloudAwsAccountConfig_roleMismatch(testResourceName, accountID),
+				Config:      testAccCloudAwsAccountConfig_roleMismatch(accountID),
 				ExpectError: regexp.MustCompile("Role Name Mismatch"),
 			},
 		},
@@ -394,8 +388,7 @@ func TestAccCloudAwsAccountResourceRoleMismatchValidation(t *testing.T) {
 }
 
 func TestAccCloudAwsAccountResourceAgentlessRoleUpdates(t *testing.T) {
-	testResourceName := "test_updates"
-	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, testResourceName)
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -404,7 +397,7 @@ func TestAccCloudAwsAccountResourceAgentlessRoleUpdates(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Start with DSPM only
 			{
-				Config: testAccCloudAwsAccountConfig_dspmOnly(testResourceName, accountID),
+				Config: testAccCloudAwsAccountConfig_dspmOnly(accountID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
 					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
@@ -420,7 +413,7 @@ func TestAccCloudAwsAccountResourceAgentlessRoleUpdates(t *testing.T) {
 			},
 			// Update to add vulnerability scanning (same role)
 			{
-				Config: testAccCloudAwsAccountConfig_bothDSPMAndVulnScanning(testResourceName, accountID, testDSPMRoleName),
+				Config: testAccCloudAwsAccountConfig_bothDSPMAndVulnScanning(accountID, testDSPMRoleName),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
 					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
@@ -437,12 +430,12 @@ func TestAccCloudAwsAccountResourceAgentlessRoleUpdates(t *testing.T) {
 			},
 			// Update to different roles (should fail validation)
 			{
-				Config:      testAccCloudAwsAccountConfig_roleMismatch(testResourceName, accountID),
+				Config:      testAccCloudAwsAccountConfig_roleMismatch(accountID),
 				ExpectError: regexp.MustCompile("Role Name Mismatch"),
 			},
 			// Update to remove DSPM (vuln scanning takes over)
 			{
-				Config: testAccCloudAwsAccountConfig_vulnerabilityScanning(testResourceName, accountID),
+				Config: testAccCloudAwsAccountConfig_vulnerabilityScanning(accountID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
 					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "false"),
@@ -461,8 +454,7 @@ func TestAccCloudAwsAccountResourceAgentlessRoleUpdates(t *testing.T) {
 }
 
 func TestAccCloudAwsAccountResourceBothEnabledDefaultRoles(t *testing.T) {
-	testResourceName := "test_both_dspm_and_vuln_default_role"
-	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, testResourceName)
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -470,7 +462,7 @@ func TestAccCloudAwsAccountResourceBothEnabledDefaultRoles(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloudAwsAccountConfig_bothDSPMAndVulnEnabledNoRoles(testResourceName, accountID),
+				Config: testAccCloudAwsAccountConfig_bothDSPMAndVulnEnabledNoRoles(accountID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
 					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
@@ -484,7 +476,6 @@ func TestAccCloudAwsAccountResourceBothEnabledDefaultRoles(t *testing.T) {
 }
 
 func TestAccCloudAwsAccountResourceMixedRoleConfiguration(t *testing.T) {
-	testResourceName := "test_dspm_custom_vuln_default_role"
 	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -492,7 +483,7 @@ func TestAccCloudAwsAccountResourceMixedRoleConfiguration(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config:      testAccCloudAwsAccountConfig_DSPMCustomRoleVulnDefaultRoleConfig(testResourceName, accountID),
+				Config:      testAccCloudAwsAccountConfig_DSPMCustomRoleVulnDefaultRoleConfig(accountID),
 				ExpectError: regexp.MustCompile("Role Name Mismatch"),
 			},
 		},
