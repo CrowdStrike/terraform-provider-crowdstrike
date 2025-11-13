@@ -290,7 +290,7 @@ func deleteUser(
 	_, err := falconClient.UserManagement.DeleteUserV1(params)
 
 	if err != nil {
-		if _, ok := err.(*user_management.DeleteUserNotFound); ok {
+		if strings.Contains(err.Error(), "status 404") {
 			return nil
 		}
 		return fmt.Errorf("DeleteUserV1 failed: %w", err)
