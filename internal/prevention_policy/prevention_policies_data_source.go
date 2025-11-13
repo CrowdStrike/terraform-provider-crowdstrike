@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	dataSourceDocumentationSection        = "Prevention Policies"
-	dataSourceMarkdownDescription         = "This data source provides information about prevention policies in Falcon."
+	dataSourceDocumentationSection = "Prevention Policies"
+	dataSourceMarkdownDescription  = "This data source provides information about prevention policies in Falcon."
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -43,7 +43,7 @@ type preventionPolicyDataModel struct {
 	CreatedTimestamp  types.String `tfsdk:"created_timestamp"`
 	ModifiedBy        types.String `tfsdk:"modified_by"`
 	ModifiedTimestamp types.String `tfsdk:"modified_timestamp"`
-	Groups            types.List   `tfsdk:"groups"`
+	HostGroups        types.List   `tfsdk:"host_groups"`
 	IoaRuleGroups     types.List   `tfsdk:"ioa_rule_groups"`
 }
 
@@ -170,7 +170,7 @@ func (d *preventionPoliciesDataSource) Schema(
 							Computed:    true,
 							Description: "Timestamp when the policy was last modified",
 						},
-						"groups": schema.ListAttribute{
+						"host_groups": schema.ListAttribute{
 							Computed:    true,
 							ElementType: types.StringType,
 							Description: "List of host group IDs assigned to the policy",
@@ -332,7 +332,7 @@ func convertToDataModel(policy *models.PreventionPolicyV1) *preventionPolicyData
 	}
 
 	model := &preventionPolicyDataModel{
-		Groups:        types.ListValueMust(types.StringType, groups),
+		HostGroups:    types.ListValueMust(types.StringType, groups),
 		IoaRuleGroups: types.ListValueMust(types.StringType, ioaRuleGroups),
 	}
 
@@ -552,7 +552,7 @@ func (d *preventionPoliciesDataSource) Read(
 			"created_timestamp":  types.StringType,
 			"modified_by":        types.StringType,
 			"modified_timestamp": types.StringType,
-			"groups":             types.ListType{ElemType: types.StringType},
+			"host_groups":        types.ListType{ElemType: types.StringType},
 			"ioa_rule_groups":    types.ListType{ElemType: types.StringType},
 		}, policy)
 		resp.Diagnostics.Append(policiesDiag...)
@@ -573,7 +573,7 @@ func (d *preventionPoliciesDataSource) Read(
 			"created_timestamp":  types.StringType,
 			"modified_by":        types.StringType,
 			"modified_timestamp": types.StringType,
-			"groups":             types.ListType{ElemType: types.StringType},
+			"host_groups":        types.ListType{ElemType: types.StringType},
 			"ioa_rule_groups":    types.ListType{ElemType: types.StringType},
 		},
 	}, policyValues)
