@@ -13,7 +13,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-// To enable these tests, set: export ENABLE_REGO_TESTS=1.
+// skipIfRegoNotEnabled skips the test if the ENABLE_REGO_TESTS environment variable is not set.
+// This is used for tests that use custom Rego logic, which requires the custom policy feature
+// flag to be enabled in the CrowdStrike environment.
+//
+// To enable these tests, set: export ENABLE_REGO_TESTS=1
 func skipIfRegoNotEnabled(t *testing.T) {
 	if os.Getenv("ENABLE_REGO_TESTS") == "" {
 		t.Skip("Skipping test: ENABLE_REGO_TESTS environment variable not set. These tests require the custom policy feature flag to be enabled for your CID.")
