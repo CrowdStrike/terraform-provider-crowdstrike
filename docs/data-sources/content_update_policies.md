@@ -1,5 +1,5 @@
 ---
-page_title: "crowdstrike_content_update_policies Data Source - terraform-provider-crowdstrike"
+page_title: "crowdstrike_content_update_policies Data Source - crowdstrike"
 subcategory: "Content Update Policies"
 description: |-
   This data source provides information about content update policies in Falcon.
