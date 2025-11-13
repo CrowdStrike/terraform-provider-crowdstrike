@@ -3,6 +3,8 @@ package fcs
 import (
 	"context"
 
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -60,4 +62,68 @@ func (m dspmRoleArnModifier) MarkdownDescription(ctx context.Context) string {
 
 func DSPMArnStateModifier() dspmRoleArnModifier {
 	return dspmRoleArnModifier{}
+}
+
+// cloudtrailRegionDefault is a plan modifier that sets the default cloudtrail_region based on account_type.
+type cloudtrailRegionDefault struct{}
+
+func (m cloudtrailRegionDefault) Description(_ context.Context) string {
+	return "Sets default cloudtrail_region based on account_type: us-gov-west-1 for gov accounts, us-east-1 for commercial accounts"
+}
+
+func (m cloudtrailRegionDefault) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func (m cloudtrailRegionDefault) PlanModifyObject(ctx context.Context, req planmodifier.ObjectRequest, resp *planmodifier.ObjectResponse) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	if req.ConfigValue.IsUnknown() {
+		return
+	}
+
+	attrs := req.PlanValue.Attributes()
+	cloudtrailRegion, ok := attrs["cloudtrail_region"].(types.String)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Invalid realtime_visibility object structure",
+			"The cloudtrail_region attribute is missing or has an unexpected type. This is a provider bug, please report it to the provider developers.",
+		)
+		return
+	}
+
+	if !utils.IsNull(cloudtrailRegion) {
+		return
+	}
+
+	var accountType types.String
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("account_type"), &accountType)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if accountType.IsUnknown() {
+		return
+	}
+
+	region := "us-east-1"
+	if accountType.ValueString() == "gov" {
+		region = "us-gov-west-1"
+	}
+
+	attrs["cloudtrail_region"] = types.StringValue(region)
+
+	updatedObject, diags := types.ObjectValue(req.PlanValue.AttributeTypes(ctx), attrs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.PlanValue = updatedObject
+}
+
+func CloudtrailRegionDefault() planmodifier.Object {
+	return cloudtrailRegionDefault{}
 }

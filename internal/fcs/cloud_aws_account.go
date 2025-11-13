@@ -275,9 +275,10 @@ func (r *cloudAWSAccountResource) Schema(
 				},
 			},
 			"realtime_visibility": schema.SingleNestedAttribute{
-				Required: false,
-				Optional: true,
-				Computed: true,
+				Required:    false,
+				Optional:    true,
+				Computed:    true,
+				Description: "Configuration for real-time visibility and detection. When not specified, defaults to disabled (enabled=false) with cloudtrail_region set based on account_type (us-gov-west-1 for gov accounts, us-east-1 for commercial accounts) and use_existing_cloudtrail=true",
 				Attributes: map[string]schema.Attribute{
 					"enabled": schema.BoolAttribute{
 						Required:    true,
@@ -309,7 +310,7 @@ func (r *cloudAWSAccountResource) Schema(
 					),
 				),
 				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.UseStateForUnknown(),
+					CloudtrailRegionDefault(),
 				},
 			},
 			"idp": schema.SingleNestedAttribute{
@@ -842,7 +843,7 @@ func (r *cloudAWSAccountResource) Read(
 		state.RealtimeVisibility = oldState.RealtimeVisibility
 	} else {
 		state.RealtimeVisibility = &realtimeVisibilityOptions{
-			UseExistingCloudTrail: types.BoolValue(false),
+			UseExistingCloudTrail: types.BoolValue(true),
 		}
 	}
 	state.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
