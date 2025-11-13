@@ -2,6 +2,7 @@ package cloudsecurity_test
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -11,6 +12,17 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
+
+// skipIfRegoNotEnabled skips the test if the ENABLE_REGO_TESTS environment variable is not set.
+// This is used for tests that use custom Rego logic, which requires the custom policy feature
+// flag to be enabled in the CrowdStrike environment.
+//
+// To enable these tests, set: export ENABLE_REGO_TESTS=1
+func skipIfRegoNotEnabled(t *testing.T) {
+	if os.Getenv("ENABLE_REGO_TESTS") == "" {
+		t.Skip("Skipping test: ENABLE_REGO_TESTS environment variable not set. These tests require the custom policy feature flag to be enabled for your CID.")
+	}
+}
 
 type ruleBaseConfig struct {
 	ruleNamePrefix  string
@@ -122,6 +134,7 @@ func TestCloudSecurityCustomRuleResource_AWS_Copy(t *testing.T) {
 }
 
 func TestCloudSecurityCustomRuleResource_AWS_Rego(t *testing.T) {
+	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -138,6 +151,7 @@ func TestCloudSecurityCustomRuleResource_AWS_Minimal(t *testing.T) {
 }
 
 func TestCloudSecurityCustomRuleResource_AWS_MinimalRego(t *testing.T) {
+	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -154,6 +168,7 @@ func TestCloudSecurityCustomRuleResource_AWS_DefinedToOmitted(t *testing.T) {
 }
 
 func TestCloudSecurityCustomRuleResource_AWS_RegoDefinedToOmitted(t *testing.T) {
+	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -162,6 +177,7 @@ func TestCloudSecurityCustomRuleResource_AWS_RegoDefinedToOmitted(t *testing.T) 
 }
 
 func TestCloudSecurityCustomRuleResource_AWS_RegoDefinedToEmpty(t *testing.T) {
+	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -211,6 +227,7 @@ func TestCloudSecurityCustomRuleResource_Azure_Copy(t *testing.T) {
 }
 
 func TestCloudSecurityCustomRuleResource_Azure_Rego(t *testing.T) {
+	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -227,6 +244,7 @@ func TestCloudSecurityCustomRuleResource_Azure_Minimal(t *testing.T) {
 }
 
 func TestCloudSecurityCustomRuleResource_Azure_MinimalRego(t *testing.T) {
+	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -243,6 +261,7 @@ func TestCloudSecurityCustomRuleResource_Azure_DefinedToOmitted(t *testing.T) {
 }
 
 func TestCloudSecurityCustomRuleResource_Azure_RegoDefinedToOmitted(t *testing.T) {
+	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -251,6 +270,7 @@ func TestCloudSecurityCustomRuleResource_Azure_RegoDefinedToOmitted(t *testing.T
 }
 
 func TestCloudSecurityCustomRuleResource_Azure_RegoDefinedToEmpty(t *testing.T) {
+	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -300,6 +320,7 @@ func TestCloudSecurityCustomRuleResource_GCP_Copy(t *testing.T) {
 }
 
 func TestCloudSecurityCustomRuleResource_GCP_Rego(t *testing.T) {
+	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -316,6 +337,7 @@ func TestCloudSecurityCustomRuleResource_GCP_Minimal(t *testing.T) {
 }
 
 func TestCloudSecurityCustomRuleResource_GCP_MinimalRego(t *testing.T) {
+	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -332,6 +354,7 @@ func TestCloudSecurityCustomRuleResource_GCP_DefinedToOmitted(t *testing.T) {
 }
 
 func TestCloudSecurityCustomRuleResource_GCP_RegoDefinedToOmitted(t *testing.T) {
+	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -340,6 +363,7 @@ func TestCloudSecurityCustomRuleResource_GCP_RegoDefinedToOmitted(t *testing.T) 
 }
 
 func TestCloudSecurityCustomRuleResource_GCP_RegoDefinedToEmpty(t *testing.T) {
+	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },

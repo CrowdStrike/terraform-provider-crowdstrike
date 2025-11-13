@@ -252,7 +252,7 @@ func (config *taskConfig) TestChecks() resource.TestCheckFunc {
 
 func TestAccITAutomationTaskResource_ScriptContent(t *testing.T) {
 	sdk := createSDKFixtures(t)
-	t.Cleanup(func() { sdk.Cleanup(t) })
+	defer sdk.Cleanup(t)
 
 	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 
@@ -376,7 +376,7 @@ Write-Output "OS|$((Get-WmiObject Win32_OperatingSystem).Caption)"`),
 
 func TestAccITAutomationTaskResource_ScriptFile(t *testing.T) {
 	sdk := createSDKFixtures(t)
-	t.Cleanup(func() { sdk.Cleanup(t) })
+	defer sdk.Cleanup(t)
 
 	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 
@@ -511,7 +511,7 @@ func TestAccITAutomationTaskResource_ScriptFile(t *testing.T) {
 
 func TestAccITAutomationTaskResource_OSQuery(t *testing.T) {
 	sdk := createSDKFixtures(t)
-	t.Cleanup(func() { sdk.Cleanup(t) })
+	defer sdk.Cleanup(t)
 
 	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 
@@ -572,7 +572,7 @@ func TestAccITAutomationTaskResource_OSQuery(t *testing.T) {
 
 func TestAccITAutomationTaskResource_InTaskGroup(t *testing.T) {
 	sdk := createSDKFixtures(t)
-	t.Cleanup(func() { sdk.Cleanup(t) })
+	defer sdk.Cleanup(t)
 
 	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 	taskName := rName + "-task"
@@ -644,7 +644,7 @@ resource "crowdstrike_it_automation_task_group" "test" {
 
 func TestAccITAutomationTaskResource_RemovedFromGroup(t *testing.T) {
 	sdk := createSDKFixtures(t)
-	t.Cleanup(func() { sdk.Cleanup(t) })
+	defer sdk.Cleanup(t)
 
 	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 	taskName := rName + "-task"
@@ -712,7 +712,7 @@ resource "crowdstrike_it_automation_task" "test" {
 
 func TestAccITAutomationTaskResource_ConfigureWhileInGroup(t *testing.T) {
 	sdk := createSDKFixtures(t)
-	t.Cleanup(func() { sdk.Cleanup(t) })
+	defer sdk.Cleanup(t)
 
 	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 	taskName := rName + "-task"
@@ -799,7 +799,7 @@ resource "crowdstrike_it_automation_task_group" "test" {
 
 func TestAccITAutomationTaskResource_ExplicitAccessTypeOverride(t *testing.T) {
 	sdk := createSDKFixtures(t)
-	t.Cleanup(func() { sdk.Cleanup(t) })
+	defer sdk.Cleanup(t)
 
 	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 	taskName := rName + "-task"
@@ -858,7 +858,7 @@ resource "crowdstrike_it_automation_task_group" "test" {
 
 func TestAccITAutomationTaskResource_PublicAccessInheritance(t *testing.T) {
 	sdk := createSDKFixtures(t)
-	t.Cleanup(func() { sdk.Cleanup(t) })
+	defer sdk.Cleanup(t)
 
 	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 	taskName := rName + "-task"
@@ -904,7 +904,7 @@ resource "crowdstrike_it_automation_task_group" "test" {
 
 func TestAccITAutomationTaskResource_GroupAccessTypeChange(t *testing.T) {
 	sdk := createSDKFixtures(t)
-	t.Cleanup(func() { sdk.Cleanup(t) })
+	defer sdk.Cleanup(t)
 
 	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 	taskName := rName + "-task"
@@ -978,7 +978,8 @@ resource "crowdstrike_it_automation_task_group" "test" {
 
 func TestAccITAutomationTaskResource_AddRemoveUsers(t *testing.T) {
 	sdk := createSDKFixtures(t)
-	t.Cleanup(func() { sdk.Cleanup(t) })
+	defer sdk.Cleanup(t)
+	defer sdk.Cleanup(t)
 
 	// Ensure we have at least 3 users to test with
 	if len(sdk.UserIDs) < 3 {

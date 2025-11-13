@@ -48,6 +48,10 @@ resource "crowdstrike_cloud_aws_account" "org" {
     enabled = true
   }
 
+  vulnerability_scanning = {
+    enabled = true
+  }
+
   idp = {
     enabled = true
   }
@@ -73,14 +77,16 @@ resource "crowdstrike_cloud_aws_account" "org" {
 - `dspm` (Attributes) (see [below for nested schema](#nestedatt--dspm))
 - `idp` (Attributes) (see [below for nested schema](#nestedatt--idp))
 - `organization_id` (String) The AWS Organization ID (starts with `o-`). When specified, accounts within the organization will be registered. If `target_ous` is empty, all accounts in the organization will be registered. The `account_id` must be the organization's management account ID.
-- `realtime_visibility` (Attributes) (see [below for nested schema](#nestedatt--realtime_visibility))
+- `realtime_visibility` (Attributes) Configuration for real-time visibility and detection. When not specified, defaults to disabled (enabled=false) with cloudtrail_region set based on account_type (us-gov-west-1 for gov accounts, us-east-1 for commercial accounts) and use_existing_cloudtrail=true (see [below for nested schema](#nestedatt--realtime_visibility))
 - `resource_name_prefix` (String) The prefix to be added to all resource names
 - `resource_name_suffix` (String) The suffix to be added to all resource names
 - `sensor_management` (Attributes) (see [below for nested schema](#nestedatt--sensor_management))
 - `target_ous` (List of String) The list of target Organizational Units
+- `vulnerability_scanning` (Attributes) (see [below for nested schema](#nestedatt--vulnerability_scanning))
 
 ### Read-Only
 
+- `agentless_scanning_role_name` (String) The name of the IAM role to be used by CrowdStrike Agentless Scanning (DSPM/Vulnerability scanning). If both are configured, the DSPM role takes precedence.
 - `cloudtrail_bucket_name` (String) The name of the CloudTrail S3 bucket used for real-time visibility
 - `dspm_role_arn` (String) The ARN of the IAM role to be used by CrowdStrike Data Security Posture Management
 - `dspm_role_name` (String) The name of the IAM role to be used by CrowdStrike Data Security Posture Management
@@ -91,6 +97,8 @@ resource "crowdstrike_cloud_aws_account" "org" {
 - `iam_role_name` (String) The name of the AWS IAM role used to access this AWS account
 - `intermediate_role_arn` (String) The ARN of the intermediate role used to assume the AWS IAM role
 - `is_organization_management_account` (Boolean) Indicates whether this is the management account (formerly known as the root account) of an AWS Organization
+- `vulnerability_scanning_role_arn` (String) The ARN of the IAM role to be used by CrowdStrike Vulnerability Scanning
+- `vulnerability_scanning_role_name` (String) The name of the IAM role to be used by CrowdStrike Vulnerability Scanning
 
 <a id="nestedatt--asset_inventory"></a>
 ### Nested Schema for `asset_inventory`
@@ -147,6 +155,18 @@ Optional:
 Required:
 
 - `enabled` (Boolean) Enable 1-click sensor deployment
+
+
+<a id="nestedatt--vulnerability_scanning"></a>
+### Nested Schema for `vulnerability_scanning`
+
+Required:
+
+- `enabled` (Boolean) Enable Vulnerability Scanning
+
+Optional:
+
+- `role_name` (String) Custom AWS IAM role name for Vulnerability Scanning
 
 ## Import
 
