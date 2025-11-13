@@ -265,6 +265,9 @@ func deleteRTRFile(
 	_, err := falconClient.RealTimeResponseAdmin.RTRDeletePutFiles(params)
 
 	if err != nil {
+		if _, ok := err.(*real_time_response_admin.RTRDeletePutFilesNotFound); ok {
+			return nil
+		}
 		return fmt.Errorf("RTRDeletePutFiles failed: %w", err)
 	}
 
@@ -287,6 +290,9 @@ func deleteUser(
 	_, err := falconClient.UserManagement.DeleteUserV1(params)
 
 	if err != nil {
+		if strings.Contains(err.Error(), "status 404") {
+			return nil
+		}
 		return fmt.Errorf("DeleteUserV1 failed: %w", err)
 	}
 

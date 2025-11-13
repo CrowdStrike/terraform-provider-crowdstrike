@@ -48,6 +48,10 @@ resource "crowdstrike_cloud_aws_account" "org" {
     enabled = true
   }
 
+  vulnerability_scanning = {
+    enabled = true
+  }
+
   idp = {
     enabled = true
   }
@@ -78,9 +82,11 @@ resource "crowdstrike_cloud_aws_account" "org" {
 - `resource_name_suffix` (String) The suffix to be added to all resource names
 - `sensor_management` (Attributes) (see [below for nested schema](#nestedatt--sensor_management))
 - `target_ous` (List of String) The list of target Organizational Units
+- `vulnerability_scanning` (Attributes) (see [below for nested schema](#nestedatt--vulnerability_scanning))
 
 ### Read-Only
 
+- `agentless_scanning_role_name` (String) The name of the IAM role to be used by CrowdStrike Agentless Scanning (DSPM/Vulnerability scanning). If both are configured, the DSPM role takes precedence.
 - `cloudtrail_bucket_name` (String) The name of the CloudTrail S3 bucket used for real-time visibility
 - `dspm_role_arn` (String) The ARN of the IAM role to be used by CrowdStrike Data Security Posture Management
 - `dspm_role_name` (String) The name of the IAM role to be used by CrowdStrike Data Security Posture Management
@@ -91,6 +97,8 @@ resource "crowdstrike_cloud_aws_account" "org" {
 - `iam_role_name` (String) The name of the AWS IAM role used to access this AWS account
 - `intermediate_role_arn` (String) The ARN of the intermediate role used to assume the AWS IAM role
 - `is_organization_management_account` (Boolean) Indicates whether this is the management account (formerly known as the root account) of an AWS Organization
+- `vulnerability_scanning_role_arn` (String) The ARN of the IAM role to be used by CrowdStrike Vulnerability Scanning
+- `vulnerability_scanning_role_name` (String) The name of the IAM role to be used by CrowdStrike Vulnerability Scanning
 
 <a id="nestedatt--asset_inventory"></a>
 ### Nested Schema for `asset_inventory`
@@ -147,6 +155,18 @@ Optional:
 Required:
 
 - `enabled` (Boolean) Enable 1-click sensor deployment
+
+
+<a id="nestedatt--vulnerability_scanning"></a>
+### Nested Schema for `vulnerability_scanning`
+
+Required:
+
+- `enabled` (Boolean) Enable Vulnerability Scanning
+
+Optional:
+
+- `role_name` (String) Custom AWS IAM role name for Vulnerability Scanning
 
 ## Import
 

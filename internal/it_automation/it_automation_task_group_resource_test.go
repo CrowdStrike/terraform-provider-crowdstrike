@@ -93,7 +93,7 @@ func (config *taskGroupConfig) TestChecks() resource.TestCheckFunc {
 
 func TestAccITAutomationTaskGroupResource_Basic(t *testing.T) {
 	sdk := createSDKFixtures(t)
-	t.Cleanup(func() { sdk.Cleanup(t) })
+	defer sdk.Cleanup(t)
 
 	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 
@@ -149,7 +149,7 @@ func TestAccITAutomationTaskGroupResource_Basic(t *testing.T) {
 
 func TestAccITAutomationTaskGroupResource_AccessTypes(t *testing.T) {
 	sdk := createSDKFixtures(t)
-	t.Cleanup(func() { sdk.Cleanup(t) })
+	defer sdk.Cleanup(t)
 
 	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 
@@ -197,7 +197,7 @@ func TestAccITAutomationTaskGroupResource_AccessTypes(t *testing.T) {
 
 func TestAccITAutomationTaskGroupResource_WithTasks(t *testing.T) {
 	sdk := createSDKFixtures(t)
-	t.Cleanup(func() { sdk.Cleanup(t) })
+	defer sdk.Cleanup(t)
 
 	rName := sdkacctest.RandomWithPrefix("tf-acctest")
 
