@@ -43,7 +43,6 @@ type preventionPolicyDataModel struct {
 }
 
 type preventionPoliciesDataSourceModel struct {
-	ID          types.String `tfsdk:"id"`
 	Filter      types.String `tfsdk:"filter"`
 	IDs         types.List   `tfsdk:"ids"`
 	Sort        types.String `tfsdk:"sort"`
@@ -80,10 +79,6 @@ func (d *preventionPoliciesDataSource) Schema(
 			scopes.GenerateScopeDescription(apiScopes),
 		),
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Computed:    true,
-				Description: "Identifier for this data source",
-			},
 			"filter": schema.StringAttribute{
 				Optional: true,
 				Description: "FQL filter to apply to the prevention policies query. " +
@@ -496,7 +491,6 @@ func (d *preventionPoliciesDataSource) Read(
 
 	var policies []*models.PreventionPolicyV1
 	var diags diag.Diagnostics
-	var dataSourceID string
 
 	if hasIDs {
 		// Get policies by IDs
@@ -507,7 +501,6 @@ func (d *preventionPoliciesDataSource) Read(
 		}
 
 		policies, diags = d.getPreventionPoliciesByIDs(ctx, ids)
-		dataSourceID = "ids"
 	} else {
 		// Get policies with filter (or all if no filter)
 		filter := ""
@@ -525,13 +518,6 @@ func (d *preventionPoliciesDataSource) Read(
 		}
 
 		policies, diags = d.getPreventionPoliciesWithFilter(ctx, filter, sort)
-
-		// Set appropriate data source ID
-		if hasFilter || hasIndividualFilters {
-			dataSourceID = "filtered"
-		} else {
-			dataSourceID = "all"
-		}
 	}
 
 	resp.Diagnostics.Append(diags...)
@@ -591,9 +577,6 @@ func (d *preventionPoliciesDataSource) Read(
 	}
 
 	data.Policies = policiesList
-
-	// Set ID based on filtering method used
-	data.ID = types.StringValue(dataSourceID)
 
 	// Set state
 	diags = resp.State.Set(ctx, &data)
