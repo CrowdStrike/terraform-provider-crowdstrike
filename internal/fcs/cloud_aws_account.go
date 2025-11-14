@@ -1024,48 +1024,6 @@ func (r *cloudAWSAccountResource) Read(
 		)
 	}
 
-	// Update S3 log ingestion fields from API response settings
-	// All APIs now use period notation consistently
-	state.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
-	state.RealtimeVisibility.LogIngestionS3BucketName = types.StringNull()
-	state.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringNull()
-	state.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringNull()
-	state.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringNull()
-
-	if cspmAccount.Settings != nil {
-		if settings, ok := cspmAccount.Settings.(map[string]interface{}); ok {
-			if method, exists := settings["log.ingestion.method"]; exists && method != nil {
-				if methodStr, ok := method.(string); ok {
-					state.RealtimeVisibility.LogIngestionMethod = types.StringValue(methodStr)
-				}
-			}
-
-			if bucketName, exists := settings["s3.log.ingestion.bucket.name"]; exists && bucketName != nil {
-				if bucketNameStr, ok := bucketName.(string); ok {
-					state.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue(bucketNameStr)
-				}
-			}
-
-			if snsTopicArn, exists := settings["s3.log.ingestion.sns.topic.arn"]; exists && snsTopicArn != nil {
-				if snsTopicArnStr, ok := snsTopicArn.(string); ok {
-					state.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue(snsTopicArnStr)
-				}
-			}
-
-			if bucketPrefix, exists := settings["s3.log.ingestion.bucket.prefix"]; exists && bucketPrefix != nil {
-				if bucketPrefixStr, ok := bucketPrefix.(string); ok {
-					state.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue(bucketPrefixStr)
-				}
-			}
-
-			if kmsKeyArn, exists := settings["s3.log.ingestion.kms.key.arn"]; exists && kmsKeyArn != nil {
-				if kmsKeyArnStr, ok := kmsKeyArn.(string); ok {
-					state.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringValue(kmsKeyArnStr)
-				}
-			}
-		}
-	}
-
 	if oldState.SensorManagement != nil {
 		state.SensorManagement = oldState.SensorManagement
 	} else {
@@ -1107,6 +1065,47 @@ func (r *cloudAWSAccountResource) Read(
 			cloudAccState.Created = false
 		} else {
 			resp.Diagnostics.Append(diagErr)
+		}
+	}
+	// Update S3 log ingestion fields from API response settings
+	// All APIs now use period notation consistently
+	state.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
+	state.RealtimeVisibility.LogIngestionS3BucketName = types.StringNull()
+	state.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringNull()
+	state.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringNull()
+	state.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringNull()
+
+	if cloudAccount != nil && cloudAccount.Settings != nil {
+		if settings, ok := cloudAccount.Settings.(map[string]interface{}); ok {
+			if method, exists := settings["log.ingestion.method"]; exists && method != nil {
+				if methodStr, ok := method.(string); ok {
+					state.RealtimeVisibility.LogIngestionMethod = types.StringValue(methodStr)
+				}
+			}
+
+			if bucketName, exists := settings["s3.log.ingestion.bucket.name"]; exists && bucketName != nil {
+				if bucketNameStr, ok := bucketName.(string); ok {
+					state.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue(bucketNameStr)
+				}
+			}
+
+			if snsTopicArn, exists := settings["s3.log.ingestion.sns.topic.arn"]; exists && snsTopicArn != nil {
+				if snsTopicArnStr, ok := snsTopicArn.(string); ok {
+					state.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue(snsTopicArnStr)
+				}
+			}
+
+			if bucketPrefix, exists := settings["s3.log.ingestion.bucket.prefix"]; exists && bucketPrefix != nil {
+				if bucketPrefixStr, ok := bucketPrefix.(string); ok {
+					state.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue(bucketPrefixStr)
+				}
+			}
+
+			if kmsKeyArn, exists := settings["s3.log.ingestion.kms.key.arn"]; exists && kmsKeyArn != nil {
+				if kmsKeyArnStr, ok := kmsKeyArn.(string); ok {
+					state.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringValue(kmsKeyArnStr)
+				}
+			}
 		}
 	}
 
