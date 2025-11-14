@@ -37,6 +37,8 @@ github.com/crowdstrike/gofalcon v0.18.1-0.20251111154050-6f6d1fc5d8ab h1:mSFSsRa
 github.com/crowdstrike/gofalcon v0.18.1-0.20251111154050-6f6d1fc5d8ab/go.mod h1:a12GB+md+hRSgVCb3Pv6CakeTIsDIUCIVWRlJelIhY0=
 github.com/crowdstrike/gofalcon v0.18.1-0.20251114001901-41b886e3c902 h1:39US9t12FM6OTnb6wTNKHs/2OxJKAoMtzg4Mo2+kr4I=
 github.com/crowdstrike/gofalcon v0.18.1-0.20251114001901-41b886e3c902/go.mod h1:a12GB+md+hRSgVCb3Pv6CakeTIsDIUCIVWRlJelIhY0=
+github.com/crowdstrike/gofalcon v0.18.1-0.20251114005344-dedbedc0a2a8 h1:nsYhgD2HWrl+gvxnDOQ1mLTOd7c0WwVa3mVIcOgzpb4=
+github.com/crowdstrike/gofalcon v0.18.1-0.20251114005344-dedbedc0a2a8/go.mod h1:a12GB+md+hRSgVCb3Pv6CakeTIsDIUCIVWRlJelIhY0=
 github.com/cyphar/filepath-securejoin v0.2.4 h1:Ugdm7cg7i6ZK6x3xDF1oEu1nfkyfH53EtKeQYTC3kyg=
 github.com/cyphar/filepath-securejoin v0.2.4/go.mod h1:aPGpWjXOXUn2NCNjFvBE6aRxGGx79pTxQpKOJNYHHl4=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
