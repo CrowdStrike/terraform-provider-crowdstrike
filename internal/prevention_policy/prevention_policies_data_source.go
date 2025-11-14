@@ -61,6 +61,15 @@ type preventionPoliciesDataSourceModel struct {
 	Policies    types.List   `tfsdk:"policies"`
 }
 
+// buildResult holds the results from building an FQL filter with client-side filtering info.
+type buildResult struct {
+	filter           string
+	nameClientFilter func(string) bool
+	descClientFilter func(string) bool
+	needsNameFilter  bool
+	needsDescFilter  bool
+}
+
 // NewPreventionPoliciesDataSource is a helper function to simplify the provider implementation.
 func NewPreventionPoliciesDataSource() datasource.DataSource {
 	return &preventionPoliciesDataSource{}
@@ -115,16 +124,16 @@ func (d *preventionPoliciesDataSource) Schema(
 			},
 			"name": schema.StringAttribute{
 				Optional: true,
-				Description: "Filter policies by name. Partial matches are supported, but only single words work reliably. " +
-					"Use single words without spaces (e.g., 'production' works, but 'production lab' may not return results). " +
-					"For complex name searches with spaces, use the 'filter' attribute instead. " +
+				Description: "Filter policies by name. Supports exact matching and wildcard patterns. " +
+					"Without wildcard (*): Returns policies with names that exactly match the specified value (e.g., 'production server' matches only 'production server'). " +
+					"With wildcard (*): Returns policies whose names contain the specified pattern (e.g., 'production*' matches 'production server', 'production lab', etc.). " +
 					"Cannot be used together with 'filter' or 'ids'.",
 			},
 			"description": schema.StringAttribute{
 				Optional: true,
-				Description: "Filter policies by description. Partial matches are supported, but only single words work reliably. " +
-					"Use single words without spaces (e.g., 'malware' works, but 'malware protection' may not return results). " +
-					"For complex description searches with spaces, use the 'filter' attribute instead. " +
+				Description: "Filter policies by description. Supports exact matching and wildcard patterns. " +
+					"Without wildcard (*): Returns policies with descriptions that exactly match the specified value (e.g., 'malware protection' matches only 'malware protection'). " +
+					"With wildcard (*): Returns policies whose descriptions contain the specified pattern (e.g., 'malware*' matches 'malware protection', 'malware detection', etc.). " +
 					"Cannot be used together with 'filter' or 'ids'.",
 			},
 			"enabled": schema.BoolAttribute{
@@ -413,25 +422,44 @@ func (d *preventionPoliciesDataSource) hasIndividualFilters(data *preventionPoli
 		(!data.Platform.IsNull() && !data.Platform.IsUnknown())
 }
 
-// buildFQLFromAttributes constructs an FQL filter from individual filter attributes.
-func (d *preventionPoliciesDataSource) buildFQLFromAttributes(ctx context.Context, data *preventionPoliciesDataSourceModel) string {
+// buildFQLFromAttributesWithClientFiltering constructs an FQL filter from individual filter attributes
+// and returns the necessary client-side filtering functions.
+func (d *preventionPoliciesDataSource) buildFQLFromAttributesWithClientFiltering(ctx context.Context, data *preventionPoliciesDataSourceModel) buildResult {
 	var filters []string
+	result := buildResult{
+		nameClientFilter: func(string) bool { return true },
+		descClientFilter: func(string) bool { return true },
+		needsNameFilter:  false,
+		needsDescFilter:  false,
+	}
 
-	// name filter - supports partial matching
+	// name filter
 	if !data.Name.IsNull() && !data.Name.IsUnknown() {
 		value := data.Name.ValueString()
 		if value != "" {
-			// Use wildcard syntax for partial matching: name:*'value'
-			filters = append(filters, fmt.Sprintf("name:*'%s'", value))
+			nameQuery := utils.ProcessNameSearchPattern(value)
+			if nameQuery.APIQuery != "" {
+				filters = append(filters, nameQuery.APIQuery)
+			}
+			if nameQuery.NeedsClientFilter {
+				result.nameClientFilter = nameQuery.ClientFilter
+				result.needsNameFilter = true
+			}
 		}
 	}
 
-	// description filter - supports partial matching
+	// description filter
 	if !data.Description.IsNull() && !data.Description.IsUnknown() {
 		value := data.Description.ValueString()
 		if value != "" {
-			// Use wildcard syntax for partial matching: description:*'value'
-			filters = append(filters, fmt.Sprintf("description:*'%s'", value))
+			descQuery := utils.ProcessDescriptionSearchPattern(value)
+			if descQuery.APIQuery != "" {
+				filters = append(filters, descQuery.APIQuery)
+			}
+			if descQuery.NeedsClientFilter {
+				result.descClientFilter = descQuery.ClientFilter
+				result.needsDescFilter = true
+			}
 		}
 	}
 
@@ -451,19 +479,73 @@ func (d *preventionPoliciesDataSource) buildFQLFromAttributes(ctx context.Contex
 
 	// Join all filters with AND (+)
 	if len(filters) == 0 {
-		return ""
+		result.filter = ""
+	} else {
+		result.filter = strings.Join(filters, "+")
 	}
-
-	fqlFilter := strings.Join(filters, "+")
 
 	// Add debug logging to see what filter is generated
 	tflog.Info(
 		ctx,
-		"[datasource] Generated FQL filter from individual attributes",
-		map[string]interface{}{"filter": fqlFilter, "filter_count": len(filters)},
+		"[datasource] Generated FQL filter from individual attributes with client filtering",
+		map[string]interface{}{
+			"filter":            result.filter,
+			"filter_count":      len(filters),
+			"needs_name_filter": result.needsNameFilter,
+			"needs_desc_filter": result.needsDescFilter,
+		},
 	)
 
-	return fqlFilter
+	return result
+}
+
+// applyClientSideFiltering applies client-side filtering to the policies based on name and description patterns.
+func (d *preventionPoliciesDataSource) applyClientSideFiltering(
+	ctx context.Context,
+	policies []*models.PreventionPolicyV1,
+	buildRes buildResult,
+) []*models.PreventionPolicyV1 {
+	if !buildRes.needsNameFilter && !buildRes.needsDescFilter {
+		// No client-side filtering needed
+		return policies
+	}
+
+	var filtered []*models.PreventionPolicyV1
+	filteredCount := 0
+
+	for _, policy := range policies {
+		include := true
+
+		// Apply name filtering if needed
+		if buildRes.needsNameFilter && policy.Name != nil {
+			if !buildRes.nameClientFilter(*policy.Name) {
+				include = false
+			}
+		}
+
+		// Apply description filtering if needed
+		if include && buildRes.needsDescFilter && policy.Description != nil {
+			if !buildRes.descClientFilter(*policy.Description) {
+				include = false
+			}
+		}
+
+		if include {
+			filtered = append(filtered, policy)
+			filteredCount++
+		}
+	}
+
+	tflog.Info(
+		ctx,
+		"[datasource] Applied client-side filtering",
+		map[string]interface{}{
+			"original_count": len(policies),
+			"filtered_count": filteredCount,
+		},
+	)
+
+	return filtered
 }
 
 // Read refreshes the Terraform state with the latest data.
@@ -507,6 +589,7 @@ func (d *preventionPoliciesDataSource) Read(
 
 	var policies []*models.PreventionPolicyV1
 	var diags diag.Diagnostics
+	var buildRes buildResult
 
 	if hasIDs {
 		// Get policies by IDs
@@ -523,9 +606,18 @@ func (d *preventionPoliciesDataSource) Read(
 
 		if hasFilter {
 			filter = data.Filter.ValueString()
+			// No client-side filtering needed for direct filters
+			buildRes = buildResult{
+				filter:           filter,
+				nameClientFilter: func(string) bool { return true },
+				descClientFilter: func(string) bool { return true },
+				needsNameFilter:  false,
+				needsDescFilter:  false,
+			}
 		} else if hasIndividualFilters {
-			// Build FQL filter from individual attributes
-			filter = d.buildFQLFromAttributes(ctx, &data)
+			// Build FQL filter from individual attributes with client filtering
+			buildRes = d.buildFQLFromAttributesWithClientFiltering(ctx, &data)
+			filter = buildRes.filter
 		}
 
 		sort := ""
@@ -539,6 +631,11 @@ func (d *preventionPoliciesDataSource) Read(
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	// Apply client-side filtering if needed
+	if hasIndividualFilters {
+		policies = d.applyClientSideFiltering(ctx, policies, buildRes)
 	}
 
 	// Convert API models to data models

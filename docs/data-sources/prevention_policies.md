@@ -39,11 +39,13 @@ data "crowdstrike_prevention_policies" "all" {
   sort = "name.asc"
 }
 
-# Get enabled Windows prevention policies using individual attributes
+# Get enabled Windows prevention policies and filter by name and description using individual attributes
 data "crowdstrike_prevention_policies" "windows_enabled" {
-  platform = "Windows"
-  enabled  = true
-  sort     = "name.asc"
+  platform    = "Windows"
+  enabled     = true
+  name        = "production-policy"
+  description = "production*"
+  sort        = "name.asc"
 }
 
 # Get specific prevention policies by their IDs
@@ -67,11 +69,11 @@ data "crowdstrike_prevention_policies" "enabled_linux" {
 
 ### Optional
 
-- `description` (String) Filter policies by description. Partial matches are supported, but only single words work reliably. Use single words without spaces (e.g., 'malware' works, but 'malware protection' may not return results). For complex description searches with spaces, use the 'filter' attribute instead. Cannot be used together with 'filter' or 'ids'.
+- `description` (String) Filter policies by description. Supports exact matching and wildcard patterns. Without wildcard (*): Returns policies with descriptions that exactly match the specified value (e.g., 'malware protection' matches only 'malware protection'). With wildcard (*): Returns policies whose descriptions contain the specified pattern (e.g., 'malware*' matches 'malware protection', 'malware detection', etc.). Cannot be used together with 'filter' or 'ids'.
 - `enabled` (Boolean) Filter policies by enabled status. Cannot be used together with 'filter' or 'ids'.
 - `filter` (String) FQL filter to apply to the prevention policies query. When specified, only policies matching the filter will be returned. Cannot be used together with 'ids' or other filter attributes. Example: `platform_name:'Windows'`
 - `ids` (List of String) List of prevention policy IDs to retrieve. When specified, only policies with matching IDs will be returned. Cannot be used together with 'filter' or other filter attributes.
-- `name` (String) Filter policies by name. Partial matches are supported, but only single words work reliably. Use single words without spaces (e.g., 'production' works, but 'production lab' may not return results). For complex name searches with spaces, use the 'filter' attribute instead. Cannot be used together with 'filter' or 'ids'.
+- `name` (String) Filter policies by name. Supports exact matching and wildcard patterns. Without wildcard (*): Returns policies with names that exactly match the specified value (e.g., 'production server' matches only 'production server'). With wildcard (*): Returns policies whose names contain the specified pattern (e.g., 'production*' matches 'production server', 'production lab', etc.). Cannot be used together with 'filter' or 'ids'.
 - `platform` (String) Filter policies by platform (Windows, Linux, Mac). Cannot be used together with 'filter' or 'ids'.
 - `sort` (String) Sort order for the results. Valid values include field names with optional '.asc' or '.desc' suffix. Example: 'name.asc', 'precedence.desc'
 
