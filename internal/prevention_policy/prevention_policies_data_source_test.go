@@ -279,9 +279,11 @@ func TestAccPreventionPoliciesDataSource_ResourceMatch(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrPair(resourceName, "id", dataSourceName, "policies.0.id"),
 					resource.TestCheckResourceAttrPair(resourceName, "name", dataSourceName, "policies.0.name"),
-					resource.TestCheckResourceAttrPair(resourceName, "platform_name", dataSourceName, "policies.0.platform_name"),
+					resource.TestCheckResourceAttr(dataSourceName, "policies.0.platform_name", "Windows"),
 					resource.TestCheckResourceAttrPair(resourceName, "enabled", dataSourceName, "policies.0.enabled"),
 					resource.TestCheckResourceAttrPair(resourceName, "description", dataSourceName, "policies.0.description"),
+					resource.TestCheckResourceAttrPair(resourceName, "host_groups.0", dataSourceName, "policies.0.host_groups.0"),
+					resource.TestCheckResourceAttr(dataSourceName, "policies.0.ioa_rule_groups.#", "0"),
 				),
 			},
 		},
@@ -470,14 +472,23 @@ data "crowdstrike_prevention_policies" "test" {
 
 func testAccPreventionPoliciesDataSourceConfigResourceMatch(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_prevention_policy_windows" "test" {
+resource "crowdstrike_host_group" "test" {
   name        = %[1]q
-  description = "Test policy for data source acceptance test"
-  enabled     = true
+  description = "Test host group for data source acceptance test"
+  type        = "staticByID"
+  host_ids    = []
+}
+
+resource "crowdstrike_prevention_policy_windows" "test" {
+  name            = %[1]q
+  description     = "Test policy for data source acceptance test"
+  enabled         = true
+  host_groups     = [crowdstrike_host_group.test.id]
+  ioa_rule_groups = []
 }
 
 data "crowdstrike_prevention_policies" "test" {
-  filter = "name:'${crowdstrike_prevention_policy_windows.test.name}'"
+  ids = [crowdstrike_prevention_policy_windows.test.id]
 
   depends_on = [crowdstrike_prevention_policy_windows.test]
 }
