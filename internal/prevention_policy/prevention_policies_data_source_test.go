@@ -279,17 +279,43 @@ data "crowdstrike_prevention_policies" "empty" {
 				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.empty", "policies.#", "0"),
 			),
 		},
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "empty_ids" {
-  ids = ["non-existent-policy-id-12345"]
+	}
+}
+
+func TestAccPreventionPoliciesDataSource_404Handling(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "non_existent_id" {
+  ids = ["00000000000000000000000000000000"]
 }
 `,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.empty_ids", "policies.#", "0"),
-			),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.non_existent_id", "policies.#", "0"),
+				),
+			},
+			{
+				Config: acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "all" {}
+
+data "crowdstrike_prevention_policies" "partial_results" {
+  ids = [
+    data.crowdstrike_prevention_policies.all.policies[0].id,
+    "00000000000000000000000000000000"
+  ]
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.partial_results", "policies.#", "1"),
+					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.partial_results", "policies.0.id"),
+					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.partial_results", "policies.0.name"),
+				),
+			},
 		},
-	}
+	})
 }
 
 func TestAccPreventionPoliciesDataSource_AllAttributes(t *testing.T) {

@@ -299,6 +299,12 @@ func (d *preventionPoliciesDataSource) getPreventionPoliciesByIDs(
 	)
 
 	if err != nil {
+		if notFound, ok := err.(*prevention_policies.GetPreventionPoliciesNotFound); ok {
+			if notFound == nil || notFound.Payload == nil {
+				return []*models.PreventionPolicyV1{}, diags
+			}
+			return notFound.Payload.Resources, diags
+		}
 		diags.AddError(
 			"Failed to get prevention policies",
 			fmt.Sprintf("Failed to get prevention policies by IDs: %s", err.Error()),
@@ -307,11 +313,7 @@ func (d *preventionPoliciesDataSource) getPreventionPoliciesByIDs(
 	}
 
 	if res == nil || res.Payload == nil {
-		diags.AddError(
-			"Failed to get prevention policies",
-			"Received empty response from prevention policies get request",
-		)
-		return nil, diags
+		return []*models.PreventionPolicyV1{}, diags
 	}
 
 	return res.Payload.Resources, diags
