@@ -9,10 +9,13 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/prevention_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -98,6 +101,11 @@ func (d *preventionPoliciesDataSource) Schema(
 				Description: "List of prevention policy IDs to retrieve. " +
 					"When specified, only policies with matching IDs will be returned. " +
 					"Cannot be used together with 'filter' or other filter attributes.",
+				Validators: []validator.List{
+					listvalidator.ValueStringsAre(
+						stringvalidator.LengthBetween(32, 32),
+					),
+				},
 			},
 			"sort": schema.StringAttribute{
 				Optional: true,
