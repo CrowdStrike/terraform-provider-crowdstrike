@@ -21,7 +21,6 @@ func TestAccPreventionPoliciesDataSource_Basic(t *testing.T) {
 				Config: testAccPreventionPoliciesDataSourceConfigBasic(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					// Check that we have some policies and verify their structure
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.id"),
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.name"),
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.platform_name"),
@@ -45,7 +44,6 @@ func TestAccPreventionPoliciesDataSource_WithFilter(t *testing.T) {
 				Config: testAccPreventionPoliciesDataSourceConfigWithFilterWindows(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					// Verify all returned policies are Windows policies
 					resource.TestCheckResourceAttr(resourceName, "policies.0.platform_name", "Windows"),
 				),
 			},
@@ -53,7 +51,6 @@ func TestAccPreventionPoliciesDataSource_WithFilter(t *testing.T) {
 				Config: testAccPreventionPoliciesDataSourceConfigWithFilterEnabled(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					// Verify all returned policies are enabled
 					resource.TestCheckResourceAttr(resourceName, "policies.0.enabled", "true"),
 				),
 			},
@@ -78,7 +75,6 @@ func TestAccPreventionPoliciesDataSource_WithIDs(t *testing.T) {
 				Config: testAccPreventionPoliciesDataSourceConfigWithIDs(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					// Verify we get exactly the policies we requested (up to 2)
 					resource.TestMatchResourceAttr(resourceName, "policies.#", regexp.MustCompile(`^[12]$`)),
 				),
 			},
@@ -93,37 +89,30 @@ func TestAccPreventionPoliciesDataSource_WithIndividualFilters(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
-			// Test platform filter
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithPlatformFilter(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					// Verify all returned policies are Windows policies
 					resource.TestCheckResourceAttr(resourceName, "policies.0.platform_name", "Windows"),
 				),
 			},
-			// Test enabled filter
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithEnabledFilter(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					// Verify all returned policies are enabled
 					resource.TestCheckResourceAttr(resourceName, "policies.0.enabled", "true"),
 				),
 			},
-			// Test name filter with wildcard
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithNameFilter(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
 				),
 			},
-			// Test combination of individual filter attributes
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithCombinedFilters(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					// Verify all returned policies match both criteria
 					resource.TestCheckResourceAttr(resourceName, "policies.0.platform_name", "Windows"),
 					resource.TestCheckResourceAttr(resourceName, "policies.0.enabled", "true"),
 				),
@@ -166,27 +155,22 @@ func TestAccPreventionPoliciesDataSource_ValidationErrors(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
-			// Test filter + ids (existing validation)
 			{
 				Config:      testAccPreventionPoliciesDataSourceConfigValidationFilterIDs(),
 				ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
 			},
-			// Test filter + individual attributes
 			{
 				Config:      testAccPreventionPoliciesDataSourceConfigValidationFilterIndividual(),
 				ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
 			},
-			// Test ids + individual attributes
 			{
 				Config:      testAccPreventionPoliciesDataSourceConfigValidationIDsIndividual(),
 				ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
 			},
-			// Test all three types together
 			{
 				Config:      testAccPreventionPoliciesDataSourceConfigValidationAllThree(),
 				ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
 			},
-			// Test multiple individual attributes + filter
 			{
 				Config:      testAccPreventionPoliciesDataSourceConfigValidationMultipleFilter(),
 				ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
@@ -247,7 +231,6 @@ func TestAccPreventionPoliciesDataSource_AllAttributes(t *testing.T) {
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigBasic(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					// Verify all schema attributes are accessible
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.id"),
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.name"),
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.platform_name"),
@@ -256,7 +239,6 @@ func TestAccPreventionPoliciesDataSource_AllAttributes(t *testing.T) {
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.created_timestamp"),
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.modified_by"),
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.modified_timestamp"),
-					// Check that lists are properly initialized (even if empty)
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.host_groups.#"),
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.ioa_rule_groups.#"),
 				),
@@ -322,10 +304,8 @@ data "crowdstrike_prevention_policies" "test" {
 
 func testAccPreventionPoliciesDataSourceConfigWithIDs() string {
 	return acctest.ProviderConfig + `
-# First get all policies to extract some IDs
 data "crowdstrike_prevention_policies" "all" {}
 
-# Then use specific IDs (using first two policies from all)
 data "crowdstrike_prevention_policies" "test" {
   ids = [
     data.crowdstrike_prevention_policies.all.policies[0].id,
