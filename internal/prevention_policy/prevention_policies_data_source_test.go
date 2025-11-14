@@ -151,32 +151,46 @@ func TestAccPreventionPoliciesDataSource_WithSorting(t *testing.T) {
 }
 
 func TestAccPreventionPoliciesDataSource_ValidationErrors(t *testing.T) {
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config:      testAccPreventionPoliciesDataSourceConfigValidationFilterIDs(),
-				ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
-			},
-			{
-				Config:      testAccPreventionPoliciesDataSourceConfigValidationFilterIndividual(),
-				ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
-			},
-			{
-				Config:      testAccPreventionPoliciesDataSourceConfigValidationIDsIndividual(),
-				ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
-			},
-			{
-				Config:      testAccPreventionPoliciesDataSourceConfigValidationAllThree(),
-				ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
-			},
-			{
-				Config:      testAccPreventionPoliciesDataSourceConfigValidationMultipleFilter(),
-				ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
-			},
+	testCases := map[string]struct {
+		configFunc  func() string
+		expectError *regexp.Regexp
+	}{
+		"filter_with_ids": {
+			configFunc:  testAccPreventionPoliciesDataSourceConfigValidationFilterIDs,
+			expectError: regexp.MustCompile("Invalid Attribute Combination"),
 		},
-	})
+		"filter_with_individual": {
+			configFunc:  testAccPreventionPoliciesDataSourceConfigValidationFilterIndividual,
+			expectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		"ids_with_individual": {
+			configFunc:  testAccPreventionPoliciesDataSourceConfigValidationIDsIndividual,
+			expectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		"all_three": {
+			configFunc:  testAccPreventionPoliciesDataSourceConfigValidationAllThree,
+			expectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		"multiple_filter_methods": {
+			configFunc:  testAccPreventionPoliciesDataSourceConfigValidationMultipleFilter,
+			expectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			resource.ParallelTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+				PreCheck:                 func() { acctest.PreCheck(t) },
+				Steps: []resource.TestStep{
+					{
+						Config:      tc.configFunc(),
+						ExpectError: tc.expectError,
+					},
+				},
+			})
+		})
+	}
 }
 
 func TestAccPreventionPoliciesDataSource_EmptyResults(t *testing.T) {
