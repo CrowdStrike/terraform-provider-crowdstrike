@@ -614,3 +614,207 @@ resource "crowdstrike_cloud_aws_account" "test" {
 }
 `, accountID)
 }
+
+// S3 Log Ingestion test configurations
+func testAccCloudAwsAccountConfig_s3LogIngestionRequired(accountID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  realtime_visibility = {
+    enabled                       = true
+    log_ingestion_method         = "s3"
+    log_ingestion_s3_bucket_name = "test-cloudtrail-logs-bucket"
+    log_ingestion_sns_topic_arn  = "arn:aws:sns:us-east-1:123456789012:cloudtrail-notifications"
+  }
+}
+`, accountID)
+}
+
+func testAccCloudAwsAccountConfig_s3LogIngestionComplete(accountID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  realtime_visibility = {
+    enabled                         = true
+    log_ingestion_method           = "s3"
+    log_ingestion_s3_bucket_name   = "test-cloudtrail-logs-bucket"
+    log_ingestion_sns_topic_arn    = "arn:aws:sns:us-east-1:123456789012:cloudtrail-notifications"
+    log_ingestion_s3_bucket_prefix = "cloudtrail-logs/"
+    log_ingestion_kms_key_arn      = "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012"
+  }
+}
+`, accountID)
+}
+
+func testAccCloudAwsAccountConfig_s3LogIngestionMissingBucket(accountID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  realtime_visibility = {
+    enabled                      = true
+    log_ingestion_method        = "s3"
+    log_ingestion_sns_topic_arn = "arn:aws:sns:us-east-1:123456789012:cloudtrail-notifications"
+  }
+}
+`, accountID)
+}
+
+func testAccCloudAwsAccountConfig_s3LogIngestionMissingSNS(accountID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  realtime_visibility = {
+    enabled                       = true
+    log_ingestion_method         = "s3"
+    log_ingestion_s3_bucket_name = "test-cloudtrail-logs-bucket"
+  }
+}
+`, accountID)
+}
+
+func testAccCloudAwsAccountConfig_s3LogIngestionInvalidSNSArn(accountID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  realtime_visibility = {
+    enabled                       = true
+    log_ingestion_method         = "s3"
+    log_ingestion_s3_bucket_name = "test-cloudtrail-logs-bucket"
+    log_ingestion_sns_topic_arn  = "invalid-arn"
+  }
+}
+`, accountID)
+}
+
+func testAccCloudAwsAccountConfig_s3LogIngestionInvalidBucketName(accountID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  realtime_visibility = {
+    enabled                       = true
+    log_ingestion_method         = "s3"
+    log_ingestion_s3_bucket_name = "Invalid_Bucket_Name_With_Underscores"
+    log_ingestion_sns_topic_arn  = "arn:aws:sns:us-east-1:123456789012:cloudtrail-notifications"
+  }
+}
+`, accountID)
+}
+
+func testAccCloudAwsAccountConfig_s3LogIngestionInvalidKMSArn(accountID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  realtime_visibility = {
+    enabled                       = true
+    log_ingestion_method         = "s3"
+    log_ingestion_s3_bucket_name = "test-cloudtrail-logs-bucket"
+    log_ingestion_sns_topic_arn  = "arn:aws:sns:us-east-1:123456789012:cloudtrail-notifications"
+    log_ingestion_kms_key_arn    = "invalid-kms-arn"
+  }
+}
+`, accountID)
+}
+
+func testAccCloudAwsAccountConfig_s3LogIngestionShortPrefix(accountID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  realtime_visibility = {
+    enabled                         = true
+    log_ingestion_method           = "s3"
+    log_ingestion_s3_bucket_name   = "test-cloudtrail-logs-bucket"
+    log_ingestion_sns_topic_arn    = "arn:aws:sns:us-east-1:123456789012:cloudtrail-notifications"
+    log_ingestion_s3_bucket_prefix = "x"
+  }
+}
+}
+`, accountID)
+}
+
+// TestAccCloudAWSAccount_S3LogIngestion tests S3 log ingestion configurations
+func TestAccCloudAWSAccount_S3LogIngestion(t *testing.T) {
+	resourceName := "crowdstrike_cloud_aws_account.test"
+	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAwsAccountConfig_s3LogIngestionRequired(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.log_ingestion_method", "s3"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.log_ingestion_s3_bucket_name", "test-cloudtrail-logs-bucket"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.log_ingestion_sns_topic_arn", "arn:aws:sns:us-east-1:123456789012:cloudtrail-notifications"),
+				),
+			},
+			{
+				Config: testAccCloudAwsAccountConfig_s3LogIngestionComplete(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.log_ingestion_method", "s3"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.log_ingestion_s3_bucket_name", "test-cloudtrail-logs-bucket"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.log_ingestion_sns_topic_arn", "arn:aws:sns:us-east-1:123456789012:cloudtrail-notifications"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.log_ingestion_s3_bucket_prefix", "cloudtrail-logs/"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.log_ingestion_kms_key_arn", "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012"),
+				),
+			},
+			{
+				ResourceName:                         resourceName,
+				ImportState:                          true,
+				ImportStateId:                        accountID,
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "account_id",
+				ImportStateVerifyIgnore: []string{
+					"id",
+					"deployment_method",
+					"target_ous",
+					"asset_inventory",
+					"idp",
+					"sensor_management",
+					"dspm",
+					"vulnerability_scanning",
+				},
+			},
+		},
+	})
+}
+
+// TestAccCloudAWSAccount_S3LogIngestionValidation tests validation for S3 log ingestion
+func TestAccCloudAWSAccount_S3LogIngestionValidation(t *testing.T) {
+	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccCloudAwsAccountConfig_s3LogIngestionMissingBucket(accountID),
+				ExpectError: regexp.MustCompile(`Missing required field`),
+			},
+			{
+				Config:      testAccCloudAwsAccountConfig_s3LogIngestionMissingSNS(accountID),
+				ExpectError: regexp.MustCompile(`Missing required field`),
+			},
+			{
+				Config:      testAccCloudAwsAccountConfig_s3LogIngestionInvalidSNSArn(accountID),
+				ExpectError: regexp.MustCompile(`Invalid SNS Topic ARN format`),
+			},
+			{
+				Config:      testAccCloudAwsAccountConfig_s3LogIngestionInvalidBucketName(accountID),
+				ExpectError: regexp.MustCompile(`Invalid S3 bucket name`),
+			},
+			{
+				Config:      testAccCloudAwsAccountConfig_s3LogIngestionInvalidKMSArn(accountID),
+				ExpectError: regexp.MustCompile(`Invalid KMS Key ARN format`),
+			},
+			{
+				Config:      testAccCloudAwsAccountConfig_s3LogIngestionShortPrefix(accountID),
+				ExpectError: regexp.MustCompile(`string length must be at least 2`),
+			},
+		},
+	})
+}

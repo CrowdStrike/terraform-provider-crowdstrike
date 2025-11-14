@@ -347,7 +347,7 @@ func (r *cloudAWSAccountResource) Schema(
 						Description: "Optional S3 bucket prefix (a prefix used for filter log files with the prefix present in their key) for CloudTrail logs when log_ingestion_method is 's3'",
 						Validators: []validator.String{
 							stringvalidator.LengthAtMost(1024),
-							stringvalidator.LengthAtLeast(2),
+							stringvalidator.LengthAtLeast(1),
 						},
 					},
 					"log_ingestion_kms_key_arn": schema.StringAttribute{
