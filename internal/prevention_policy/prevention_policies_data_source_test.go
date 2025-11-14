@@ -1,10 +1,12 @@
 package preventionpolicy_test
 
 import (
+	"fmt"
 	"regexp"
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
@@ -263,6 +265,29 @@ func TestAccPreventionPoliciesDataSource_AllAttributes(t *testing.T) {
 	})
 }
 
+func TestAccPreventionPoliciesDataSource_ResourceMatch(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	dataSourceName := "data.crowdstrike_prevention_policies.test"
+	resourceName := "crowdstrike_prevention_policy_windows.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccPreventionPoliciesDataSourceConfigResourceMatch(rName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrPair(resourceName, "id", dataSourceName, "policies.0.id"),
+					resource.TestCheckResourceAttrPair(resourceName, "name", dataSourceName, "policies.0.name"),
+					resource.TestCheckResourceAttrPair(resourceName, "platform_name", dataSourceName, "policies.0.platform_name"),
+					resource.TestCheckResourceAttrPair(resourceName, "enabled", dataSourceName, "policies.0.enabled"),
+					resource.TestCheckResourceAttrPair(resourceName, "description", dataSourceName, "policies.0.description"),
+				),
+			},
+		},
+	})
+}
+
 func testAccPreventionPoliciesDataSourceConfigBasic() string {
 	return acctest.ProviderConfig + `
 data "crowdstrike_prevention_policies" "test" {}
@@ -441,4 +466,20 @@ data "crowdstrike_prevention_policies" "test" {
   ]
 }
 `
+}
+
+func testAccPreventionPoliciesDataSourceConfigResourceMatch(rName string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_prevention_policy_windows" "test" {
+  name        = %[1]q
+  description = "Test policy for data source acceptance test"
+  enabled     = true
+}
+
+data "crowdstrike_prevention_policies" "test" {
+  filter = "name:'${crowdstrike_prevention_policy_windows.test.name}'"
+
+  depends_on = [crowdstrike_prevention_policy_windows.test]
+}
+`, rName)
 }
