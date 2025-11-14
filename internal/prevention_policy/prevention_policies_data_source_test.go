@@ -8,278 +8,365 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-func TestAccPreventionPoliciesDataSource(t *testing.T) {
-	var steps []resource.TestStep
-
-	// Add basic functionality tests
-	steps = append(steps, testPreventionPoliciesBasic()...)
-	// Add filter-based tests
-	steps = append(steps, testPreventionPoliciesWithFilter()...)
-	// Add ID-based tests
-	steps = append(steps, testPreventionPoliciesWithIDs()...)
-	// Add individual filter attributes tests
-	steps = append(steps, testPreventionPoliciesWithIndividualFilters()...)
-	// Add sorting tests
-	steps = append(steps, testPreventionPoliciesWithSorting()...)
-	// Add validation error tests
-	steps = append(steps, testPreventionPoliciesValidationErrors()...)
-	// Add empty result tests
-	steps = append(steps, testPreventionPoliciesEmptyResults()...)
+func TestAccPreventionPoliciesDataSource_Basic(t *testing.T) {
+	resourceName := "data.crowdstrike_prevention_policies.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    steps,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccPreventionPoliciesDataSourceConfigBasic(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					// Check that we have some policies and verify their structure
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.id"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.name"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.platform_name"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.enabled"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.created_by"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.created_timestamp"),
+				),
+			},
+		},
 	})
 }
 
-func testPreventionPoliciesBasic() []resource.TestStep {
-	return []resource.TestStep{
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.#"),
-				// Check that we have some policies and verify their structure
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.id"),
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.name"),
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.platform_name"),
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.enabled"),
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.created_by"),
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.created_timestamp"),
-			),
+func TestAccPreventionPoliciesDataSource_WithFilter(t *testing.T) {
+	resourceName := "data.crowdstrike_prevention_policies.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccPreventionPoliciesDataSourceConfigWithFilterWindows(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					// Verify all returned policies are Windows policies
+					resource.TestCheckResourceAttr(resourceName, "policies.0.platform_name", "Windows"),
+				),
+			},
+			{
+				Config: testAccPreventionPoliciesDataSourceConfigWithFilterEnabled(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					// Verify all returned policies are enabled
+					resource.TestCheckResourceAttr(resourceName, "policies.0.enabled", "true"),
+				),
+			},
+			{
+				Config: testAccPreventionPoliciesDataSourceConfigWithFilterComplex(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+				),
+			},
 		},
-	}
+	})
 }
 
-func testPreventionPoliciesWithFilter() []resource.TestStep {
-	return []resource.TestStep{
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "windows" {
+func TestAccPreventionPoliciesDataSource_WithIDs(t *testing.T) {
+	resourceName := "data.crowdstrike_prevention_policies.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccPreventionPoliciesDataSourceConfigWithIDs(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					// Verify we get exactly the policies we requested (up to 2)
+					resource.TestMatchResourceAttr(resourceName, "policies.#", regexp.MustCompile(`^[12]$`)),
+				),
+			},
+		},
+	})
+}
+
+func TestAccPreventionPoliciesDataSource_WithIndividualFilters(t *testing.T) {
+	resourceName := "data.crowdstrike_prevention_policies.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			// Test platform filter
+			{
+				Config: testAccPreventionPoliciesDataSourceConfigWithPlatformFilter(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					// Verify all returned policies are Windows policies
+					resource.TestCheckResourceAttr(resourceName, "policies.0.platform_name", "Windows"),
+				),
+			},
+			// Test enabled filter
+			{
+				Config: testAccPreventionPoliciesDataSourceConfigWithEnabledFilter(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					// Verify all returned policies are enabled
+					resource.TestCheckResourceAttr(resourceName, "policies.0.enabled", "true"),
+				),
+			},
+			// Test name filter with wildcard
+			{
+				Config: testAccPreventionPoliciesDataSourceConfigWithNameFilter(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+				),
+			},
+			// Test combination of individual filter attributes
+			{
+				Config: testAccPreventionPoliciesDataSourceConfigWithCombinedFilters(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					// Verify all returned policies match both criteria
+					resource.TestCheckResourceAttr(resourceName, "policies.0.platform_name", "Windows"),
+					resource.TestCheckResourceAttr(resourceName, "policies.0.enabled", "true"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccPreventionPoliciesDataSource_WithSorting(t *testing.T) {
+	resourceName := "data.crowdstrike_prevention_policies.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccPreventionPoliciesDataSourceConfigWithSortingAsc(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+				),
+			},
+			{
+				Config: testAccPreventionPoliciesDataSourceConfigWithSortingDesc(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+				),
+			},
+			{
+				Config: testAccPreventionPoliciesDataSourceConfigWithSortingFiltered(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccPreventionPoliciesDataSource_ValidationErrors(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			// Test filter + ids (existing validation)
+			{
+				Config:      testAccPreventionPoliciesDataSourceConfigValidationFilterIDs(),
+				ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+			},
+			// Test filter + individual attributes
+			{
+				Config:      testAccPreventionPoliciesDataSourceConfigValidationFilterIndividual(),
+				ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+			},
+			// Test ids + individual attributes
+			{
+				Config:      testAccPreventionPoliciesDataSourceConfigValidationIDsIndividual(),
+				ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+			},
+			// Test all three types together
+			{
+				Config:      testAccPreventionPoliciesDataSourceConfigValidationAllThree(),
+				ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+			},
+			// Test multiple individual attributes + filter
+			{
+				Config:      testAccPreventionPoliciesDataSourceConfigValidationMultipleFilter(),
+				ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+			},
+		},
+	})
+}
+
+func TestAccPreventionPoliciesDataSource_EmptyResults(t *testing.T) {
+	resourceName := "data.crowdstrike_prevention_policies.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccPreventionPoliciesDataSourceConfigEmptyResults(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "policies.#", "0"),
+				),
+			},
+		},
+	})
+}
+
+func testAccPreventionPoliciesDataSourceConfigBasic() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {}
+`
+}
+
+func testAccPreventionPoliciesDataSourceConfigWithFilterWindows() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
   filter = "platform_name:'Windows'"
 }
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.windows", "policies.#"),
-				// Verify all returned policies are Windows policies
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.windows", "policies.0.platform_name", "Windows"),
-			),
-		},
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "enabled" {
-  filter = "enabled:true"
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.enabled", "policies.#"),
-				// Verify all returned policies are enabled
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.enabled", "policies.0.enabled", "true"),
-			),
-		},
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "complex_filter" {
-  filter = "platform_name:'Windows'+enabled:true"
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.complex_filter", "policies.#"),
-			),
-		},
-	}
+`
 }
 
-func testPreventionPoliciesWithIDs() []resource.TestStep {
-	return []resource.TestStep{
-		{
-			Config: acctest.ProviderConfig + `
+func testAccPreventionPoliciesDataSourceConfigWithFilterEnabled() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
+  filter = "enabled:true"
+}
+`
+}
+
+func testAccPreventionPoliciesDataSourceConfigWithFilterComplex() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
+  filter = "platform_name:'Windows'+enabled:true"
+}
+`
+}
+
+func testAccPreventionPoliciesDataSourceConfigWithIDs() string {
+	return acctest.ProviderConfig + `
 # First get all policies to extract some IDs
 data "crowdstrike_prevention_policies" "all" {}
 
 # Then use specific IDs (using first two policies from all)
-data "crowdstrike_prevention_policies" "specific" {
+data "crowdstrike_prevention_policies" "test" {
   ids = [
     data.crowdstrike_prevention_policies.all.policies[0].id,
     length(data.crowdstrike_prevention_policies.all.policies) > 1 ? data.crowdstrike_prevention_policies.all.policies[1].id : data.crowdstrike_prevention_policies.all.policies[0].id
   ]
 }
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.specific", "policies.#"),
-				// Verify we get exactly the policies we requested (up to 2)
-				resource.TestMatchResourceAttr("data.crowdstrike_prevention_policies.specific", "policies.#", regexp.MustCompile(`^[12]$`)),
-			),
-		},
-	}
+`
 }
 
-func testPreventionPoliciesWithIndividualFilters() []resource.TestStep {
-	return []resource.TestStep{
-		// Test platform filter
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "platform_windows" {
+func testAccPreventionPoliciesDataSourceConfigWithPlatformFilter() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
   platform = "Windows"
 }
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.platform_windows", "policies.#"),
-				// Verify all returned policies are Windows policies
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.platform_windows", "policies.0.platform_name", "Windows"),
-			),
-		},
-		// Test enabled filter
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "enabled_true" {
+`
+}
+
+func testAccPreventionPoliciesDataSourceConfigWithEnabledFilter() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
   enabled = true
 }
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.enabled_true", "policies.#"),
-				// Verify all returned policies are enabled
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.enabled_true", "policies.0.enabled", "true"),
-			),
-		},
-		// Test name filter with wildcard
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "name_policy" {
+`
+}
+
+func testAccPreventionPoliciesDataSourceConfigWithNameFilter() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
   name = "*policy*"
 }
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.name_policy", "policies.#"),
-			),
-		},
-		// Test combination of individual filter attributes
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "combined_filters" {
+`
+}
+
+func testAccPreventionPoliciesDataSourceConfigWithCombinedFilters() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
   platform = "Windows"
   enabled  = true
 }
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.combined_filters", "policies.#"),
-				// Verify all returned policies match both criteria
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.combined_filters", "policies.0.platform_name", "Windows"),
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.combined_filters", "policies.0.enabled", "true"),
-			),
-		},
-	}
+`
 }
 
-func testPreventionPoliciesWithSorting() []resource.TestStep {
-	return []resource.TestStep{
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "sorted_asc" {
+func testAccPreventionPoliciesDataSourceConfigWithSortingAsc() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
   sort = "name.asc"
 }
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.sorted_asc", "policies.#"),
-			),
-		},
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "sorted_desc" {
+`
+}
+
+func testAccPreventionPoliciesDataSourceConfigWithSortingDesc() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
   sort = "created_timestamp.desc"
 }
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.sorted_desc", "policies.#"),
-			),
-		},
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "filtered_and_sorted" {
+`
+}
+
+func testAccPreventionPoliciesDataSourceConfigWithSortingFiltered() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
   filter = "platform_name:'Windows'"
   sort   = "name.asc"
 }
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.filtered_and_sorted", "policies.#"),
-			),
-		},
-	}
+`
 }
 
-func testPreventionPoliciesValidationErrors() []resource.TestStep {
-	return []resource.TestStep{
-		// Test filter + ids (existing validation)
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "invalid_filter_ids" {
+func testAccPreventionPoliciesDataSourceConfigValidationFilterIDs() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
   filter = "platform_name:'Windows'"
-  ids    = ["policy-id-1", "policy-id-2"]
+  ids    = ["00000000000000000000000000000001", "00000000000000000000000000000002"]
 }
-`,
-			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
-		},
-		// Test filter + individual attributes
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "invalid_filter_individual" {
+`
+}
+
+func testAccPreventionPoliciesDataSourceConfigValidationFilterIndividual() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
   filter   = "platform_name:'Windows'"
   platform = "Linux"
 }
-`,
-			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
-		},
-		// Test ids + individual attributes
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "invalid_ids_individual" {
-  ids     = ["policy-id-1"]
+`
+}
+
+func testAccPreventionPoliciesDataSourceConfigValidationIDsIndividual() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
+  ids     = ["00000000000000000000000000000001"]
   enabled = true
 }
-`,
-			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
-		},
-		// Test all three types together
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "invalid_all_three" {
+`
+}
+
+func testAccPreventionPoliciesDataSourceConfigValidationAllThree() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
   filter   = "platform_name:'Windows'"
-  ids      = ["policy-id-1"]
+  ids      = ["00000000000000000000000000000001"]
   platform = "Linux"
 }
-`,
-			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
-		},
-		// Test multiple individual attributes + filter
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "invalid_multiple_individual_filter" {
+`
+}
+
+func testAccPreventionPoliciesDataSourceConfigValidationMultipleFilter() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
   filter   = "name:'test'"
   platform = "Windows"
   enabled  = true
   name     = "MyPolicy"
 }
-`,
-			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
-		},
-	}
+`
 }
 
-func testPreventionPoliciesEmptyResults() []resource.TestStep {
-	return []resource.TestStep{
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "empty" {
+func testAccPreventionPoliciesDataSourceConfigEmptyResults() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
   filter = "name:'NonExistentPolicyThatShouldNeverExist12345'"
 }
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.empty", "policies.#", "0"),
-			),
-		},
-	}
+`
 }
 
 func TestAccPreventionPoliciesDataSource_404Handling(t *testing.T) {
