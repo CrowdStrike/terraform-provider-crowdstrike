@@ -110,11 +110,29 @@ func TestAccPreventionPoliciesDataSource_WithIndividualFilters(t *testing.T) {
 				),
 			},
 			{
+				Config: testAccPreventionPoliciesDataSourceConfigWithDescriptionFilter(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+				),
+			},
+			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithCombinedFilters(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
 					resource.TestCheckResourceAttr(resourceName, "policies.0.platform_name", "Windows"),
 					resource.TestCheckResourceAttr(resourceName, "policies.0.enabled", "true"),
+				),
+			},
+			{
+				Config: testAccPreventionPoliciesDataSourceConfigWithCreatedByFilter(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+				),
+			},
+			{
+				Config: testAccPreventionPoliciesDataSourceConfigWithModifiedByFilter(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
 				),
 			},
 		},
@@ -173,6 +191,18 @@ func TestAccPreventionPoliciesDataSource_ValidationErrors(t *testing.T) {
 		},
 		"multiple_filter_methods": {
 			configFunc:  testAccPreventionPoliciesDataSourceConfigValidationMultipleFilter,
+			expectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		"filter_with_created_by": {
+			configFunc:  testAccPreventionPoliciesDataSourceConfigValidationFilterCreatedBy,
+			expectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		"ids_with_modified_by": {
+			configFunc:  testAccPreventionPoliciesDataSourceConfigValidationIDsModifiedBy,
+			expectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		"filter_with_description": {
+			configFunc:  testAccPreventionPoliciesDataSourceConfigValidationFilterDescription,
 			expectError: regexp.MustCompile("Invalid Attribute Combination"),
 		},
 	}
@@ -353,6 +383,14 @@ data "crowdstrike_prevention_policies" "test" {
 `
 }
 
+func testAccPreventionPoliciesDataSourceConfigWithDescriptionFilter() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
+  description = "*protection*"
+}
+`
+}
+
 func testAccPreventionPoliciesDataSourceConfigWithCombinedFilters() string {
 	return acctest.ProviderConfig + `
 data "crowdstrike_prevention_policies" "test" {
@@ -487,4 +525,51 @@ data "crowdstrike_prevention_policies" "test" {
   depends_on = [crowdstrike_prevention_policy_windows.test]
 }
 `, rName)
+}
+
+func testAccPreventionPoliciesDataSourceConfigWithCreatedByFilter() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "all" {}
+
+data "crowdstrike_prevention_policies" "test" {
+  created_by = data.crowdstrike_prevention_policies.all.policies[0].created_by
+}
+`
+}
+
+func testAccPreventionPoliciesDataSourceConfigWithModifiedByFilter() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "all" {}
+
+data "crowdstrike_prevention_policies" "test" {
+  modified_by = data.crowdstrike_prevention_policies.all.policies[0].modified_by
+}
+`
+}
+
+func testAccPreventionPoliciesDataSourceConfigValidationFilterCreatedBy() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
+  filter     = "platform_name:'Windows'"
+  created_by = "testuser@example.com"
+}
+`
+}
+
+func testAccPreventionPoliciesDataSourceConfigValidationIDsModifiedBy() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
+  ids         = ["00000000000000000000000000000001"]
+  modified_by = "testuser@example.com"
+}
+`
+}
+
+func testAccPreventionPoliciesDataSourceConfigValidationFilterDescription() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
+  filter      = "platform_name:'Windows'"
+  description = "*malware*"
+}
+`
 }

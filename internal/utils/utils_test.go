@@ -313,3 +313,136 @@ func TestProcessDescriptionSearchPattern(t *testing.T) {
 		})
 	}
 }
+
+func TestProcessUserFieldSearchPattern(t *testing.T) {
+	tests := []struct {
+		name                 string
+		pattern              string
+		fieldName            string
+		expectedAPIQuery     string
+		expectedNeedsFilter  bool
+		testValue            string // Value to test the client filter against
+		expectedFilterResult bool   // Expected result of the client filter
+	}{
+		{
+			name:                 "empty pattern",
+			pattern:              "",
+			fieldName:            "created_by",
+			expectedAPIQuery:     "",
+			expectedNeedsFilter:  false,
+			testValue:            "any value",
+			expectedFilterResult: true,
+		},
+		{
+			name:                 "user with hyphenated name - exact",
+			pattern:              "john-doe@company.com",
+			fieldName:            "created_by",
+			expectedAPIQuery:     "created_by:'john-doe'",
+			expectedNeedsFilter:  true,
+			testValue:            "john-doe@company.com",
+			expectedFilterResult: true,
+		},
+		{
+			name:                 "user with underscore - wildcard",
+			pattern:              "jane_smith*",
+			fieldName:            "modified_by",
+			expectedAPIQuery:     "modified_by:'jane_smith'",
+			expectedNeedsFilter:  true,
+			testValue:            "jane_smith@company.com",
+			expectedFilterResult: true,
+		},
+		{
+			name:                 "user with domain - exact",
+			pattern:              "user@company.com",
+			fieldName:            "created_by",
+			expectedAPIQuery:     "created_by:'user'",
+			expectedNeedsFilter:  true,
+			testValue:            "user@company.com",
+			expectedFilterResult: true,
+		},
+		{
+			name:                 "exact match single word",
+			pattern:              "admin",
+			fieldName:            "created_by",
+			expectedAPIQuery:     "created_by:'admin'",
+			expectedNeedsFilter:  true,
+			testValue:            "admin",
+			expectedFilterResult: true,
+		},
+		{
+			name:                 "exact match with wildcard single word",
+			pattern:              "admin*",
+			fieldName:            "created_by",
+			expectedAPIQuery:     "created_by:'admin'",
+			expectedNeedsFilter:  true,
+			testValue:            "admin123",
+			expectedFilterResult: true,
+		},
+		{
+			name:                 "exact match no match",
+			pattern:              "admin",
+			fieldName:            "created_by",
+			expectedAPIQuery:     "created_by:'admin'",
+			expectedNeedsFilter:  true,
+			testValue:            "administrator",
+			expectedFilterResult: false,
+		},
+		{
+			name:                 "wildcard match",
+			pattern:              "admin*",
+			fieldName:            "modified_by",
+			expectedAPIQuery:     "modified_by:'admin'",
+			expectedNeedsFilter:  true,
+			testValue:            "administrator",
+			expectedFilterResult: true,
+		},
+		{
+			name:                 "wildcard no match",
+			pattern:              "admin*",
+			fieldName:            "created_by",
+			expectedAPIQuery:     "created_by:'admin'",
+			expectedNeedsFilter:  true,
+			testValue:            "user",
+			expectedFilterResult: false,
+		},
+		{
+			name:                 "case sensitive exact match - no match",
+			pattern:              "admin",
+			fieldName:            "created_by",
+			expectedAPIQuery:     "created_by:'admin'",
+			expectedNeedsFilter:  true,
+			testValue:            "ADMIN",
+			expectedFilterResult: false,
+		},
+		{
+			name:                 "case sensitive wildcard - no match",
+			pattern:              "admin*",
+			fieldName:            "modified_by",
+			expectedAPIQuery:     "modified_by:'admin'",
+			expectedNeedsFilter:  true,
+			testValue:            "ADMINISTRATOR",
+			expectedFilterResult: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ProcessUserFieldSearchPattern(tt.pattern, tt.fieldName)
+
+			if result.APIQuery != tt.expectedAPIQuery {
+				t.Errorf("APIQuery = %q, want %q", result.APIQuery, tt.expectedAPIQuery)
+			}
+
+			if result.NeedsClientFilter != tt.expectedNeedsFilter {
+				t.Errorf("NeedsClientFilter = %v, want %v", result.NeedsClientFilter, tt.expectedNeedsFilter)
+			}
+
+			if result.ClientFilter != nil {
+				filterResult := result.ClientFilter(tt.testValue)
+				if filterResult != tt.expectedFilterResult {
+					t.Errorf("ClientFilter(%q) = %v, want %v", tt.testValue, filterResult, tt.expectedFilterResult)
+				}
+			}
+		})
+	}
+}

@@ -58,16 +58,22 @@ type preventionPoliciesDataSourceModel struct {
 	Description types.String `tfsdk:"description"`
 	Enabled     types.Bool   `tfsdk:"enabled"`
 	Platform    types.String `tfsdk:"platform"`
+	CreatedBy   types.String `tfsdk:"created_by"`
+	ModifiedBy  types.String `tfsdk:"modified_by"`
 	Policies    types.List   `tfsdk:"policies"`
 }
 
 // buildResult holds the results from building an FQL filter with client-side filtering info.
 type buildResult struct {
-	filter           string
-	nameClientFilter func(string) bool
-	descClientFilter func(string) bool
-	needsNameFilter  bool
-	needsDescFilter  bool
+	filter                 string
+	nameClientFilter       func(string) bool
+	descClientFilter       func(string) bool
+	createdByClientFilter  func(string) bool
+	modifiedByClientFilter func(string) bool
+	needsNameFilter        bool
+	needsDescFilter        bool
+	needsCreatedByFilter   bool
+	needsModifiedByFilter  bool
 }
 
 // NewPreventionPoliciesDataSource is a helper function to simplify the provider implementation.
@@ -144,6 +150,16 @@ func (d *preventionPoliciesDataSource) Schema(
 			"platform": schema.StringAttribute{
 				Optional: true,
 				Description: "Filter policies by platform (Windows, Linux, Mac). " +
+					"Cannot be used together with 'filter' or 'ids'.",
+			},
+			"created_by": schema.StringAttribute{
+				Optional: true,
+				Description: "Filter policies by the user who created them. " +
+					"Cannot be used together with 'filter' or 'ids'.",
+			},
+			"modified_by": schema.StringAttribute{
+				Optional: true,
+				Description: "Filter policies by the user who last modified them. " +
 					"Cannot be used together with 'filter' or 'ids'.",
 			},
 			"policies": schema.ListNestedAttribute{
@@ -419,7 +435,9 @@ func (d *preventionPoliciesDataSource) hasIndividualFilters(data *preventionPoli
 	return (!data.Name.IsNull() && !data.Name.IsUnknown()) ||
 		(!data.Description.IsNull() && !data.Description.IsUnknown()) ||
 		(!data.Enabled.IsNull() && !data.Enabled.IsUnknown()) ||
-		(!data.Platform.IsNull() && !data.Platform.IsUnknown())
+		(!data.Platform.IsNull() && !data.Platform.IsUnknown()) ||
+		(!data.CreatedBy.IsNull() && !data.CreatedBy.IsUnknown()) ||
+		(!data.ModifiedBy.IsNull() && !data.ModifiedBy.IsUnknown())
 }
 
 // buildFQLFromAttributesWithClientFiltering constructs an FQL filter from individual filter attributes
@@ -427,10 +445,14 @@ func (d *preventionPoliciesDataSource) hasIndividualFilters(data *preventionPoli
 func (d *preventionPoliciesDataSource) buildFQLFromAttributesWithClientFiltering(ctx context.Context, data *preventionPoliciesDataSourceModel) buildResult {
 	var filters []string
 	result := buildResult{
-		nameClientFilter: func(string) bool { return true },
-		descClientFilter: func(string) bool { return true },
-		needsNameFilter:  false,
-		needsDescFilter:  false,
+		nameClientFilter:       func(string) bool { return true },
+		descClientFilter:       func(string) bool { return true },
+		createdByClientFilter:  func(string) bool { return true },
+		modifiedByClientFilter: func(string) bool { return true },
+		needsNameFilter:        false,
+		needsDescFilter:        false,
+		needsCreatedByFilter:   false,
+		needsModifiedByFilter:  false,
 	}
 
 	// name filter
@@ -477,6 +499,36 @@ func (d *preventionPoliciesDataSource) buildFQLFromAttributesWithClientFiltering
 		}
 	}
 
+	// created_by filter
+	if !data.CreatedBy.IsNull() && !data.CreatedBy.IsUnknown() {
+		value := data.CreatedBy.ValueString()
+		if value != "" {
+			createdByQuery := utils.ProcessUserFieldSearchPattern(value, "created_by")
+			if createdByQuery.APIQuery != "" {
+				filters = append(filters, createdByQuery.APIQuery)
+			}
+			if createdByQuery.NeedsClientFilter {
+				result.createdByClientFilter = createdByQuery.ClientFilter
+				result.needsCreatedByFilter = true
+			}
+		}
+	}
+
+	// modified_by filter
+	if !data.ModifiedBy.IsNull() && !data.ModifiedBy.IsUnknown() {
+		value := data.ModifiedBy.ValueString()
+		if value != "" {
+			modifiedByQuery := utils.ProcessUserFieldSearchPattern(value, "modified_by")
+			if modifiedByQuery.APIQuery != "" {
+				filters = append(filters, modifiedByQuery.APIQuery)
+			}
+			if modifiedByQuery.NeedsClientFilter {
+				result.modifiedByClientFilter = modifiedByQuery.ClientFilter
+				result.needsModifiedByFilter = true
+			}
+		}
+	}
+
 	// Join all filters with AND (+)
 	if len(filters) == 0 {
 		result.filter = ""
@@ -499,13 +551,13 @@ func (d *preventionPoliciesDataSource) buildFQLFromAttributesWithClientFiltering
 	return result
 }
 
-// applyClientSideFiltering applies client-side filtering to the policies based on name and description patterns.
+// applyClientSideFiltering applies client-side filtering to the policies based on name, description, and user field patterns.
 func (d *preventionPoliciesDataSource) applyClientSideFiltering(
 	ctx context.Context,
 	policies []*models.PreventionPolicyV1,
 	buildRes buildResult,
 ) []*models.PreventionPolicyV1 {
-	if !buildRes.needsNameFilter && !buildRes.needsDescFilter {
+	if !buildRes.needsNameFilter && !buildRes.needsDescFilter && !buildRes.needsCreatedByFilter && !buildRes.needsModifiedByFilter {
 		// No client-side filtering needed
 		return policies
 	}
@@ -530,6 +582,20 @@ func (d *preventionPoliciesDataSource) applyClientSideFiltering(
 			}
 		}
 
+		// Apply created_by filtering if needed
+		if include && buildRes.needsCreatedByFilter && policy.CreatedBy != nil {
+			if !buildRes.createdByClientFilter(*policy.CreatedBy) {
+				include = false
+			}
+		}
+
+		// Apply modified_by filtering if needed
+		if include && buildRes.needsModifiedByFilter && policy.ModifiedBy != nil {
+			if !buildRes.modifiedByClientFilter(*policy.ModifiedBy) {
+				include = false
+			}
+		}
+
 		if include {
 			filtered = append(filtered, policy)
 			filteredCount++
@@ -540,8 +606,12 @@ func (d *preventionPoliciesDataSource) applyClientSideFiltering(
 		ctx,
 		"[datasource] Applied client-side filtering",
 		map[string]interface{}{
-			"original_count": len(policies),
-			"filtered_count": filteredCount,
+			"original_count":           len(policies),
+			"filtered_count":           filteredCount,
+			"needs_name_filter":        buildRes.needsNameFilter,
+			"needs_desc_filter":        buildRes.needsDescFilter,
+			"needs_created_by_filter":  buildRes.needsCreatedByFilter,
+			"needs_modified_by_filter": buildRes.needsModifiedByFilter,
 		},
 	)
 
@@ -580,7 +650,7 @@ func (d *preventionPoliciesDataSource) Read(
 	if filterCount > 1 {
 		resp.Diagnostics.AddError(
 			"Invalid Attribute Combination",
-			"Cannot specify 'filter', 'ids', and individual filter attributes (name, description, enabled, platform) together. "+
+			"Cannot specify 'filter', 'ids', and individual filter attributes (name, description, enabled, platform, created_by, modified_by) together. "+
 				"Please use only one filtering method: either 'filter' for FQL queries, 'ids' for specific IDs, "+
 				"or individual filter attributes.",
 		)

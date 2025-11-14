@@ -69,10 +69,12 @@ data "crowdstrike_prevention_policies" "enabled_linux" {
 
 ### Optional
 
+- `created_by` (String) Filter policies by the user who created them. Cannot be used together with 'filter' or 'ids'.
 - `description` (String) Filter policies by description. Supports exact matching and wildcard patterns. Without wildcard (*): Returns policies with descriptions that exactly match the specified value (e.g., 'malware protection' matches only 'malware protection'). With wildcard (*): Returns policies whose descriptions contain the specified pattern (e.g., 'malware*' matches 'malware protection', 'malware detection', etc.). Cannot be used together with 'filter' or 'ids'.
 - `enabled` (Boolean) Filter policies by enabled status. Cannot be used together with 'filter' or 'ids'.
 - `filter` (String) FQL filter to apply to the prevention policies query. When specified, only policies matching the filter will be returned. Cannot be used together with 'ids' or other filter attributes. Example: `platform_name:'Windows'`
 - `ids` (List of String) List of prevention policy IDs to retrieve. When specified, only policies with matching IDs will be returned. Cannot be used together with 'filter' or other filter attributes.
+- `modified_by` (String) Filter policies by the user who last modified them. Cannot be used together with 'filter' or 'ids'.
 - `name` (String) Filter policies by name. Supports exact matching and wildcard patterns. Without wildcard (*): Returns policies with names that exactly match the specified value (e.g., 'production server' matches only 'production server'). With wildcard (*): Returns policies whose names contain the specified pattern (e.g., 'production*' matches 'production server', 'production lab', etc.). Cannot be used together with 'filter' or 'ids'.
 - `platform` (String) Filter policies by platform (Windows, Linux, Mac). Cannot be used together with 'filter' or 'ids'.
 - `sort` (String) Sort order for the results. Valid values include field names with optional '.asc' or '.desc' suffix. Example: 'name.asc', 'precedence.desc'

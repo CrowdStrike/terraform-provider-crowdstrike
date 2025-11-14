@@ -152,6 +152,72 @@ func ProcessDescriptionSearchPattern(pattern string) SearchQueryInfo {
 	}
 }
 
+// ProcessUserFieldSearchPattern processes a user field pattern (created_by, modified_by) according to the following rules:
+// - Split on "@" to get username part for API query
+// - Use exact matching (no wildcard) or contains matching (with wildcard)
+// - Case-sensitive matching for user fields.
+func ProcessUserFieldSearchPattern(pattern string, fieldName string) SearchQueryInfo {
+	if pattern == "" {
+		return SearchQueryInfo{
+			APIQuery:          "",
+			ClientFilter:      func(string) bool { return true },
+			NeedsClientFilter: false,
+		}
+	}
+
+	if pattern == "*" {
+		// Just "*" - no filtering
+		return SearchQueryInfo{
+			APIQuery:          "",
+			ClientFilter:      func(string) bool { return true },
+			NeedsClientFilter: false,
+		}
+	}
+
+	hasWildcard := strings.HasSuffix(pattern, "*")
+	searchPattern := pattern
+	if hasWildcard {
+		searchPattern = strings.TrimSuffix(pattern, "*")
+	}
+
+	// For user fields, split on "@" to get the username part
+	searchTerm := searchPattern
+	if atIndex := strings.Index(searchPattern, "@"); atIndex > 0 {
+		searchTerm = searchPattern[:atIndex]
+	}
+
+	apiQuery := fmt.Sprintf("%s:'%s'", fieldName, searchTerm)
+
+	var clientFilter func(string) bool
+	if hasWildcard {
+		// Contains matching (case-sensitive)
+		clientFilter = func(value string) bool {
+			return strings.Contains(value, searchPattern)
+		}
+	} else {
+		// Smart matching for exact queries
+		clientFilter = func(value string) bool {
+			// If the search pattern contains "@", do exact match
+			if strings.Contains(searchPattern, "@") {
+				return value == searchPattern
+			}
+			// If search pattern is just username, match against username part of stored value
+			if atIndex := strings.Index(value, "@"); atIndex > 0 {
+				username := value[:atIndex]
+				return username == searchPattern
+			}
+			// If stored value has no "@", do exact match
+			return value == searchPattern
+		}
+	}
+
+	return SearchQueryInfo{
+		APIQuery:          apiQuery,
+		ClientFilter:      clientFilter,
+		NeedsClientFilter: true,
+	}
+}
+
 // SetIDsToModify takes a set of IDs from plan and state and returns the IDs to add and remove to get from the state to the plan.
 // idsToAdd is the slice of IDs that are in the plan but not in the state.
 // idsToRemove is the slice of IDs that are in the state but not in the plan.
