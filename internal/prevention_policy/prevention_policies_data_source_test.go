@@ -210,6 +210,59 @@ func TestAccPreventionPoliciesDataSource_EmptyResults(t *testing.T) {
 	})
 }
 
+func TestAccPreventionPoliciesDataSource_404Handling(t *testing.T) {
+	resourceName := "data.crowdstrike_prevention_policies.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccPreventionPoliciesDataSourceConfig404NonExistentID(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "policies.#", "0"),
+				),
+			},
+			{
+				Config: testAccPreventionPoliciesDataSourceConfig404PartialResults(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "policies.#", "1"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.id"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.name"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccPreventionPoliciesDataSource_AllAttributes(t *testing.T) {
+	resourceName := "data.crowdstrike_prevention_policies.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccPreventionPoliciesDataSourceConfigBasic(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify all schema attributes are accessible
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.id"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.name"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.platform_name"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.enabled"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.created_by"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.created_timestamp"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.modified_by"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.modified_timestamp"),
+					// Check that lists are properly initialized (even if empty)
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.host_groups.#"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.ioa_rule_groups.#"),
+				),
+			},
+		},
+	})
+}
+
 func testAccPreventionPoliciesDataSourceConfigBasic() string {
 	return acctest.ProviderConfig + `
 data "crowdstrike_prevention_policies" "test" {}
@@ -369,66 +422,23 @@ data "crowdstrike_prevention_policies" "test" {
 `
 }
 
-func TestAccPreventionPoliciesDataSource_404Handling(t *testing.T) {
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "non_existent_id" {
+func testAccPreventionPoliciesDataSourceConfig404NonExistentID() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_prevention_policies" "test" {
   ids = ["00000000000000000000000000000000"]
 }
-`,
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.non_existent_id", "policies.#", "0"),
-				),
-			},
-			{
-				Config: acctest.ProviderConfig + `
+`
+}
+
+func testAccPreventionPoliciesDataSourceConfig404PartialResults() string {
+	return acctest.ProviderConfig + `
 data "crowdstrike_prevention_policies" "all" {}
 
-data "crowdstrike_prevention_policies" "partial_results" {
+data "crowdstrike_prevention_policies" "test" {
   ids = [
     data.crowdstrike_prevention_policies.all.policies[0].id,
     "00000000000000000000000000000000"
   ]
 }
-`,
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.crowdstrike_prevention_policies.partial_results", "policies.#", "1"),
-					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.partial_results", "policies.0.id"),
-					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.partial_results", "policies.0.name"),
-				),
-			},
-		},
-	})
-}
-
-func TestAccPreventionPoliciesDataSource_AllAttributes(t *testing.T) {
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {}
-`,
-				Check: resource.ComposeAggregateTestCheckFunc(
-					// Verify all schema attributes are accessible
-					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.id"),
-					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.name"),
-					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.platform_name"),
-					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.enabled"),
-					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.created_by"),
-					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.created_timestamp"),
-					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.modified_by"),
-					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.modified_timestamp"),
-					// Check that lists are properly initialized (even if empty)
-					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.host_groups.#"),
-					resource.TestCheckResourceAttrSet("data.crowdstrike_prevention_policies.test", "policies.0.ioa_rule_groups.#"),
-				),
-			},
-		},
-	})
+`
 }
