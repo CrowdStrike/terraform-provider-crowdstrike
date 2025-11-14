@@ -5,7 +5,7 @@ description: |-
   This data source provides information about prevention policies in Falcon.
   API Scopes
   The following API scopes are required:
-  Prevention policies | Read & Write
+  Prevention policies | Read
 ---
 
 # crowdstrike_prevention_policies (Data Source)
@@ -16,7 +16,7 @@ This data source provides information about prevention policies in Falcon.
 
 The following API scopes are required:
 
-- Prevention policies | Read & Write
+- Prevention policies | Read
 
 
 ## Example Usage
@@ -49,9 +49,9 @@ data "crowdstrike_prevention_policies" "windows_enabled" {
 # Get specific prevention policies by their IDs
 data "crowdstrike_prevention_policies" "specific_policies" {
   ids = [
-    "037a1708a8504b3a9cdbfdefba05f932", # Windows platform default
-    "4979a243c0d84342a66692f4810348ef", # Mac platform default
-    "9913bc2788a449678ab1269f44942463"  # Linux platform default
+    "037a1708a8504b3a9cdbfdefba05f932",
+    "4979a243c0d84342a66692f4810348ef",
+    "9913bc2788a449678ab1269f44942463"
   ]
 }
 
@@ -77,7 +77,6 @@ data "crowdstrike_prevention_policies" "enabled_linux" {
 
 ### Read-Only
 
-- `id` (String) Identifier for this data source
 - `policies` (Attributes List) The list of prevention policies (see [below for nested schema](#nestedatt--policies))
 
 <a id="nestedatt--policies"></a>
@@ -89,7 +88,7 @@ Read-Only:
 - `created_timestamp` (String) Timestamp when the policy was created
 - `description` (String) The prevention policy description
 - `enabled` (Boolean) Whether the prevention policy is enabled
-- `groups` (List of String) List of host group IDs assigned to the policy
+- `host_groups` (List of String) List of host group IDs assigned to the policy
 - `id` (String) The prevention policy ID
 - `ioa_rule_groups` (List of String) List of IOA rule group IDs associated with the policy
 - `modified_by` (String) User who last modified the policy
