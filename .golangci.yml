@@ -1,30 +1,48 @@
----
-issues:
-  max-per-linter: 0
-  max-same-issues: 0
-  fix: true
+version: "2"
 linters:
   enable:
+    - contextcheck
     - durationcheck
-    - errcheck
+    - errchkjson
     - forcetypeassert
+    - gocritic
+    - gocyclo
     - godot
-    - gofmt
-    - gosimple
-    - ineffassign
+    - importas
     - makezero
     - misspell
     - nilerr
     - predeclared
-    - staticcheck
-    - usetesting
     - unconvert
     - unparam
+    - usetesting
+    - staticcheck
+    - ineffassign
+    - errcheck
     - unused
     - govet
-    - gocyclo
-    - errchkjson
-    - gocritic
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  fix: true
+formatters:
+  enable:
+    - gofmt
     - goimports
-    - contextcheck
-    - importas
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
