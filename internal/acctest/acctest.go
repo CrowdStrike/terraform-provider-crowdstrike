@@ -13,7 +13,8 @@ const (
 	ProviderConfig = `
 provider "crowdstrike" {}
 `
-	CharSetNum = "0123456789"
+	CharSetNum     = "0123456789"
+	ResourcePrefix = "tf-acc-test-"
 )
 
 type OptionalEnvVar string

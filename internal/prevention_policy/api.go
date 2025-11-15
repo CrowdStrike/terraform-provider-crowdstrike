@@ -30,6 +30,14 @@ var apiScopes = []scopes.Scope{
 	},
 }
 
+var dataSourceApiScopes = []scopes.Scope{
+	{
+		Name:  "Prevention policies",
+		Read:  true,
+		Write: false,
+	},
+}
+
 // getDefaultPolicy gets the default prevention update policy based on platformName.
 func getDefaultPolicy(
 	ctx context.Context,
