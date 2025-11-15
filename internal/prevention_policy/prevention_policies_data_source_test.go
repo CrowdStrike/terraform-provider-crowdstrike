@@ -1,7 +1,6 @@
 package preventionpolicy_test
 
 import (
-	"context"
 	"fmt"
 	"regexp"
 	"testing"
@@ -368,7 +367,7 @@ data "crowdstrike_prevention_policies" "test" {
 func testAccPreventionPoliciesDataSourceConfigWithPlatformFilter() string {
 	return acctest.ProviderConfig + `
 data "crowdstrike_prevention_policies" "test" {
-  platform = "Windows"
+  platform_name = "Windows"
 }
 `
 }
@@ -400,8 +399,8 @@ data "crowdstrike_prevention_policies" "test" {
 func testAccPreventionPoliciesDataSourceConfigWithCombinedFilters() string {
 	return acctest.ProviderConfig + `
 data "crowdstrike_prevention_policies" "test" {
-  platform = "Windows"
-  enabled  = true
+  platform_name = "Windows"
+  enabled       = true
 }
 `
 }
@@ -443,8 +442,8 @@ data "crowdstrike_prevention_policies" "test" {
 func testAccPreventionPoliciesDataSourceConfigValidationFilterIndividual() string {
 	return acctest.ProviderConfig + `
 data "crowdstrike_prevention_policies" "test" {
-  filter   = "platform_name:'Windows'"
-  platform = "Linux"
+  filter        = "platform_name:'Windows'"
+  platform_name = "Linux"
 }
 `
 }
@@ -461,9 +460,9 @@ data "crowdstrike_prevention_policies" "test" {
 func testAccPreventionPoliciesDataSourceConfigValidationAllThree() string {
 	return acctest.ProviderConfig + `
 data "crowdstrike_prevention_policies" "test" {
-  filter   = "platform_name:'Windows'"
-  ids      = ["00000000000000000000000000000001"]
-  platform = "Linux"
+  filter        = "platform_name:'Windows'"
+  ids           = ["00000000000000000000000000000001"]
+  platform_name = "Linux"
 }
 `
 }
@@ -471,10 +470,10 @@ data "crowdstrike_prevention_policies" "test" {
 func testAccPreventionPoliciesDataSourceConfigValidationMultipleFilter() string {
 	return acctest.ProviderConfig + `
 data "crowdstrike_prevention_policies" "test" {
-  filter   = "name:'test'"
-  platform = "Windows"
-  enabled  = true
-  name     = "MyPolicy"
+  filter        = "name:'test'"
+  platform_name = "Windows"
+  enabled       = true
+  name          = "MyPolicy"
 }
 `
 }
@@ -580,90 +579,119 @@ data "crowdstrike_prevention_policies" "test" {
 `
 }
 
+var (
+	testBoolTrue  = true
+	testBoolFalse = false
+)
+
 var testPolicies = []*models.PreventionPolicyV1{
 	{
-		ID:          utils.Addr("policy-001"),
-		Name:        utils.Addr("Production Policy"),
-		Description: utils.Addr("malware protection"),
-		CreatedBy:   utils.Addr("admin@example.com"),
-		ModifiedBy:  utils.Addr("security@example.com"),
+		ID:           utils.Addr("policy-001"),
+		Name:         utils.Addr("Production Policy"),
+		Description:  utils.Addr("malware protection"),
+		CreatedBy:    utils.Addr("admin@example.com"),
+		ModifiedBy:   utils.Addr("security@example.com"),
+		Enabled:      &testBoolTrue,
+		PlatformName: utils.Addr("Windows"),
 	},
 	{
-		ID:          utils.Addr("policy-002"),
-		Name:        utils.Addr("Production Backup"),
-		Description: utils.Addr("malware protection enabled"),
-		CreatedBy:   utils.Addr("admin@example.com"),
-		ModifiedBy:  utils.Addr("admin@example.com"),
+		ID:           utils.Addr("policy-002"),
+		Name:         utils.Addr("Production Backup"),
+		Description:  utils.Addr("malware protection enabled"),
+		CreatedBy:    utils.Addr("admin@example.com"),
+		ModifiedBy:   utils.Addr("admin@example.com"),
+		Enabled:      &testBoolTrue,
+		PlatformName: utils.Addr("Linux"),
 	},
 	{
-		ID:          utils.Addr("policy-003"),
-		Name:        utils.Addr("Production Desktop"),
-		Description: utils.Addr("endpoint protection"),
-		CreatedBy:   utils.Addr("user@example.com"),
-		ModifiedBy:  utils.Addr("security@example.com"),
+		ID:           utils.Addr("policy-003"),
+		Name:         utils.Addr("Production Desktop"),
+		Description:  utils.Addr("endpoint protection"),
+		CreatedBy:    utils.Addr("user@example.com"),
+		ModifiedBy:   utils.Addr("security@example.com"),
+		Enabled:      &testBoolTrue,
+		PlatformName: utils.Addr("Windows"),
 	},
 	{
-		ID:          utils.Addr("policy-004"),
-		Name:        utils.Addr("Test Policy"),
-		Description: utils.Addr("malware detection"),
-		CreatedBy:   utils.Addr("user@example.com"),
-		ModifiedBy:  utils.Addr("user@example.com"),
+		ID:           utils.Addr("policy-004"),
+		Name:         utils.Addr("Test Policy"),
+		Description:  utils.Addr("malware detection"),
+		CreatedBy:    utils.Addr("user@example.com"),
+		ModifiedBy:   utils.Addr("user@example.com"),
+		Enabled:      &testBoolFalse,
+		PlatformName: utils.Addr("Mac"),
 	},
 	{
-		ID:          utils.Addr("policy-005"),
-		Name:        utils.Addr("Test Environment"),
-		Description: utils.Addr("ransomware protection"),
-		CreatedBy:   utils.Addr("admin@crowdstrike.com"),
-		ModifiedBy:  utils.Addr("admin@crowdstrike.com"),
+		ID:           utils.Addr("policy-005"),
+		Name:         utils.Addr("Test Environment"),
+		Description:  utils.Addr("ransomware protection"),
+		CreatedBy:    utils.Addr("admin@crowdstrike.com"),
+		ModifiedBy:   utils.Addr("admin@crowdstrike.com"),
+		Enabled:      &testBoolTrue,
+		PlatformName: utils.Addr("WINDOWS"),
 	},
 	{
-		ID:          utils.Addr("policy-006"),
-		Name:        utils.Addr("Windows Policy"),
-		Description: utils.Addr("Windows protection"),
-		CreatedBy:   utils.Addr("admin@example.com"),
-		ModifiedBy:  utils.Addr("admin@example.com"),
+		ID:           utils.Addr("policy-006"),
+		Name:         utils.Addr("Windows Policy"),
+		Description:  utils.Addr("Windows protection"),
+		CreatedBy:    utils.Addr("admin@example.com"),
+		ModifiedBy:   utils.Addr("admin@example.com"),
+		Enabled:      &testBoolTrue,
+		PlatformName: utils.Addr("windows"),
 	},
 	{
-		ID:          utils.Addr("policy-007"),
-		Name:        utils.Addr("Linux Policy"),
-		Description: utils.Addr("Linux protection"),
-		CreatedBy:   utils.Addr("user@example.com"),
-		ModifiedBy:  utils.Addr("user@example.com"),
+		ID:           utils.Addr("policy-007"),
+		Name:         utils.Addr("Linux Policy"),
+		Description:  utils.Addr("Linux protection"),
+		CreatedBy:    utils.Addr("user@example.com"),
+		ModifiedBy:   utils.Addr("user@example.com"),
+		Enabled:      &testBoolFalse,
+		PlatformName: utils.Addr("linux"),
 	},
 	{
-		ID:          utils.Addr("policy-008"),
-		Name:        utils.Addr("PRODUCTION Server"),
-		Description: utils.Addr("Server protection"),
-		CreatedBy:   utils.Addr("admin@example.com"),
-		ModifiedBy:  utils.Addr("admin@example.com"),
+		ID:           utils.Addr("policy-008"),
+		Name:         utils.Addr("PRODUCTION Server"),
+		Description:  utils.Addr("Server protection"),
+		CreatedBy:    utils.Addr("admin@example.com"),
+		ModifiedBy:   utils.Addr("admin@example.com"),
+		Enabled:      &testBoolTrue,
+		PlatformName: utils.Addr("Linux"),
 	},
 	{
-		ID:          utils.Addr("policy-009"),
-		Name:        utils.Addr("production server"),
-		Description: utils.Addr("Desktop protection"),
-		CreatedBy:   utils.Addr("admin@example.com"),
-		ModifiedBy:  utils.Addr("admin@example.com"),
+		ID:           utils.Addr("policy-009"),
+		Name:         utils.Addr("production server"),
+		Description:  utils.Addr("Desktop protection"),
+		CreatedBy:    utils.Addr("admin@example.com"),
+		ModifiedBy:   utils.Addr("admin@example.com"),
+		Enabled:      &testBoolFalse,
+		PlatformName: utils.Addr("Mac"),
 	},
 	{
-		ID:          utils.Addr("policy-010"),
-		Name:        nil,
-		Description: utils.Addr("Description with no name"),
-		CreatedBy:   utils.Addr("admin@example.com"),
-		ModifiedBy:  utils.Addr("admin@example.com"),
+		ID:           utils.Addr("policy-010"),
+		Name:         nil,
+		Description:  utils.Addr("Description with no name"),
+		CreatedBy:    utils.Addr("admin@example.com"),
+		ModifiedBy:   utils.Addr("admin@example.com"),
+		Enabled:      &testBoolTrue,
+		PlatformName: utils.Addr("Windows"),
 	},
 	{
-		ID:          utils.Addr("policy-011"),
-		Name:        utils.Addr("Policy with no description"),
-		Description: nil,
-		CreatedBy:   utils.Addr("admin@example.com"),
-		ModifiedBy:  utils.Addr("admin@example.com"),
+		ID:           utils.Addr("policy-011"),
+		Name:         utils.Addr("Policy with no description"),
+		Description:  nil,
+		CreatedBy:    utils.Addr("admin@example.com"),
+		ModifiedBy:   utils.Addr("admin@example.com"),
+		Enabled:      &testBoolTrue,
+		PlatformName: utils.Addr("Linux"),
 	},
 	{
-		ID:          utils.Addr("policy-012"),
-		Name:        utils.Addr("Policy with no user info"),
-		Description: utils.Addr("Description C"),
-		CreatedBy:   nil,
-		ModifiedBy:  nil,
+		ID:           utils.Addr("policy-012"),
+		Name:         utils.Addr("Policy with no user info"),
+		Description:  utils.Addr("Description C"),
+		CreatedBy:    nil,
+		ModifiedBy:   nil,
+		Enabled:      &testBoolTrue,
+		PlatformName: utils.Addr("Windows"),
 	},
 }
 
@@ -686,231 +714,470 @@ func policiesByID(allPolicies []*models.PreventionPolicyV1, ids ...string) []*mo
 	return result
 }
 
-func TestApplyClientSideFiltering(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	ds := &preventionpolicy.PreventionPoliciesDataSource{}
-
+func TestFilterPoliciesByIDs(t *testing.T) {
 	tests := []struct {
-		name              string
-		filterName        string
-		filterDescription string
-		filterCreated     string
-		filterModified    string
-		inputPolicies     []*models.PreventionPolicyV1
-		expectedPolicies  []*models.PreventionPolicyV1
+		name             string
+		inputPolicies    []*models.PreventionPolicyV1
+		requestedIDs     []string
+		expectedPolicies []*models.PreventionPolicyV1
 	}{
 		{
-			name:             "name_no_matches",
-			filterName:       "mac*",
+			name:             "all_ids_found",
 			inputPolicies:    testPolicies,
-			expectedPolicies: []*models.PreventionPolicyV1{},
+			requestedIDs:     []string{"policy-001", "policy-003", "policy-005"},
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003", "policy-005"),
 		},
 		{
-			name:             "name_wildcard_at_start",
-			filterName:       "*Policy",
+			name:             "partial_ids_found",
 			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-004", "policy-006", "policy-007"),
-		},
-		{
-			name:             "name_wildcard_at_end",
-			filterName:       "Test*",
-			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-004", "policy-005"),
-		},
-		{
-			name:             "name_wildcard_in_middle",
-			filterName:       "Production*Desktop",
-			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-003"),
-		},
-		{
-			name:             "name_multiple_wildcards",
-			filterName:       "*Production*Serv*",
-			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-008"),
-		},
-		{
-			name:              "description_exact_match",
-			filterDescription: "malware protection",
-			inputPolicies:     testPolicies,
-			expectedPolicies:  policiesByID(testPolicies, "policy-001"),
-		},
-		{
-			name:              "description_no_matches",
-			filterDescription: "nonexistent*",
-			inputPolicies:     testPolicies,
-			expectedPolicies:  []*models.PreventionPolicyV1{},
-		},
-		{
-			name:              "description_wildcard_at_start",
-			filterDescription: "*protection",
-			inputPolicies:     testPolicies,
-			expectedPolicies:  policiesByID(testPolicies, "policy-001", "policy-002", "policy-003", "policy-005", "policy-006", "policy-007", "policy-008", "policy-009"),
-		},
-		{
-			name:              "description_wildcard_at_end",
-			filterDescription: "malware*",
-			inputPolicies:     testPolicies,
-			expectedPolicies:  policiesByID(testPolicies, "policy-001", "policy-002", "policy-004"),
-		},
-		{
-			name:              "description_wildcard_in_middle",
-			filterDescription: "malware*protection",
-			inputPolicies:     testPolicies,
-			expectedPolicies:  policiesByID(testPolicies, "policy-001", "policy-002"),
-		},
-		{
-			name:              "description_multiple_wildcards",
-			filterDescription: "*ware*prote*",
-			inputPolicies:     testPolicies,
-			expectedPolicies:  policiesByID(testPolicies, "policy-001", "policy-002", "policy-005"),
-		},
-		{
-			name:             "created_by_exact_match",
-			filterCreated:    "admin@example.com",
-			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-006", "policy-008", "policy-009"),
-		},
-		{
-			name:             "created_by_no_matches",
-			filterCreated:    "nonexistent@example.com",
-			inputPolicies:    testPolicies,
-			expectedPolicies: []*models.PreventionPolicyV1{},
-		},
-		{
-			name:             "created_by_wildcard_at_start",
-			filterCreated:    "*@example.com",
-			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-003", "policy-004", "policy-006", "policy-007", "policy-008", "policy-009"),
-		},
-		{
-			name:             "created_by_wildcard_at_end",
-			filterCreated:    "user@*",
-			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-003", "policy-004", "policy-007"),
-		},
-		{
-			name:             "created_by_wildcard_in_middle",
-			filterCreated:    "admin@*example.com",
-			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-006", "policy-008", "policy-009"),
-		},
-		{
-			name:             "created_by_multiple_wildcards",
-			filterCreated:    "*admin*example*",
-			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-006", "policy-008", "policy-009"),
-		},
-		{
-			name:             "modified_by_exact_match",
-			filterModified:   "security@example.com",
-			inputPolicies:    testPolicies,
+			requestedIDs:     []string{"policy-001", "non-existent", "policy-003"},
 			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003"),
 		},
 		{
-			name:             "modified_by_no_matches",
-			filterModified:   "nonexistent@example.com",
+			name:             "no_ids_found",
 			inputPolicies:    testPolicies,
+			requestedIDs:     []string{"non-existent-1", "non-existent-2"},
 			expectedPolicies: []*models.PreventionPolicyV1{},
 		},
 		{
-			name:             "modified_by_wildcard_at_start",
-			filterModified:   "*@example.com",
+			name:             "empty_id_list",
 			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-003", "policy-004", "policy-006", "policy-007", "policy-008", "policy-009"),
-		},
-		{
-			name:             "modified_by_wildcard_at_end",
-			filterModified:   "security@*",
-			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003"),
-		},
-		{
-			name:             "modified_by_wildcard_in_middle",
-			filterModified:   "security@*example.com",
-			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003"),
-		},
-		{
-			name:             "modified_by_multiple_wildcards",
-			filterModified:   "*admin*example*",
-			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-002", "policy-006", "policy-008", "policy-009"),
-		},
-		{
-			name:              "name_and_description",
-			filterName:        "production*",
-			filterDescription: "malware protection",
-			inputPolicies:     testPolicies,
-			expectedPolicies:  policiesByID(testPolicies, "policy-001"),
-		},
-		{
-			name:              "all_filters",
-			filterName:        "production*",
-			filterDescription: "malware protection",
-			filterCreated:     "admin@example.com",
-			filterModified:    "security@example.com",
-			inputPolicies:     testPolicies,
-			expectedPolicies:  policiesByID(testPolicies, "policy-001"),
-		},
-		{
-			name:             "name_and_created_by",
-			filterName:       "production*",
-			filterCreated:    "admin@example.com",
-			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-008", "policy-009"),
-		},
-		{
-			name:              "description_and_user_filters",
-			filterDescription: "malware*",
-			filterCreated:     "admin@example.com",
-			filterModified:    "admin@example.com",
-			inputPolicies:     testPolicies,
-			expectedPolicies:  policiesByID(testPolicies, "policy-002"),
-		},
-		{
-			name:             "no_filtering",
-			inputPolicies:    testPolicies,
-			expectedPolicies: testPolicies,
-		},
-		{
-			name:             "empty_input",
-			filterName:       "test*",
-			inputPolicies:    []*models.PreventionPolicyV1{},
+			requestedIDs:     []string{},
 			expectedPolicies: []*models.PreventionPolicyV1{},
 		},
 		{
-			name:             "nil_input",
-			filterName:       "test*",
+			name:             "nil_policies",
 			inputPolicies:    nil,
+			requestedIDs:     []string{"policy-001"},
 			expectedPolicies: []*models.PreventionPolicyV1{},
+		},
+		{
+			name:             "empty_policies",
+			inputPolicies:    []*models.PreventionPolicyV1{},
+			requestedIDs:     []string{"policy-001"},
+			expectedPolicies: []*models.PreventionPolicyV1{},
+		},
+		{
+			name: "nil_policy_in_slice",
+			inputPolicies: []*models.PreventionPolicyV1{
+				testPolicies[0],
+				nil,
+				testPolicies[1],
+			},
+			requestedIDs:     []string{"policy-001", "policy-002"},
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002"),
+		},
+		{
+			name: "policy_with_nil_id",
+			inputPolicies: []*models.PreventionPolicyV1{
+				testPolicies[0],
+				{
+					ID:          nil,
+					Name:        utils.Addr("Policy with no ID"),
+					Description: utils.Addr("Test policy"),
+				},
+				testPolicies[1],
+			},
+			requestedIDs:     []string{"policy-001", "policy-002"},
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002"),
+		},
+		{
+			name:             "single_id_match",
+			inputPolicies:    testPolicies,
+			requestedIDs:     []string{"policy-006"},
+			expectedPolicies: policiesByID(testPolicies, "policy-006"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+			filtered := preventionpolicy.FilterPoliciesByIDs(tt.inputPolicies, tt.requestedIDs)
+			assert.ElementsMatch(t, tt.expectedPolicies, filtered, "Filtered policies don't match expected policies")
+		})
+	}
+}
 
-			data := &preventionpolicy.PreventionPoliciesDataSourceModel{}
+func TestFilterPoliciesByAttributes(t *testing.T) {
+	t.Parallel()
 
-			if tt.filterName != "" {
-				data.Name = types.StringValue(tt.filterName)
-			}
-			if tt.filterDescription != "" {
-				data.Description = types.StringValue(tt.filterDescription)
-			}
-			if tt.filterCreated != "" {
-				data.CreatedBy = types.StringValue(tt.filterCreated)
-			}
-			if tt.filterModified != "" {
-				data.ModifiedBy = types.StringValue(tt.filterModified)
-			}
+	tests := []struct {
+		name             string
+		filters          *preventionpolicy.PreventionPoliciesDataSourceModel
+		inputPolicies    []*models.PreventionPolicyV1
+		expectedPolicies []*models.PreventionPolicyV1
+	}{
+		{
+			name: "name_no_matches",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Name: types.StringValue("mac*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: []*models.PreventionPolicyV1{},
+		},
+		{
+			name: "name_wildcard_at_start",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Name: types.StringValue("*Policy"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-004", "policy-006", "policy-007"),
+		},
+		{
+			name: "name_wildcard_at_end",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Name: types.StringValue("Test*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-004", "policy-005"),
+		},
+		{
+			name: "name_wildcard_in_middle",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Name: types.StringValue("Production*Desktop"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-003"),
+		},
+		{
+			name: "name_multiple_wildcards",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Name: types.StringValue("*Production*Serv*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-008", "policy-009"),
+		},
+		{
+			name: "description_exact_match",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Description: types.StringValue("malware protection"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001"),
+		},
+		{
+			name: "description_no_matches",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Description: types.StringValue("nonexistent*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: []*models.PreventionPolicyV1{},
+		},
+		{
+			name: "description_wildcard_at_start",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Description: types.StringValue("*protection"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003", "policy-005", "policy-006", "policy-007", "policy-008", "policy-009"),
+		},
+		{
+			name: "description_wildcard_at_end",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Description: types.StringValue("malware*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-004"),
+		},
+		{
+			name: "description_wildcard_in_middle",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Description: types.StringValue("malware*protection"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001"),
+		},
+		{
+			name: "description_multiple_wildcards",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Description: types.StringValue("*ware*prote*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-005"),
+		},
+		{
+			name: "created_by_exact_match",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				CreatedBy: types.StringValue("admin@example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-006", "policy-008", "policy-009", "policy-010", "policy-011"),
+		},
+		{
+			name: "created_by_no_matches",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				CreatedBy: types.StringValue("nonexistent@example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: []*models.PreventionPolicyV1{},
+		},
+		{
+			name: "created_by_wildcard_at_start",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				CreatedBy: types.StringValue("*@example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-003", "policy-004", "policy-006", "policy-007", "policy-008", "policy-009", "policy-010", "policy-011"),
+		},
+		{
+			name: "created_by_wildcard_at_end",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				CreatedBy: types.StringValue("user@*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-003", "policy-004", "policy-007"),
+		},
+		{
+			name: "created_by_wildcard_in_middle",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				CreatedBy: types.StringValue("admin@*example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-006", "policy-008", "policy-009", "policy-010", "policy-011"),
+		},
+		{
+			name: "created_by_multiple_wildcards",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				CreatedBy: types.StringValue("*admin*example*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-006", "policy-008", "policy-009", "policy-010", "policy-011"),
+		},
+		{
+			name: "modified_by_exact_match",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("admin@example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-002", "policy-006", "policy-008", "policy-009", "policy-010", "policy-011"),
+		},
+		{
+			name: "modified_by_no_matches",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("nonexistent@example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: []*models.PreventionPolicyV1{},
+		},
+		{
+			name: "modified_by_wildcard_at_start",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("*@example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-003", "policy-004", "policy-006", "policy-007", "policy-008", "policy-009", "policy-010", "policy-011"),
+		},
+		{
+			name: "modified_by_wildcard_at_end",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("security@*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003"),
+		},
+		{
+			name: "modified_by_wildcard_in_middle",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("security@*example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003"),
+		},
+		{
+			name: "modified_by_multiple_wildcards",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("*admin*example*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-002", "policy-006", "policy-008", "policy-009", "policy-010", "policy-011"),
+		},
+		{
+			name: "enabled_true",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Enabled: types.BoolValue(true),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-003", "policy-005", "policy-006", "policy-008", "policy-010", "policy-011", "policy-012"),
+		},
+		{
+			name: "enabled_false",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Enabled: types.BoolValue(false),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-004", "policy-007", "policy-009"),
+		},
+		{
+			name: "platform_name_exact_match",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				PlatformName: types.StringValue("Windows"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003", "policy-005", "policy-006", "policy-010", "policy-012"),
+		},
+		{
+			name: "platform_name_case_insensitive_lowercase",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				PlatformName: types.StringValue("windows"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003", "policy-005", "policy-006", "policy-010", "policy-012"),
+		},
+		{
+			name: "platform_name_case_insensitive_uppercase",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				PlatformName: types.StringValue("WINDOWS"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003", "policy-005", "policy-006", "policy-010", "policy-012"),
+		},
+		{
+			name: "platform_name_linux",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				PlatformName: types.StringValue("Linux"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-002", "policy-007", "policy-008", "policy-011"),
+		},
+		{
+			name: "platform_name_mac",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				PlatformName: types.StringValue("Mac"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-004", "policy-009"),
+		},
+		{
+			name: "name_and_description",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Name:        types.StringValue("*Policy"),
+				Description: types.StringValue("*protection"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-006", "policy-007"),
+		},
+		{
+			name: "all_filters",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Name:         types.StringValue("*Policy"),
+				Description:  types.StringValue("Windows protection"),
+				CreatedBy:    types.StringValue("admin@example.com"),
+				ModifiedBy:   types.StringValue("admin@example.com"),
+				Enabled:      types.BoolValue(true),
+				PlatformName: types.StringValue("windows"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-006"),
+		},
+		{
+			name: "name_and_created_by",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Name:      types.StringValue("Production*"),
+				CreatedBy: types.StringValue("admin@*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-008", "policy-009"),
+		},
+		{
+			name: "description_and_user_filters",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Description: types.StringValue("*protection"),
+				CreatedBy:   types.StringValue("admin@example.com"),
+				ModifiedBy:  types.StringValue("admin@example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-006", "policy-008", "policy-009"),
+		},
+		{
+			name: "enabled_and_platform",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Enabled:      types.BoolValue(true),
+				PlatformName: types.StringValue("Linux"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-002", "policy-008", "policy-011"),
+		},
+		{
+			name: "no_filtering",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Name:         types.StringNull(),
+				Description:  types.StringNull(),
+				CreatedBy:    types.StringNull(),
+				ModifiedBy:   types.StringNull(),
+				Enabled:      types.BoolNull(),
+				PlatformName: types.StringNull(),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: testPolicies,
+		},
+		{
+			name:             "empty_input",
+			filters:          &preventionpolicy.PreventionPoliciesDataSourceModel{},
+			inputPolicies:    []*models.PreventionPolicyV1{},
+			expectedPolicies: []*models.PreventionPolicyV1{},
+		},
+		{
+			name:             "nil_input",
+			filters:          &preventionpolicy.PreventionPoliciesDataSourceModel{},
+			inputPolicies:    nil,
+			expectedPolicies: []*models.PreventionPolicyV1{},
+		},
+		{
+			name: "nil_policy_in_slice",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Name: types.StringValue("*Policy"),
+			},
+			inputPolicies: []*models.PreventionPolicyV1{
+				testPolicies[0],
+				nil,
+				testPolicies[3],
+			},
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-004"),
+		},
+		{
+			name: "filter_nil_name_field",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Name: types.StringValue("*Policy"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-004", "policy-006", "policy-007"),
+		},
+		{
+			name: "filter_nil_description_field",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Description: types.StringValue("*protection"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003", "policy-005", "policy-006", "policy-007", "policy-008", "policy-009"),
+		},
+		{
+			name: "filter_nil_created_by_field",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				CreatedBy: types.StringValue("admin@*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-005", "policy-006", "policy-008", "policy-009", "policy-010", "policy-011"),
+		},
+		{
+			name: "filter_nil_modified_by_field",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("security@*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003"),
+		},
+		{
+			name: "filter_nil_enabled_field",
+			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+				Enabled: types.BoolValue(true),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-003", "policy-005", "policy-006", "policy-008", "policy-010", "policy-011", "policy-012"),
+		},
+	}
 
-			buildRes := preventionpolicy.BuildFQLFromAttributesWithClientFiltering(ds, ctx, data)
-			filtered := preventionpolicy.ApplyClientSideFiltering(ds, ctx, tt.inputPolicies, buildRes)
-
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filtered := preventionpolicy.FilterPoliciesByAttributes(tt.inputPolicies, tt.filters)
 			assert.ElementsMatch(t, tt.expectedPolicies, filtered, "Filtered policies don't match expected policies")
 		})
 	}

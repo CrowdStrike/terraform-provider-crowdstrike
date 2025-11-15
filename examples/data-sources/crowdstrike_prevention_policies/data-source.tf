@@ -17,11 +17,11 @@ data "crowdstrike_prevention_policies" "all" {
 
 # Get enabled Windows prevention policies and filter by name and description using individual attributes
 data "crowdstrike_prevention_policies" "windows_enabled" {
-  platform    = "Windows"
-  enabled     = true
-  name        = "production-policy"
-  description = "production*"
-  sort        = "name.asc"
+  platform_name = "Windows"
+  enabled       = true
+  name          = "production-policy"
+  description   = "production*"
+  sort          = "name.asc"
 }
 
 # Get specific prevention policies by their IDs

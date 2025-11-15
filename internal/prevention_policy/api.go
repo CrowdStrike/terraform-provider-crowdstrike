@@ -13,7 +13,6 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -97,21 +96,6 @@ const (
 	removeRuleGroup ruleGroupAction = iota
 	addRuleGroup
 )
-
-// convertRuleGroupToSet converts a slice of models.IoaRuleGroupsRuleGroupV1 to a terraform set.
-func convertRuleGroupToSet(
-	ctx context.Context,
-	groups []*models.IoaRuleGroupsRuleGroupV1,
-) (basetypes.SetValue, diag.Diagnostics) {
-	ruleGroups := make([]types.String, 0, len(groups))
-	for _, ruleGroup := range groups {
-		ruleGroups = append(ruleGroups, types.StringValue(*ruleGroup.ID))
-	}
-
-	ruleGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, ruleGroups)
-
-	return ruleGroupIDs, diags
-}
 
 // String convert ruleGroupAction to string value the api accepts.
 func (r ruleGroupAction) String() string {

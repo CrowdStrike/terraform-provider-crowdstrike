@@ -7,6 +7,7 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -68,7 +69,7 @@ func (m *defaultPreventionPolicyMacResourceModel) wrap(
 		m.Description = types.StringValue(*policy.Description)
 	}
 	diags.Append(m.assignPreventionSettings(ctx, policy.PreventionSettings)...)
-	ruleGroupSet, diag := convertRuleGroupToSet(ctx, policy.IoaRuleGroups)
+	ruleGroupSet, diag := ioarulegroup.ConvertIOARuleGroupToSet(ctx, policy.IoaRuleGroups)
 	diags.Append(diag...)
 	if diags.HasError() {
 		return diags
@@ -307,7 +308,7 @@ func (r *defaultPreventionPolicyMacResource) Create(
 		return
 	}
 
-	ruleGroups, diag := convertRuleGroupToSet(ctx, policy.IoaRuleGroups)
+	ruleGroups, diag := ioarulegroup.ConvertIOARuleGroupToSet(ctx, policy.IoaRuleGroups)
 	resp.Diagnostics.Append(diag...)
 	if resp.Diagnostics.HasError() {
 		return
