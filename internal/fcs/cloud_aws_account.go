@@ -46,6 +46,7 @@ type realtimeVisibilityOptions struct {
 	Enabled               types.Bool   `tfsdk:"enabled"`
 	CloudTrailRegion      types.String `tfsdk:"cloudtrail_region"`
 	UseExistingCloudTrail types.Bool   `tfsdk:"use_existing_cloudtrail"`
+	RtvdRegions           types.List   `tfsdk:"rtvd_regions"`
 }
 
 type idpOptions struct {
@@ -58,13 +59,15 @@ type sensorManagementOptions struct {
 }
 
 type dspmOptions struct {
-	Enabled  types.Bool   `tfsdk:"enabled"`
-	RoleName types.String `tfsdk:"role_name"`
+	Enabled     types.Bool   `tfsdk:"enabled"`
+	RoleName    types.String `tfsdk:"role_name"`
+	DspmRegions types.List   `tfsdk:"dspm_regions"`
 }
 
 type vulnerabilityScanningOptions struct {
-	Enabled  types.Bool   `tfsdk:"enabled"`
-	RoleName types.String `tfsdk:"role_name"`
+	Enabled                      types.Bool   `tfsdk:"enabled"`
+	RoleName                     types.String `tfsdk:"role_name"`
+	VulnerabilityScanningRegions types.List   `tfsdk:"vulnerability_scanning_regions"`
 }
 
 // cloudStateKey the private state key used in terraform.
@@ -303,6 +306,18 @@ func (r *cloudAWSAccountResource) Schema(
 						Default:     booldefault.StaticBool(true),
 						Description: "Set to true if a CloudTrail already exists",
 					},
+					"rtvd_regions": schema.ListAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "List of AWS regions for Real-Time Visibility and Detection",
+						Default: listdefault.StaticValue(
+							types.ListValueMust(types.StringType, []attr.Value{}),
+						),
+						PlanModifiers: []planmodifier.List{
+							listplanmodifier.UseStateForUnknown(),
+						},
+						ElementType: types.StringType,
+					},
 				},
 				Default: objectdefault.StaticValue(
 					types.ObjectValueMust(
@@ -310,11 +325,13 @@ func (r *cloudAWSAccountResource) Schema(
 							"enabled":                 types.BoolType,
 							"cloudtrail_region":       types.StringType,
 							"use_existing_cloudtrail": types.BoolType,
+							"rtvd_regions":            types.ListType{ElemType: types.StringType},
 						},
 						map[string]attr.Value{
 							"enabled":                 types.BoolValue(false),
 							"cloudtrail_region":       types.StringNull(),
 							"use_existing_cloudtrail": types.BoolValue(true),
+							"rtvd_regions":            types.ListValueMust(types.StringType, []attr.Value{}),
 						},
 					),
 				),
@@ -404,16 +421,30 @@ func (r *cloudAWSAccountResource) Schema(
 							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
+					"dspm_regions": schema.ListAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "List of AWS regions for Data Security Posture Management",
+						Default: listdefault.StaticValue(
+							types.ListValueMust(types.StringType, []attr.Value{}),
+						),
+						PlanModifiers: []planmodifier.List{
+							listplanmodifier.UseStateForUnknown(),
+						},
+						ElementType: types.StringType,
+					},
 				},
 				Default: objectdefault.StaticValue(
 					types.ObjectValueMust(
 						map[string]attr.Type{
-							"enabled":   types.BoolType,
-							"role_name": types.StringType,
+							"enabled":      types.BoolType,
+							"role_name":    types.StringType,
+							"dspm_regions": types.ListType{ElemType: types.StringType},
 						},
 						map[string]attr.Value{
-							"enabled":   types.BoolValue(false),
-							"role_name": types.StringNull(),
+							"enabled":      types.BoolValue(false),
+							"role_name":    types.StringNull(),
+							"dspm_regions": types.ListValueMust(types.StringType, []attr.Value{}),
 						},
 					),
 				),
@@ -440,16 +471,30 @@ func (r *cloudAWSAccountResource) Schema(
 							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
+					"vulnerability_scanning_regions": schema.ListAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "List of AWS regions for Vulnerability Scanning",
+						Default: listdefault.StaticValue(
+							types.ListValueMust(types.StringType, []attr.Value{}),
+						),
+						PlanModifiers: []planmodifier.List{
+							listplanmodifier.UseStateForUnknown(),
+						},
+						ElementType: types.StringType,
+					},
 				},
 				Default: objectdefault.StaticValue(
 					types.ObjectValueMust(
 						map[string]attr.Type{
-							"enabled":   types.BoolType,
-							"role_name": types.StringType,
+							"enabled":                        types.BoolType,
+							"role_name":                      types.StringType,
+							"vulnerability_scanning_regions": types.ListType{ElemType: types.StringType},
 						},
 						map[string]attr.Value{
-							"enabled":   types.BoolValue(false),
-							"role_name": types.StringNull(),
+							"enabled":                        types.BoolValue(false),
+							"role_name":                      types.StringNull(),
+							"vulnerability_scanning_regions": types.ListValueMust(types.StringType, []attr.Value{}),
 						},
 					),
 				),
@@ -764,6 +809,32 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 		ResourceNamePrefix: model.ResourceNamePrefix.ValueString(),
 		ResourceNameSuffix: model.ResourceNameSuffix.ValueString(),
 	}
+
+	// Add regions if specified
+	if model.RealtimeVisibility != nil && !model.RealtimeVisibility.RtvdRegions.IsNull() && !model.RealtimeVisibility.RtvdRegions.IsUnknown() {
+		var rtvdRegions []string
+		diags.Append(model.RealtimeVisibility.RtvdRegions.ElementsAs(ctx, &rtvdRegions, false)...)
+		if !diags.HasError() {
+			createAccount.IoaRegions = rtvdRegions
+		}
+	}
+
+	if model.DSPM != nil && !model.DSPM.DspmRegions.IsNull() && !model.DSPM.DspmRegions.IsUnknown() {
+		var dspmRegions []string
+		diags.Append(model.DSPM.DspmRegions.ElementsAs(ctx, &dspmRegions, false)...)
+		if !diags.HasError() {
+			createAccount.DspmRegions = dspmRegions
+		}
+	}
+
+	if model.VulnerabilityScanning != nil && !model.VulnerabilityScanning.VulnerabilityScanningRegions.IsNull() && !model.VulnerabilityScanning.VulnerabilityScanningRegions.IsUnknown() {
+		var vulnRegions []string
+		diags.Append(model.VulnerabilityScanning.VulnerabilityScanningRegions.ElementsAs(ctx, &vulnRegions, false)...)
+		if !diags.HasError() {
+			createAccount.VulnerabilityScanningRegions = vulnRegions
+		}
+	}
+
 	if model.RealtimeVisibility != nil && model.RealtimeVisibility.Enabled.ValueBool() {
 		createAccount.CspEvents = true
 	}
@@ -1189,6 +1260,9 @@ func (r *cloudAWSAccountResource) Update(
 
 	plan.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
 
+	// Preserve regions from the plan (these are input from the user and not returned from CSPM API)
+	// The regions are only used in Cloud Registration API calls
+
 	plan.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
 	if cspmAccount.AwsCloudtrailRegion != "" {
 		plan.RealtimeVisibility.CloudTrailRegion = types.StringValue(
@@ -1321,6 +1395,32 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 		ResourceNamePrefix: model.ResourceNamePrefix.ValueString(),
 		ResourceNameSuffix: model.ResourceNameSuffix.ValueString(),
 	}
+
+	// Add regions if specified
+	if model.RealtimeVisibility != nil && !model.RealtimeVisibility.RtvdRegions.IsNull() && !model.RealtimeVisibility.RtvdRegions.IsUnknown() {
+		var rtvdRegions []string
+		diags.Append(model.RealtimeVisibility.RtvdRegions.ElementsAs(ctx, &rtvdRegions, false)...)
+		if !diags.HasError() {
+			patchAccount.IoaRegions = rtvdRegions
+		}
+	}
+
+	if model.DSPM != nil && !model.DSPM.DspmRegions.IsNull() && !model.DSPM.DspmRegions.IsUnknown() {
+		var dspmRegions []string
+		diags.Append(model.DSPM.DspmRegions.ElementsAs(ctx, &dspmRegions, false)...)
+		if !diags.HasError() {
+			patchAccount.DspmRegions = dspmRegions
+		}
+	}
+
+	if model.VulnerabilityScanning != nil && !model.VulnerabilityScanning.VulnerabilityScanningRegions.IsNull() && !model.VulnerabilityScanning.VulnerabilityScanningRegions.IsUnknown() {
+		var vulnRegions []string
+		diags.Append(model.VulnerabilityScanning.VulnerabilityScanningRegions.ElementsAs(ctx, &vulnRegions, false)...)
+		if !diags.HasError() {
+			patchAccount.VulnerabilityScanningRegions = vulnRegions
+		}
+	}
+
 	if model.AssetInventory != nil && model.AssetInventory.Enabled.ValueBool() {
 		patchAccount.CspEvents = true
 	}

@@ -121,6 +121,7 @@ Required:
 
 Optional:
 
+- `dspm_regions` (List of String) List of AWS regions for Data Security Posture Management
 - `role_name` (String) Custom AWS IAM role name for Data Security Posture Management
 
 
@@ -146,6 +147,7 @@ Required:
 
 Optional:
 
+- `rtvd_regions` (List of String) List of AWS regions for Real-Time Visibility and Detection
 - `use_existing_cloudtrail` (Boolean) Set to true if a CloudTrail already exists
 
 
@@ -167,6 +169,7 @@ Required:
 Optional:
 
 - `role_name` (String) Custom AWS IAM role name for Vulnerability Scanning
+- `vulnerability_scanning_regions` (List of String) List of AWS regions for Vulnerability Scanning
 
 ## Import
 
