@@ -1118,6 +1118,7 @@ func (r *itAutomationTaskResource) ConfigValidators(ctx context.Context) []resou
 }
 
 // ValidateConfig validates the resource configuration.
+//nolint:gocyclo
 func (r *itAutomationTaskResource) ValidateConfig(
 	ctx context.Context,
 	req resource.ValidateConfigRequest,

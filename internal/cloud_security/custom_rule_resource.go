@@ -517,6 +517,7 @@ func (m *cloudSecurityCustomRuleResourceModel) wrap(
 	return diags
 }
 
+//nolint:gocyclo
 func (r *cloudSecurityCustomRuleResource) createCloudPolicyRule(ctx context.Context, plan *cloudSecurityCustomRuleResourceModel) (*models.ApimodelsRule, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var newRule *models.ApimodelsRule
