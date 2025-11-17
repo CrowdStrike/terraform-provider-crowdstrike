@@ -722,22 +722,6 @@ resource "crowdstrike_cloud_aws_account" "test" {
 `, accountID)
 }
 
-func testAccCloudAwsAccountConfig_eventBridgeWithS3Settings(accountID string) string {
-	return fmt.Sprintf(`
-resource "crowdstrike_cloud_aws_account" "test" {
-  account_id = "%s"
-  realtime_visibility = {
-    enabled                        = true
-    cloudtrail_region             = "us-east-1"
-    log_ingestion_method          = "eventbridge"
-    log_ingestion_s3_bucket_name  = "invalid-bucket-with-eventbridge"
-    log_ingestion_sns_topic_arn   = "arn:aws:sns:us-east-1:123456789012:invalid-topic"
-  }
-}
-`, accountID)
-}
-
-
 func testAccCloudAwsAccountConfig_eventBridgeLogIngestion(accountID string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_aws_account" "test" {
