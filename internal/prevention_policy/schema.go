@@ -667,6 +667,18 @@ func generateLinuxSchema(defaultPolicy bool) schema.Schema {
 			"extended_command_line_visibility": toggleAttribute(
 				"Allows the sensor to monitor full CLI commands that include pipes and redirects. This is applicable only for User mode.",
 			),
+			"dbus_visibility": toggleAttribute(
+				"Allows the sensor to monitor local D-Bus traffic for malicious patterns and improved detections.",
+			),
+			"enhance_php_visibility": toggleAttribute(
+				"Allows the sensor to monitor activities performed by PHP scripts to provide additional telemetry and improved detections.",
+			),
+			"enhance_environment_variable_visibility": toggleAttribute(
+				"Allows the sensor to monitor an extended set of changes to environment variables in order to enhance visibility.",
+			),
+			"suspicious_file_analysis": toggleAttribute(
+				"Upload suspicious files for advanced threat analysis with QuickScan Pro.",
+			),
 		},
 	}
 
