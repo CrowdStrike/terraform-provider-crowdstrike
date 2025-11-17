@@ -353,6 +353,7 @@ func (r *cloudSecurityRulesDataSource) Read(
 	}
 }
 
+//nolint:gocyclo
 func (r *cloudSecurityRulesDataSource) getRules(
 	ctx context.Context,
 	fql string,

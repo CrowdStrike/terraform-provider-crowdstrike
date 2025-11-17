@@ -2,12 +2,221 @@ package utils
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
+
+// SearchQueryInfo represents the information needed for querying and filtering.
+type SearchQueryInfo struct {
+	APIQuery          string            // The query to send to the API
+	ClientFilter      func(string) bool // The client-side filter function to apply
+	NeedsClientFilter bool              // Whether client-side filtering is needed
+}
+
+// extractFirstAlphanumericWord extracts the first sequence of alphanumeric characters from a string
+// For example: "foo-bar" -> "foo", "test123_xyz" -> "test123", "  hello world" -> "hello".
+func extractFirstAlphanumericWord(s string) string {
+	var result strings.Builder
+	foundStart := false
+
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			result.WriteRune(r)
+			foundStart = true
+		} else if foundStart {
+			// We've reached the end of the first alphanumeric sequence
+			break
+		}
+		// If we haven't found the start yet, keep looking
+	}
+
+	return result.String()
+}
+
+// ProcessNameSearchPattern processes a name pattern according to the specified rules:
+// Pattern 1: "foo bar" -> API: name.raw:"foo bar" (exact match)
+// Pattern 2: "foo bar*" -> API: name:*"foo" + client filter: contains "foo bar".
+func ProcessNameSearchPattern(pattern string) SearchQueryInfo {
+	if pattern == "" {
+		return SearchQueryInfo{
+			APIQuery:          "",
+			ClientFilter:      func(string) bool { return true },
+			NeedsClientFilter: false,
+		}
+	}
+
+	if strings.HasSuffix(pattern, "*") {
+		// Pattern 2: name = "foo bar*" -> API: name:*"foo", client: contains "foo bar"
+		trimmedPattern := strings.TrimSuffix(pattern, "*")
+		if trimmedPattern == "" {
+			// Just "*" - no filtering
+			return SearchQueryInfo{
+				APIQuery:          "",
+				ClientFilter:      func(string) bool { return true },
+				NeedsClientFilter: false,
+			}
+		}
+
+		// Extract first alphanumeric word (e.g., "foo-bar" -> "foo")
+		firstWord := extractFirstAlphanumericWord(trimmedPattern)
+		if firstWord == "" {
+			return SearchQueryInfo{
+				APIQuery:          "",
+				ClientFilter:      func(string) bool { return true },
+				NeedsClientFilter: false,
+			}
+		}
+
+		return SearchQueryInfo{
+			APIQuery: fmt.Sprintf("name:*'%s'", firstWord),
+			ClientFilter: func(value string) bool {
+				return strings.Contains(strings.ToLower(value), strings.ToLower(trimmedPattern))
+			},
+			NeedsClientFilter: true,
+		}
+	} else {
+		// Pattern 1: name = "foo bar" -> API: name.raw:"foo bar", no client filtering
+		return SearchQueryInfo{
+			APIQuery:          fmt.Sprintf("name.raw:'%s'", pattern),
+			ClientFilter:      func(string) bool { return true },
+			NeedsClientFilter: false,
+		}
+	}
+}
+
+// ProcessDescriptionSearchPattern processes a description pattern according to the specified rules:
+// Pattern 3: "foo bar" -> API: description:*"foo" + client filter: equals "foo bar"
+// Pattern 4: "foo bar*" -> API: description:*"foo" + client filter: contains "foo bar".
+func ProcessDescriptionSearchPattern(pattern string) SearchQueryInfo {
+	if pattern == "" {
+		return SearchQueryInfo{
+			APIQuery:          "",
+			ClientFilter:      func(string) bool { return true },
+			NeedsClientFilter: false,
+		}
+	}
+
+	if strings.HasSuffix(pattern, "*") {
+		// Pattern 4: description = "foo bar*" -> API: description:*"foo", client: contains "foo bar"
+		trimmedPattern := strings.TrimSuffix(pattern, "*")
+		if trimmedPattern == "" {
+			// Just "*" - no filtering
+			return SearchQueryInfo{
+				APIQuery:          "",
+				ClientFilter:      func(string) bool { return true },
+				NeedsClientFilter: false,
+			}
+		}
+
+		// Extract first alphanumeric word (e.g., "foo-bar" -> "foo")
+		firstWord := extractFirstAlphanumericWord(trimmedPattern)
+		if firstWord == "" {
+			return SearchQueryInfo{
+				APIQuery:          "",
+				ClientFilter:      func(string) bool { return true },
+				NeedsClientFilter: false,
+			}
+		}
+
+		return SearchQueryInfo{
+			APIQuery: fmt.Sprintf("description:*'%s'", firstWord),
+			ClientFilter: func(value string) bool {
+				return strings.Contains(strings.ToLower(value), strings.ToLower(trimmedPattern))
+			},
+			NeedsClientFilter: true,
+		}
+	} else {
+		// Pattern 3: description = "foo bar" -> API: description:*"foo", client: equals "foo bar"
+		// Extract first alphanumeric word (e.g., "foo-bar" -> "foo")
+		firstWord := extractFirstAlphanumericWord(pattern)
+		if firstWord == "" {
+			return SearchQueryInfo{
+				APIQuery:          "",
+				ClientFilter:      func(string) bool { return true },
+				NeedsClientFilter: false,
+			}
+		}
+
+		return SearchQueryInfo{
+			APIQuery: fmt.Sprintf("description:*'%s'", firstWord),
+			ClientFilter: func(value string) bool {
+				return strings.EqualFold(value, pattern)
+			},
+			NeedsClientFilter: true,
+		}
+	}
+}
+
+// ProcessUserFieldSearchPattern processes a user field pattern (created_by, modified_by) according to the following rules:
+// - Split on "@" to get username part for API query
+// - Use exact matching (no wildcard) or contains matching (with wildcard)
+// - Case-sensitive matching for user fields.
+func ProcessUserFieldSearchPattern(pattern string, fieldName string) SearchQueryInfo {
+	if pattern == "" {
+		return SearchQueryInfo{
+			APIQuery:          "",
+			ClientFilter:      func(string) bool { return true },
+			NeedsClientFilter: false,
+		}
+	}
+
+	if pattern == "*" {
+		// Just "*" - no filtering
+		return SearchQueryInfo{
+			APIQuery:          "",
+			ClientFilter:      func(string) bool { return true },
+			NeedsClientFilter: false,
+		}
+	}
+
+	hasWildcard := strings.HasSuffix(pattern, "*")
+	searchPattern := pattern
+	if hasWildcard {
+		searchPattern = strings.TrimSuffix(pattern, "*")
+	}
+
+	// For user fields, split on "@" to get the username part
+	searchTerm := searchPattern
+	if atIndex := strings.Index(searchPattern, "@"); atIndex > 0 {
+		searchTerm = searchPattern[:atIndex]
+	}
+
+	apiQuery := fmt.Sprintf("%s:'%s'", fieldName, searchTerm)
+
+	var clientFilter func(string) bool
+	if hasWildcard {
+		// Contains matching (case-sensitive)
+		clientFilter = func(value string) bool {
+			return strings.Contains(value, searchPattern)
+		}
+	} else {
+		// Smart matching for exact queries
+		clientFilter = func(value string) bool {
+			// If the search pattern contains "@", do exact match
+			if strings.Contains(searchPattern, "@") {
+				return value == searchPattern
+			}
+			// If search pattern is just username, match against username part of stored value
+			if atIndex := strings.Index(value, "@"); atIndex > 0 {
+				username := value[:atIndex]
+				return username == searchPattern
+			}
+			// If stored value has no "@", do exact match
+			return value == searchPattern
+		}
+	}
+
+	return SearchQueryInfo{
+		APIQuery:          apiQuery,
+		ClientFilter:      clientFilter,
+		NeedsClientFilter: true,
+	}
+}
 
 // SetIDsToModify takes a set of IDs from plan and state and returns the IDs to add and remove to get from the state to the plan.
 // idsToAdd is the slice of IDs that are in the plan but not in the state.

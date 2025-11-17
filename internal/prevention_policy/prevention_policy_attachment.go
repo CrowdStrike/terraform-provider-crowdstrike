@@ -7,6 +7,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
+	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -65,7 +66,7 @@ func (d *preventionPolicyAttachmentResourceModel) wrap(
 		d.HostGroups = hostGroupSet
 	}
 
-	ruleGroupSet, diag := convertRuleGroupToSet(ctx, policy.IoaRuleGroups)
+	ruleGroupSet, diag := ioarulegroup.ConvertIOARuleGroupToSet(ctx, policy.IoaRuleGroups)
 	diags.Append(diag...)
 	if diags.HasError() {
 		return diags
