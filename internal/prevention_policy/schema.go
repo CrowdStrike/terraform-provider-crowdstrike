@@ -429,6 +429,9 @@ func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 			"wsl2_visibility": toggleAttribute(
 				"Provides visibility into WSL2 distributions by enabling a Falcon sensor plugin.",
 			),
+			"suspicious_file_analysis": toggleAttribute(
+				"Upload suspicious files for advanced threat analysis with QuickScan Pro.",
+			),
 		},
 	}
 
