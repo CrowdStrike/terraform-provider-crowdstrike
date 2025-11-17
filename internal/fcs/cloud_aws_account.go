@@ -322,42 +322,49 @@ func (r *cloudAWSAccountResource) Schema(
 						Optional:    true,
 						Description: "S3 bucket name for CloudTrail log ingestion when log_ingestion_method is 's3'. Required when using S3 method",
 						Validators: []validator.String{
-							stringvalidator.All(
-								stringvalidator.RegexMatches(
-									regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`),
-									"must be 3-63 characters, contain only lowercase letters, numbers, dots, and hyphens, and start/end with alphanumeric characters",
-								),
-								stringvalidator.LengthAtLeast(3),
-								stringvalidator.LengthAtMost(63),
-							),
+							stringvalidator.Any(
+								stringvalidator.LengthBetween(0, 0),
+								stringvalidator.All(
+									stringvalidator.RegexMatches(
+										regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`),
+										"must be 3-63 characters, contain only lowercase letters, numbers, dots, and hyphens, and start/end with alphanumeric characters",
+									),
+									stringvalidator.LengthAtLeast(3),
+									stringvalidator.LengthAtMost(63),
+								)),
 						},
 					},
 					"log_ingestion_sns_topic_arn": schema.StringAttribute{
 						Optional:    true,
 						Description: "SNS topic ARN for S3 CloudTrail log notifications when log_ingestion_method is 's3'. Required when using S3 method",
 						Validators: []validator.String{
-							stringvalidator.RegexMatches(
-								regexp.MustCompile(`^arn:(aws|aws-us-gov|aws-cn):sns:[a-z0-9-]+:[0-9]+:[a-zA-Z0-9_-]+$`),
-								"must be in the format: arn:partition:sns:region:account:topic-name",
-							),
+							stringvalidator.Any(
+								stringvalidator.LengthBetween(0, 0),
+								stringvalidator.RegexMatches(
+									regexp.MustCompile(`^arn:(aws|aws-us-gov|aws-cn):sns:[a-z0-9-]+:[0-9]+:[a-zA-Z0-9_-]+$`),
+									"must be in the format: arn:partition:sns:region:account:topic-name",
+								)),
 						},
 					},
 					"log_ingestion_s3_bucket_prefix": schema.StringAttribute{
 						Optional:    true,
 						Description: "Optional S3 bucket prefix (a prefix used for filter log files with the prefix present in their key) for CloudTrail logs when log_ingestion_method is 's3'",
 						Validators: []validator.String{
-							stringvalidator.LengthAtMost(1024),
-							stringvalidator.LengthAtLeast(1),
+							stringvalidator.Any(
+								stringvalidator.LengthBetween(0, 0),
+								stringvalidator.LengthAtMost(1024)),
 						},
 					},
 					"log_ingestion_kms_key_arn": schema.StringAttribute{
 						Optional:    true,
 						Description: "Optional KMS key ARN for S3 bucket encryption when log_ingestion_method is 's3'",
 						Validators: []validator.String{
-							stringvalidator.RegexMatches(
-								regexp.MustCompile(`^arn:(aws|aws-us-gov|aws-cn):kms:[a-z0-9-]+:[0-9]+:key/[a-f0-9-]+$`),
-								"must be in the format: arn:partition:kms:region:account:key/key-id",
-							),
+							stringvalidator.Any(
+								stringvalidator.LengthBetween(0, 0),
+								stringvalidator.RegexMatches(
+									regexp.MustCompile(`^arn:(aws|aws-us-gov|aws-cn):kms:[a-z0-9-]+:[0-9]+:key/[a-f0-9-]+$`),
+									"must be in the format: arn:partition:kms:region:account:key/key-id",
+								)),
 						},
 					},
 				},
