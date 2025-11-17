@@ -36,74 +36,75 @@ type preventionPolicyWindowsResource struct {
 
 // preventionPolicyWindowsResourceModel is the resource implementation.
 type preventionPolicyWindowsResourceModel struct {
-	ID                                        types.String `tfsdk:"id"`
-	Enabled                                   types.Bool   `tfsdk:"enabled"`
-	Name                                      types.String `tfsdk:"name"`
-	Description                               types.String `tfsdk:"description"`
-	HostGroups                                types.Set    `tfsdk:"host_groups"`
-	RuleGroups                                types.Set    `tfsdk:"ioa_rule_groups"`
-	LastUpdated                               types.String `tfsdk:"last_updated"`
-	CloudAntiMalwareForMicrosoftOfficeFiles   types.Object `tfsdk:"cloud_anti_malware_microsoft_office_files"`
-	ExtendedUserModeDataSlider                types.Object `tfsdk:"extended_user_mode_data"`
-	CloudAntiMalware                          types.Object `tfsdk:"cloud_anti_malware"`
-	AdwarePUP                                 types.Object `tfsdk:"adware_and_pup"`
-	OnSensorMLSlider                          types.Object `tfsdk:"sensor_anti_malware"`
-	OnSensorMLSliderForSensorEndUserScans     types.Object `tfsdk:"sensor_anti_malware_user_initiated"`
-	OnSensorMLSliderForCloudEndUserScans      types.Object `tfsdk:"cloud_anti_malware_user_initiated"`
-	AdditionalUserModeData                    types.Bool   `tfsdk:"additional_user_mode_data"`
-	EndUserNotifications                      types.Bool   `tfsdk:"notify_end_users"`
-	UnknownDetectionRelatedExecutables        types.Bool   `tfsdk:"upload_unknown_detection_related_executables"`
-	UnknownExecutables                        types.Bool   `tfsdk:"upload_unknown_executables"`
-	SensorTamperingProtection                 types.Bool   `tfsdk:"sensor_tampering_protection"`
-	InterpreterProtection                     types.Bool   `tfsdk:"interpreter_only"`
-	EngineProtectionV2                        types.Bool   `tfsdk:"engine_full_visibility"`
-	ScriptBasedExecutionMonitoring            types.Bool   `tfsdk:"script_based_execution_monitoring"`
-	HTTPDetections                            types.Bool   `tfsdk:"http_detections"`
-	RedactHTTPDetectionDetails                types.Bool   `tfsdk:"redact_http_detection_details"`
-	HardwareEnhancedExploitDetection          types.Bool   `tfsdk:"hardware_enhanced_exploit_detection"`
-	EnhancedExploitationVisibility            types.Bool   `tfsdk:"enhanced_exploitation_visibility"`
-	DLLLoadVisibility                         types.Bool   `tfsdk:"enhanced_dll_load_visibility"`
-	MemoryScan                                types.Bool   `tfsdk:"memory_scanning"`
-	CPUMemoryScan                             types.Bool   `tfsdk:"memory_scanning_scan_with_cpu"`
-	FirmwareAnalysisExtraction                types.Bool   `tfsdk:"bios_deep_visibility"`
-	MLLargeFileHandling                       types.Bool   `tfsdk:"enhanced_ml_for_larger_files"`
-	USBInsertionTriggeredScan                 types.Bool   `tfsdk:"usb_insertion_triggered_scan"`
-	DetectOnWrite                             types.Bool   `tfsdk:"detect_on_write"`
-	QuarantineOnWrite                         types.Bool   `tfsdk:"quarantine_on_write"`
-	OnWriteScriptFileVisibility               types.Bool   `tfsdk:"on_write_script_file_visibility"`
-	NextGenAV                                 types.Bool   `tfsdk:"quarantine_and_security_center_registration"`
-	NextGenAVQuarantineOnRemovableMedia       types.Bool   `tfsdk:"quarantine_on_removable_media"`
-	MicrosoftOfficeFileSuspiciousMacroRemoval types.Bool   `tfsdk:"microsoft_office_file_suspicious_macro_removal"`
-	CustomBlacklisting                        types.Bool   `tfsdk:"custom_blocking"`
-	PreventSuspiciousProcesses                types.Bool   `tfsdk:"prevent_suspicious_processes"`
-	SuspiciousRegistryOperations              types.Bool   `tfsdk:"suspicious_registry_operations"`
-	MaliciousPowershell                       types.Bool   `tfsdk:"suspicious_scripts_and_commands"`
-	IntelPrevention                           types.Bool   `tfsdk:"intelligence_sourced_threats"`
-	SuspiciousKernelDrivers                   types.Bool   `tfsdk:"driver_load_prevention"`
-	VulnerableDriverProtection                types.Bool   `tfsdk:"vulnerable_driver_protection"`
-	ForceASLR                                 types.Bool   `tfsdk:"force_aslr"`
-	ForceDEP                                  types.Bool   `tfsdk:"force_dep"`
-	HeapSprayPreallocation                    types.Bool   `tfsdk:"heap_spray_preallocation"`
-	NullPageAllocation                        types.Bool   `tfsdk:"null_page_allocation"`
-	SEHOverwriteProtection                    types.Bool   `tfsdk:"seh_overwrite_protection"`
-	BackupDeletion                            types.Bool   `tfsdk:"backup_deletion"`
-	Cryptowall                                types.Bool   `tfsdk:"cryptowall"`
-	FileEncryption                            types.Bool   `tfsdk:"file_encryption"`
-	Locky                                     types.Bool   `tfsdk:"locky"`
-	FileSystemAccess                          types.Bool   `tfsdk:"file_system_access"`
-	VolumeShadowCopyAudit                     types.Bool   `tfsdk:"volume_shadow_copy_audit"`
-	VolumeShadowCopyProtect                   types.Bool   `tfsdk:"volume_shadow_copy_protect"`
-	ApplicationExploitationActivity           types.Bool   `tfsdk:"application_exploitation_activity"`
-	ChopperWebshell                           types.Bool   `tfsdk:"chopper_webshell"`
-	DriveByDownload                           types.Bool   `tfsdk:"drive_by_download"`
-	ProcessHollowing                          types.Bool   `tfsdk:"code_injection"`
-	JavaScriptViaRundll32                     types.Bool   `tfsdk:"javascript_via_rundll32"`
-	WindowsLogonBypassStickyKeys              types.Bool   `tfsdk:"windows_logon_bypass_sticky_keys"`
-	CredentialDumping                         types.Bool   `tfsdk:"credential_dumping"`
-	AutomatedRemediation                      types.Bool   `tfsdk:"advanced_remediation"`
-	FileSystemContainmentEnabled              types.Bool   `tfsdk:"file_system_containment"`
-	BootConfigurationDatabaseProtection       types.Bool   `tfsdk:"boot_configuration_database_protection"`
-	WSL2Visibility                            types.Bool   `tfsdk:"wsl2_visibility"`
+	ID                                         types.String `tfsdk:"id"`
+	Enabled                                    types.Bool   `tfsdk:"enabled"`
+	Name                                       types.String `tfsdk:"name"`
+	Description                                types.String `tfsdk:"description"`
+	HostGroups                                 types.Set    `tfsdk:"host_groups"`
+	RuleGroups                                 types.Set    `tfsdk:"ioa_rule_groups"`
+	LastUpdated                                types.String `tfsdk:"last_updated"`
+	CloudAntiMalwareForMicrosoftOfficeFiles    types.Object `tfsdk:"cloud_anti_malware_microsoft_office_files"`
+	ExtendedUserModeDataSlider                 types.Object `tfsdk:"extended_user_mode_data"`
+	CloudAntiMalware                           types.Object `tfsdk:"cloud_anti_malware"`
+	AdwarePUP                                  types.Object `tfsdk:"adware_and_pup"`
+	OnSensorMLSlider                           types.Object `tfsdk:"sensor_anti_malware"`
+	OnSensorMLSliderForSensorEndUserScans      types.Object `tfsdk:"sensor_anti_malware_user_initiated"`
+	OnSensorMLSliderForCloudEndUserScans       types.Object `tfsdk:"cloud_anti_malware_user_initiated"`
+	CloudMLSliderForPupAdwareCloudEndUserScans types.Object `tfsdk:"cloud_adware_pup_user_initiated"`
+	AdditionalUserModeData                     types.Bool   `tfsdk:"additional_user_mode_data"`
+	EndUserNotifications                       types.Bool   `tfsdk:"notify_end_users"`
+	UnknownDetectionRelatedExecutables         types.Bool   `tfsdk:"upload_unknown_detection_related_executables"`
+	UnknownExecutables                         types.Bool   `tfsdk:"upload_unknown_executables"`
+	SensorTamperingProtection                  types.Bool   `tfsdk:"sensor_tampering_protection"`
+	InterpreterProtection                      types.Bool   `tfsdk:"interpreter_only"`
+	EngineProtectionV2                         types.Bool   `tfsdk:"engine_full_visibility"`
+	ScriptBasedExecutionMonitoring             types.Bool   `tfsdk:"script_based_execution_monitoring"`
+	HTTPDetections                             types.Bool   `tfsdk:"http_detections"`
+	RedactHTTPDetectionDetails                 types.Bool   `tfsdk:"redact_http_detection_details"`
+	HardwareEnhancedExploitDetection           types.Bool   `tfsdk:"hardware_enhanced_exploit_detection"`
+	EnhancedExploitationVisibility             types.Bool   `tfsdk:"enhanced_exploitation_visibility"`
+	DLLLoadVisibility                          types.Bool   `tfsdk:"enhanced_dll_load_visibility"`
+	MemoryScan                                 types.Bool   `tfsdk:"memory_scanning"`
+	CPUMemoryScan                              types.Bool   `tfsdk:"memory_scanning_scan_with_cpu"`
+	FirmwareAnalysisExtraction                 types.Bool   `tfsdk:"bios_deep_visibility"`
+	MLLargeFileHandling                        types.Bool   `tfsdk:"enhanced_ml_for_larger_files"`
+	USBInsertionTriggeredScan                  types.Bool   `tfsdk:"usb_insertion_triggered_scan"`
+	DetectOnWrite                              types.Bool   `tfsdk:"detect_on_write"`
+	QuarantineOnWrite                          types.Bool   `tfsdk:"quarantine_on_write"`
+	OnWriteScriptFileVisibility                types.Bool   `tfsdk:"on_write_script_file_visibility"`
+	NextGenAV                                  types.Bool   `tfsdk:"quarantine_and_security_center_registration"`
+	NextGenAVQuarantineOnRemovableMedia        types.Bool   `tfsdk:"quarantine_on_removable_media"`
+	MicrosoftOfficeFileSuspiciousMacroRemoval  types.Bool   `tfsdk:"microsoft_office_file_suspicious_macro_removal"`
+	CustomBlacklisting                         types.Bool   `tfsdk:"custom_blocking"`
+	PreventSuspiciousProcesses                 types.Bool   `tfsdk:"prevent_suspicious_processes"`
+	SuspiciousRegistryOperations               types.Bool   `tfsdk:"suspicious_registry_operations"`
+	MaliciousPowershell                        types.Bool   `tfsdk:"suspicious_scripts_and_commands"`
+	IntelPrevention                            types.Bool   `tfsdk:"intelligence_sourced_threats"`
+	SuspiciousKernelDrivers                    types.Bool   `tfsdk:"driver_load_prevention"`
+	VulnerableDriverProtection                 types.Bool   `tfsdk:"vulnerable_driver_protection"`
+	ForceASLR                                  types.Bool   `tfsdk:"force_aslr"`
+	ForceDEP                                   types.Bool   `tfsdk:"force_dep"`
+	HeapSprayPreallocation                     types.Bool   `tfsdk:"heap_spray_preallocation"`
+	NullPageAllocation                         types.Bool   `tfsdk:"null_page_allocation"`
+	SEHOverwriteProtection                     types.Bool   `tfsdk:"seh_overwrite_protection"`
+	BackupDeletion                             types.Bool   `tfsdk:"backup_deletion"`
+	Cryptowall                                 types.Bool   `tfsdk:"cryptowall"`
+	FileEncryption                             types.Bool   `tfsdk:"file_encryption"`
+	Locky                                      types.Bool   `tfsdk:"locky"`
+	FileSystemAccess                           types.Bool   `tfsdk:"file_system_access"`
+	VolumeShadowCopyAudit                      types.Bool   `tfsdk:"volume_shadow_copy_audit"`
+	VolumeShadowCopyProtect                    types.Bool   `tfsdk:"volume_shadow_copy_protect"`
+	ApplicationExploitationActivity            types.Bool   `tfsdk:"application_exploitation_activity"`
+	ChopperWebshell                            types.Bool   `tfsdk:"chopper_webshell"`
+	DriveByDownload                            types.Bool   `tfsdk:"drive_by_download"`
+	ProcessHollowing                           types.Bool   `tfsdk:"code_injection"`
+	JavaScriptViaRundll32                      types.Bool   `tfsdk:"javascript_via_rundll32"`
+	WindowsLogonBypassStickyKeys               types.Bool   `tfsdk:"windows_logon_bypass_sticky_keys"`
+	CredentialDumping                          types.Bool   `tfsdk:"credential_dumping"`
+	AutomatedRemediation                       types.Bool   `tfsdk:"advanced_remediation"`
+	FileSystemContainmentEnabled               types.Bool   `tfsdk:"file_system_containment"`
+	BootConfigurationDatabaseProtection        types.Bool   `tfsdk:"boot_configuration_database_protection"`
+	WSL2Visibility                             types.Bool   `tfsdk:"wsl2_visibility"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -575,18 +576,18 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		)...)
 	}
 
-	if config.USBInsertionTriggeredScan.ValueBool() {
+	if utils.IsKnown(config.USBInsertionTriggeredScan) && config.USBInsertionTriggeredScan.ValueBool() {
 		sensorDetection := "DISABLED"
 		cloudDetection := "DISABLED"
 
-		if !config.OnSensorMLSliderForSensorEndUserScans.IsNull() {
+		if utils.IsKnown(config.OnSensorMLSliderForSensorEndUserScans) {
 			var slider mlSlider
 			if diagsSlider := config.OnSensorMLSliderForSensorEndUserScans.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
 				sensorDetection = slider.Detection.ValueString()
 			}
 		}
 
-		if !config.OnSensorMLSliderForCloudEndUserScans.IsNull() {
+		if utils.IsKnown(config.OnSensorMLSliderForCloudEndUserScans) {
 			var slider mlSlider
 			if diagsSlider := config.OnSensorMLSliderForCloudEndUserScans.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
 				cloudDetection = slider.Detection.ValueString()
@@ -610,7 +611,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 			"suspicious_registry_operations",
 		)...)
 
-	if !config.CloudAntiMalwareForMicrosoftOfficeFiles.IsNull() {
+	if utils.IsKnown(config.CloudAntiMalwareForMicrosoftOfficeFiles) {
 		var slider mlSlider
 		if diagsSlider := config.CloudAntiMalwareForMicrosoftOfficeFiles.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
 			resp.Diagnostics.Append(
@@ -621,7 +622,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		}
 	}
 
-	if !config.CloudAntiMalware.IsNull() {
+	if utils.IsKnown(config.CloudAntiMalware) {
 		var slider mlSlider
 		if diagsSlider := config.CloudAntiMalware.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
 			resp.Diagnostics.Append(
@@ -632,7 +633,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		}
 	}
 
-	if !config.AdwarePUP.IsNull() {
+	if utils.IsKnown(config.AdwarePUP) {
 		var slider mlSlider
 		if diagsSlider := config.AdwarePUP.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
 			resp.Diagnostics.Append(
@@ -643,7 +644,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		}
 	}
 
-	if !config.OnSensorMLSlider.IsNull() {
+	if utils.IsKnown(config.OnSensorMLSlider) {
 		var slider mlSlider
 		if diagsSlider := config.OnSensorMLSlider.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
 			resp.Diagnostics.Append(
@@ -654,7 +655,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		}
 	}
 
-	if !config.OnSensorMLSliderForSensorEndUserScans.IsNull() {
+	if utils.IsKnown(config.OnSensorMLSliderForSensorEndUserScans) {
 		var slider mlSlider
 		if diagsSlider := config.OnSensorMLSliderForSensorEndUserScans.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
 			resp.Diagnostics.Append(
@@ -665,12 +666,23 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		}
 	}
 
-	if !config.OnSensorMLSliderForCloudEndUserScans.IsNull() {
+	if utils.IsKnown(config.OnSensorMLSliderForCloudEndUserScans) {
 		var slider mlSlider
 		if diagsSlider := config.OnSensorMLSliderForCloudEndUserScans.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
 			resp.Diagnostics.Append(
 				validateMlSlider(
 					"cloud_anti_malware_user_initiated",
+					slider,
+				)...)
+		}
+	}
+
+	if utils.IsKnown(config.CloudMLSliderForPupAdwareCloudEndUserScans) {
+		var slider mlSlider
+		if diagsSlider := config.CloudMLSliderForPupAdwareCloudEndUserScans.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
+			resp.Diagnostics.Append(
+				validateMlSlider(
+					"cloud_adware_pup_user_initiated",
 					slider,
 				)...)
 		}
@@ -878,6 +890,15 @@ func (r *preventionPolicyWindowsResource) assignPreventionSettings(
 		state.OnSensorMLSliderForCloudEndUserScans = objValue
 	}
 
+	if slider, ok := mlSliderSettings["CloudMLSliderForPupAdwareCloudEndUserScans"]; ok {
+		objValue, diagsObj := types.ObjectValueFrom(ctx, mlSlider{}.AttributeTypes(), slider)
+		diags.Append(diagsObj...)
+		if diags.HasError() {
+			return diags
+		}
+		state.CloudMLSliderForPupAdwareCloudEndUserScans = objValue
+	}
+
 	return diags
 }
 
@@ -1012,6 +1033,17 @@ func (r *preventionPolicyWindowsResource) generatePreventionSettings(
 			return preventionSettings, diags
 		}
 		mlSliderSettings["OnSensorMLSliderForCloudEndUserScans"] = slider
+	}
+
+	// Handle CloudMLSliderForPupAdwareCloudEndUserScans
+	if !config.CloudMLSliderForPupAdwareCloudEndUserScans.IsNull() {
+		var slider mlSlider
+		diagsSlider := config.CloudMLSliderForPupAdwareCloudEndUserScans.As(ctx, &slider, basetypes.ObjectAsOptions{})
+		diags.Append(diagsSlider...)
+		if diags.HasError() {
+			return preventionSettings, diags
+		}
+		mlSliderSettings["CloudMLSliderForPupAdwareCloudEndUserScans"] = slider
 	}
 
 	detectionMlSliderSettings := map[string]detectionMlSlider{}

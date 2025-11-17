@@ -30,6 +30,10 @@ resource "crowdstrike_default_prevention_policy_windows" "default" {
     "detection"  = "MODERATE"
     "prevention" = "CAUTIOUS"
   }
+  cloud_adware_pup_user_initiated = {
+    "detection"  = "MODERATE"
+    "prevention" = "CAUTIOUS"
+  }
   sensor_anti_malware = {
     "detection"  = "MODERATE"
     "prevention" = "CAUTIOUS"
