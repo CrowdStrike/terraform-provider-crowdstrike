@@ -1075,7 +1075,7 @@ func (r *cloudAWSAccountResource) Read(
 		}
 	}
 
-	resp.Diagnostics.Append(state.wrap(cloudAccount)...)
+	state.wrap(cloudAccount)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -1212,7 +1212,7 @@ func (r *cloudAWSAccountResource) getCloudAccount(
 	return res.Payload.Resources[0], true, diags
 }
 
-func (m *cloudAWSAccountModel) wrap(cloudAccount *models.DomainCloudAWSAccountV1) diag.Diagnostics {
+func (m *cloudAWSAccountModel) wrap(cloudAccount *models.DomainCloudAWSAccountV1) {
 	// Update S3 log ingestion fields from API response settings
 	// All APIs now use period notation consistently
 	m.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
@@ -1254,8 +1254,6 @@ func (m *cloudAWSAccountModel) wrap(cloudAccount *models.DomainCloudAWSAccountV1
 			}
 		}
 	}
-
-	return nil
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
@@ -1356,7 +1354,7 @@ func (r *cloudAWSAccountResource) Update(
 		cloudAccount, diags = r.createCloudAccount(ctx, plan)
 	}
 
-	resp.Diagnostics.Append(plan.wrap(cloudAccount)...)
+	plan.wrap(cloudAccount)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
