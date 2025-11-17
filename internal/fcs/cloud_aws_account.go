@@ -914,8 +914,6 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 }
 
 // Read refreshes the Terraform state with the latest data.
-//
-//nolint:gocyclo
 func (r *cloudAWSAccountResource) Read(
 	ctx context.Context,
 	req resource.ReadRequest,
@@ -1077,7 +1075,7 @@ func (r *cloudAWSAccountResource) Read(
 		}
 	}
 
-	resp.Diagnostics.Append(state.wrap(ctx, cloudAccount)...)
+	resp.Diagnostics.Append(state.wrap(cloudAccount)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -1214,7 +1212,7 @@ func (r *cloudAWSAccountResource) getCloudAccount(
 	return res.Payload.Resources[0], true, diags
 }
 
-func (m *cloudAWSAccountModel) wrap(context context.Context, cloudAccount *models.DomainCloudAWSAccountV1) diag.Diagnostics {
+func (m *cloudAWSAccountModel) wrap(cloudAccount *models.DomainCloudAWSAccountV1) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	if cloudAccount == nil {
@@ -1364,7 +1362,7 @@ func (r *cloudAWSAccountResource) Update(
 		cloudAccount, diags = r.createCloudAccount(ctx, plan)
 	}
 
-	resp.Diagnostics.Append(plan.wrap(ctx, cloudAccount)...)
+	resp.Diagnostics.Append(plan.wrap(cloudAccount)...)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
