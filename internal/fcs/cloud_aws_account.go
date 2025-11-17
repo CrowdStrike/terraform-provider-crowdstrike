@@ -1076,48 +1076,8 @@ func (r *cloudAWSAccountResource) Read(
 			resp.Diagnostics.Append(diagErr)
 		}
 	}
-	// Update S3 log ingestion fields from API response settings
-	// All APIs now use period notation consistently
-	state.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
-	state.RealtimeVisibility.LogIngestionS3BucketName = types.StringNull()
-	state.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringNull()
-	state.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringNull()
-	state.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringNull()
 
-	if cloudAccount != nil && cloudAccount.Settings != nil {
-		if settings, ok := cloudAccount.Settings.(map[string]interface{}); ok {
-			if method, exists := settings["log.ingestion.method"]; exists && method != nil {
-				if methodStr, ok := method.(string); ok {
-					state.RealtimeVisibility.LogIngestionMethod = types.StringValue(methodStr)
-				}
-			}
-
-			if bucketName, exists := settings["s3.log.ingestion.bucket.name"]; exists && bucketName != nil {
-				if bucketNameStr, ok := bucketName.(string); ok {
-					state.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue(bucketNameStr)
-				}
-			}
-
-			if snsTopicArn, exists := settings["s3.log.ingestion.sns.topic.arn"]; exists && snsTopicArn != nil {
-				if snsTopicArnStr, ok := snsTopicArn.(string); ok {
-					state.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue(snsTopicArnStr)
-				}
-			}
-
-			if bucketPrefix, exists := settings["s3.log.ingestion.bucket.prefix"]; exists && bucketPrefix != nil {
-				if bucketPrefixStr, ok := bucketPrefix.(string); ok {
-					state.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue(bucketPrefixStr)
-				}
-			}
-
-			if kmsKeyArn, exists := settings["s3.log.ingestion.kms.key.arn"]; exists && kmsKeyArn != nil {
-				if kmsKeyArnStr, ok := kmsKeyArn.(string); ok {
-					state.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringValue(kmsKeyArnStr)
-				}
-			}
-		}
-	}
-
+	resp.Diagnostics.Append(state.wrap(ctx, cloudAccount)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -1254,6 +1214,58 @@ func (r *cloudAWSAccountResource) getCloudAccount(
 	return res.Payload.Resources[0], true, diags
 }
 
+func (m *cloudAWSAccountModel) wrap(context context.Context, cloudAccount *models.DomainCloudAWSAccountV1) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if cloudAccount == nil {
+		return diags
+	}
+
+	// Update S3 log ingestion fields from API response settings
+	// All APIs now use period notation consistently
+	m.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
+	m.RealtimeVisibility.LogIngestionS3BucketName = types.StringNull()
+	m.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringNull()
+	m.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringNull()
+	m.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringNull()
+
+	if cloudAccount.Settings != nil {
+		if settings, ok := cloudAccount.Settings.(map[string]interface{}); ok {
+			if method, exists := settings["log.ingestion.method"]; exists && method != nil {
+				if methodStr, ok := method.(string); ok {
+					m.RealtimeVisibility.LogIngestionMethod = types.StringValue(methodStr)
+				}
+			}
+
+			if bucketName, exists := settings["s3.log.ingestion.bucket.name"]; exists && bucketName != nil {
+				if bucketNameStr, ok := bucketName.(string); ok {
+					m.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue(bucketNameStr)
+				}
+			}
+
+			if snsTopicArn, exists := settings["s3.log.ingestion.sns.topic.arn"]; exists && snsTopicArn != nil {
+				if snsTopicArnStr, ok := snsTopicArn.(string); ok {
+					m.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue(snsTopicArnStr)
+				}
+			}
+
+			if bucketPrefix, exists := settings["s3.log.ingestion.bucket.prefix"]; exists && bucketPrefix != nil {
+				if bucketPrefixStr, ok := bucketPrefix.(string); ok {
+					m.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue(bucketPrefixStr)
+				}
+			}
+
+			if kmsKeyArn, exists := settings["s3.log.ingestion.kms.key.arn"]; exists && kmsKeyArn != nil {
+				if kmsKeyArnStr, ok := kmsKeyArn.(string); ok {
+					m.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringValue(kmsKeyArnStr)
+				}
+			}
+		}
+	}
+
+	return diags
+}
+
 // Update updates the resource and sets the updated Terraform state on success.
 //
 //nolint:gocyclo
@@ -1352,48 +1364,7 @@ func (r *cloudAWSAccountResource) Update(
 		cloudAccount, diags = r.createCloudAccount(ctx, plan)
 	}
 
-	// Update S3 log ingestion fields from API response settings
-	// All APIs now use period notation consistently
-	plan.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
-	plan.RealtimeVisibility.LogIngestionS3BucketName = types.StringNull()
-	plan.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringNull()
-	plan.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringNull()
-	plan.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringNull()
-
-	if cloudAccount != nil && cloudAccount.Settings != nil {
-		if settings, ok := cloudAccount.Settings.(map[string]interface{}); ok {
-			if method, exists := settings["log.ingestion.method"]; exists && method != nil {
-				if methodStr, ok := method.(string); ok {
-					plan.RealtimeVisibility.LogIngestionMethod = types.StringValue(methodStr)
-				}
-			}
-
-			if bucketName, exists := settings["s3.log.ingestion.bucket.name"]; exists && bucketName != nil {
-				if bucketNameStr, ok := bucketName.(string); ok {
-					plan.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue(bucketNameStr)
-				}
-			}
-
-			if snsTopicArn, exists := settings["s3.log.ingestion.sns.topic.arn"]; exists && snsTopicArn != nil {
-				if snsTopicArnStr, ok := snsTopicArn.(string); ok {
-					plan.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue(snsTopicArnStr)
-				}
-			}
-
-			if bucketPrefix, exists := settings["s3.log.ingestion.bucket.prefix"]; exists && bucketPrefix != nil {
-				if bucketPrefixStr, ok := bucketPrefix.(string); ok {
-					plan.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue(bucketPrefixStr)
-				}
-			}
-
-			if kmsKeyArn, exists := settings["s3.log.ingestion.kms.key.arn"]; exists && kmsKeyArn != nil {
-				if kmsKeyArnStr, ok := kmsKeyArn.(string); ok {
-					plan.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringValue(kmsKeyArnStr)
-				}
-			}
-		}
-	}
-
+	resp.Diagnostics.Append(plan.wrap(ctx, cloudAccount)...)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
