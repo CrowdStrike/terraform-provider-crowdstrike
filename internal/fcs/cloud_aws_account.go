@@ -1213,12 +1213,6 @@ func (r *cloudAWSAccountResource) getCloudAccount(
 }
 
 func (m *cloudAWSAccountModel) wrap(cloudAccount *models.DomainCloudAWSAccountV1) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	if cloudAccount == nil {
-		return diags
-	}
-
 	// Update S3 log ingestion fields from API response settings
 	// All APIs now use period notation consistently
 	m.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
@@ -1261,7 +1255,7 @@ func (m *cloudAWSAccountModel) wrap(cloudAccount *models.DomainCloudAWSAccountV1
 		}
 	}
 
-	return diags
+	return nil
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
