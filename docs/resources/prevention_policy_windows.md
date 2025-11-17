@@ -57,6 +57,10 @@ resource "crowdstrike_prevention_policy_windows" "example" {
     "detection"  = "MODERATE"
     "prevention" = "CAUTIOUS"
   }
+  cloud_adware_pup_user_initiated = {
+    "detection"  = "MODERATE"
+    "prevention" = "CAUTIOUS"
+  }
   sensor_anti_malware = {
     "detection"  = "MODERATE"
     "prevention" = "CAUTIOUS"
@@ -148,6 +152,7 @@ output "prevention_policy_windows" {
 - `bios_deep_visibility` (Boolean) Whether to enable the setting. Provides visibility into BIOS. Detects suspicious and unexpected images. Recommend testing to monitor system startup performance before full deployment.
 - `boot_configuration_database_protection` (Boolean) Whether to enable the setting. Block BCD registry operations that CrowdStrike analysts classify as suspicious. Focuses on dynamic IOAs, such as security config changes. The associated process may be killed. Requires suspicious_registry_operations to be enabled.
 - `chopper_webshell` (Boolean) Whether to enable the setting. Execution of a command shell was blocked and is indicative of the system hosting a Chopper web page.
+- `cloud_adware_pup_user_initiated` (Attributes) For online hosts running on-demand scans initiated by end users, use cloud-based machine learning informed by global analysis of executables to detect and prevent known PUP and Adware. (see [below for nested schema](#nestedatt--cloud_adware_pup_user_initiated))
 - `cloud_anti_malware` (Attributes) Use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware for your online hosts. (see [below for nested schema](#nestedatt--cloud_anti_malware))
 - `cloud_anti_malware_microsoft_office_files` (Attributes) Identifies potentially malicious macros in Microsoft Office files and, if prevention is enabled, either quarantines the file or removes the malicious macros before releasing the file back to the host (see [below for nested schema](#nestedatt--cloud_anti_malware_microsoft_office_files))
 - `cloud_anti_malware_user_initiated` (Attributes) For online hosts running on-demand scans initiated by end users, use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware. (see [below for nested schema](#nestedatt--cloud_anti_malware_user_initiated))
@@ -211,6 +216,15 @@ output "prevention_policy_windows" {
 
 <a id="nestedatt--adware_and_pup"></a>
 ### Nested Schema for `adware_and_pup`
+
+Required:
+
+- `detection` (String) Machine learning level for detection.
+- `prevention` (String) Machine learning level for prevention.
+
+
+<a id="nestedatt--cloud_adware_pup_user_initiated"></a>
+### Nested Schema for `cloud_adware_pup_user_initiated`
 
 Required:
 
