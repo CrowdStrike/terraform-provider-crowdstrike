@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -61,22 +62,31 @@ func SliceToListTypeString(
 }
 
 // SliceToListTypeObject converts []T into types.List with an attr.Type of types.Object{}.
+// Empty or null []T will result in an types.List with the state of Known.
+// Nil pointers in the slice are filtered out before conversion.
 func SliceToListTypeObject[T any](
 	ctx context.Context,
 	elems []T,
 	attrs map[string]attr.Type,
 	diags *diag.Diagnostics,
 ) types.List {
-
 	elemsSlice := make([]T, 0, len(elems))
-	elemsSlice = append(elemsSlice, elems...)
+
+	for _, elem := range elems {
+		v := reflect.ValueOf(elem)
+		if v.Kind() == reflect.Ptr && v.IsNil() {
+			continue
+		}
+		elemsSlice = append(elemsSlice, elem)
+	}
+
 	elemList, err := types.ListValueFrom(
 		ctx,
 		types.ObjectType{AttrTypes: attrs},
 		elemsSlice,
 	)
-
 	diags.Append(err...)
+
 	return elemList
 }
 
