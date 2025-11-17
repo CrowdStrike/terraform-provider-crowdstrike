@@ -27,6 +27,10 @@ resource "crowdstrike_prevention_policy_windows" "test" {
     detection  = "MODERATE"
     prevention = "MODERATE"
   }
+  cloud_adware_pup_user_initiated = {
+    detection  = "CAUTIOUS"
+    prevention = "CAUTIOUS"
+  }
 }
 `, rName, enabled)
 }
@@ -50,6 +54,10 @@ resource "crowdstrike_prevention_policy_windows" "test" {
   wsl2_visibility                        = false
   cloud_anti_malware_microsoft_office_files = {
     detection  = "MODERATE"
+    prevention = "DISABLED"
+  }
+  cloud_adware_pup_user_initiated = {
+    detection  = "DISABLED"
     prevention = "DISABLED"
   }
 }
@@ -213,6 +221,16 @@ func TestAccPreventionPolicyWindowsResource(t *testing.T) {
 						"cloud_anti_malware_microsoft_office_files.prevention",
 						"MODERATE",
 					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"cloud_adware_pup_user_initiated.detection",
+						"CAUTIOUS",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"cloud_adware_pup_user_initiated.prevention",
+						"CAUTIOUS",
+					),
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
@@ -275,6 +293,16 @@ func TestAccPreventionPolicyWindowsResource(t *testing.T) {
 					resource.TestCheckResourceAttr(
 						resourceName,
 						"cloud_anti_malware_microsoft_office_files.prevention",
+						"DISABLED",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"cloud_adware_pup_user_initiated.detection",
+						"DISABLED",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"cloud_adware_pup_user_initiated.prevention",
 						"DISABLED",
 					),
 					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "1"),

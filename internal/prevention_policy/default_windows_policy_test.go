@@ -36,6 +36,11 @@ resource "crowdstrike_default_prevention_policy_windows" "test" {
     detection  = "MODERATE"
     prevention = "MODERATE"
   }
+
+  cloud_adware_pup_user_initiated = {
+    detection  = "CAUTIOUS"
+    prevention = "CAUTIOUS"
+  }
 }`
 }
 
@@ -53,6 +58,11 @@ resource "crowdstrike_default_prevention_policy_windows" "test" {
 
   cloud_anti_malware_microsoft_office_files = {
     detection  = "MODERATE"
+    prevention = "DISABLED"
+  }
+
+  cloud_adware_pup_user_initiated = {
+    detection  = "DISABLED"
     prevention = "DISABLED"
   }
 }
@@ -204,6 +214,16 @@ func TestAccDefaultPreventionPolicyWindowsResource(t *testing.T) {
 						"cloud_anti_malware_microsoft_office_files.prevention",
 						"MODERATE",
 					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"cloud_adware_pup_user_initiated.detection",
+						"CAUTIOUS",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"cloud_adware_pup_user_initiated.prevention",
+						"CAUTIOUS",
+					),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
 				),
@@ -257,6 +277,16 @@ func TestAccDefaultPreventionPolicyWindowsResource(t *testing.T) {
 					resource.TestCheckResourceAttr(
 						resourceName,
 						"cloud_anti_malware_microsoft_office_files.prevention",
+						"DISABLED",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"cloud_adware_pup_user_initiated.detection",
+						"DISABLED",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"cloud_adware_pup_user_initiated.prevention",
 						"DISABLED",
 					),
 					resource.TestCheckResourceAttr(resourceName, "ioa_rule_groups.#", "1"),

@@ -426,7 +426,7 @@ func (r *preventionPolicyMacResource) ValidateConfig(
 			"detect_on_write",
 		)...)
 
-	if !config.CloudAntiMalware.IsNull() {
+	if utils.IsKnown(config.CloudAntiMalware) {
 		var slider mlSlider
 		if diagsSlider := config.CloudAntiMalware.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
 			resp.Diagnostics.Append(
@@ -437,7 +437,7 @@ func (r *preventionPolicyMacResource) ValidateConfig(
 		}
 	}
 
-	if !config.AdwarePUP.IsNull() {
+	if utils.IsKnown(config.AdwarePUP) {
 		var slider mlSlider
 		if diagsSlider := config.AdwarePUP.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
 			resp.Diagnostics.Append(
@@ -448,7 +448,7 @@ func (r *preventionPolicyMacResource) ValidateConfig(
 		}
 	}
 
-	if !config.OnSensorMLSlider.IsNull() {
+	if utils.IsKnown(config.OnSensorMLSlider) {
 		var slider mlSlider
 		if diagsSlider := config.OnSensorMLSlider.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
 			resp.Diagnostics.Append(
@@ -459,7 +459,7 @@ func (r *preventionPolicyMacResource) ValidateConfig(
 		}
 	}
 
-	if !config.OnSensorMLAdwarePUPSlider.IsNull() {
+	if utils.IsKnown(config.OnSensorMLAdwarePUPSlider) {
 		var slider mlSlider
 		if diagsSlider := config.OnSensorMLAdwarePUPSlider.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
 			resp.Diagnostics.Append(

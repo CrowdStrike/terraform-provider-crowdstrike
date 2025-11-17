@@ -409,7 +409,7 @@ func (r *preventionPolicyLinuxResource) ValidateConfig(
 	resp.Diagnostics.Append(utils.ValidateEmptyIDs(ctx, config.HostGroups, "host_groups")...)
 	resp.Diagnostics.Append(utils.ValidateEmptyIDs(ctx, config.RuleGroups, "ioa_rule_groups")...)
 
-	if !config.CloudAntiMalware.IsNull() {
+	if utils.IsKnown(config.CloudAntiMalware) {
 		var slider mlSlider
 		if diagsSlider := config.CloudAntiMalware.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
 			resp.Diagnostics.Append(
@@ -420,7 +420,7 @@ func (r *preventionPolicyLinuxResource) ValidateConfig(
 		}
 	}
 
-	if !config.OnSensorMLSlider.IsNull() {
+	if utils.IsKnown(config.OnSensorMLSlider) {
 		var slider mlSlider
 		if diagsSlider := config.OnSensorMLSlider.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
 			resp.Diagnostics.Append(

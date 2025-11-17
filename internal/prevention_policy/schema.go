@@ -263,6 +263,9 @@ func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 			"cloud_anti_malware_user_initiated": mlSLiderAttribute(
 				"For online hosts running on-demand scans initiated by end users, use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware.",
 			),
+			"cloud_adware_pup_user_initiated": mlSLiderAttribute(
+				"For online hosts running on-demand scans initiated by end users, use cloud-based machine learning informed by global analysis of executables to detect and prevent known PUP and Adware.",
+			),
 			"file_system_containment": toggleAttribute(
 				"File System Containment will be enabled, this will allow prevention capabilities to automatically contain file system activity.  When disabled each user under active containment will be released and the File System Containment will enter a disabled mode",
 			),
