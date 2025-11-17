@@ -914,6 +914,8 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 }
 
 // Read refreshes the Terraform state with the latest data.
+//
+//nolint:gocyclo
 func (r *cloudAWSAccountResource) Read(
 	ctx context.Context,
 	req resource.ReadRequest,
@@ -1253,6 +1255,8 @@ func (r *cloudAWSAccountResource) getCloudAccount(
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
+//
+//nolint:gocyclo
 func (r *cloudAWSAccountResource) Update(
 	ctx context.Context,
 	req resource.UpdateRequest,
