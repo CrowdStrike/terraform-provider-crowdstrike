@@ -46,6 +46,7 @@ type realtimeVisibilityOptions struct {
 	Enabled               types.Bool   `tfsdk:"enabled"`
 	CloudTrailRegion      types.String `tfsdk:"cloudtrail_region"`
 	UseExistingCloudTrail types.Bool   `tfsdk:"use_existing_cloudtrail"`
+	Regions               types.List   `tfsdk:"regions"`
 }
 
 type idpOptions struct {
@@ -60,11 +61,13 @@ type sensorManagementOptions struct {
 type dspmOptions struct {
 	Enabled  types.Bool   `tfsdk:"enabled"`
 	RoleName types.String `tfsdk:"role_name"`
+	Regions  types.List   `tfsdk:"regions"`
 }
 
 type vulnerabilityScanningOptions struct {
 	Enabled  types.Bool   `tfsdk:"enabled"`
 	RoleName types.String `tfsdk:"role_name"`
+	Regions  types.List   `tfsdk:"regions"`
 }
 
 // cloudStateKey the private state key used in terraform.
@@ -303,6 +306,14 @@ func (r *cloudAWSAccountResource) Schema(
 						Default:     booldefault.StaticBool(true),
 						Description: "Set to true if a CloudTrail already exists",
 					},
+					"regions": schema.ListAttribute{
+						Optional:    true,
+						Description: "List of AWS regions for Real-Time Visibility and Detection. Set to ['all'] to ingest events from all regions, or specify a list of specific regions",
+						ElementType: types.StringType,
+						Validators: []validator.List{
+							AWSRegionsOrAllListValidator(),
+						},
+					},
 				},
 				Default: objectdefault.StaticValue(
 					types.ObjectValueMust(
@@ -310,11 +321,13 @@ func (r *cloudAWSAccountResource) Schema(
 							"enabled":                 types.BoolType,
 							"cloudtrail_region":       types.StringType,
 							"use_existing_cloudtrail": types.BoolType,
+							"regions":                 types.ListType{ElemType: types.StringType},
 						},
 						map[string]attr.Value{
 							"enabled":                 types.BoolValue(false),
 							"cloudtrail_region":       types.StringNull(),
 							"use_existing_cloudtrail": types.BoolValue(true),
+							"regions":                 types.ListValueMust(types.StringType, []attr.Value{}),
 						},
 					),
 				),
@@ -404,16 +417,29 @@ func (r *cloudAWSAccountResource) Schema(
 							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
+					"regions": schema.ListAttribute{
+						Optional:    true,
+						Description: "List of AWS regions for Data Security Posture Management",
+						ElementType: types.StringType,
+						Validators: []validator.List{
+							listvalidator.SizeAtLeast(1),
+							listvalidator.ValueStringsAre(
+								AWSRegionValidator(),
+							),
+						},
+					},
 				},
 				Default: objectdefault.StaticValue(
 					types.ObjectValueMust(
 						map[string]attr.Type{
 							"enabled":   types.BoolType,
 							"role_name": types.StringType,
+							"regions":   types.ListType{ElemType: types.StringType},
 						},
 						map[string]attr.Value{
 							"enabled":   types.BoolValue(false),
 							"role_name": types.StringNull(),
+							"regions":   types.ListValueMust(types.StringType, []attr.Value{}),
 						},
 					),
 				),
@@ -440,16 +466,29 @@ func (r *cloudAWSAccountResource) Schema(
 							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
+					"regions": schema.ListAttribute{
+						Optional:    true,
+						Description: "List of AWS regions for Vulnerability Scanning",
+						ElementType: types.StringType,
+						Validators: []validator.List{
+							listvalidator.SizeAtLeast(1),
+							listvalidator.ValueStringsAre(
+								AWSRegionValidator(),
+							),
+						},
+					},
 				},
 				Default: objectdefault.StaticValue(
 					types.ObjectValueMust(
 						map[string]attr.Type{
 							"enabled":   types.BoolType,
 							"role_name": types.StringType,
+							"regions":   types.ListType{ElemType: types.StringType},
 						},
 						map[string]attr.Value{
 							"enabled":   types.BoolValue(false),
 							"role_name": types.StringNull(),
+							"regions":   types.ListValueMust(types.StringType, []attr.Value{}),
 						},
 					),
 				),
@@ -753,7 +792,6 @@ func (r *cloudAWSAccountResource) createCSPMAccount(
 func (r *cloudAWSAccountResource) createCloudAccount(
 	ctx context.Context,
 	model cloudAWSAccountModel,
-
 ) (*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	createAccount := models.RestCloudAWSAccountCreateExtV1{
@@ -764,6 +802,38 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 		ResourceNamePrefix: model.ResourceNamePrefix.ValueString(),
 		ResourceNameSuffix: model.ResourceNameSuffix.ValueString(),
 	}
+
+	// Add regions - always set to empty array when null so API knows to clear regions
+	if model.RealtimeVisibility != nil {
+		var rtvdRegions []string
+		if !model.RealtimeVisibility.Regions.IsNull() && !model.RealtimeVisibility.Regions.IsUnknown() {
+			diags.Append(model.RealtimeVisibility.Regions.ElementsAs(ctx, &rtvdRegions, false)...)
+		}
+		if !diags.HasError() {
+			createAccount.IoaRegions = rtvdRegions
+		}
+	}
+
+	if model.DSPM != nil {
+		var dspmRegions []string
+		if !model.DSPM.Regions.IsNull() && !model.DSPM.Regions.IsUnknown() {
+			diags.Append(model.DSPM.Regions.ElementsAs(ctx, &dspmRegions, false)...)
+		}
+		if !diags.HasError() {
+			createAccount.DspmRegions = dspmRegions
+		}
+	}
+
+	if model.VulnerabilityScanning != nil {
+		var vulnRegions []string
+		if !model.VulnerabilityScanning.Regions.IsNull() && !model.VulnerabilityScanning.Regions.IsUnknown() {
+			diags.Append(model.VulnerabilityScanning.Regions.ElementsAs(ctx, &vulnRegions, false)...)
+		}
+		if !diags.HasError() {
+			createAccount.VulnerabilityScanningRegions = vulnRegions
+		}
+	}
+
 	if model.RealtimeVisibility != nil && model.RealtimeVisibility.Enabled.ValueBool() {
 		createAccount.CspEvents = true
 	}
@@ -823,6 +893,8 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 }
 
 // Read refreshes the Terraform state with the latest data.
+//
+//nolint:gocyclo
 func (r *cloudAWSAccountResource) Read(
 	ctx context.Context,
 	req resource.ReadRequest,
@@ -1011,6 +1083,21 @@ func (r *cloudAWSAccountResource) Read(
 		}
 		state.ResourceNamePrefix = types.StringValue(cloudAccount.ResourceNamePrefix)
 		state.ResourceNameSuffix = types.StringValue(cloudAccount.ResourceNameSuffix)
+
+		// Parse regions from Settings map
+		diags := parseRegionsFromSettings(ctx, cloudAccount.Settings, &state)
+		resp.Diagnostics.Append(diags...)
+	} else {
+		// Cloud Registration account doesn't exist - set regions to null
+		if state.RealtimeVisibility != nil {
+			state.RealtimeVisibility.Regions = types.ListNull(types.StringType)
+		}
+		if state.DSPM != nil {
+			state.DSPM.Regions = types.ListNull(types.StringType)
+		}
+		if state.VulnerabilityScanning != nil {
+			state.VulnerabilityScanning.Regions = types.ListNull(types.StringType)
+		}
 	}
 
 	cloudAccPrivateState, err := json.Marshal(cloudAccState)
@@ -1189,6 +1276,9 @@ func (r *cloudAWSAccountResource) Update(
 
 	plan.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
 
+	// Preserve regions from the plan (these are input from the user and not returned from CSPM API)
+	// The regions are only used in Cloud Registration API calls
+
 	plan.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
 	if cspmAccount.AwsCloudtrailRegion != "" {
 		plan.RealtimeVisibility.CloudTrailRegion = types.StringValue(
@@ -1278,7 +1368,6 @@ func (r *cloudAWSAccountResource) updateCSPMAccount(
 			},
 		},
 	)
-
 	if err != nil {
 		if _, ok := err.(*cspm_registration.PatchCSPMAwsAccountForbidden); ok {
 			diags.AddError(
@@ -1321,6 +1410,38 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 		ResourceNamePrefix: model.ResourceNamePrefix.ValueString(),
 		ResourceNameSuffix: model.ResourceNameSuffix.ValueString(),
 	}
+
+	// Add regions - always set to empty array when null so API knows to clear regions
+	if model.RealtimeVisibility != nil {
+		var rtvdRegions []string
+		if !model.RealtimeVisibility.Regions.IsNull() && !model.RealtimeVisibility.Regions.IsUnknown() {
+			diags.Append(model.RealtimeVisibility.Regions.ElementsAs(ctx, &rtvdRegions, false)...)
+		}
+		if !diags.HasError() {
+			patchAccount.IoaRegions = rtvdRegions
+		}
+	}
+
+	if model.DSPM != nil {
+		var dspmRegions []string
+		if !model.DSPM.Regions.IsNull() && !model.DSPM.Regions.IsUnknown() {
+			diags.Append(model.DSPM.Regions.ElementsAs(ctx, &dspmRegions, false)...)
+		}
+		if !diags.HasError() {
+			patchAccount.DspmRegions = dspmRegions
+		}
+	}
+
+	if model.VulnerabilityScanning != nil {
+		var vulnRegions []string
+		if !model.VulnerabilityScanning.Regions.IsNull() && !model.VulnerabilityScanning.Regions.IsUnknown() {
+			diags.Append(model.VulnerabilityScanning.Regions.ElementsAs(ctx, &vulnRegions, false)...)
+		}
+		if !diags.HasError() {
+			patchAccount.VulnerabilityScanningRegions = vulnRegions
+		}
+	}
+
 	if model.AssetInventory != nil && model.AssetInventory.Enabled.ValueBool() {
 		patchAccount.CspEvents = true
 	}
@@ -1345,7 +1466,6 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 			},
 		},
 	)
-
 	if err != nil {
 		if _, ok := err.(*cloud_aws_registration.CloudRegistrationAwsUpdateAccountForbidden); ok {
 			diags.AddError(
@@ -1501,7 +1621,7 @@ func (r *cloudAWSAccountResource) deleteCloudAccount(
 
 // Configure adds the provider configured client to the resource.
 func (r *cloudAWSAccountResource) Configure(
-	ctx context.Context,
+	_ context.Context,
 	req resource.ConfigureRequest,
 	resp *resource.ConfigureResponse,
 ) {
@@ -1509,7 +1629,7 @@ func (r *cloudAWSAccountResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	apiClient, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
 
 	if !ok {
 		resp.Diagnostics.AddError(
@@ -1523,7 +1643,7 @@ func (r *cloudAWSAccountResource) Configure(
 		return
 	}
 
-	r.client = client
+	r.client = apiClient
 }
 
 // ImportState implements the logic to support resource imports.
@@ -1568,4 +1688,83 @@ func (r *cloudAWSAccountResource) ValidateConfig(
 			)
 		}
 	}
+}
+
+// parseRegionsFromSettings parses region information from the cloudAccount Settings map
+// and populates the appropriate region fields in the state model.
+func parseRegionsFromSettings(ctx context.Context, settings interface{}, state *cloudAWSAccountModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if settings == nil {
+		return diags
+	}
+
+	settingsMap, ok := settings.(map[string]string)
+	if !ok {
+		return diags
+	}
+
+	// Helper function to parse comma-separated regions
+	parseRegions := func(regionStr string) (types.List, diag.Diagnostics) {
+		if regionStr == "" {
+			return types.ListNull(types.StringType), diag.Diagnostics{}
+		}
+		regions := strings.Split(regionStr, ",")
+		for i, region := range regions {
+			regions[i] = strings.TrimSpace(region)
+		}
+		return types.ListValueFrom(ctx, types.StringType, regions)
+	}
+
+	// Parse RTVD regions - always set (null if not present)
+	rtvdRegionsStr := settingsMap["rtvd.regions"]
+	if regionsList, regionDiags := parseRegions(rtvdRegionsStr); !regionDiags.HasError() {
+		state.RealtimeVisibility.Regions = regionsList
+	} else {
+		diags.Append(regionDiags...)
+	}
+
+	// Parse DSPM regions - always set (null if not present)
+	dspmRegionsStr := settingsMap["dspm.regions"]
+	if regionsList, regionDiags := parseRegions(dspmRegionsStr); !regionDiags.HasError() {
+		state.DSPM.Regions = regionsList
+	} else {
+		diags.Append(regionDiags...)
+	}
+
+	// Parse Vulnerability Scanning regions - always set (null if not present)
+	vulnRegionsStr := settingsMap["vulnerability_scanning.regions"]
+	if regionsList, regionDiags := parseRegions(vulnRegionsStr); !regionDiags.HasError() {
+		state.VulnerabilityScanning.Regions = regionsList
+	} else {
+		diags.Append(regionDiags...)
+	}
+
+	return diags
+}
+
+// TestParseRegionsFromSettings is a test helper function that creates the test state and calls ParseRegionsFromSettings.
+func TestParseRegionsFromSettings(ctx context.Context, settings interface{}) (rtvdRegions, dspmRegions, vulnRegions []string, diags diag.Diagnostics) {
+	// Initialize state model for testing
+	state := &cloudAWSAccountModel{
+		RealtimeVisibility:    &realtimeVisibilityOptions{},
+		DSPM:                  &dspmOptions{},
+		VulnerabilityScanning: &vulnerabilityScanningOptions{},
+	}
+
+	// Call the actual function
+	diags = parseRegionsFromSettings(ctx, settings, state)
+
+	// Extract regions for verification
+	if !state.RealtimeVisibility.Regions.IsNull() {
+		state.RealtimeVisibility.Regions.ElementsAs(ctx, &rtvdRegions, false)
+	}
+	if !state.DSPM.Regions.IsNull() {
+		state.DSPM.Regions.ElementsAs(ctx, &dspmRegions, false)
+	}
+	if !state.VulnerabilityScanning.Regions.IsNull() {
+		state.VulnerabilityScanning.Regions.ElementsAs(ctx, &vulnRegions, false)
+	}
+
+	return rtvdRegions, dspmRegions, vulnRegions, diags
 }
