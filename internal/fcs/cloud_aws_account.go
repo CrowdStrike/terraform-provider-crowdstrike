@@ -1075,10 +1075,11 @@ func (r *cloudAWSAccountResource) Read(
 		}
 	}
 
-	state.wrap(cloudAccount)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	state.wrap(cloudAccount)
 
 	if oldState.IDP != nil {
 		state.IDP = oldState.IDP
@@ -1354,11 +1355,11 @@ func (r *cloudAWSAccountResource) Update(
 		cloudAccount, diags = r.createCloudAccount(ctx, plan)
 	}
 
-	plan.wrap(cloudAccount)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	plan.wrap(cloudAccount)
 
 	plan.IDP = &idpOptions{
 		Enabled: types.BoolValue(false),
