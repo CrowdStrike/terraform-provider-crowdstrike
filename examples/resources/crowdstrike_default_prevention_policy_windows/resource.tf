@@ -99,6 +99,7 @@ resource "crowdstrike_default_prevention_policy_windows" "default" {
   file_system_containment                        = true
   wsl2_visibility                                = true
   boot_configuration_database_protection         = true
+  suspicious_file_analysis                       = true
 }
 
 output "default_prevention_policy_windows" {

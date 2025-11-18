@@ -42,6 +42,10 @@ resource "crowdstrike_prevention_policy_linux" "example" {
   on_write_script_file_visibility              = true
   memory_visibility                            = true
   extended_command_line_visibility             = true
+  dbus_visibility                              = true
+  enhance_php_visibility                       = true
+  enhance_environment_variable_visibility      = true
+  suspicious_file_analysis                     = true
 }
 
 output "prevention_policy_linux" {

@@ -102,6 +102,7 @@ resource "crowdstrike_prevention_policy_windows" "example" {
   file_system_containment                        = true
   wsl2_visibility                                = true
   boot_configuration_database_protection         = true
+  suspicious_file_analysis                       = false
 }
 
 output "prevention_policy_windows" {

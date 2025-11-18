@@ -99,6 +99,7 @@ type defaultPreventionPolicyWindowsResourceModel struct {
 	FileSystemContainmentEnabled               types.Bool   `tfsdk:"file_system_containment"`
 	BootConfigurationDatabaseProtection        types.Bool   `tfsdk:"boot_configuration_database_protection"`
 	WSL2Visibility                             types.Bool   `tfsdk:"wsl2_visibility"`
+	SuspiciousFileAnalysis                     types.Bool   `tfsdk:"suspicious_file_analysis"`
 }
 
 // wrap transforms Go values to their terraform wrapped values.
@@ -181,6 +182,7 @@ func (m *defaultPreventionPolicyWindowsResourceModel) generatePreventionSettings
 		"FileSystemContainmentEnabled":              m.FileSystemContainmentEnabled,
 		"BootConfigurationDatabaseProtection":       m.BootConfigurationDatabaseProtection,
 		"WSL2Visibility":                            m.WSL2Visibility,
+		"SuspiciousFileAnalysis":                    m.SuspiciousFileAnalysis,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}
@@ -396,6 +398,7 @@ func (m *defaultPreventionPolicyWindowsResourceModel) assignPreventionSettings(
 		toggleSettings["BootConfigurationDatabaseProtection"],
 	)
 	m.WSL2Visibility = defaultBoolFalse(toggleSettings["WSL2Visibility"])
+	m.SuspiciousFileAnalysis = defaultBoolFalse(toggleSettings["SuspiciousFileAnalysis"])
 
 	// mlslider settings
 	if detectionSlider, ok := detectionMlSliderSettings["ExtendedUserModeDataSlider"]; ok {

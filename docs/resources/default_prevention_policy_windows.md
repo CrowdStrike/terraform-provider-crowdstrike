@@ -123,6 +123,7 @@ resource "crowdstrike_default_prevention_policy_windows" "default" {
   file_system_containment                        = true
   wsl2_visibility                                = true
   boot_configuration_database_protection         = true
+  suspicious_file_analysis                       = true
 }
 
 output "default_prevention_policy_windows" {
@@ -192,6 +193,7 @@ output "default_prevention_policy_windows" {
 - `sensor_anti_malware` (Attributes) For offline and online hosts, use sensor-based machine learning to identify and analyze unknown executables as they run to detect and prevent malware. (see [below for nested schema](#nestedatt--sensor_anti_malware))
 - `sensor_anti_malware_user_initiated` (Attributes) For offline and online hosts running on-demand scans initiated by end users, use sensor-based machine learning to identify and analyze unknown executables to detect and prevent malware. (see [below for nested schema](#nestedatt--sensor_anti_malware_user_initiated))
 - `sensor_tampering_protection` (Boolean) Whether to enable the setting. Blocks attempts to tamper with the sensor. If disabled, the sensor still creates detections for tampering attempts but doesn’t block them. Disabling not recommended.
+- `suspicious_file_analysis` (Boolean) Whether to enable the setting. Upload suspicious files for advanced threat analysis with QuickScan Pro.
 - `suspicious_registry_operations` (Boolean) Whether to enable the setting. Block registry operations that CrowdStrike analysts classify as suspicious. Focuses on dynamic IOAs, such as ASEPs and security config changes. The associated process may be killed.
 - `suspicious_scripts_and_commands` (Boolean) Whether to enable the setting. Block execution of scripts and commands that CrowdStrike analysts classify as suspicious. Requires Interpreter-Only and/or Script-Based Execution Monitoring.
 - `upload_unknown_detection_related_executables` (Boolean) Whether to enable the setting. Upload all unknown detection-related executables for advanced analysis in the cloud.
