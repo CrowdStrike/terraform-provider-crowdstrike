@@ -33,18 +33,20 @@ func TestAccCloudSecurityGroupResource_Basic(t *testing.T) {
 					resource.TestCheckNoResourceAttr(resourceName, "gcp"),
 					resource.TestCheckNoResourceAttr(resourceName, "images"),
 					resource.TestCheckResourceAttrSet(resourceName, "created_at"),
-					resource.TestCheckResourceAttrSet(resourceName, "updated_at"),
+					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
 					resource.TestCheckResourceAttrSet(resourceName, "created_by"),
 				),
 			},
 			{
-				ResourceName:      resourceName,
-				ImportState:       true,
-				ImportStateVerify: true,
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"last_updated"},
 			},
 		},
 	})
 }
+
 func TestAccCloudSecurityGroupResource_CloudProviders(t *testing.T) {
 	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resourceName := "crowdstrike_cloud_group.test"
@@ -81,7 +83,7 @@ func TestAccCloudSecurityGroupResource_CloudProviders(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "gcp.filters.region.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "gcp.filters.region.0", "us-central1"),
 					resource.TestCheckResourceAttrSet(resourceName, "created_at"),
-					resource.TestCheckResourceAttrSet(resourceName, "updated_at"),
+					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
 					resource.TestCheckResourceAttrSet(resourceName, "created_by"),
 				),
 			},
@@ -117,13 +119,14 @@ func TestAccCloudSecurityGroupResource_CloudProviders(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "gcp.filters.region.0", "us-central1"),
 					resource.TestCheckResourceAttr(resourceName, "gcp.filters.region.1", "us-east1"),
 					resource.TestCheckResourceAttrSet(resourceName, "created_at"),
-					resource.TestCheckResourceAttrSet(resourceName, "updated_at"),
+					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
 				),
 			},
 			{
-				ResourceName:      resourceName,
-				ImportState:       true,
-				ImportStateVerify: true,
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"last_updated"},
 			},
 			{
 				Config: testAccCloudSecurityGroupResourceConfigBasic(rName),
@@ -142,9 +145,10 @@ func TestAccCloudSecurityGroupResource_CloudProviders(t *testing.T) {
 				),
 			},
 			{
-				ResourceName:      resourceName,
-				ImportState:       true,
-				ImportStateVerify: true,
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"last_updated"},
 			},
 		},
 	})
@@ -166,13 +170,17 @@ func TestAccCloudSecurityGroupResource_Images(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "description", "Test container images group"),
 					resource.TestCheckResourceAttr(resourceName, "images.#", "2"),
 					resource.TestCheckResourceAttr(resourceName, "images.0.registry", "docker.io"),
-					resource.TestCheckResourceAttr(resourceName, "images.0.repository", "nginx"),
-					resource.TestCheckResourceAttr(resourceName, "images.0.tag", "latest"),
+					resource.TestCheckResourceAttr(resourceName, "images.0.repositories.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "images.0.repositories.0", "nginx"),
+					resource.TestCheckResourceAttr(resourceName, "images.0.tags.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "images.0.tags.0", "latest"),
 					resource.TestCheckResourceAttr(resourceName, "images.1.registry", "gcr.io"),
-					resource.TestCheckResourceAttr(resourceName, "images.1.repository", "my-project/my-app"),
-					resource.TestCheckResourceAttr(resourceName, "images.1.tag", "v1.0.0"),
+					resource.TestCheckResourceAttr(resourceName, "images.1.repositories.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "images.1.repositories.0", "my-project/my-app"),
+					resource.TestCheckResourceAttr(resourceName, "images.1.tags.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "images.1.tags.0", "v1.0.0"),
 					resource.TestCheckResourceAttrSet(resourceName, "created_at"),
-					resource.TestCheckResourceAttrSet(resourceName, "updated_at"),
+					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
 				),
 			},
 			{
@@ -183,22 +191,29 @@ func TestAccCloudSecurityGroupResource_Images(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "description", "Updated container images group"),
 					resource.TestCheckResourceAttr(resourceName, "images.#", "3"),
 					resource.TestCheckResourceAttr(resourceName, "images.0.registry", "docker.io"),
-					resource.TestCheckResourceAttr(resourceName, "images.0.repository", "alpine"),
-					resource.TestCheckResourceAttr(resourceName, "images.0.tag", "3.18"),
+					resource.TestCheckResourceAttr(resourceName, "images.0.repositories.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "images.0.repositories.0", "alpine"),
+					resource.TestCheckResourceAttr(resourceName, "images.0.tags.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "images.0.tags.0", "3.18"),
 					resource.TestCheckResourceAttr(resourceName, "images.1.registry", "quay.io"),
-					resource.TestCheckResourceAttr(resourceName, "images.1.repository", "prometheus/prometheus"),
-					resource.TestCheckResourceAttr(resourceName, "images.1.tag", "v2.40.0"),
+					resource.TestCheckResourceAttr(resourceName, "images.1.repositories.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "images.1.repositories.0", "prometheus/prometheus"),
+					resource.TestCheckResourceAttr(resourceName, "images.1.tags.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "images.1.tags.0", "v2.40.0"),
 					resource.TestCheckResourceAttr(resourceName, "images.2.registry", "ghcr.io"),
-					resource.TestCheckResourceAttr(resourceName, "images.2.repository", "my-org/my-app"),
-					resource.TestCheckResourceAttr(resourceName, "images.2.tag", "latest"),
+					resource.TestCheckResourceAttr(resourceName, "images.2.repositories.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "images.2.repositories.0", "my-org/my-app"),
+					resource.TestCheckResourceAttr(resourceName, "images.2.tags.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "images.2.tags.0", "latest"),
 					resource.TestCheckResourceAttrSet(resourceName, "created_at"),
-					resource.TestCheckResourceAttrSet(resourceName, "updated_at"),
+					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
 				),
 			},
 			{
-				ResourceName:      resourceName,
-				ImportState:       true,
-				ImportStateVerify: true,
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"last_updated"},
 			},
 			{
 				Config: testAccCloudSecurityGroupResourceConfigBasic(rName),
@@ -209,9 +224,10 @@ func TestAccCloudSecurityGroupResource_Images(t *testing.T) {
 				),
 			},
 			{
-				ResourceName:      resourceName,
-				ImportState:       true,
-				ImportStateVerify: true,
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"last_updated"},
 			},
 		},
 	})
@@ -235,14 +251,15 @@ func TestAccCloudSecurityGroupResource_NoProviders(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "gcp.account_ids.#", "0"),
 					resource.TestCheckNoResourceAttr(resourceName, "images"),
 					resource.TestCheckResourceAttrSet(resourceName, "created_at"),
-					resource.TestCheckResourceAttrSet(resourceName, "updated_at"),
+					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
 					resource.TestCheckResourceAttrSet(resourceName, "created_by"),
 				),
 			},
 			{
-				ResourceName:      resourceName,
-				ImportState:       true,
-				ImportStateVerify: true,
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"last_updated"},
 			},
 		},
 	})
@@ -274,6 +291,10 @@ func TestAccCloudSecurityGroupResource_Validation(t *testing.T) {
 		"invalid_owner_email": {
 			configFunc:  testAccCloudSecurityGroupResourceConfigInvalidOwnerEmail,
 			expectError: regexp.MustCompile("Invalid Attribute Value|must be a valid email address"),
+		},
+		"duplicate_registry": {
+			configFunc:  testAccCloudSecurityGroupResourceConfigDuplicateRegistry,
+			expectError: regexp.MustCompile("Found duplicate registry value"),
 		},
 	}
 
@@ -404,7 +425,7 @@ func TestAccCloudSecurityGroupResource_MultiCloudToEmpty(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "gcp.filters.region.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "gcp.filters.region.0", "us-central1"),
 					resource.TestCheckResourceAttrSet(resourceName, "created_at"),
-					resource.TestCheckResourceAttrSet(resourceName, "updated_at"),
+					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
 				),
 			},
 			{
@@ -440,9 +461,10 @@ func TestAccCloudSecurityGroupResource_MultiCloudToEmpty(t *testing.T) {
 				),
 			},
 			{
-				ResourceName:      resourceName,
-				ImportState:       true,
-				ImportStateVerify: true,
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"last_updated"},
 			},
 		},
 	})
@@ -456,14 +478,14 @@ resource "crowdstrike_cloud_group" "test" {
 
   images = [
     {
-      registry   = "docker.io"
-      repository = "nginx"
-      tag        = "latest"
+      registry     = "docker.io"
+      repositories = ["nginx"]
+      tags         = ["latest"]
     },
     {
-      registry   = "gcr.io"
-      repository = "my-project/my-app"
-      tag        = "v1.0.0"
+      registry     = "gcr.io"
+      repositories = ["my-project/my-app"]
+      tags         = ["v1.0.0"]
     }
   ]
 }
@@ -584,6 +606,27 @@ resource "crowdstrike_cloud_group" "test" {
   aws = {
     account_ids = ["123456789012"]
   }
+}
+`, rName)
+}
+
+func testAccCloudSecurityGroupResourceConfigDuplicateRegistry(rName string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_cloud_group" "test" {
+  name = %[1]q
+
+  images = [
+    {
+      registry     = "docker.io"
+      repositories = ["nginx"]
+      tags         = ["latest"]
+    },
+    {
+      registry     = "docker.io"
+      repositories = ["alpine"]
+      tags         = ["3.18"]
+    }
+  ]
 }
 `, rName)
 }
@@ -714,19 +757,19 @@ resource "crowdstrike_cloud_group" "test" {
 
   images = [
     {
-      registry   = "docker.io"
-      repository = "alpine"
-      tag        = "3.18"
+      registry     = "docker.io"
+      repositories = ["alpine"]
+      tags         = ["3.18"]
     },
     {
-      registry   = "quay.io"
-      repository = "prometheus/prometheus"
-      tag        = "v2.40.0"
+      registry     = "quay.io"
+      repositories = ["prometheus/prometheus"]
+      tags         = ["v2.40.0"]
     },
     {
-      registry   = "ghcr.io"
-      repository = "my-org/my-app"
-      tag        = "latest"
+      registry     = "ghcr.io"
+      repositories = ["my-org/my-app"]
+      tags         = ["latest"]
     }
   ]
 }

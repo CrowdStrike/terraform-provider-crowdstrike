@@ -90,18 +90,18 @@ resource "crowdstrike_cloud_group" "container_images" {
 
   images = [
     {
-      registry   = "docker.io"
-      repository = "myorg/backend-api"
-      tag        = "v1.2.3"
+      registry     = "docker.io"
+      repositories = ["myorg/backend-api"]
+      tags         = ["v1.2.3"]
     },
     {
-      registry   = "ghcr.io"
-      repository = "myorg/frontend"
-      tag        = "latest"
+      registry     = "ghcr.io"
+      repositories = ["myorg/frontend"]
+      tags         = ["latest"]
     },
     {
-      registry   = "123456789012.dkr.ecr.us-east-1.amazonaws.com"
-      repository = "internal/worker"
+      registry     = "123456789012.dkr.ecr.us-east-1.amazonaws.com"
+      repositories = ["internal/worker"]
     }
   ]
 }
@@ -178,7 +178,7 @@ resource "crowdstrike_cloud_group" "all_clouds_filtered" {
 - `description` (String) The description of the cloud group.
 - `environment` (String) Environment designation for the group. Valid values: dev, test, stage, prod.
 - `gcp` (Attributes) GCP cloud resource configuration (see [below for nested schema](#nestedatt--gcp))
-- `images` (Attributes List) Container image selectors for grouping container images (see [below for nested schema](#nestedatt--images))
+- `images` (Attributes List) The container images accessible to the group. Each entry includes a registry and filters for repositories and tags. (see [below for nested schema](#nestedatt--images))
 - `owners` (List of String) Contact information for stakeholders responsible for the cloud group. List of email addresses.
 
 ### Read-Only
@@ -186,7 +186,7 @@ resource "crowdstrike_cloud_group" "all_clouds_filtered" {
 - `created_at` (String) The timestamp when the group was created.
 - `created_by` (String) The API client ID that created the group.
 - `id` (String) The ID of the cloud group.
-- `updated_at` (String) The timestamp when the group was last updated.
+- `last_updated` (String) The timestamp when the group was last updated.
 
 <a id="nestedatt--aws"></a>
 ### Nested Schema for `aws`
@@ -246,12 +246,12 @@ Optional:
 
 Required:
 
-- `registry` (String) Container registry hostname
-- `repository` (String) Repository name
+- `registry` (String) The container registry to include in the group. Must be a complete HTTPS URL for a supported registry. For info about supported registries and URL format, see https://docs.crowdstrike.com/r/ved836f1
 
 Optional:
 
-- `tag` (String) Image tag (optional, defaults to any tag if not specified)
+- `repositories` (List of String) The container image repositories within the specified registry to filter by. When specified, only images within these repositories are accessible to the group. When omitted, all repositories in the registry are included.
+- `tags` (List of String) The container image tags to filter by. Tag matching is scoped to the specified repositories values, or across all repositories in the given registry if repositories are not provided.
 
 ## Import
 

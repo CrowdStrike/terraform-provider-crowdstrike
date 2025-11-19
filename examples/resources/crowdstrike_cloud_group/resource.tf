@@ -66,18 +66,18 @@ resource "crowdstrike_cloud_group" "container_images" {
 
   images = [
     {
-      registry   = "docker.io"
-      repository = "myorg/backend-api"
-      tag        = "v1.2.3"
+      registry     = "docker.io"
+      repositories = ["myorg/backend-api"]
+      tags         = ["v1.2.3"]
     },
     {
-      registry   = "ghcr.io"
-      repository = "myorg/frontend"
-      tag        = "latest"
+      registry     = "ghcr.io"
+      repositories = ["myorg/frontend"]
+      tags         = ["latest"]
     },
     {
-      registry   = "123456789012.dkr.ecr.us-east-1.amazonaws.com"
-      repository = "internal/worker"
+      registry     = "123456789012.dkr.ecr.us-east-1.amazonaws.com"
+      repositories = ["internal/worker"]
     }
   ]
 }
