@@ -241,7 +241,6 @@ func (r *hostGroupResource) Create(
 	}
 
 	hostGroup, err := r.client.HostGroup.CreateHostGroups(&hostGroupParams)
-
 	if err != nil {
 		errMsg := fmt.Sprintf(
 			"Could not create host group (%s): %s",
@@ -281,7 +280,6 @@ func (r *hostGroupResource) Create(
 
 	if plan.GroupType.ValueString() != HgDynamic {
 		hgUpdate, err := r.updateHostGroup(ctx, plan, assignmentRule)
-
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error assigning hosts to host group",
@@ -319,7 +317,6 @@ func (r *hostGroupResource) Read(
 			Ids:     []string{state.ID.ValueString()},
 		},
 	)
-
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading CrowdStrike host group",
@@ -358,7 +355,6 @@ func (r *hostGroupResource) Update(
 	}
 
 	hostGroup, err := r.updateHostGroup(ctx, plan, assignmentRule)
-
 	if err != nil {
 		errMsg := fmt.Sprintf(
 			"Could not update host group (%s): %s",
@@ -505,7 +501,6 @@ func (r *hostGroupResource) purgeSensorUpdatePolicies(
 			Filter:  &filter,
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Error deleting CrowdStrike host group",
@@ -533,7 +528,6 @@ func (r *hostGroupResource) purgeSensorUpdatePolicies(
 				},
 			},
 		)
-
 		if err != nil {
 			diags.AddError(
 				"Error deleting CrowdStrike host group",
@@ -560,7 +554,6 @@ func (r *hostGroupResource) purgePreventionPolicies(
 			Filter:  &filter,
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Error deleting CrowdStrike host group",
@@ -588,7 +581,6 @@ func (r *hostGroupResource) purgePreventionPolicies(
 				},
 			},
 		)
-
 		if err != nil {
 			diags.AddError(
 				"Error deleting CrowdStrike host group",
@@ -615,7 +607,6 @@ func (r *hostGroupResource) purgeFirewallPolicies(
 			Filter:  &filter,
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Error deleting CrowdStrike host group",
@@ -643,7 +634,6 @@ func (r *hostGroupResource) purgeFirewallPolicies(
 				},
 			},
 		)
-
 		if err != nil {
 			diags.AddError(
 				"Error deleting CrowdStrike host group",
@@ -670,7 +660,6 @@ func (r *hostGroupResource) purgeResponsePolicies(
 			Filter:  &filter,
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Error deleting CrowdStrike host group",
@@ -698,7 +687,6 @@ func (r *hostGroupResource) purgeResponsePolicies(
 				},
 			},
 		)
-
 		if err != nil {
 			diags.AddError(
 				"Error deleting CrowdStrike host group",

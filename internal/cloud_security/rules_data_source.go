@@ -76,7 +76,6 @@ func (m cloudSecurityRulesDataSourceRuleModel) AttributeTypes() map[string]attr.
 			ElemType: types.StringType,
 		},
 		"controls": types.SetType{
-
 			ElemType: types.ObjectType{
 				AttrTypes: map[string]attr.Type{
 					"authority": types.StringType,
@@ -317,22 +316,28 @@ func (r *cloudSecurityRulesDataSource) Read(
 	fqlFilters := []fqlFilters{
 		{
 			property: "rule_provider",
-			value:    data.CloudProvider.ValueString()},
+			value:    data.CloudProvider.ValueString(),
+		},
 		{
 			property: "rule_name",
-			value:    data.RuleName.ValueString()},
+			value:    data.RuleName.ValueString(),
+		},
 		{
 			property: "rule_resource_type",
-			value:    data.ResourceType.ValueString()},
+			value:    data.ResourceType.ValueString(),
+		},
 		{
 			property: "rule_compliance_benchmark",
-			value:    data.Benchmark.ValueString()},
+			value:    data.Benchmark.ValueString(),
+		},
 		{
 			property: "rule_service",
-			value:    data.Service.ValueString()},
+			value:    data.Service.ValueString(),
+		},
 		{
 			property: "rule_compliance_framework",
-			value:    data.Framework.ValueString()},
+			value:    data.Framework.ValueString(),
+		},
 	}
 
 	data.Rules, diags = r.getRules(
@@ -394,7 +399,6 @@ func (r *cloudSecurityRulesDataSource) getRules(
 
 	for {
 		queryResp, err := r.client.CloudPolicies.QueryRule(&queryParams)
-
 		if err != nil {
 			if badRequest, ok := err.(*cloud_policies.QueryRuleBadRequest); ok {
 				diags.AddError(

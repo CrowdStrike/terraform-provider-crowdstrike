@@ -19,7 +19,7 @@ const (
 )
 
 // Basic configuration.
-func testAccCloudAwsAccountConfig_basic(account string, organization_id string) string {
+func testAccCloudAwsAccountConfig_basic(account, organization_id string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_aws_account" "test" {
   account_id                         = "%s"
@@ -31,7 +31,7 @@ resource "crowdstrike_cloud_aws_account" "test" {
 }
 
 // Updated configuration with multiple products.
-func testAccCloudAwsAccountConfig_update(account string, organization_id string) string {
+func testAccCloudAwsAccountConfig_update(account, organization_id string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_aws_account" "test" {
   account_id                         = "%s"
@@ -91,7 +91,7 @@ resource "crowdstrike_cloud_aws_account" "test" {
 `, account)
 }
 
-func testAccCloudAwsAccountConfig_bothDSPMAndVulnScanning(account string, roleName string) string {
+func testAccCloudAwsAccountConfig_bothDSPMAndVulnScanning(account, roleName string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_aws_account" "test" {
   account_id = "%s"
