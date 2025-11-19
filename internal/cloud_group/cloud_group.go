@@ -101,10 +101,9 @@ type cloudSecurityGroupResourceModel struct {
 	Azure          types.Object `tfsdk:"azure"`
 	GCP            types.Object `tfsdk:"gcp"`
 	Images         types.List   `tfsdk:"images"`
-	// Computed fields
-	CreatedAt types.String `tfsdk:"created_at"`
-	UpdatedAt types.String `tfsdk:"updated_at"`
-	CreatedBy types.String `tfsdk:"created_by"`
+	CreatedAt      types.String `tfsdk:"created_at"`
+	UpdatedAt      types.String `tfsdk:"updated_at"`
+	CreatedBy      types.String `tfsdk:"created_by"`
 }
 
 // Metadata returns the resource type name.
@@ -185,6 +184,8 @@ func (r *cloudSecurityGroupResource) Schema(
 				Description: "Contact information for stakeholders responsible for the cloud group. List of email addresses.",
 				ElementType: types.StringType,
 				Validators: []validator.List{
+					listvalidator.UniqueValues(),
+					listvalidator.NoNullValues(),
 					listvalidator.ValueStringsAre(
 						fwvalidators.StringIsEmailAddress(),
 					),
@@ -200,6 +201,8 @@ func (r *cloudSecurityGroupResource) Schema(
 						ElementType: types.StringType,
 						Validators: []validator.List{
 							listvalidator.SizeAtLeast(1),
+							listvalidator.NoNullValues(),
+							listvalidator.UniqueValues(),
 							listvalidator.ValueStringsAre(
 								fwvalidators.StringNotWhitespace(),
 							),
@@ -216,6 +219,7 @@ func (r *cloudSecurityGroupResource) Schema(
 								Validators: []validator.List{
 									listvalidator.SizeAtLeast(1),
 									listvalidator.UniqueValues(),
+									listvalidator.NoNullValues(),
 									listvalidator.ValueStringsAre(
 										fwvalidators.StringNotWhitespace(),
 									),
@@ -228,6 +232,7 @@ func (r *cloudSecurityGroupResource) Schema(
 								Validators: []validator.List{
 									listvalidator.SizeAtLeast(1),
 									listvalidator.UniqueValues(),
+									listvalidator.NoNullValues(),
 									listvalidator.ValueStringsAre(
 										fwvalidators.StringNotWhitespace(),
 									),
@@ -247,6 +252,8 @@ func (r *cloudSecurityGroupResource) Schema(
 						ElementType: types.StringType,
 						Validators: []validator.List{
 							listvalidator.SizeAtLeast(1),
+							listvalidator.UniqueValues(),
+							listvalidator.NoNullValues(),
 							listvalidator.ValueStringsAre(
 								fwvalidators.StringNotWhitespace(),
 							),
@@ -263,6 +270,7 @@ func (r *cloudSecurityGroupResource) Schema(
 								Validators: []validator.List{
 									listvalidator.SizeAtLeast(1),
 									listvalidator.UniqueValues(),
+									listvalidator.NoNullValues(),
 									listvalidator.ValueStringsAre(
 										fwvalidators.StringNotWhitespace(),
 									),
@@ -275,6 +283,7 @@ func (r *cloudSecurityGroupResource) Schema(
 								Validators: []validator.List{
 									listvalidator.SizeAtLeast(1),
 									listvalidator.UniqueValues(),
+									listvalidator.NoNullValues(),
 									listvalidator.ValueStringsAre(
 										fwvalidators.StringNotWhitespace(),
 									),
@@ -294,6 +303,8 @@ func (r *cloudSecurityGroupResource) Schema(
 						ElementType: types.StringType,
 						Validators: []validator.List{
 							listvalidator.SizeAtLeast(1),
+							listvalidator.UniqueValues(),
+							listvalidator.NoNullValues(),
 							listvalidator.ValueStringsAre(
 								fwvalidators.StringNotWhitespace(),
 							),
@@ -310,6 +321,7 @@ func (r *cloudSecurityGroupResource) Schema(
 								Validators: []validator.List{
 									listvalidator.SizeAtLeast(1),
 									listvalidator.UniqueValues(),
+									listvalidator.NoNullValues(),
 									listvalidator.ValueStringsAre(
 										fwvalidators.StringNotWhitespace(),
 									),
@@ -324,6 +336,8 @@ func (r *cloudSecurityGroupResource) Schema(
 				Optional:    true,
 				Validators: []validator.List{
 					listvalidator.SizeAtLeast(1),
+					listvalidator.UniqueValues(),
+					listvalidator.NoNullValues(),
 				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
@@ -412,7 +426,6 @@ func (r *cloudSecurityGroupResource) Create(
 		return
 	}
 
-	// Convert plan to API request
 	createRequest, diags := r.planToCreateRequest(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -421,7 +434,6 @@ func (r *cloudSecurityGroupResource) Create(
 
 	tflog.Info(ctx, "Creating cloud group", map[string]interface{}{"name": plan.Name.ValueString()})
 
-	// Call the API
 	res, err := r.client.CloudSecurity.CreateCloudGroupExternal(
 		&cloud_security.CreateCloudGroupExternalParams{
 			Context: ctx,
@@ -444,7 +456,6 @@ func (r *cloudSecurityGroupResource) Create(
 		return
 	}
 
-	// Get the created group by ID since the create response only returns the ID
 	groupID := res.Payload.Resources[0]
 	getRes, err := r.client.CloudSecurity.ListCloudGroupsByIDExternal(
 		&cloud_security.ListCloudGroupsByIDExternalParams{
@@ -468,18 +479,15 @@ func (r *cloudSecurityGroupResource) Create(
 		return
 	}
 
-	// Update state with response data
 	state, diags := r.responseToState(ctx, getRes.Payload.Resources[0], plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-// Read refreshes the Terraform state with the latest data.
 func (r *cloudSecurityGroupResource) Read(
 	ctx context.Context,
 	req resource.ReadRequest,
@@ -503,7 +511,6 @@ func (r *cloudSecurityGroupResource) Read(
 
 	tflog.Info(ctx, "Reading cloud group", map[string]interface{}{"id": state.ID.ValueString()})
 
-	// Get the cloud group by ID
 	res, err := r.client.CloudSecurity.ListCloudGroupsByIDExternal(
 		&cloud_security.ListCloudGroupsByIDExternalParams{
 			Context: ctx,
@@ -529,14 +536,12 @@ func (r *cloudSecurityGroupResource) Read(
 		return
 	}
 
-	// Update state with response data
 	newState, diags := r.responseToState(ctx, res.Payload.Resources[0], state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &newState)...)
 }
 
@@ -549,14 +554,12 @@ func (r *cloudSecurityGroupResource) Update(
 	var plan cloudSecurityGroupResourceModel
 	var state cloudSecurityGroupResourceModel
 
-	// Get plan and current state
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Convert plan to API request
 	updateRequest, diags := r.planToUpdateRequest(ctx, plan, state.ID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -568,7 +571,6 @@ func (r *cloudSecurityGroupResource) Update(
 		"name": plan.Name.ValueString(),
 	})
 
-	// Call the API
 	res, err := r.client.CloudSecurity.UpdateCloudGroupExternal(
 		&cloud_security.UpdateCloudGroupExternalParams{
 			Context: ctx,
@@ -591,7 +593,6 @@ func (r *cloudSecurityGroupResource) Update(
 		return
 	}
 
-	// Get the updated group by ID to get full data
 	getRes, err := r.client.CloudSecurity.ListCloudGroupsByIDExternal(
 		&cloud_security.ListCloudGroupsByIDExternalParams{
 			Context: ctx,
@@ -614,14 +615,12 @@ func (r *cloudSecurityGroupResource) Update(
 		return
 	}
 
-	// Update state with response data
 	newState, diags := r.responseToState(ctx, getRes.Payload.Resources[0], plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &newState)...)
 }
 
@@ -644,7 +643,6 @@ func (r *cloudSecurityGroupResource) Delete(
 
 	tflog.Info(ctx, "Deleting cloud group", map[string]interface{}{"id": state.ID.ValueString()})
 
-	// Call the API
 	_, err := r.client.CloudSecurity.DeleteCloudGroupsExternal(
 		&cloud_security.DeleteCloudGroupsExternalParams{
 			Context: ctx,
@@ -652,7 +650,6 @@ func (r *cloudSecurityGroupResource) Delete(
 		},
 	)
 	if err != nil {
-		// If the resource is already deleted (404), that's okay
 		if !strings.Contains(err.Error(), "404") {
 			resp.Diagnostics.AddError(
 				"Failed to delete cloud group",
@@ -669,12 +666,10 @@ func (r *cloudSecurityGroupResource) ImportState(
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
 ) {
-	// Import using the UUID
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 // Helper functions for conversions between Terraform model and API requests/responses
-
 // planToCreateRequest converts the Terraform plan to an API create request.
 func (r *cloudSecurityGroupResource) planToCreateRequest(
 	ctx context.Context,
@@ -690,14 +685,15 @@ func (r *cloudSecurityGroupResource) planToCreateRequest(
 		Environment:    plan.Environment.ValueStringPointer(),
 	}
 
-	// Convert owners
 	if !plan.Owners.IsNull() {
 		var owners []string
 		diags.Append(plan.Owners.ElementsAs(ctx, &owners, false)...)
+		if diags.HasError() {
+			return nil, diags
+		}
 		request.Owners = owners
 	}
 
-	// Convert selectors
 	selectors, selectorDiags := r.convertSelectorsToAPI(ctx, plan.AWS, plan.Azure, plan.GCP, plan.Images)
 	diags.Append(selectorDiags...)
 	if selectors != nil {
@@ -724,14 +720,12 @@ func (r *cloudSecurityGroupResource) planToUpdateRequest(
 		Environment:    utils.Addr(plan.Environment.ValueString()),
 	}
 
-	// Convert owners
 	if !plan.Owners.IsNull() {
 		var owners []string
 		diags.Append(plan.Owners.ElementsAs(ctx, &owners, false)...)
 		request.Owners = owners
 	}
 
-	// Convert selectors
 	selectors, selectorDiags := r.convertSelectorsToAPI(ctx, plan.AWS, plan.Azure, plan.GCP, plan.Images)
 	diags.Append(selectorDiags...)
 	if selectors != nil {
@@ -752,7 +746,6 @@ func (r *cloudSecurityGroupResource) convertSelectorsToAPI(
 	var diags diag.Diagnostics
 	apiSelectors := &models.AssetgroupmanagerV1WriteCloudGroupSelectors{}
 
-	// Helper function to convert cloud provider config to API selector
 	convertCloudProvider := func(providerObj types.Object, providerName string, includeTags bool) (*models.AssetgroupmanagerV1CloudResourceSelector, diag.Diagnostics) {
 		var diags diag.Diagnostics
 		if providerObj.IsNull() || providerObj.IsUnknown() {
@@ -769,14 +762,12 @@ func (r *cloudSecurityGroupResource) convertSelectorsToAPI(
 			CloudProvider: &providerName,
 		}
 
-		// Convert account IDs
 		if !config.AccountIds.IsNull() {
 			var accountIds []string
 			diags.Append(config.AccountIds.ElementsAs(ctx, &accountIds, false)...)
 			apiSelector.AccountIds = accountIds
 		}
 
-		// Convert filters
 		if !config.Filters.IsNull() && !config.Filters.IsUnknown() {
 			// Extract filters attributes to avoid struct mismatch
 			filterValues := config.Filters.Attributes()
@@ -821,7 +812,6 @@ func (r *cloudSecurityGroupResource) convertSelectorsToAPI(
 		return apiSelector, diags
 	}
 
-	// Convert AWS
 	if awsSelector, awsDiags := convertCloudProvider(awsObj, "aws", true); awsSelector != nil {
 		diags.Append(awsDiags...)
 		apiSelectors.CloudResources = append(apiSelectors.CloudResources, awsSelector)
@@ -829,7 +819,6 @@ func (r *cloudSecurityGroupResource) convertSelectorsToAPI(
 		diags.Append(awsDiags...)
 	}
 
-	// Convert Azure
 	if azureSelector, azureDiags := convertCloudProvider(azureObj, "azure", true); azureSelector != nil {
 		diags.Append(azureDiags...)
 		apiSelectors.CloudResources = append(apiSelectors.CloudResources, azureSelector)
@@ -837,7 +826,6 @@ func (r *cloudSecurityGroupResource) convertSelectorsToAPI(
 		diags.Append(azureDiags...)
 	}
 
-	// Convert GCP
 	if gcpSelector, gcpDiags := convertCloudProvider(gcpObj, "gcp", false); gcpSelector != nil {
 		diags.Append(gcpDiags...)
 		apiSelectors.CloudResources = append(apiSelectors.CloudResources, gcpSelector)
@@ -845,7 +833,6 @@ func (r *cloudSecurityGroupResource) convertSelectorsToAPI(
 		diags.Append(gcpDiags...)
 	}
 
-	// Convert image selectors
 	if !imagesList.IsNull() && !imagesList.IsUnknown() {
 		var images []imageSelectorModel
 		diags.Append(imagesList.ElementsAs(ctx, &images, false)...)
@@ -855,7 +842,6 @@ func (r *cloudSecurityGroupResource) convertSelectorsToAPI(
 				Registry: img.Registry.ValueStringPointer(),
 			}
 
-			// Set up filters if we have repository or tag
 			if !img.Repository.IsNull() || !img.Tag.IsNull() {
 				filters := &models.AssetgroupmanagerV1ImageFilters{}
 
@@ -886,7 +872,6 @@ func (r *cloudSecurityGroupResource) responseToState(
 	var diags diag.Diagnostics
 	state := currentState
 
-	// Set basic fields from API response
 	if apiGroup.ID != "" {
 		state.ID = types.StringValue(apiGroup.ID)
 	}
@@ -895,7 +880,6 @@ func (r *cloudSecurityGroupResource) responseToState(
 		state.Name = types.StringValue(apiGroup.Name)
 	}
 
-	// Only set optional fields if they have values or were set in current state
 	if apiGroup.Description != "" {
 		state.Description = types.StringValue(apiGroup.Description)
 	} else if currentState.Description.IsNull() {
@@ -930,7 +914,6 @@ func (r *cloudSecurityGroupResource) responseToState(
 	if !apiGroup.UpdatedAt.IsZero() {
 		state.UpdatedAt = types.StringValue(apiGroup.UpdatedAt.String())
 	} else {
-		// Always set updated_at to avoid unknown value errors
 		state.UpdatedAt = types.StringValue(apiGroup.CreatedAt.String())
 	}
 
@@ -940,7 +923,6 @@ func (r *cloudSecurityGroupResource) responseToState(
 		state.CreatedBy = types.StringValue("")
 	}
 
-	// Convert owners
 	if len(apiGroup.Owners) > 0 {
 		ownersList, listDiags := types.ListValueFrom(ctx, types.StringType, apiGroup.Owners)
 		diags.Append(listDiags...)
@@ -949,7 +931,6 @@ func (r *cloudSecurityGroupResource) responseToState(
 		state.Owners = types.ListNull(types.StringType)
 	}
 
-	// Convert selectors - convert to separate cloud provider fields
 	if apiGroup.Selectors != nil {
 		aws, azure, gcp, images, selectorDiags := r.convertAPISelectorsToTerraform(ctx, apiGroup.Selectors)
 		diags.Append(selectorDiags...)
@@ -958,7 +939,6 @@ func (r *cloudSecurityGroupResource) responseToState(
 		state.GCP = gcp
 		state.Images = images
 	} else {
-		// Set to null if no selectors in API response - use helper methods
 		state.AWS = types.ObjectNull(cloudProviderConfigModel{}.AttributeTypes(true))
 		state.Azure = types.ObjectNull(cloudProviderConfigModel{}.AttributeTypes(true))
 		state.GCP = types.ObjectNull(cloudProviderConfigModel{}.AttributeTypes(false))
@@ -981,12 +961,10 @@ func (r *cloudSecurityGroupResource) convertAPISelectorsToTerraform(
 ) (types.Object, types.Object, types.Object, types.List, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	// Helper function to convert API selector to cloud provider config
 	convertToCloudProviderConfig := func(cr *models.AssetgroupmanagerV1CloudResourceSelector, includeTags bool) (cloudProviderConfigModel, diag.Diagnostics) {
 		var diags diag.Diagnostics
 		config := cloudProviderConfigModel{}
 
-		// Convert account IDs
 		if len(cr.AccountIds) > 0 {
 			accountIdsList, listDiags := types.ListValueFrom(ctx, types.StringType, cr.AccountIds)
 			diags.Append(listDiags...)
@@ -995,7 +973,6 @@ func (r *cloudSecurityGroupResource) convertAPISelectorsToTerraform(
 			config.AccountIds = types.ListNull(types.StringType)
 		}
 
-		// Convert filters
 		if cr.Filters != nil && (len(cr.Filters.Region) > 0 || (includeTags && len(cr.Filters.Tags) > 0)) {
 			// Build attribute values map
 			filterValues := make(map[string]attr.Value)
@@ -1032,13 +1009,11 @@ func (r *cloudSecurityGroupResource) convertAPISelectorsToTerraform(
 		return config, diags
 	}
 
-	// Initialize null values using helper methods
 	var awsObj, azureObj, gcpObj types.Object
 	awsObj = types.ObjectNull(cloudProviderConfigModel{}.AttributeTypes(true))
 	azureObj = types.ObjectNull(cloudProviderConfigModel{}.AttributeTypes(true))
 	gcpObj = types.ObjectNull(cloudProviderConfigModel{}.AttributeTypes(false))
 
-	// Convert cloud resource selectors by provider
 	for _, cr := range apiSelectors.CloudResources {
 		if cr.CloudProvider == nil {
 			continue
@@ -1068,7 +1043,6 @@ func (r *cloudSecurityGroupResource) convertAPISelectorsToTerraform(
 		}
 	}
 
-	// Convert image selectors
 	var imagesList types.List
 	if len(apiSelectors.Images) > 0 {
 		var images []imageSelectorModel
@@ -1077,7 +1051,6 @@ func (r *cloudSecurityGroupResource) convertAPISelectorsToTerraform(
 				Registry: types.StringValue(*img.Registry),
 			}
 
-			// Extract repository and tag from filters
 			if img.Filters != nil {
 				if len(img.Filters.Repository) > 0 {
 					selector.Repository = types.StringValue(img.Filters.Repository[0])
