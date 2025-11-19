@@ -1742,29 +1742,3 @@ func parseRegionsFromSettings(ctx context.Context, settings interface{}, state *
 
 	return diags
 }
-
-// TestParseRegionsFromSettings is a test helper function that creates the test state and calls ParseRegionsFromSettings.
-func TestParseRegionsFromSettings(ctx context.Context, settings interface{}) (rtvdRegions, dspmRegions, vulnRegions []string, diags diag.Diagnostics) {
-	// Initialize state model for testing
-	state := &cloudAWSAccountModel{
-		RealtimeVisibility:    &realtimeVisibilityOptions{},
-		DSPM:                  &dspmOptions{},
-		VulnerabilityScanning: &vulnerabilityScanningOptions{},
-	}
-
-	// Call the actual function
-	diags = parseRegionsFromSettings(ctx, settings, state)
-
-	// Extract regions for verification
-	if !state.RealtimeVisibility.Regions.IsNull() {
-		state.RealtimeVisibility.Regions.ElementsAs(ctx, &rtvdRegions, false)
-	}
-	if !state.DSPM.Regions.IsNull() {
-		state.DSPM.Regions.ElementsAs(ctx, &dspmRegions, false)
-	}
-	if !state.VulnerabilityScanning.Regions.IsNull() {
-		state.VulnerabilityScanning.Regions.ElementsAs(ctx, &vulnRegions, false)
-	}
-
-	return rtvdRegions, dspmRegions, vulnRegions, diags
-}

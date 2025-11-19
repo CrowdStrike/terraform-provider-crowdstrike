@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 
@@ -22,6 +23,30 @@ const (
 	testAgentlessScanningRole         = "agentless-scanning-shared-role"
 	crowdstrikeAWSAccountResourceType = "crowdstrike_cloud_aws_account"
 )
+
+// parseAndExtractRegions is a test helper that calls parseRegionsFromSettings
+// and extracts the region values from state for easy verification.
+func parseAndExtractRegions(ctx context.Context, settings any) (rtvdRegions, dspmRegions, vulnRegions []string, diags diag.Diagnostics) {
+	state := &fcs.CloudAWSAccountModel{
+		RealtimeVisibility:    &fcs.RealtimeVisibilityOptions{},
+		DSPM:                  &fcs.DSPMOptions{},
+		VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{},
+	}
+
+	diags = fcs.ParseRegionsFromSettings(ctx, settings, state)
+
+	if !state.RealtimeVisibility.Regions.IsNull() {
+		state.RealtimeVisibility.Regions.ElementsAs(ctx, &rtvdRegions, false)
+	}
+	if !state.DSPM.Regions.IsNull() {
+		state.DSPM.Regions.ElementsAs(ctx, &dspmRegions, false)
+	}
+	if !state.VulnerabilityScanning.Regions.IsNull() {
+		state.VulnerabilityScanning.Regions.ElementsAs(ctx, &vulnRegions, false)
+	}
+
+	return rtvdRegions, dspmRegions, vulnRegions, diags
+}
 
 // Basic configuration.
 func testAccCloudAwsAccountConfig_basic(account, organization_id string) string {
@@ -330,9 +355,9 @@ func TestCloudAWSAccountRegionsFromAPI(t *testing.T) {
 		}
 
 		// Test the actual ParseRegionsFromSettings function
-		rtvdRegions, dspmRegions, vulnRegions, diags := fcs.TestParseRegionsFromSettings(ctx, cloudAccount.Settings)
+		rtvdRegions, dspmRegions, vulnRegions, diags := parseAndExtractRegions(ctx, cloudAccount.Settings)
 		if diags.HasError() {
-			t.Fatalf("TestParseRegionsFromSettings failed with errors: %v", diags.Errors())
+			t.Fatalf("parseAndExtractRegions failed with errors: %v", diags.Errors())
 		}
 
 		// Verify RTVD regions
@@ -381,9 +406,9 @@ func TestCloudAWSAccountRegionsFromAPI(t *testing.T) {
 		}
 
 		// Test the actual ParseRegionsFromSettings function
-		rtvdRegions, _, vulnRegions, diags := fcs.TestParseRegionsFromSettings(ctx, cloudAccount.Settings)
+		rtvdRegions, _, vulnRegions, diags := parseAndExtractRegions(ctx, cloudAccount.Settings)
 		if diags.HasError() {
-			t.Fatalf("TestParseRegionsFromSettings failed with errors: %v", diags.Errors())
+			t.Fatalf("parseAndExtractRegions failed with errors: %v", diags.Errors())
 		}
 
 		// Verify trimmed regions
@@ -420,9 +445,9 @@ func TestCloudAWSAccountRegionsFromAPI(t *testing.T) {
 		}
 
 		// Test the actual ParseRegionsFromSettings function with empty/missing regions
-		rtvdRegions, dspmRegions, vulnRegions, diags := fcs.TestParseRegionsFromSettings(ctx, cloudAccount.Settings)
+		rtvdRegions, dspmRegions, vulnRegions, diags := parseAndExtractRegions(ctx, cloudAccount.Settings)
 		if diags.HasError() {
-			t.Fatalf("TestParseRegionsFromSettings failed with errors: %v", diags.Errors())
+			t.Fatalf("parseAndExtractRegions failed with errors: %v", diags.Errors())
 		}
 
 		// Verify regions remain unset (empty slices)
@@ -449,9 +474,9 @@ func TestCloudAWSAccountRegionsFromAPI(t *testing.T) {
 		}
 
 		// Test the actual ParseRegionsFromSettings function - should ignore non-map[string]string
-		rtvdRegions, dspmRegions, vulnRegions, diags := fcs.TestParseRegionsFromSettings(ctx, cloudAccount.Settings)
+		rtvdRegions, dspmRegions, vulnRegions, diags := parseAndExtractRegions(ctx, cloudAccount.Settings)
 		if diags.HasError() {
-			t.Fatalf("TestParseRegionsFromSettings failed with errors: %v", diags.Errors())
+			t.Fatalf("parseAndExtractRegions failed with errors: %v", diags.Errors())
 		}
 
 		// Verify regions remain unset since settings is not map[string]string
