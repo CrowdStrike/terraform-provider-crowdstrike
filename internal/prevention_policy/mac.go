@@ -116,7 +116,6 @@ func (r *preventionPolicyMacResource) Create(
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-
 	var plan preventionPolicyMacResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -400,7 +399,6 @@ func (r *preventionPolicyMacResource) ValidateConfig(
 	req resource.ValidateConfigRequest,
 	resp *resource.ValidateConfigResponse,
 ) {
-
 	var config preventionPolicyMacResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
@@ -477,7 +475,6 @@ func (r *preventionPolicyMacResource) assignRuleGroups(
 	config *preventionPolicyMacResourceModel,
 	groups []*models.IoaRuleGroupsRuleGroupV1,
 ) diag.Diagnostics {
-
 	ruleGroups := make([]types.String, 0, len(groups))
 	for _, ruleGroup := range groups {
 		ruleGroups = append(ruleGroups, types.StringValue(*ruleGroup.ID))
@@ -495,7 +492,6 @@ func (r *preventionPolicyMacResource) assignHostGroups(
 	config *preventionPolicyMacResourceModel,
 	groups []*models.HostGroupsHostGroupV1,
 ) diag.Diagnostics {
-
 	hostGroups := make([]types.String, 0, len(groups))
 	for _, hostGroup := range groups {
 		hostGroups = append(hostGroups, types.StringValue(*hostGroup.ID))

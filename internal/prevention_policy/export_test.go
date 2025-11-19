@@ -1,7 +1,11 @@
 package preventionpolicy
 
-type PreventionPoliciesDataSource = preventionPoliciesDataSource
-type PreventionPoliciesDataSourceModel = preventionPoliciesDataSourceModel
+type (
+	PreventionPoliciesDataSource      = preventionPoliciesDataSource
+	PreventionPoliciesDataSourceModel = preventionPoliciesDataSourceModel
+)
 
-var FilterPoliciesByIDs = filterPoliciesByIDs
-var FilterPoliciesByAttributes = filterPoliciesByAttributes
+var (
+	FilterPoliciesByIDs        = filterPoliciesByIDs
+	FilterPoliciesByAttributes = filterPoliciesByAttributes
+)

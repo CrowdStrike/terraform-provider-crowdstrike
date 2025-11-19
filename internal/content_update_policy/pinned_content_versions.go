@@ -95,7 +95,6 @@ func removePinnedContentVersions(
 				},
 			},
 		)
-
 		if err != nil {
 			diags.AddError(
 				"Failed to Remove Pinned Content Versions",
@@ -167,7 +166,6 @@ func setPinnedContentVersions(
 				},
 			},
 		)
-
 		if err != nil {
 			diags.AddError(
 				"Failed to Set Pinned Content Versions",

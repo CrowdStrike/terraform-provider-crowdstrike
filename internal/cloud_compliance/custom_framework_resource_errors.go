@@ -40,7 +40,7 @@ const (
 )
 
 // Error handling utility functions.
-func handleAPIError(err error, operation string, id string) diag.Diagnostics {
+func handleAPIError(err error, operation, id string) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	switch operation {

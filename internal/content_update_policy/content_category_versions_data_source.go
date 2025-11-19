@@ -115,7 +115,6 @@ func (d *contentCategoryVersionsDataSource) Read(
 				Category: apiCategory,
 			},
 		)
-
 		if err != nil {
 			resp.Diagnostics.AddError(
 				fmt.Sprintf("Unable to read content versions for category %s", apiCategory),

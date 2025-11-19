@@ -14,8 +14,10 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/response_policies"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/retry"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -154,6 +156,9 @@ func (r *hostGroupResource) Schema(
 			"name": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The display name for the host group.",
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
+				},
 			},
 			"assignment_rule": schema.StringAttribute{
 				Optional:            true,
@@ -163,11 +168,21 @@ func (r *hostGroupResource) Schema(
 				Optional:            true,
 				MarkdownDescription: "A set of hostnames to include in a static host group. Required if `type` is `static`.",
 				ElementType:         types.StringType,
+				Validators: []validator.Set{
+					setvalidator.ValueStringsAre(
+						fwvalidators.StringNotWhitespace(),
+					),
+				},
 			},
 			"host_ids": schema.SetAttribute{
 				Optional:            true,
 				MarkdownDescription: "A set of host IDs to include in a staticByID host group. Required if `type` is `staticByID`.",
 				ElementType:         types.StringType,
+				Validators: []validator.Set{
+					setvalidator.ValueStringsAre(
+						fwvalidators.StringNotWhitespace(),
+					),
+				},
 			},
 			"type": schema.StringAttribute{
 				Required:            true,
@@ -226,7 +241,6 @@ func (r *hostGroupResource) Create(
 	}
 
 	hostGroup, err := r.client.HostGroup.CreateHostGroups(&hostGroupParams)
-
 	if err != nil {
 		errMsg := fmt.Sprintf(
 			"Could not create host group (%s): %s",
@@ -266,7 +280,6 @@ func (r *hostGroupResource) Create(
 
 	if plan.GroupType.ValueString() != HgDynamic {
 		hgUpdate, err := r.updateHostGroup(ctx, plan, assignmentRule)
-
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error assigning hosts to host group",
@@ -304,7 +317,6 @@ func (r *hostGroupResource) Read(
 			Ids:     []string{state.ID.ValueString()},
 		},
 	)
-
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error reading CrowdStrike host group",
@@ -343,7 +355,6 @@ func (r *hostGroupResource) Update(
 	}
 
 	hostGroup, err := r.updateHostGroup(ctx, plan, assignmentRule)
-
 	if err != nil {
 		errMsg := fmt.Sprintf(
 			"Could not update host group (%s): %s",
@@ -490,7 +501,6 @@ func (r *hostGroupResource) purgeSensorUpdatePolicies(
 			Filter:  &filter,
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Error deleting CrowdStrike host group",
@@ -518,7 +528,6 @@ func (r *hostGroupResource) purgeSensorUpdatePolicies(
 				},
 			},
 		)
-
 		if err != nil {
 			diags.AddError(
 				"Error deleting CrowdStrike host group",
@@ -545,7 +554,6 @@ func (r *hostGroupResource) purgePreventionPolicies(
 			Filter:  &filter,
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Error deleting CrowdStrike host group",
@@ -573,7 +581,6 @@ func (r *hostGroupResource) purgePreventionPolicies(
 				},
 			},
 		)
-
 		if err != nil {
 			diags.AddError(
 				"Error deleting CrowdStrike host group",
@@ -600,7 +607,6 @@ func (r *hostGroupResource) purgeFirewallPolicies(
 			Filter:  &filter,
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Error deleting CrowdStrike host group",
@@ -628,7 +634,6 @@ func (r *hostGroupResource) purgeFirewallPolicies(
 				},
 			},
 		)
-
 		if err != nil {
 			diags.AddError(
 				"Error deleting CrowdStrike host group",
@@ -655,7 +660,6 @@ func (r *hostGroupResource) purgeResponsePolicies(
 			Filter:  &filter,
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Error deleting CrowdStrike host group",
@@ -683,7 +687,6 @@ func (r *hostGroupResource) purgeResponsePolicies(
 				},
 			},
 		)
-
 		if err != nil {
 			diags.AddError(
 				"Error deleting CrowdStrike host group",

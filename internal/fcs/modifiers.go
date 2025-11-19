@@ -127,18 +127,18 @@ func agentlessScanningRoleNameStateModifier() agentlessScanningRoleNameModifier 
 	return agentlessScanningRoleNameModifier{}
 }
 
-func shouldInvalidateDSPMRoleField(plan cloudAWSAccountModel, state cloudAWSAccountModel) bool {
+func shouldInvalidateDSPMRoleField(plan, state cloudAWSAccountModel) bool {
 	shouldInvalidate := plan.DSPM != nil && state.DSPM != nil && !plan.DSPM.RoleName.Equal(state.DSPM.RoleName)
 	return shouldInvalidate
 }
 
-func shouldInvalidateVulnerabilityScanningRoleField(plan cloudAWSAccountModel, state cloudAWSAccountModel) bool {
+func shouldInvalidateVulnerabilityScanningRoleField(plan, state cloudAWSAccountModel) bool {
 	shouldInvalidate := plan.VulnerabilityScanning != nil && state.VulnerabilityScanning != nil &&
 		!plan.VulnerabilityScanning.RoleName.Equal(state.VulnerabilityScanning.RoleName)
 	return shouldInvalidate
 }
 
-func shouldInvalidateAgentlessScanningRoleField(plan cloudAWSAccountModel, state cloudAWSAccountModel) bool {
+func shouldInvalidateAgentlessScanningRoleField(plan, state cloudAWSAccountModel) bool {
 	shouldInvalidate := shouldInvalidateDSPMRoleField(plan, state) || shouldInvalidateVulnerabilityScanningRoleField(plan, state)
 	return shouldInvalidate
 }

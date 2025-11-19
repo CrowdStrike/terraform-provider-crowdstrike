@@ -1,0 +1,46 @@
+name: acceptance-tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '**.go'
+      - '!tools/**.go'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Terraform Provider Acceptance Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        terraform:
+          - "1.9.*"
+          - "1.10.*"
+          - "1.11.*"
+          - "1.12.*"
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: "go.mod"
+          cache: true
+      - uses: hashicorp/setup-terraform@eab1d37cffc3940f9f65f9fe6e4cdd22569f6b94
+        with:
+          terraform_version: ${{ matrix.terraform }}
+          terraform_wrapper: false
+      - run: go mod download
+      - env:
+          TF_ACC: "1"
+          FALCON_CLIENT_ID: ${{ secrets.FALCON_CLIENT_ID }}
+          FALCON_CLIENT_SECRET: ${{ secrets.FALCON_CLIENT_SECRET }}
+          FALCON_CLOUD: ${{ secrets.FALCON_CLOUD }}
+          HOST_GROUP_ID: ${{ secrets.HOST_GROUP_ID }}
+          IOA_RULE_GROUP_ID: ${{ secrets.IOA_RULE_GROUP_ID }}
+        run: go test -v -cover ./internal/... -parallel 10 -failfast

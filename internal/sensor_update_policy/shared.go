@@ -151,7 +151,7 @@ func (t timeBlock) AttributeTypes() map[string]attr.Type {
 }
 
 // validTime checks if the start and end time are atleast 1 hour apart.
-func validTime(startTimeStr string, endTimeStr string) (bool, error) {
+func validTime(startTimeStr, endTimeStr string) (bool, error) {
 	startTime, err := time.Parse("15:04", startTimeStr)
 	if err != nil {
 		return false, err
@@ -225,7 +225,6 @@ func getSensorUpdatePolicy(
 			Ids:     []string{policyID},
 		},
 	)
-
 	if err != nil {
 		if _, ok := err.(*sensor_update_policies.GetSensorUpdatePoliciesV2NotFound); ok {
 			diags.Append(
@@ -301,7 +300,6 @@ func updateHostGroups(
 			},
 		},
 	)
-
 	if err != nil {
 		diags.AddError("Error updating sensor update policy host groups", fmt.Sprintf(
 			"Error %s host groups (%s) to sensor update policy (%s): %s",

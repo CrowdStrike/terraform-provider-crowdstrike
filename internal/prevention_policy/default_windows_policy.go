@@ -925,5 +925,4 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 				)...)
 		}
 	}
-
 }

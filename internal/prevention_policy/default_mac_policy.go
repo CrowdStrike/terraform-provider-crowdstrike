@@ -166,7 +166,6 @@ func (m *defaultPreventionPolicyMacResourceModel) generatePreventionSettings(ctx
 	}
 
 	return preventionSettings, diags
-
 }
 
 // assignPreventionSettings assigns the prevention settings returned from the api into the resource model.
@@ -341,7 +340,6 @@ func (r *defaultPreventionPolicyMacResource) Create(
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	resp.Diagnostics.Append(plan.wrap(ctx, *policy)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
-
 }
 
 func (r *defaultPreventionPolicyMacResource) Read(
@@ -433,7 +431,6 @@ func (r *defaultPreventionPolicyMacResource) ValidateConfig(
 	req resource.ValidateConfigRequest,
 	resp *resource.ValidateConfigResponse,
 ) {
-
 	var config defaultPreventionPolicyMacResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {

@@ -355,7 +355,6 @@ func TestAccContentUpdatePolicyResource_Import(t *testing.T) {
 }
 
 func TestAccContentUpdatePolicyResource_HostGroups(t *testing.T) {
-
 	testCases := []struct {
 		name   string
 		config policyConfig
@@ -1013,7 +1012,6 @@ func TestAccContentUpdatePolicyResource_PinnedContentVersionValidTransitions(t *
 }
 
 func TestAccContentUpdatePolicyResource_RingConfigurations(t *testing.T) {
-
 	testCases := []struct {
 		name   string
 		config policyConfig
@@ -1127,7 +1125,6 @@ func TestAccContentUpdatePolicyResource_RingConfigurations(t *testing.T) {
 }
 
 func TestAccContentUpdatePolicyResource_StateTransitions(t *testing.T) {
-
 	testCases := []struct {
 		name   string
 		config policyConfig
@@ -1215,7 +1212,6 @@ func TestAccContentUpdatePolicyResource_StateTransitions(t *testing.T) {
 }
 
 func TestAccContentUpdatePolicyResource_Validation(t *testing.T) {
-
 	validationTests := []struct {
 		name        string
 		config      policyConfig
@@ -1474,7 +1470,6 @@ func TestAccContentUpdatePolicyResource_UpdateRingAssignmentAndPinnedVersion(t *
 }
 
 func TestAccContentUpdatePolicyResource_FieldBoundaries(t *testing.T) {
-
 	testCases := []struct {
 		name   string
 		config policyConfig

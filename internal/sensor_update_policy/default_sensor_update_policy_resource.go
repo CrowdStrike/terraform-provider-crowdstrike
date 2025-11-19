@@ -105,7 +105,6 @@ func (d *defaultSensorUpdatePolicyResourceModel) wrap(
 				d.PlatformName.ValueString(),
 			),
 		)
-
 	}
 
 	if strings.ToLower(d.PlatformName.ValueString()) == "linux" &&
@@ -479,7 +478,6 @@ func (r *defaultSensorUpdatePolicyResource) ValidateConfig(
 	req resource.ValidateConfigRequest,
 	resp *resource.ValidateConfigResponse,
 ) {
-
 	var config defaultSensorUpdatePolicyResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	resp.Diagnostics.Append(config.extract(ctx)...)
@@ -544,7 +542,6 @@ func (r *defaultSensorUpdatePolicyResource) ValidateConfig(
 
 			for _, b := range timeBlockList {
 				ok, err := validTime(b.StartTime.ValueString(), b.EndTime.ValueString())
-
 				if err != nil {
 					resp.Diagnostics.AddError(
 						"Unable to validate config",
@@ -581,7 +578,6 @@ func (r *defaultSensorUpdatePolicyResource) ValidateConfig(
 			}
 		}
 	}
-
 }
 
 func (r *defaultSensorUpdatePolicyResource) updateDefaultPolicy(
@@ -618,7 +614,6 @@ func (r *defaultSensorUpdatePolicyResource) updateDefaultPolicy(
 		policyParams.Body.Resources[0].Settings.UninstallProtection = "ENABLED"
 	} else {
 		policyParams.Body.Resources[0].Settings.UninstallProtection = "DISABLED"
-
 	}
 
 	updateSchedular := models.PolicySensorUpdateScheduler{}
@@ -649,7 +644,6 @@ func (r *defaultSensorUpdatePolicyResource) updateDefaultPolicy(
 	policyParams.Body.Resources[0].Settings.Scheduler = &updateSchedular
 
 	res, err := r.client.SensorUpdatePolicies.UpdateSensorUpdatePoliciesV2(&policyParams)
-
 	if err != nil {
 		diags.AddError(
 			"Error updating CrowdStrike sensor update policy",
@@ -685,7 +679,6 @@ func (r *defaultSensorUpdatePolicyResource) getDefaultPolicy(
 			Sort:    &sort,
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Failed to get default sensor update policy",

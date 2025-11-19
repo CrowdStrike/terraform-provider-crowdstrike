@@ -818,7 +818,6 @@ func (r *defaultContentUpdatePolicyResource) updateDefaultPolicy(
 	}
 
 	_, err := r.client.ContentUpdatePolicies.UpdateContentUpdatePolicies(&policyParams)
-
 	if err != nil {
 		diags.AddError(
 			"Error updating CrowdStrike default content update policy",
@@ -845,7 +844,6 @@ func (r *defaultContentUpdatePolicyResource) getDefaultPolicy(
 			Filter:  &filter,
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Failed to get default content update policy",

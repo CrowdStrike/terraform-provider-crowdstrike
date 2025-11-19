@@ -754,7 +754,6 @@ func (r *filevantageRuleGroupResource) Delete(
 	}
 
 	_, err := r.client.Filevantage.DeleteRuleGroups(&params)
-
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to delete filevantage rule group",
@@ -1116,8 +1115,8 @@ func (r *filevantageRuleGroupResource) syncRules(
 	var rulesToDelete []string
 	var rulesToUpdate []fimRule
 
-	var stateMap = make(map[string]fimRule)
-	var planMap = make(map[string]fimRule)
+	stateMap := make(map[string]fimRule)
+	planMap := make(map[string]fimRule)
 
 	for _, rule := range stateRules {
 		rule := *rule
@@ -1185,7 +1184,6 @@ func (r *filevantageRuleGroupResource) getRules(
 			RuleGroupID: ruleGroupID,
 			Context:     ctx,
 		})
-
 		if err != nil {
 			diags.AddError(
 				"Failed to get rules assigned to rule group",
@@ -1290,7 +1288,6 @@ func (r *filevantageRuleGroupResource) deleteRules(
 	}
 
 	res, err := r.client.Filevantage.DeleteRules(&params)
-
 	if err != nil {
 		diags.AddError(
 			"Failed to delete rules associated with rule group",

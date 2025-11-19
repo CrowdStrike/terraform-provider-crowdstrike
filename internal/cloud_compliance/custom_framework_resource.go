@@ -80,7 +80,6 @@ func (d *cloudComplianceCustomFrameworkResourceModel) wrap(
 	_ context.Context,
 	framework *models.ApimodelsSecurityFramework,
 ) {
-
 	d.ID = types.StringValue(framework.UUID)
 	d.Name = types.StringPointerValue(framework.Name)
 	d.Description = types.StringValue(framework.Description)

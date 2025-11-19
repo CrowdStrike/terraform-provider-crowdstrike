@@ -104,7 +104,7 @@ type itAutomationTaskResourceModel struct {
 }
 
 // convertType converts the type value to the Terraform or API expected values.
-func convertType(typeValue string, dest string) string {
+func convertType(typeValue, dest string) string {
 	if dest == "terraform" && typeValue == TaskTypeRemediation {
 		typeValue = TaskTypeAction
 	} else if dest == "api" && typeValue == TaskTypeAction {

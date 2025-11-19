@@ -460,7 +460,6 @@ func (r *cloudAzureTenantResource) deleteRegistration(
 			Context:   ctx,
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Failed to delete registration",
@@ -485,7 +484,6 @@ func (r *cloudAzureTenantResource) getRegistration(
 			Context:  ctx,
 		},
 	)
-
 	if err != nil {
 		if _, ok := err.(*cloud_azure_registration.CloudRegistrationAzureGetRegistrationNotFound); ok {
 			diags.Append(
@@ -573,7 +571,6 @@ func (r *cloudAzureTenantResource) createRegistration(
 	}
 
 	res, err := r.client.CloudAzureRegistration.CloudRegistrationAzureCreateRegistration(&params)
-
 	if err != nil {
 		diags.AddError(
 			"Failed to register tenant",
@@ -662,7 +659,6 @@ func (r *cloudAzureTenantResource) updateRegistration(
 	}
 
 	res, err := r.client.CloudAzureRegistration.CloudRegistrationAzureUpdateRegistration(&params)
-
 	if err != nil {
 		if _, ok := err.(*cloud_azure_registration.CloudRegistrationAzureUpdateRegistrationNotFound); ok {
 			diags.Append(

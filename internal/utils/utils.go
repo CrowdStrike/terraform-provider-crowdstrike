@@ -156,7 +156,7 @@ func ProcessDescriptionSearchPattern(pattern string) SearchQueryInfo {
 // - Split on "@" to get username part for API query
 // - Use exact matching (no wildcard) or contains matching (with wildcard)
 // - Case-sensitive matching for user fields.
-func ProcessUserFieldSearchPattern(pattern string, fieldName string) SearchQueryInfo {
+func ProcessUserFieldSearchPattern(pattern, fieldName string) SearchQueryInfo {
 	if pattern == "" {
 		return SearchQueryInfo{
 			APIQuery:          "",
@@ -225,9 +225,9 @@ func ProcessUserFieldSearchPattern(pattern string, fieldName string) SearchQuery
 func SetIDsToModify(
 	ctx context.Context,
 	plan, state types.Set,
-) (idsToAdd []string, idsToRemove []string, diags diag.Diagnostics) {
+) (idsToAdd, idsToRemove []string, diags diag.Diagnostics) {
 	if len(plan.Elements()) == 0 && len(state.Elements()) == 0 {
-		return
+		return idsToAdd, idsToRemove, diags
 	}
 
 	var planIDs, stateIDs []types.String
@@ -237,14 +237,14 @@ func SetIDsToModify(
 	if !plan.IsUnknown() && !plan.IsNull() {
 		diags.Append(plan.ElementsAs(ctx, &planIDs, false)...)
 		if diags.HasError() {
-			return
+			return idsToAdd, idsToRemove, diags
 		}
 	}
 
 	if !state.IsUnknown() && !state.IsNull() {
 		diags.Append(state.ElementsAs(ctx, &stateIDs, false)...)
 		if diags.HasError() {
-			return
+			return idsToAdd, idsToRemove, diags
 		}
 	}
 
@@ -272,7 +272,7 @@ func SetIDsToModify(
 		}
 	}
 
-	return
+	return idsToAdd, idsToRemove, diags
 }
 
 // ListIDsToModify takes a list of unique IDs from plan and state and returns the IDs to add and remove to get from the state to the plan.
@@ -282,18 +282,18 @@ func SetIDsToModify(
 func ListIDsToModify(
 	ctx context.Context,
 	plan, state types.List,
-) (idsToAdd []string, idsToRemove []string, diags diag.Diagnostics) {
+) (idsToAdd, idsToRemove []string, diags diag.Diagnostics) {
 	var planIDs, stateIDs []string
 	planMap := make(map[string]bool)
 	stateMap := make(map[string]bool)
 
 	diags.Append(plan.ElementsAs(ctx, &planIDs, false)...)
 	if diags.HasError() {
-		return
+		return idsToAdd, idsToRemove, diags
 	}
 	diags.Append(state.ElementsAs(ctx, &stateIDs, false)...)
 	if diags.HasError() {
-		return
+		return idsToAdd, idsToRemove, diags
 	}
 
 	for _, id := range planIDs {
@@ -316,7 +316,7 @@ func ListIDsToModify(
 		}
 	}
 
-	return
+	return idsToAdd, idsToRemove, diags
 }
 
 func GenerateUpdateTimestamp() basetypes.StringValue {

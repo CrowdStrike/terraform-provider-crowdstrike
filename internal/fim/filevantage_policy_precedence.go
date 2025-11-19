@@ -201,7 +201,6 @@ func (r *filevantagePolicyPrecedenceResource) Read(
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-
 	var state filevantagePolicyPrecedenceResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -229,7 +228,6 @@ func (r *filevantagePolicyPrecedenceResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-
 	var plan filevantagePolicyPrecedenceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -319,7 +317,6 @@ func (r *filevantagePolicyPrecedenceResource) getFilevantagePoilciesByPrecedence
 				Offset:  &offset,
 			},
 		)
-
 		if err != nil {
 			diags.AddError(
 				"Error reading CrowdStrike filevantage policies",
