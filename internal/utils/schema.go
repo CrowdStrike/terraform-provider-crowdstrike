@@ -172,7 +172,7 @@ func ValidateEmptyIDsList(
 }
 
 // MarkdownDescription generates a markdown description that works for generating terraform docs.
-func MarkdownDescription(section string, description string, apiScopes []scopes.Scope) string {
+func MarkdownDescription(section, description string, apiScopes []scopes.Scope) string {
 	return fmt.Sprintf("%s --- %s\n\n%s",
 		section,
 		description,

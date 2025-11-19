@@ -17,9 +17,11 @@ import (
 	"golang.org/x/text/language"
 )
 
-var windowsPlatformName = "Windows"
-var linuxPlatformName = "Linux"
-var macPlatformName = "Mac"
+var (
+	windowsPlatformName = "Windows"
+	linuxPlatformName   = "Linux"
+	macPlatformName     = "Mac"
+)
 
 var apiScopes = []scopes.Scope{
 	{
@@ -61,7 +63,6 @@ func getDefaultPolicy(
 			Sort:    &sort,
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Failed to get default prevention policy",
@@ -168,7 +169,6 @@ func updateRuleGroups(
 			},
 		},
 	)
-
 	if err != nil {
 		diags.AddError("Error updating prevention policy rule groups", fmt.Sprintf(
 			"Error %s rule groups (%s) to prevention policy (%s): %s",
@@ -268,7 +268,6 @@ func updatePolicyEnabledState(
 			},
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Error changing enabled state on prevention policy",
@@ -364,7 +363,6 @@ func updatePreventionPolicy(
 	updateParams.Body.Resources[0].Settings = preventionSettings
 
 	res, err := client.PreventionPolicies.UpdatePreventionPolicies(&updateParams)
-
 	// todo: if we should handle scope and timeout errors instead of giving a vague error
 	if err != nil {
 		diags.AddError(
@@ -404,7 +402,6 @@ func getPreventionPolicy(
 			Ids:     []string{policyID},
 		},
 	)
-
 	if err != nil {
 		if _, ok := err.(*prevention_policies.GetPreventionPoliciesNotFound); ok {
 			diags.Append(
@@ -467,7 +464,6 @@ func createPreventionPolicy(
 	createParams.Body.Resources[0].Settings = preventionSettings
 
 	res, err := client.PreventionPolicies.CreatePreventionPolicies(&createParams)
-
 	// todo: if we should handle scope and timeout errors instead of giving a vague error
 	if err != nil {
 		if strings.Contains(err.Error(), "least one ID must be provided") {
@@ -527,7 +523,6 @@ func updateHostGroups(
 			},
 		},
 	)
-
 	if err != nil {
 		diags.AddError("Error updating prevention policy host groups", fmt.Sprintf(
 			"Error %s host groups (%s) to prevention policy (%s): %s",
@@ -658,7 +653,6 @@ func deletePreventionPolicy(
 			Ids:     []string{id},
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Error deleting prevention policy",

@@ -798,7 +798,6 @@ func (r *contentPolicyResource) Delete(
 			Ids:     []string{state.ID.ValueString()},
 		},
 	)
-
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			return

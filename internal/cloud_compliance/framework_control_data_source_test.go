@@ -105,7 +105,7 @@ func TestCloudComplianceFrameworkControlDataSource(t *testing.T) {
 	})
 }
 
-func testDatasourceByFqlConfig(fql string, resourceName string) string {
+func testDatasourceByFqlConfig(fql, resourceName string) string {
 	return fmt.Sprintf(`
 data "crowdstrike_cloud_compliance_framework_controls" "%s" {
   fql = "%s"
@@ -113,7 +113,7 @@ data "crowdstrike_cloud_compliance_framework_controls" "%s" {
 `, resourceName, fql)
 }
 
-func testDatasourceByNameConfig(name string, benchmark string, resourceName string) string {
+func testDatasourceByNameConfig(name, benchmark, resourceName string) string {
 	return fmt.Sprintf(`
 data "crowdstrike_cloud_compliance_framework_controls" "%s" {
   control_name = "%s"
@@ -122,7 +122,7 @@ data "crowdstrike_cloud_compliance_framework_controls" "%s" {
 `, resourceName, name, benchmark)
 }
 
-func testDatasourceByRequirementConfig(requirement string, benchmark string, resourceName string) string {
+func testDatasourceByRequirementConfig(requirement, benchmark, resourceName string) string {
 	return fmt.Sprintf(`
 data "crowdstrike_cloud_compliance_framework_controls" "%s" {
   requirement = "%s"
@@ -131,7 +131,7 @@ data "crowdstrike_cloud_compliance_framework_controls" "%s" {
 `, resourceName, requirement, benchmark)
 }
 
-func testDatasourceBySectionConfig(requirement string, benchmark string, section string, resourceName string) string {
+func testDatasourceBySectionConfig(requirement, benchmark, section, resourceName string) string {
 	return fmt.Sprintf(`
 data "crowdstrike_cloud_compliance_framework_controls" "%s" {
   requirement = "%s"
@@ -141,7 +141,7 @@ data "crowdstrike_cloud_compliance_framework_controls" "%s" {
 `, resourceName, requirement, benchmark, section)
 }
 
-func testDatasourcePaginationConfig(benchmark string, resourceName string) string {
+func testDatasourcePaginationConfig(benchmark, resourceName string) string {
 	return fmt.Sprintf(`
 data "crowdstrike_cloud_compliance_framework_controls" "%s" {
   benchmark = "%s"
