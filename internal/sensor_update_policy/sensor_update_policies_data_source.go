@@ -8,553 +8,30 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-// Ensure the implementation satisfies the expected interfaces.
-var (
-	_ datasource.DataSource              = &sensorUpdatePoliciesDataSource{}
-	_ datasource.DataSourceWithConfigure = &sensorUpdatePoliciesDataSource{}
+const (
+	dataSourceDocumentationSection = "Sensor Update Policies"
+	dataSourceMarkdownDescription  = "This data source provides information about sensor update policies in Falcon."
 )
 
-// sensorUpdatePoliciesDataSource is the data source implementation.
-type sensorUpdatePoliciesDataSource struct {
-	client *client.CrowdStrikeAPISpecification
-}
-
-type sensorUpdatePolicyDataModel struct {
-	ID                types.String `tfsdk:"id"`
-	Name              types.String `tfsdk:"name"`
-	Description       types.String `tfsdk:"description"`
-	Enabled           types.Bool   `tfsdk:"enabled"`
-	PlatformName      types.String `tfsdk:"platform_name"`
-	CreatedBy         types.String `tfsdk:"created_by"`
-	CreatedTimestamp  types.String `tfsdk:"created_timestamp"`
-	ModifiedBy        types.String `tfsdk:"modified_by"`
-	ModifiedTimestamp types.String `tfsdk:"modified_timestamp"`
-	Groups            types.List   `tfsdk:"groups"`
-}
-
-type sensorUpdatePoliciesDataSourceModel struct {
-	ID          types.String `tfsdk:"id"`
-	Filter      types.String `tfsdk:"filter"`
-	IDs         types.List   `tfsdk:"ids"`
-	Sort        types.String `tfsdk:"sort"`
-	Name        types.String `tfsdk:"name"`
-	Description types.String `tfsdk:"description"`
-	Enabled     types.Bool   `tfsdk:"enabled"`
-	Platform    types.String `tfsdk:"platform"`
-	Policies    types.List   `tfsdk:"policies"`
-}
-
-// NewSensorUpdatePoliciesDataSource is a helper function to simplify the provider implementation.
-func NewSensorUpdatePoliciesDataSource() datasource.DataSource {
-	return &sensorUpdatePoliciesDataSource{}
-}
-
-// Metadata returns the data source type name.
-func (d *sensorUpdatePoliciesDataSource) Metadata(
-	_ context.Context,
-	req datasource.MetadataRequest,
-	resp *datasource.MetadataResponse,
-) {
-	resp.TypeName = req.ProviderTypeName + "_sensor_update_policies"
-}
-
-// Schema defines the schema for the data source.
-func (d *sensorUpdatePoliciesDataSource) Schema(
-	_ context.Context,
-	_ datasource.SchemaRequest,
-	resp *datasource.SchemaResponse,
-) {
-	resp.Schema = schema.Schema{
-		MarkdownDescription: fmt.Sprintf(
-			"Sensor Update Policies --- This data source provides information about sensor update policies in Falcon.\n\n%s",
-			scopes.GenerateScopeDescription([]scopes.Scope{
-				{
-					Name:  "Sensor update policies",
-					Read:  true,
-					Write: false,
-				},
-			}),
-		),
-		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Computed:    true,
-				Description: "Identifier for this data source",
-			},
-			"filter": schema.StringAttribute{
-				Optional: true,
-				Description: "FQL filter to apply to the sensor update policies query. " +
-					"When specified, only policies matching the filter will be returned. " +
-					"Cannot be used together with 'ids' or other filter attributes. " +
-					"Example: `enabled:true`",
-			},
-			"ids": schema.ListAttribute{
-				Optional:    true,
-				ElementType: types.StringType,
-				Description: "List of sensor update policy IDs to retrieve. " +
-					"When specified, only policies with matching IDs will be returned. " +
-					"Cannot be used together with 'filter' or other filter attributes.",
-			},
-			"sort": schema.StringAttribute{
-				Optional: true,
-				Description: "Sort order for the results. " +
-					"Valid values include field names with optional '.asc' or '.desc' suffix. " +
-					"Example: 'name.asc', 'created_timestamp.desc'",
-			},
-			"name": schema.StringAttribute{
-				Optional: true,
-				Description: "Filter policies by name. Partial matches are supported, but only single words work reliably. " +
-					"Use single words without spaces (e.g., 'production' works, but 'production lab' may not return results). " +
-					"For complex name searches with spaces, use the 'filter' attribute instead. " +
-					"Cannot be used together with 'filter' or 'ids'.",
-			},
-			"description": schema.StringAttribute{
-				Optional: true,
-				Description: "Filter policies by description. Partial matches are supported, but only single words work reliably. " +
-					"Use single words without spaces (e.g., 'malware' works, but 'malware protection' may not return results). " +
-					"For complex description searches with spaces, use the 'filter' attribute instead. " +
-					"Cannot be used together with 'filter' or 'ids'.",
-			},
-			"enabled": schema.BoolAttribute{
-				Optional: true,
-				Description: "Filter policies by enabled status. " +
-					"Cannot be used together with 'filter' or 'ids'.",
-			},
-			"platform": schema.StringAttribute{
-				Optional: true,
-				Description: "Filter policies by platform. " +
-					"Valid values include 'windows', 'mac', 'linux'. " +
-					"Cannot be used together with 'filter' or 'ids'.",
-			},
-			"policies": schema.ListNestedAttribute{
-				Computed:    true,
-				Description: "The list of sensor update policies",
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"id": schema.StringAttribute{
-							Computed:    true,
-							Description: "The sensor update policy ID",
-						},
-						"name": schema.StringAttribute{
-							Computed:    true,
-							Description: "The sensor update policy name",
-						},
-						"description": schema.StringAttribute{
-							Computed:    true,
-							Description: "The sensor update policy description",
-						},
-						"enabled": schema.BoolAttribute{
-							Computed:    true,
-							Description: "Whether the sensor update policy is enabled",
-						},
-						"platform_name": schema.StringAttribute{
-							Computed:    true,
-							Description: "The platform name for the sensor update policy",
-						},
-						"created_by": schema.StringAttribute{
-							Computed:    true,
-							Description: "User who created the policy",
-						},
-						"created_timestamp": schema.StringAttribute{
-							Computed:    true,
-							Description: "Timestamp when the policy was created",
-						},
-						"modified_by": schema.StringAttribute{
-							Computed:    true,
-							Description: "User who last modified the policy",
-						},
-						"modified_timestamp": schema.StringAttribute{
-							Computed:    true,
-							Description: "Timestamp when the policy was last modified",
-						},
-						"groups": schema.ListAttribute{
-							Computed:    true,
-							ElementType: types.StringType,
-							Description: "List of host group IDs assigned to the policy",
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-// getSensorUpdatePoliciesWithFilter retrieves sensor update policies using a filter.
-func (d *sensorUpdatePoliciesDataSource) getSensorUpdatePoliciesWithFilter(
-	ctx context.Context,
-	filter string,
-	sort string,
-) ([]*models.SensorUpdatePolicyV2, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	tflog.Info(
-		ctx,
-		"[datasource] Getting sensor update policies with filter",
-		map[string]interface{}{"filter": filter, "sort": sort},
-	)
-
-	params := &sensor_update_policies.QueryCombinedSensorUpdatePoliciesV2Params{
-		Context: ctx,
-	}
-
-	if filter != "" {
-		params.Filter = &filter
-	}
-
-	if sort != "" {
-		params.Sort = &sort
-	}
-
-	res, err := d.client.SensorUpdatePolicies.QueryCombinedSensorUpdatePoliciesV2(params)
-	if err != nil {
-		diags.AddError(
-			"Failed to query sensor update policies",
-			fmt.Sprintf("Failed to query sensor update policies: %s", err.Error()),
-		)
-		return nil, diags
-	}
-
-	if res == nil || res.Payload == nil {
-		diags.AddError(
-			"Failed to query sensor update policies",
-			"Received empty response from sensor update policies query",
-		)
-		return nil, diags
-	}
-
-	return res.Payload.Resources, diags
-}
-
-// getSensorUpdatePoliciesByIDs retrieves sensor update policies by their IDs.
-func (d *sensorUpdatePoliciesDataSource) getSensorUpdatePoliciesByIDs(
-	ctx context.Context,
-	ids []string,
-) ([]*models.SensorUpdatePolicyV2, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	tflog.Info(
-		ctx,
-		"[datasource] Getting sensor update policies by IDs",
-		map[string]interface{}{"ids": ids},
-	)
-
-	res, err := d.client.SensorUpdatePolicies.GetSensorUpdatePoliciesV2(
-		&sensor_update_policies.GetSensorUpdatePoliciesV2Params{
-			Context: ctx,
-			Ids:     ids,
-		},
-	)
-
-	if err != nil {
-		diags.AddError(
-			"Failed to get sensor update policies",
-			fmt.Sprintf("Failed to get sensor update policies by IDs: %s", err.Error()),
-		)
-		return nil, diags
-	}
-
-	if res == nil || res.Payload == nil {
-		diags.AddError(
-			"Failed to get sensor update policies",
-			"Received empty response from sensor update policies get request",
-		)
-		return nil, diags
-	}
-
-	return res.Payload.Resources, diags
-}
-
-// convertToDataModel converts a sensor update policy API model to the data source model.
-func convertToSensorUpdatePolicyDataModel(policy *models.SensorUpdatePolicyV2) *sensorUpdatePolicyDataModel {
-	if policy == nil {
-		return nil
-	}
-
-	// Convert host groups
-	groups := make([]attr.Value, 0, len(policy.Groups))
-	for _, group := range policy.Groups {
-		if group.ID != nil {
-			groups = append(groups, types.StringValue(*group.ID))
-		}
-	}
-
-	model := &sensorUpdatePolicyDataModel{
-		Groups: types.ListValueMust(types.StringType, groups),
-	}
-
-	// Set string fields with null checks
-	if policy.ID != nil {
-		model.ID = types.StringValue(*policy.ID)
-	} else {
-		model.ID = types.StringNull()
-	}
-
-	if policy.Name != nil {
-		model.Name = types.StringValue(*policy.Name)
-	} else {
-		model.Name = types.StringNull()
-	}
-
-	if policy.Description != nil {
-		model.Description = types.StringValue(*policy.Description)
-	} else {
-		model.Description = types.StringNull()
-	}
-
-	if policy.PlatformName != nil {
-		model.PlatformName = types.StringValue(*policy.PlatformName)
-	} else {
-		model.PlatformName = types.StringNull()
-	}
-
-	if policy.CreatedBy != nil {
-		model.CreatedBy = types.StringValue(*policy.CreatedBy)
-	} else {
-		model.CreatedBy = types.StringNull()
-	}
-
-	if policy.CreatedTimestamp != nil {
-		model.CreatedTimestamp = types.StringValue(policy.CreatedTimestamp.String())
-	} else {
-		model.CreatedTimestamp = types.StringNull()
-	}
-
-	if policy.ModifiedBy != nil {
-		model.ModifiedBy = types.StringValue(*policy.ModifiedBy)
-	} else {
-		model.ModifiedBy = types.StringNull()
-	}
-
-	if policy.ModifiedTimestamp != nil {
-		model.ModifiedTimestamp = types.StringValue(policy.ModifiedTimestamp.String())
-	} else {
-		model.ModifiedTimestamp = types.StringNull()
-	}
-
-	// Set boolean field
-	if policy.Enabled != nil {
-		model.Enabled = types.BoolValue(*policy.Enabled)
-	} else {
-		model.Enabled = types.BoolNull()
-	}
-
-	return model
-}
-
-// hasIndividualFilters checks if any of the individual filter attributes are set.
-func (d *sensorUpdatePoliciesDataSource) hasIndividualFilters(data *sensorUpdatePoliciesDataSourceModel) bool {
-	return (!data.Name.IsNull() && !data.Name.IsUnknown()) ||
-		(!data.Description.IsNull() && !data.Description.IsUnknown()) ||
-		(!data.Enabled.IsNull() && !data.Enabled.IsUnknown()) ||
-		(!data.Platform.IsNull() && !data.Platform.IsUnknown())
-}
-
-// buildFQLFromAttributes constructs an FQL filter from individual filter attributes.
-func (d *sensorUpdatePoliciesDataSource) buildFQLFromAttributes(ctx context.Context, data *sensorUpdatePoliciesDataSourceModel) string {
-	var filters []string
-
-	// name filter - supports partial matching
-	if !data.Name.IsNull() && !data.Name.IsUnknown() {
-		value := data.Name.ValueString()
-		if value != "" {
-			// Use wildcard syntax for partial matching: name:*'value'
-			filters = append(filters, fmt.Sprintf("name:*'%s'", value))
-		}
-	}
-
-	// description filter - supports partial matching
-	if !data.Description.IsNull() && !data.Description.IsUnknown() {
-		value := data.Description.ValueString()
-		if value != "" {
-			// Use wildcard syntax for partial matching: description:*'value'
-			filters = append(filters, fmt.Sprintf("description:*'%s'", value))
-		}
-	}
-
-	// enabled filter
-	if !data.Enabled.IsNull() && !data.Enabled.IsUnknown() {
-		enabled := data.Enabled.ValueBool()
-		filters = append(filters, fmt.Sprintf("enabled:%t", enabled))
-	}
-
-	// platform filter
-	if !data.Platform.IsNull() && !data.Platform.IsUnknown() {
-		value := data.Platform.ValueString()
-		if value != "" {
-			filters = append(filters, fmt.Sprintf("platform_name:'%s'", value))
-		}
-	}
-
-	// Join all filters with AND (+)
-	if len(filters) == 0 {
-		return ""
-	}
-
-	fqlFilter := strings.Join(filters, "+")
-
-	// Add debug logging to see what filter is generated
-	tflog.Info(
-		ctx,
-		"[datasource] Generated FQL filter from individual attributes",
-		map[string]interface{}{"filter": fqlFilter, "filter_count": len(filters)},
-	)
-
-	return fqlFilter
-}
-
-// Read refreshes the Terraform state with the latest data.
-func (d *sensorUpdatePoliciesDataSource) Read(
-	ctx context.Context,
-	req datasource.ReadRequest,
-	resp *datasource.ReadResponse,
-) {
-	var data sensorUpdatePoliciesDataSourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Check what filtering methods are being used
-	hasFilter := !data.Filter.IsNull() && !data.Filter.IsUnknown() && data.Filter.ValueString() != ""
-	hasIDs := !data.IDs.IsNull() && !data.IDs.IsUnknown() && len(data.IDs.Elements()) > 0
-	hasIndividualFilters := d.hasIndividualFilters(&data)
-
-	// Validate mutual exclusivity
-	filterCount := 0
-	if hasFilter {
-		filterCount++
-	}
-	if hasIDs {
-		filterCount++
-	}
-	if hasIndividualFilters {
-		filterCount++
-	}
-
-	if filterCount > 1 {
-		resp.Diagnostics.AddError(
-			"Invalid Attribute Combination",
-			"Cannot specify 'filter', 'ids', and individual filter attributes (name, description, enabled, platform) together. "+
-				"Please use only one filtering method: either 'filter' for FQL queries, 'ids' for specific IDs, "+
-				"or individual filter attributes.",
-		)
-		return
-	}
-
-	var policies []*models.SensorUpdatePolicyV2
-	var diags diag.Diagnostics
-	var dataSourceID string
-
-	if hasIDs {
-		// Get policies by IDs
-		var ids []string
-		resp.Diagnostics.Append(data.IDs.ElementsAs(ctx, &ids, false)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		policies, diags = d.getSensorUpdatePoliciesByIDs(ctx, ids)
-		dataSourceID = "ids"
-	} else {
-		// Get policies with filter (or all if no filter)
-		filter := ""
-
-		if hasFilter {
-			filter = data.Filter.ValueString()
-		} else if hasIndividualFilters {
-			// Build FQL filter from individual attributes
-			filter = d.buildFQLFromAttributes(ctx, &data)
-		}
-
-		sort := ""
-		if !data.Sort.IsNull() && !data.Sort.IsUnknown() {
-			sort = data.Sort.ValueString()
-		}
-
-		policies, diags = d.getSensorUpdatePoliciesWithFilter(ctx, filter, sort)
-
-		// Set appropriate data source ID
-		if hasFilter || hasIndividualFilters {
-			dataSourceID = "filtered"
-		} else {
-			dataSourceID = "all"
-		}
-	}
-
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Convert API models to data models
-	policyModels := make([]*sensorUpdatePolicyDataModel, 0, len(policies))
-	for _, policy := range policies {
-		if convertedPolicy := convertToSensorUpdatePolicyDataModel(policy); convertedPolicy != nil {
-			policyModels = append(policyModels, convertedPolicy)
-		}
-	}
-
-	// Convert to types.List
-	policyValues := make([]attr.Value, 0, len(policyModels))
-	for _, policy := range policyModels {
-		policyValue, policiesDiag := types.ObjectValueFrom(ctx, map[string]attr.Type{
-			"id":                 types.StringType,
-			"name":               types.StringType,
-			"description":        types.StringType,
-			"enabled":            types.BoolType,
-			"platform_name":      types.StringType,
-			"created_by":         types.StringType,
-			"created_timestamp":  types.StringType,
-			"modified_by":        types.StringType,
-			"modified_timestamp": types.StringType,
-			"groups":             types.ListType{ElemType: types.StringType},
-		}, policy)
-		resp.Diagnostics.Append(policiesDiag...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		policyValues = append(policyValues, policyValue)
-	}
-
-	policiesList, policiesListDiag := types.ListValue(types.ObjectType{
-		AttrTypes: map[string]attr.Type{
-			"id":                 types.StringType,
-			"name":               types.StringType,
-			"description":        types.StringType,
-			"enabled":            types.BoolType,
-			"platform_name":      types.StringType,
-			"created_by":         types.StringType,
-			"created_timestamp":  types.StringType,
-			"modified_by":        types.StringType,
-			"modified_timestamp": types.StringType,
-			"groups":             types.ListType{ElemType: types.StringType},
-		},
-	}, policyValues)
-	resp.Diagnostics.Append(policiesListDiag...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	data.Policies = policiesList
-
-	// Set ID based on filtering method used
-	data.ID = types.StringValue(dataSourceID)
-
-	// Set state
-	diags = resp.State.Set(ctx, &data)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-}
+// Ensure the implementation satisfies the expected interfaces.
+var (
+	_ datasource.DataSource                   = &sensorUpdatePoliciesDataSource{}
+	_ datasource.DataSourceWithConfigure      = &sensorUpdatePoliciesDataSource{}
+	_ datasource.DataSourceWithValidateConfig = &sensorUpdatePoliciesDataSource{}
+)
 
 // Configure adds the provider configured client to the data source.
 func (d *sensorUpdatePoliciesDataSource) Configure(
@@ -579,4 +56,456 @@ func (d *sensorUpdatePoliciesDataSource) Configure(
 	}
 
 	d.client = client
+}
+
+// sensorUpdatePoliciesDataSource is the data source implementation.
+type sensorUpdatePoliciesDataSource struct {
+	client *client.CrowdStrikeAPISpecification
+}
+
+type policyDataModel struct {
+	ID                types.String `tfsdk:"id"`
+	Name              types.String `tfsdk:"name"`
+	Description       types.String `tfsdk:"description"`
+	Enabled           types.Bool   `tfsdk:"enabled"`
+	PlatformName      types.String `tfsdk:"platform_name"`
+	CreatedBy         types.String `tfsdk:"created_by"`
+	CreatedTimestamp  types.String `tfsdk:"created_timestamp"`
+	ModifiedBy        types.String `tfsdk:"modified_by"`
+	ModifiedTimestamp types.String `tfsdk:"modified_timestamp"`
+	HostGroups        types.List   `tfsdk:"host_groups"`
+}
+
+func (m policyDataModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"id":                 types.StringType,
+		"name":               types.StringType,
+		"description":        types.StringType,
+		"enabled":            types.BoolType,
+		"platform_name":      types.StringType,
+		"created_by":         types.StringType,
+		"created_timestamp":  types.StringType,
+		"modified_by":        types.StringType,
+		"modified_timestamp": types.StringType,
+		"host_groups":        types.ListType{ElemType: types.StringType},
+	}
+}
+
+// SensorUpdatePoliciesDataSourceModel represents the data source model (exported for testing).
+type SensorUpdatePoliciesDataSourceModel struct {
+	Filter       types.String `tfsdk:"filter"`
+	IDs          types.List   `tfsdk:"ids"`
+	Sort         types.String `tfsdk:"sort"`
+	Name         types.String `tfsdk:"name"`
+	Description  types.String `tfsdk:"description"`
+	Enabled      types.Bool   `tfsdk:"enabled"`
+	PlatformName types.String `tfsdk:"platform_name"`
+	CreatedBy    types.String `tfsdk:"created_by"`
+	ModifiedBy   types.String `tfsdk:"modified_by"`
+	Policies     types.List   `tfsdk:"policies"`
+}
+
+func (m *SensorUpdatePoliciesDataSourceModel) wrap(ctx context.Context, policies []*models.SensorUpdatePolicyV1) diag.Diagnostics {
+	var diags diag.Diagnostics
+	policyModels := make([]policyDataModel, 0, len(policies))
+	for _, policy := range policies {
+		if policy == nil {
+			continue
+		}
+
+		policyModel := policyDataModel{}
+
+		policyModel.ID = types.StringPointerValue(policy.ID)
+		policyModel.Name = types.StringPointerValue(policy.Name)
+		policyModel.Description = types.StringPointerValue(policy.Description)
+		policyModel.PlatformName = types.StringPointerValue(policy.PlatformName)
+		policyModel.Enabled = types.BoolPointerValue(policy.Enabled)
+		policyModel.CreatedBy = types.StringPointerValue(policy.CreatedBy)
+		policyModel.CreatedTimestamp = types.StringValue(policy.CreatedTimestamp.String())
+		policyModel.ModifiedBy = types.StringPointerValue(policy.ModifiedBy)
+		policyModel.ModifiedTimestamp = types.StringValue(policy.ModifiedTimestamp.String())
+
+		hostGroups, diags := hostgroups.ConvertHostGroupsToList(ctx, policy.Groups)
+		if diags.HasError() {
+			return diags
+		}
+		policyModel.HostGroups = hostGroups
+
+		policyModels = append(policyModels, policyModel)
+	}
+
+	m.Policies = utils.SliceToListTypeObject(ctx, policyModels, policyDataModel{}.AttributeTypes(), &diags)
+	return diags
+}
+
+// hasIndividualFilters checks if any of the individual filter attributes are set.
+func (m *SensorUpdatePoliciesDataSourceModel) hasIndividualFilters() bool {
+	return utils.IsKnown(m.Name) ||
+		utils.IsKnown(m.Description) ||
+		utils.IsKnown(m.Enabled) ||
+		utils.IsKnown(m.PlatformName) ||
+		utils.IsKnown(m.CreatedBy) ||
+		utils.IsKnown(m.ModifiedBy)
+}
+
+// NewSensorUpdatePoliciesDataSource is a helper function to simplify the provider implementation.
+func NewSensorUpdatePoliciesDataSource() datasource.DataSource {
+	return &sensorUpdatePoliciesDataSource{}
+}
+
+// Metadata returns the data source type name.
+func (d *sensorUpdatePoliciesDataSource) Metadata(
+	_ context.Context,
+	req datasource.MetadataRequest,
+	resp *datasource.MetadataResponse,
+) {
+	resp.TypeName = req.ProviderTypeName + "_sensor_update_policies"
+}
+
+// Schema defines the schema for the data source.
+func (d *sensorUpdatePoliciesDataSource) Schema(
+	_ context.Context,
+	_ datasource.SchemaRequest,
+	resp *datasource.SchemaResponse,
+) {
+	resp.Schema = schema.Schema{
+		MarkdownDescription: utils.MarkdownDescription(
+			dataSourceDocumentationSection,
+			dataSourceMarkdownDescription,
+			dataSourceApiScopes,
+		),
+		Attributes: map[string]schema.Attribute{
+			"filter": schema.StringAttribute{
+				Optional:    true,
+				Description: "FQL filter to apply to the sensor update policies query. When specified, only policies matching the filter will be returned. Cannot be used together with 'ids' or other filter attributes. Example: `platform_name:'Windows'`",
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
+			},
+			"ids": schema.ListAttribute{
+				Optional:    true,
+				ElementType: types.StringType,
+				Description: "List of sensor update policy IDs to retrieve. When specified, only policies with matching IDs will be returned. Cannot be used together with 'filter' or other filter attributes.",
+				Validators: []validator.List{
+					listvalidator.ValueStringsAre(
+						stringvalidator.LengthBetween(32, 32),
+					),
+					listvalidator.SizeAtLeast(1),
+					listvalidator.UniqueValues(),
+				},
+			},
+			"sort": schema.StringAttribute{
+				Optional:    true,
+				Description: "Sort order for the results. Valid values include field names with optional '.asc' or '.desc' suffix. Example: 'name.asc', 'precedence.desc'",
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
+			},
+			"name": schema.StringAttribute{
+				Optional:    true,
+				Description: "Filter policies by name. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'filter' or 'ids'.",
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
+			},
+			"description": schema.StringAttribute{
+				Optional:    true,
+				Description: "Filter policies by description. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'filter' or 'ids'.",
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
+			},
+			"enabled": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Filter policies by enabled status. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Cannot be used together with 'filter' or 'ids'.",
+			},
+			"platform_name": schema.StringAttribute{
+				Optional:    true,
+				Description: "Filter policies by platform_name (Windows, Linux, Mac). All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Cannot be used together with 'filter' or 'ids'.",
+				Validators: []validator.String{
+					stringvalidator.OneOf("Windows", "Linux", "Mac"),
+				},
+			},
+			"created_by": schema.StringAttribute{
+				Optional:    true,
+				Description: "Filter policies by the user who created them. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'filter' or 'ids'.",
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
+			},
+			"modified_by": schema.StringAttribute{
+				Optional:    true,
+				Description: "Filter policies by the user who last modified them. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'filter' or 'ids'.",
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
+			},
+			"policies": schema.ListNestedAttribute{
+				Computed:    true,
+				Description: "The list of sensor update policies",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"id": schema.StringAttribute{
+							Computed:    true,
+							Description: "The sensor update policy ID",
+						},
+						"name": schema.StringAttribute{
+							Computed:    true,
+							Description: "The sensor update policy name",
+						},
+						"description": schema.StringAttribute{
+							Computed:    true,
+							Description: "The sensor update policy description",
+						},
+						"platform_name": schema.StringAttribute{
+							Computed:    true,
+							Description: "The platform name (Windows, Linux, Mac)",
+						},
+						"enabled": schema.BoolAttribute{
+							Computed:    true,
+							Description: "Whether the sensor update policy is enabled",
+						},
+						"created_by": schema.StringAttribute{
+							Computed:    true,
+							Description: "User who created the policy",
+						},
+						"created_timestamp": schema.StringAttribute{
+							Computed:    true,
+							Description: "Timestamp when the policy was created",
+						},
+						"modified_by": schema.StringAttribute{
+							Computed:    true,
+							Description: "User who last modified the policy",
+						},
+						"modified_timestamp": schema.StringAttribute{
+							Computed:    true,
+							Description: "Timestamp when the policy was last modified",
+						},
+						"host_groups": schema.ListAttribute{
+							Computed:    true,
+							ElementType: types.StringType,
+							Description: "List of host group IDs assigned to the policy",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func (d *sensorUpdatePoliciesDataSource) ValidateConfig(ctx context.Context, req datasource.ValidateConfigRequest, resp *datasource.ValidateConfigResponse) {
+	var data SensorUpdatePoliciesDataSourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	hasFilter := utils.IsKnown(data.Filter) && data.Filter.ValueString() != ""
+	hasIDs := utils.IsKnown(data.IDs) && len(data.IDs.Elements()) > 0
+
+	filterCount := 0
+	if hasFilter {
+		filterCount++
+	}
+	if hasIDs {
+		filterCount++
+	}
+	if data.hasIndividualFilters() {
+		filterCount++
+	}
+
+	if filterCount > 1 {
+		resp.Diagnostics.AddError(
+			"Invalid Attribute Combination",
+			"Cannot specify 'filter', 'ids', and individual filter attributes (name, description, enabled, platform_name, created_by, modified_by) together. Please use only one filtering method: either 'filter' for FQL queries, 'ids' for specific IDs, or individual filter attributes.",
+		)
+	}
+}
+
+// getSensorUpdatePolicies returns all sensor update policies matching filter.
+func (d *sensorUpdatePoliciesDataSource) getSensorUpdatePolicies(
+	ctx context.Context,
+	filter string,
+	sort string,
+) ([]*models.SensorUpdatePolicyV1, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	var allPolicies []*models.SensorUpdatePolicyV1
+
+	tflog.Debug(
+		ctx,
+		"[datasource] Getting all sensor update policies",
+	)
+
+	limit := int64(5000)
+	offset := int64(0)
+
+	for {
+		params := &sensor_update_policies.QueryCombinedSensorUpdatePoliciesParams{
+			Context: ctx,
+			Limit:   &limit,
+			Offset:  &offset,
+		}
+
+		if filter != "" {
+			params.Filter = &filter
+		}
+
+		if sort != "" {
+			params.Sort = &sort
+		}
+
+		res, err := d.client.SensorUpdatePolicies.QueryCombinedSensorUpdatePolicies(params)
+		if err != nil {
+			diags.AddError(
+				"Failed to query sensor update policies",
+				fmt.Sprintf("Failed to query sensor update policies: %s", err.Error()),
+			)
+			return allPolicies, diags
+		}
+
+		if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
+			tflog.Debug(ctx, "[datasource] No more sensor update policies to retrieve",
+				map[string]interface{}{
+					"total_retrieved": len(allPolicies),
+				})
+			break
+		}
+
+		allPolicies = append(allPolicies, res.Payload.Resources...)
+		tflog.Debug(ctx, "[datasource] Retrieved page of sensor update policies",
+			map[string]interface{}{
+				"page_count":  len(res.Payload.Resources),
+				"total_count": len(allPolicies),
+				"offset":      offset,
+			})
+
+		if res.Payload.Meta == nil || res.Payload.Meta.Pagination == nil ||
+			res.Payload.Meta.Pagination.Offset == nil || res.Payload.Meta.Pagination.Total == nil {
+			tflog.Warn(ctx, "Missing pagination metadata in API response, using offset+limit for next page",
+				map[string]interface{}{
+					"meta": res.Payload.Meta,
+				})
+			offset += limit
+			continue
+		}
+
+		offset = int64(*res.Payload.Meta.Pagination.Offset)
+		if offset >= *res.Payload.Meta.Pagination.Total {
+			tflog.Info(ctx, "[datasource] Pagination complete",
+				map[string]interface{}{
+					"total_retrieved": len(allPolicies),
+					"total_available": *res.Payload.Meta.Pagination.Total,
+				})
+			break
+		}
+	}
+
+	return allPolicies, diags
+}
+
+// Read refreshes the Terraform state with the latest data.
+func (d *sensorUpdatePoliciesDataSource) Read(
+	ctx context.Context,
+	req datasource.ReadRequest,
+	resp *datasource.ReadResponse,
+) {
+	var data SensorUpdatePoliciesDataSourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	policies, diags := d.getSensorUpdatePolicies(ctx, data.Filter.ValueString(), data.Sort.ValueString())
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if utils.IsKnown(data.IDs) {
+		requestedIDs := utils.ListTypeAs[string](ctx, data.IDs, &resp.Diagnostics)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		policies = FilterPoliciesByIDs(policies, requestedIDs)
+	}
+
+	if data.hasIndividualFilters() {
+		policies = FilterPoliciesByAttributes(policies, &data)
+	}
+
+	resp.Diagnostics.Append(data.wrap(ctx, policies)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
+// FilterPoliciesByIDs filters policies by their IDs (exported for testing).
+func FilterPoliciesByIDs(policies []*models.SensorUpdatePolicyV1, requestedIDs []string) []*models.SensorUpdatePolicyV1 {
+	idMap := make(map[string]bool, len(requestedIDs))
+	for _, id := range requestedIDs {
+		idMap[id] = true
+	}
+
+	filtered := make([]*models.SensorUpdatePolicyV1, 0, len(requestedIDs))
+	for _, policy := range policies {
+		if policy != nil && policy.ID != nil && idMap[*policy.ID] {
+			filtered = append(filtered, policy)
+			if len(filtered) == len(requestedIDs) {
+				break
+			}
+		}
+	}
+	return filtered
+}
+
+// FilterPoliciesByAttributes filters policies by individual attributes (exported for testing).
+func FilterPoliciesByAttributes(policies []*models.SensorUpdatePolicyV1, filters *SensorUpdatePoliciesDataSourceModel) []*models.SensorUpdatePolicyV1 {
+	filtered := make([]*models.SensorUpdatePolicyV1, 0, len(policies))
+	for _, policy := range policies {
+		if policy == nil {
+			continue
+		}
+
+		if !filters.Name.IsNull() {
+			if policy.Name == nil || !utils.MatchesWildcard(*policy.Name, filters.Name.ValueString()) {
+				continue
+			}
+		}
+
+		if !filters.Description.IsNull() {
+			if policy.Description == nil || !utils.MatchesWildcard(*policy.Description, filters.Description.ValueString()) {
+				continue
+			}
+		}
+
+		if !filters.CreatedBy.IsNull() {
+			if policy.CreatedBy == nil || !utils.MatchesWildcard(*policy.CreatedBy, filters.CreatedBy.ValueString()) {
+				continue
+			}
+		}
+
+		if !filters.ModifiedBy.IsNull() {
+			if policy.ModifiedBy == nil || !utils.MatchesWildcard(*policy.ModifiedBy, filters.ModifiedBy.ValueString()) {
+				continue
+			}
+		}
+
+		if !filters.Enabled.IsNull() {
+			if policy.Enabled == nil || *policy.Enabled != filters.Enabled.ValueBool() {
+				continue
+			}
+		}
+
+		if !filters.PlatformName.IsNull() {
+			if policy.PlatformName == nil || !strings.EqualFold(*policy.PlatformName, filters.PlatformName.ValueString()) {
+				continue
+			}
+		}
+
+		filtered = append(filtered, policy)
+	}
+	return filtered
 }
