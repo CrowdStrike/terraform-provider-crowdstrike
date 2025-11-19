@@ -14,7 +14,7 @@ import (
 // one non-whitespace character. Null (unconfigured) and unknown (known after apply) values are skipped.
 //
 // Valid values: "test", "test value", "a"
-// Invalid values: "", " ", "   ", "\t", "\n", " \t\n "
+// Invalid values: "", " ", "   ", "\t", "\n", " \t\n ".
 func StringNotWhitespace() validator.String {
 	return stringvalidator.RegexMatches(
 		regexp.MustCompile(`\S`),
@@ -29,7 +29,7 @@ func StringNotWhitespace() validator.String {
 // email address format. Null (unconfigured) and unknown (known after apply) values are skipped.
 //
 // Valid values: "user@example.com", "test.user+tag@domain.co.uk"
-// Invalid values: "notanemail", "missing@domain", "@example.com", "user@"
+// Invalid values: "notanemail", "missing@domain", "@example.com", "user@".
 func StringIsEmailAddress() validator.String {
 	return stringvalidator.RegexMatches(
 		regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`),

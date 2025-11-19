@@ -8,6 +8,7 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon"
 	cloudcompliance "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_compliance"
+	cloudgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_group"
 	cloudsecurity "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_security"
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
@@ -263,6 +264,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		itautomation.NewItAutomationPolicyPrecedenceResource,
 		cloudsecurity.NewCloudSecurityCustomRuleResource,
 		cloudcompliance.NewCloudComplianceCustomFrameworkResource,
+		cloudgroup.NewCloudSecurityGroupResource,
 	}
 }
 
