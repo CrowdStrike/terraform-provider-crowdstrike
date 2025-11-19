@@ -14,8 +14,10 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/response_policies"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/retry"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -154,6 +156,9 @@ func (r *hostGroupResource) Schema(
 			"name": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The display name for the host group.",
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
+				},
 			},
 			"assignment_rule": schema.StringAttribute{
 				Optional:            true,
@@ -163,11 +168,21 @@ func (r *hostGroupResource) Schema(
 				Optional:            true,
 				MarkdownDescription: "A set of hostnames to include in a static host group. Required if `type` is `static`.",
 				ElementType:         types.StringType,
+				Validators: []validator.Set{
+					setvalidator.ValueStringsAre(
+						fwvalidators.StringNotWhitespace(),
+					),
+				},
 			},
 			"host_ids": schema.SetAttribute{
 				Optional:            true,
 				MarkdownDescription: "A set of host IDs to include in a staticByID host group. Required if `type` is `staticByID`.",
 				ElementType:         types.StringType,
+				Validators: []validator.Set{
+					setvalidator.ValueStringsAre(
+						fwvalidators.StringNotWhitespace(),
+					),
+				},
 			},
 			"type": schema.StringAttribute{
 				Required:            true,
