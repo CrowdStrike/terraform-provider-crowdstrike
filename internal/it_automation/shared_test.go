@@ -13,6 +13,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/user_management"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
 // namedReadCloser implements runtime.NamedReadCloser for file uploads.
@@ -54,6 +55,10 @@ type sdkFixtures struct {
 // createSDKFixtures creates RTR files and test users using the Falcon SDK.
 func createSDKFixtures(t *testing.T) *sdkFixtures {
 	t.Helper()
+
+	if os.Getenv(resource.EnvTfAcc) == "" {
+		t.Skip("Skipping acceptance test: TF_ACC not set")
+	}
 
 	clientID := os.Getenv("FALCON_CLIENT_ID")
 	clientSecret := os.Getenv("FALCON_CLIENT_SECRET")

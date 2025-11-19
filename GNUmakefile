@@ -30,7 +30,7 @@ gen:
 test:
 	@branch=$$(git rev-parse --abbrev-ref HEAD); \
 	printf "Running unit tests on branch: %s\n" "$$branch"
-	go test ./internal/... -v $(TESTARGS) -timeout 15m
+	unset TF_ACC && go test ./internal/... -v $(TESTARGS) -timeout 15m
 
 .PHONY: testacc
 testacc:
