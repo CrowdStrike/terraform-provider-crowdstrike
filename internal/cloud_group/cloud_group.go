@@ -213,11 +213,25 @@ func (r *cloudSecurityGroupResource) Schema(
 								Description: "List of AWS regions to include",
 								Optional:    true,
 								ElementType: types.StringType,
+								Validators: []validator.List{
+									listvalidator.SizeAtLeast(1),
+									listvalidator.UniqueValues(),
+									listvalidator.ValueStringsAre(
+										fwvalidators.StringNotWhitespace(),
+									),
+								},
 							},
 							"tags": schema.ListAttribute{
 								Description: "List of tags to filter by (format: key=value)",
 								Optional:    true,
 								ElementType: types.StringType,
+								Validators: []validator.List{
+									listvalidator.SizeAtLeast(1),
+									listvalidator.UniqueValues(),
+									listvalidator.ValueStringsAre(
+										fwvalidators.StringNotWhitespace(),
+									),
+								},
 							},
 						},
 					},
@@ -246,11 +260,25 @@ func (r *cloudSecurityGroupResource) Schema(
 								Description: "List of Azure regions to include",
 								Optional:    true,
 								ElementType: types.StringType,
+								Validators: []validator.List{
+									listvalidator.SizeAtLeast(1),
+									listvalidator.UniqueValues(),
+									listvalidator.ValueStringsAre(
+										fwvalidators.StringNotWhitespace(),
+									),
+								},
 							},
 							"tags": schema.ListAttribute{
 								Description: "List of tags to filter by (format: key=value)",
 								Optional:    true,
 								ElementType: types.StringType,
+								Validators: []validator.List{
+									listvalidator.SizeAtLeast(1),
+									listvalidator.UniqueValues(),
+									listvalidator.ValueStringsAre(
+										fwvalidators.StringNotWhitespace(),
+									),
+								},
 							},
 						},
 					},
@@ -279,6 +307,13 @@ func (r *cloudSecurityGroupResource) Schema(
 								Description: "List of GCP regions to include",
 								Optional:    true,
 								ElementType: types.StringType,
+								Validators: []validator.List{
+									listvalidator.SizeAtLeast(1),
+									listvalidator.UniqueValues(),
+									listvalidator.ValueStringsAre(
+										fwvalidators.StringNotWhitespace(),
+									),
+								},
 							},
 						},
 					},
@@ -287,19 +322,31 @@ func (r *cloudSecurityGroupResource) Schema(
 			"images": schema.ListNestedAttribute{
 				Description: "Container image selectors for grouping container images",
 				Optional:    true,
+				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
+				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"registry": schema.StringAttribute{
 							Description: "Container registry hostname",
 							Required:    true,
+							Validators: []validator.String{
+								fwvalidators.StringNotWhitespace(),
+							},
 						},
 						"repository": schema.StringAttribute{
 							Description: "Repository name",
 							Required:    true,
+							Validators: []validator.String{
+								fwvalidators.StringNotWhitespace(),
+							},
 						},
 						"tag": schema.StringAttribute{
 							Description: "Image tag (optional, defaults to any tag if not specified)",
 							Optional:    true,
+							Validators: []validator.String{
+								fwvalidators.StringNotWhitespace(),
+							},
 						},
 					},
 				},
