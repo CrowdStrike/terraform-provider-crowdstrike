@@ -405,7 +405,6 @@ func (r *itAutomationTaskGroupResource) Delete(
 	}
 
 	ok, multi, err := r.client.ItAutomation.ITAutomationDeleteTaskGroups(&params)
-
 	if err != nil {
 		if isNotFoundError(err) {
 			return

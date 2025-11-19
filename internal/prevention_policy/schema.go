@@ -101,14 +101,16 @@ func toggleAttribute(description string, opts ...toggleOption) schema.BoolAttrib
 	}
 }
 
-var mlSliderLevels = []string{"DISABLED", "CAUTIOUS", "MODERATE", "AGGRESSIVE", "EXTRA_AGGRESSIVE"}
-var mapMlSliderLevels = map[string]int{
-	"DISABLED":         0,
-	"CAUTIOUS":         1,
-	"MODERATE":         2,
-	"AGGRESSIVE":       3,
-	"EXTRA_AGGRESSIVE": 4,
-}
+var (
+	mlSliderLevels    = []string{"DISABLED", "CAUTIOUS", "MODERATE", "AGGRESSIVE", "EXTRA_AGGRESSIVE"}
+	mapMlSliderLevels = map[string]int{
+		"DISABLED":         0,
+		"CAUTIOUS":         1,
+		"MODERATE":         2,
+		"AGGRESSIVE":       3,
+		"EXTRA_AGGRESSIVE": 4,
+	}
+)
 
 // mlSliderOptions holds the options for mlSLiderAttribute function.
 type mlSliderOptions struct {

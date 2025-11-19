@@ -471,7 +471,6 @@ func (r *sensorUpdatePolicyResource) Create(
 	}
 
 	res, err := r.client.SensorUpdatePolicies.CreateSensorUpdatePoliciesV2(&policyParams)
-
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating sensor update policy",
@@ -493,7 +492,6 @@ func (r *sensorUpdatePolicyResource) Create(
 	// by default a policy is disabled, so there is no reason to call this unless enabled is true
 	if plan.Enabled.ValueBool() {
 		actionResp, err := r.updatePolicyEnabledState(ctx, plan.ID.ValueString(), true)
-
 		// todo: if we should handle scope and timeout errors instead of giving a vague error
 		if err != nil {
 			resp.Diagnostics.AddError(
@@ -522,7 +520,6 @@ func (r *sensorUpdatePolicyResource) Create(
 		}
 
 		err = r.updateHostGroups(ctx, hostgroups.AddHostGroup, hostGroupIDs, plan.ID.ValueString())
-
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Error assinging host group to policy",
@@ -696,7 +693,6 @@ func (r *sensorUpdatePolicyResource) Update(
 		policyParams.Body.Resources[0].Settings.UninstallProtection = "ENABLED"
 	} else {
 		policyParams.Body.Resources[0].Settings.UninstallProtection = "DISABLED"
-
 	}
 
 	updateSchedular := models.PolicySensorUpdateScheduler{}
@@ -727,7 +723,6 @@ func (r *sensorUpdatePolicyResource) Update(
 	policyParams.Body.Resources[0].Settings.Scheduler = &updateSchedular
 
 	res, err := r.client.SensorUpdatePolicies.UpdateSensorUpdatePoliciesV2(&policyParams)
-
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating CrowdStrike sensor update policy",
@@ -746,7 +741,6 @@ func (r *sensorUpdatePolicyResource) Update(
 			plan.ID.ValueString(),
 			plan.Enabled.ValueBool(),
 		)
-
 		// todo: if we should handle scope and timeout errors instead of giving a vague error
 		if err != nil {
 			resp.Diagnostics.AddError(
@@ -862,7 +856,6 @@ func (r *sensorUpdatePolicyResource) ValidateConfig(
 	req resource.ValidateConfigRequest,
 	resp *resource.ValidateConfigResponse,
 ) {
-
 	var config sensorUpdatePolicyResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	resp.Diagnostics.Append(config.extract(ctx)...)
@@ -929,7 +922,6 @@ func (r *sensorUpdatePolicyResource) ValidateConfig(
 
 			for _, b := range timeBlockList {
 				ok, err := validTime(b.StartTime.ValueString(), b.EndTime.ValueString())
-
 				if err != nil {
 					resp.Diagnostics.AddError(
 						"Unable to validate config",

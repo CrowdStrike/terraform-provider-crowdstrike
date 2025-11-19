@@ -32,8 +32,10 @@ import (
 )
 
 // Ensure ScaffoldingProvider satisfies various provider interfaces.
-var _ provider.Provider = &CrowdStrikeProvider{}
-var _ provider.ProviderWithFunctions = &CrowdStrikeProvider{}
+var (
+	_ provider.Provider              = &CrowdStrikeProvider{}
+	_ provider.ProviderWithFunctions = &CrowdStrikeProvider{}
+)
 
 // CrowdStrikeProvider defines the provider implementation.
 type CrowdStrikeProvider struct {
@@ -216,7 +218,6 @@ func (p *CrowdStrikeProvider) Configure(
 	}
 
 	client, err := falcon.NewClient(&apiConfig)
-
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create CrowdStrike API Client",

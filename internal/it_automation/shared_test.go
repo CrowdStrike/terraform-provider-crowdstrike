@@ -13,6 +13,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/user_management"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
 // namedReadCloser implements runtime.NamedReadCloser for file uploads.
@@ -55,6 +56,10 @@ type sdkFixtures struct {
 func createSDKFixtures(t *testing.T) *sdkFixtures {
 	t.Helper()
 
+	if os.Getenv(resource.EnvTfAcc) == "" {
+		t.Skip("Skipping acceptance test: TF_ACC not set")
+	}
+
 	clientID := os.Getenv("FALCON_CLIENT_ID")
 	clientSecret := os.Getenv("FALCON_CLIENT_SECRET")
 	cloud := os.Getenv("FALCON_CLOUD")
@@ -73,7 +78,6 @@ func createSDKFixtures(t *testing.T) *sdkFixtures {
 		Cloud:        falcon.Cloud(cloud),
 		Context:      t.Context(),
 	})
-
 	if err != nil {
 		t.Fatalf("failed to create falcon client: %v", err)
 	}
@@ -95,7 +99,6 @@ func createSDKFixtures(t *testing.T) *sdkFixtures {
 			t, falconClient, scriptFileName, scriptContent,
 			"Test script file", platform,
 		)
-
 		if err != nil {
 			fixtures.Cleanup(t)
 			t.Fatalf("failed to create script file for %s: %v", platform, err)
@@ -109,7 +112,6 @@ func createSDKFixtures(t *testing.T) *sdkFixtures {
 			t, falconClient, fileName, fileContent,
 			"Test attachment file - terraform-provider-sdk acceptance tests", platform,
 		)
-
 		if err != nil {
 			fixtures.Cleanup(t)
 			t.Fatalf("failed to create attachment file for %s: %v", platform, err)
@@ -121,7 +123,6 @@ func createSDKFixtures(t *testing.T) *sdkFixtures {
 	for i := range 3 {
 		email := fmt.Sprintf("%s-%d@crowdstrike.com", randomSuffix, i)
 		userID, err := createUser(t, falconClient, email)
-
 		if err != nil {
 			fixtures.Cleanup(t)
 			t.Fatalf("failed to create test user: %v", err)
@@ -152,7 +153,6 @@ func createRTRFile(
 	params.CommentsForAuditLog = &platformComment
 
 	_, err := falconClient.RealTimeResponseAdmin.RTRCreatePutFiles(params)
-
 	if err != nil {
 		return "", fmt.Errorf("RTRCreatePutFiles failed: %w", err)
 	}
@@ -164,7 +164,6 @@ func createRTRFile(
 	}
 
 	listResp, err := falconClient.RealTimeResponseAdmin.RTRListPutFiles(listParams)
-
 	if err != nil {
 		return "", fmt.Errorf("RTRListPutFiles failed: %w", err)
 	}
@@ -197,7 +196,6 @@ func createUser(
 	}
 
 	resp, err := falconClient.UserManagement.CreateUserV1(params)
-
 	if err != nil {
 		return "", fmt.Errorf("CreateUserV1 failed: %w", err)
 	}
@@ -217,7 +215,6 @@ func createUser(
 	}
 
 	_, err = falconClient.UserManagement.GrantUserRoleIds(grantParams)
-
 	if err != nil {
 		_ = deleteUser(t, falconClient, userUUID)
 		return "", fmt.Errorf("GrantUserRoleIds failed: %w", err)
@@ -263,7 +260,6 @@ func deleteRTRFile(
 	}
 
 	_, err := falconClient.RealTimeResponseAdmin.RTRDeletePutFiles(params)
-
 	if err != nil {
 		if _, ok := err.(*real_time_response_admin.RTRDeletePutFilesNotFound); ok {
 			return nil
@@ -288,7 +284,6 @@ func deleteUser(
 	}
 
 	_, err := falconClient.UserManagement.DeleteUserV1(params)
-
 	if err != nil {
 		if strings.Contains(err.Error(), "status 404") {
 			return nil

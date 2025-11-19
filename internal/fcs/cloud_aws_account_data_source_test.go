@@ -10,9 +10,11 @@ import (
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 )
 
-var test_account_id = sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
-var test_org_account_id = sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
-var test_org_id = fmt.Sprintf("o-%s", sdkacctest.RandStringFromCharSet(10, sdkacctest.CharSetAlpha))
+var (
+	test_account_id     = sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	test_org_account_id = sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	test_org_id         = fmt.Sprintf("o-%s", sdkacctest.RandStringFromCharSet(10, sdkacctest.CharSetAlpha))
+)
 
 func TestAccCloudAwsAccountDataSource(t *testing.T) {
 	dataSourceNameAcc := "data.crowdstrike_cloud_aws_account.acc"

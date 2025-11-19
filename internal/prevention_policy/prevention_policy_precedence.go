@@ -316,7 +316,6 @@ func (r *preventionPolicyPrecedenceResource) getPreventionPoliciesByPrecedence(
 			Sort:    &sort,
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Error reading CrowdStrike prevention policies",

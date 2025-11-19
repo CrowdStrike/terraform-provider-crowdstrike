@@ -197,7 +197,6 @@ func (r *contentUpdatePolicyPrecedenceResource) Read(
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-
 	var state contentUpdatePolicyPrecedenceResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -225,7 +224,6 @@ func (r *contentUpdatePolicyPrecedenceResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-
 	var plan contentUpdatePolicyPrecedenceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -310,7 +308,6 @@ func (r *contentUpdatePolicyPrecedenceResource) getContentUpdatePoliciesByPreced
 				Offset:  &offset,
 			},
 		)
-
 		if err != nil {
 			diags.AddError(
 				"Error reading CrowdStrike content update policies",

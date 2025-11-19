@@ -290,7 +290,6 @@ func (r *cloudAzureTenantEventhubSettingsResource) Delete(
 			"Delete failed.",
 			"A value for event_hub_settings was returned after the attempt to remove it. This is a bug in the provider. Please report this issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
 		)
-
 	}
 }
 
@@ -309,7 +308,6 @@ func (r *cloudAzureTenantEventhubSettingsResource) ValidateConfig(
 	req resource.ValidateConfigRequest,
 	resp *resource.ValidateConfigResponse,
 ) {
-
 	var config cloudAzureTenantEventhubSettingsModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
@@ -329,7 +327,6 @@ func (r *cloudAzureTenantEventhubSettingsResource) getRegistration(
 			Context:  ctx,
 		},
 	)
-
 	if err != nil {
 		if _, ok := err.(*cloud_azure_registration.CloudRegistrationAzureGetRegistrationNotFound); ok {
 			diags.Append(
@@ -391,7 +388,6 @@ func (r *cloudAzureTenantEventhubSettingsResource) updateRegistration(
 	}
 
 	res, err := r.client.CloudAzureRegistration.CloudRegistrationAzureUpdateRegistration(&params)
-
 	if err != nil {
 		if _, ok := err.(*cloud_azure_registration.CloudRegistrationAzureUpdateRegistrationNotFound); ok {
 			diags.Append(
@@ -436,7 +432,6 @@ func (r *cloudAzureTenantEventhubSettingsResource) triggerHealthCheck(
 	}
 
 	_, err := r.client.CloudAzureRegistration.CloudRegistrationAzureTriggerHealthCheck(&params)
-
 	if err != nil {
 		diags.AddWarning(
 			"Failed to trigger health check scan. Please go to the Falcon console and trigger health check scan manually to reflect the latest state.",
