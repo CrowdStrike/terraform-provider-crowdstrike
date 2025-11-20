@@ -23,37 +23,72 @@ The following API scopes are required:
 ## Example Usage
 
 ```terraform
-# Query all high severity risks
+# Example 1: Simple single-page query
+# Most common use case - fetch a specific page of results
 data "crowdstrike_cloud_risks" "high_severity" {
-  filter = "severity:'High'"
+  filter = "severity:'High'+status:'Open'"
   sort   = "first_seen|desc"
-  limit  = 100
+  limit  = 10
+  offset = 0
 }
 
-# Query risks for a specific cloud provider
-data "crowdstrike_cloud_risks" "aws_risks" {
-  filter = "cloud_provider:'aws'+status:'open'"
-  sort   = "severity|desc"
+output "high_severity_info" {
+  value = {
+    returned_count = data.crowdstrike_cloud_risks.high_severity.returned_count
+    total_count    = data.crowdstrike_cloud_risks.high_severity.total_count
+    has_more       = data.crowdstrike_cloud_risks.high_severity.has_more
+  }
 }
 
-# Query risks for a specific account
-data "crowdstrike_cloud_risks" "account_risks" {
-  filter = "account_id:'123456789012'"
-  limit  = 500
+# Example 2: Fetching all pages dynamically based on total_count
+# Step 1: Fetch first page to get total_count
+locals {
+  page_size = 100
 }
 
-# Query risks by rule name
-data "crowdstrike_cloud_risks" "specific_rule" {
-  filter = "rule_name:*'S3 Bucket'*"
+data "crowdstrike_cloud_risks" "first_page" {
+  filter = "status:'Open'"
+  limit  = local.page_size
+  offset = 0
 }
 
-# Output example
-output "high_severity_risks" {
-  value = data.crowdstrike_cloud_risks.high_severity.risks
+# Step 2: Calculate remaining pages needed based on total_count
+locals {
+  total_count     = data.crowdstrike_cloud_risks.first_page.total_count
+  remaining_count = local.total_count - data.crowdstrike_cloud_risks.first_page.returned_count
+  remaining_pages = ceil(local.remaining_count / local.page_size)
+  # Create range starting from page 1 (we already have page 0)
+  remaining_page_numbers = local.remaining_pages > 0 ? range(1, local.remaining_pages + 1) : []
 }
 
-output "risk_count" {
-  value = length(data.crowdstrike_cloud_risks.high_severity.risks)
+# Step 3: Fetch all remaining pages using for_each
+data "crowdstrike_cloud_risks" "remaining_pages" {
+  for_each = toset([for i in local.remaining_page_numbers : tostring(i)])
+
+  filter = "status:'Open'"
+  limit  = local.page_size
+  offset = local.page_size * tonumber(each.key)
+}
+
+# Step 4: Combine first page with all remaining pages
+locals {
+  all_risks = concat(
+    # First page
+    [for risk in data.crowdstrike_cloud_risks.first_page.risks : risk],
+    # Remaining pages
+    flatten([
+      for page_key, page_data in data.crowdstrike_cloud_risks.remaining_pages :
+      [for risk in page_data.risks : risk]
+    ])
+  )
+}
+
+output "all_risks_summary" {
+  value = {
+    total_count         = local.total_count
+    total_risks_fetched = length(local.all_risks)
+    pages_fetched       = 1 + length(data.crowdstrike_cloud_risks.remaining_pages)
+  }
 }
 ```
 
@@ -63,12 +98,16 @@ output "risk_count" {
 ### Optional
 
 - `filter` (String) FQL filter string. Supported fields: `account_id`, `account_name`, `asset_gcrn`, `asset_id`, `asset_name`, `asset_region`, `asset_type`, `cloud_group`, `cloud_provider`, `first_seen`, `last_seen`, `resolved_at`, `risk_factor`, `rule_id`, `rule_name`, `service_category`, `severity`, `status`, `suppressed_by`, `suppressed_reason`, `tags`. Example: `severity:'High'+status:'open'`
-- `limit` (Number) The maximum number of items to return. Default is 500. Maximum is 1000.
+- `limit` (Number) The maximum number of items to return (page size). Default is 500. Maximum is 1000.
+- `offset` (Number) The starting index for pagination (0-based). Default is 0. Use with `limit`, `has_more`, and `returned_count` to implement pagination by incrementing offset by the page size until `has_more` is false.
 - `sort` (String) The field to sort on. Use `|asc` or `|desc` suffix to specify sort direction. Supported fields: `account_id`, `account_name`, `asset_id`, `asset_name`, `asset_region`, `asset_type`, `cloud_provider`, `first_seen`, `last_seen`, `resolved_at`, `rule_name`, `service_category`, `severity`, `status`. Example: `first_seen|desc`
 
 ### Read-Only
 
+- `has_more` (Boolean) Indicates if there are more results available beyond the current page. Use this with manual pagination to determine when to stop.
+- `returned_count` (Number) Number of risks returned in this response.
 - `risks` (Attributes Set) List of cloud risks (see [below for nested schema](#nestedatt--risks))
+- `total_count` (Number) Total number of risks available matching the filter criteria.
 
 <a id="nestedatt--risks"></a>
 ### Nested Schema for `risks`
