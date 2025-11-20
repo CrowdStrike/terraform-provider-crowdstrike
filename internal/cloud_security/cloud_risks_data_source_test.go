@@ -16,6 +16,9 @@ func TestAccCloudRisksDataSource(t *testing.T) {
 				Config: testAccCloudRisksDataSourceConfig(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("data.crowdstrike_cloud_risks.test", "risks.#"),
+					resource.TestCheckResourceAttrSet("data.crowdstrike_cloud_risks.test", "total_count"),
+					resource.TestCheckResourceAttrSet("data.crowdstrike_cloud_risks.test", "returned_count"),
+					resource.TestCheckResourceAttrSet("data.crowdstrike_cloud_risks.test", "has_more"),
 				),
 			},
 		},
@@ -31,21 +34,31 @@ func TestAccCloudRisksDataSourceWithFilter(t *testing.T) {
 				Config: testAccCloudRisksDataSourceConfigWithFilter(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("data.crowdstrike_cloud_risks.filtered", "risks.#"),
+					resource.TestCheckResourceAttrSet("data.crowdstrike_cloud_risks.filtered", "total_count"),
+					resource.TestCheckResourceAttrSet("data.crowdstrike_cloud_risks.filtered", "returned_count"),
+					resource.TestCheckResourceAttrSet("data.crowdstrike_cloud_risks.filtered", "has_more"),
 				),
 			},
 		},
 	})
 }
 
-func TestAccCloudRisksDataSourceNoLimit(t *testing.T) {
+func TestAccCloudRisksDataSourceWithPagination(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloudRisksDataSourceNoLimit(),
+				Config: testAccCloudRisksDataSourceConfigWithPagination(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet("data.crowdstrike_cloud_risks.limitless", "risks.#"),
+					// Page 1 checks
+					resource.TestCheckResourceAttrSet("data.crowdstrike_cloud_risks.page1", "risks.#"),
+					resource.TestCheckResourceAttrSet("data.crowdstrike_cloud_risks.page1", "total_count"),
+					resource.TestCheckResourceAttr("data.crowdstrike_cloud_risks.page1", "returned_count", "10"),
+					resource.TestCheckResourceAttrSet("data.crowdstrike_cloud_risks.page1", "has_more"),
+					// Page 2 checks
+					resource.TestCheckResourceAttrSet("data.crowdstrike_cloud_risks.page2", "risks.#"),
+					resource.TestCheckResourceAttr("data.crowdstrike_cloud_risks.page2", "returned_count", "10"),
 				),
 			},
 		},
@@ -55,7 +68,9 @@ func TestAccCloudRisksDataSourceNoLimit(t *testing.T) {
 func testAccCloudRisksDataSourceConfig() string {
 	return acctest.ProviderConfig + `
 data "crowdstrike_cloud_risks" "test" {
-  limit = 10000
+  filter = "status:'Open'"
+  limit  = 10
+  offset = 0
 }
 `
 }
@@ -65,16 +80,24 @@ func testAccCloudRisksDataSourceConfigWithFilter() string {
 data "crowdstrike_cloud_risks" "filtered" {
   filter = "status:'Open'"
   sort   = "first_seen|desc"
-  limit  = 1000
+  limit  = 10
+  offset = 0
 }
 `
 }
 
-func testAccCloudRisksDataSourceNoLimit() string {
+func testAccCloudRisksDataSourceConfigWithPagination() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_cloud_risks" "limitless" {
-  filter = "cloud_provider:'aws'+status:'Open'"
-  sort   = "severity|desc"
+data "crowdstrike_cloud_risks" "page1" {
+  filter = "status:'Open'"
+  limit  = 10
+  offset = 0
+}
+
+data "crowdstrike_cloud_risks" "page2" {
+  filter = "status:'Open'"
+  limit  = 10
+  offset = 10
 }
 `
 }
