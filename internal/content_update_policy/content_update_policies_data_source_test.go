@@ -1,375 +1,1067 @@
 package contentupdatepolicy_test
 
 import (
+	"fmt"
 	"regexp"
 	"testing"
 
+	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestAccContentUpdatePoliciesDataSource(t *testing.T) {
-	var steps []resource.TestStep
+func TestAccContentUpdatePoliciesDataSource_Basic(t *testing.T) {
+	resourceName := "data.crowdstrike_content_update_policies.test"
 
-	// Add basic functionality tests
-	steps = append(steps, testContentUpdatePoliciesBasic()...)
-	// Add filter-based tests
-	steps = append(steps, testContentUpdatePoliciesWithFilter()...)
-	// Add ID-based tests
-	steps = append(steps, testContentUpdatePoliciesWithIDs()...)
-	// Add individual filter attributes tests
-	steps = append(steps, testContentUpdatePoliciesWithIndividualFilters()...)
-	// Add sorting tests
-	steps = append(steps, testContentUpdatePoliciesWithSorting()...)
-	// Add validation error tests
-	steps = append(steps, testContentUpdatePoliciesValidationErrors()...)
-	// Add empty result tests
-	steps = append(steps, testContentUpdatePoliciesEmptyResults()...)
-
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    steps,
-	})
-}
-
-func testContentUpdatePoliciesBasic() []resource.TestStep {
-	return []resource.TestStep{
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "test" {}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.test", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.test", "id", "all"),
-				// Check that we have some policies and verify their structure
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.test", "policies.0.id"),
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.test", "policies.0.name"),
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.test", "policies.0.enabled"),
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.test", "policies.0.created_by"),
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.test", "policies.0.created_timestamp"),
-			),
-		},
-	}
-}
-
-func testContentUpdatePoliciesWithFilter() []resource.TestStep {
-	return []resource.TestStep{
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "enabled" {
-  filter = "enabled:true"
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.enabled", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.enabled", "id", "filtered"),
-				// Verify all returned policies are enabled
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.enabled", "policies.0.enabled", "true"),
-			),
-		},
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "by_name" {
-  filter = "name:'*policy*'"
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.by_name", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.by_name", "id", "filtered"),
-			),
-		},
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "complex_filter" {
-  filter = "enabled:true"
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.complex_filter", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.complex_filter", "id", "filtered"),
-			),
-		},
-	}
-}
-
-func testContentUpdatePoliciesWithIDs() []resource.TestStep {
-	return []resource.TestStep{
-		{
-			Config: acctest.ProviderConfig + `
-# First get all policies to extract some IDs
-data "crowdstrike_content_update_policies" "all" {}
-
-# Then use specific IDs (using first two policies from all)
-data "crowdstrike_content_update_policies" "specific" {
-  ids = [
-    data.crowdstrike_content_update_policies.all.policies[0].id,
-    length(data.crowdstrike_content_update_policies.all.policies) > 1 ? data.crowdstrike_content_update_policies.all.policies[1].id : data.crowdstrike_content_update_policies.all.policies[0].id
-  ]
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.specific", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.specific", "id", "ids"),
-				// Verify we get exactly the policies we requested (up to 2)
-				resource.TestMatchResourceAttr("data.crowdstrike_content_update_policies.specific", "policies.#", regexp.MustCompile(`^[12]$`)),
-			),
-		},
-	}
-}
-
-func testContentUpdatePoliciesWithIndividualFilters() []resource.TestStep {
-	return []resource.TestStep{
-		// Test enabled filter
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "enabled_true" {
-  enabled = true
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.enabled_true", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.enabled_true", "id", "filtered"),
-				// Verify all returned policies are enabled
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.enabled_true", "policies.0.enabled", "true"),
-			),
-		},
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "enabled_false" {
-  enabled = false
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.enabled_false", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.enabled_false", "id", "filtered"),
-				// Verify all returned policies are disabled
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.enabled_false", "policies.0.enabled", "false"),
-			),
-		},
-		// Test platform filter
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "platform_windows" {
-  platform = "windows"
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.platform_windows", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.platform_windows", "id", "filtered"),
-			),
-		},
-		// Test combination including platform
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "combined_with_platform" {
-  platform = "windows"
-  enabled  = true
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.combined_with_platform", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.combined_with_platform", "id", "filtered"),
-				// Verify all returned policies match both criteria
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.combined_with_platform", "policies.0.enabled", "true"),
-			),
-		},
-		// Test name filter
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "name_filter" {
-  name = "policy"
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.name_filter", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.name_filter", "id", "filtered"),
-			),
-		},
-		// Test description filter
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "description_filter" {
-  description = "update"
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.description_filter", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.description_filter", "id", "filtered"),
-			),
-		},
-		// Test combination with name and enabled
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "combined_name_enabled" {
-  name    = "policy"
-  enabled = true
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.combined_name_enabled", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.combined_name_enabled", "id", "filtered"),
-				// Verify all returned policies are enabled
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.combined_name_enabled", "policies.0.enabled", "true"),
-			),
-		},
-	}
-}
-
-func testContentUpdatePoliciesWithSorting() []resource.TestStep {
-	return []resource.TestStep{
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "sorted_asc" {
-  sort = "name.asc"
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.sorted_asc", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.sorted_asc", "id", "all"),
-			),
-		},
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "sorted_desc" {
-  sort = "created_timestamp.desc"
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.sorted_desc", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.sorted_desc", "id", "all"),
-			),
-		},
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "filtered_and_sorted" {
-  filter = "enabled:true"
-  sort   = "name.asc"
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.filtered_and_sorted", "policies.#"),
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.filtered_and_sorted", "id", "filtered"),
-			),
-		},
-	}
-}
-
-func testContentUpdatePoliciesValidationErrors() []resource.TestStep {
-	return []resource.TestStep{
-		// Test filter + ids (existing validation)
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "invalid_filter_ids" {
-  filter = "enabled:true"
-  ids    = ["policy-id-1", "policy-id-2"]
-}
-`,
-			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
-		},
-		// Test filter + individual attributes
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "invalid_filter_individual" {
-  filter  = "enabled:true"
-  enabled = false
-}
-`,
-			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
-		},
-		// Test filter + name attribute
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "invalid_filter_name" {
-  filter = "enabled:true"
-  name   = "policy"
-}
-`,
-			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
-		},
-		// Test ids + individual attributes
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "invalid_ids_individual" {
-  ids     = ["policy-id-1"]
-  enabled = true
-}
-`,
-			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
-		},
-		// Test ids + description attribute
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "invalid_ids_description" {
-  ids         = ["policy-id-1"]
-  description = "update"
-}
-`,
-			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
-		},
-		// Test all three types together
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "invalid_all_three" {
-  filter  = "enabled:true"
-  ids     = ["policy-id-1"]
-  enabled = false
-}
-`,
-			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
-		},
-	}
-}
-
-func testContentUpdatePoliciesEmptyResults() []resource.TestStep {
-	return []resource.TestStep{
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "empty" {
-  filter = "name:'NonExistentPolicyThatShouldNeverExist12345'"
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.empty", "policies.#", "0"),
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.empty", "id", "filtered"),
-			),
-		},
-		{
-			Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "empty_ids" {
-  ids = ["non-existent-policy-id-12345"]
-}
-`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.empty_ids", "policies.#", "0"),
-				resource.TestCheckResourceAttr("data.crowdstrike_content_update_policies.empty_ids", "id", "ids"),
-			),
-		},
-	}
-}
-
-func TestAccContentUpdatePoliciesDataSource_AllAttributes(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "test" {}
-`,
+				Config: testAccContentUpdatePoliciesDataSourceConfigBasic(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					// Verify all schema attributes are accessible
-					resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.test", "policies.0.id"),
-					resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.test", "policies.0.name"),
-					resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.test", "policies.0.enabled"),
-					resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.test", "policies.0.created_by"),
-					resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.test", "policies.0.created_timestamp"),
-					resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.test", "policies.0.modified_by"),
-					resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.test", "policies.0.modified_timestamp"),
-					// Check that lists are properly initialized (even if empty)
-					resource.TestCheckResourceAttrSet("data.crowdstrike_content_update_policies.test", "policies.0.groups.#"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.id"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.name"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.enabled"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.created_by"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.created_timestamp"),
 				),
 			},
 		},
 	})
+}
+
+func TestAccContentUpdatePoliciesDataSource_WithFilter(t *testing.T) {
+	resourceName := "data.crowdstrike_content_update_policies.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccContentUpdatePoliciesDataSourceConfigWithFilterEnabled(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					resource.TestCheckResourceAttr(resourceName, "policies.0.enabled", "true"),
+				),
+			},
+			{
+				Config: testAccContentUpdatePoliciesDataSourceConfigWithFilterComplex(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccContentUpdatePoliciesDataSource_WithIDs(t *testing.T) {
+	resourceName := "data.crowdstrike_content_update_policies.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccContentUpdatePoliciesDataSourceConfigWithIDs(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					resource.TestMatchResourceAttr(resourceName, "policies.#", regexp.MustCompile(`^[12]$`)),
+				),
+			},
+		},
+	})
+}
+
+func TestAccContentUpdatePoliciesDataSource_WithIndividualFilters(t *testing.T) {
+	resourceName := "data.crowdstrike_content_update_policies.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccContentUpdatePoliciesDataSourceConfigWithEnabledFilter(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					resource.TestCheckResourceAttr(resourceName, "policies.0.enabled", "true"),
+				),
+			},
+			{
+				Config: testAccContentUpdatePoliciesDataSourceConfigWithNameFilter(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+				),
+			},
+			{
+				Config: testAccContentUpdatePoliciesDataSourceConfigWithDescriptionFilter(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+				),
+			},
+			{
+				Config: testAccContentUpdatePoliciesDataSourceConfigWithCreatedByFilter(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+				),
+			},
+			{
+				Config: testAccContentUpdatePoliciesDataSourceConfigWithModifiedByFilter(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccContentUpdatePoliciesDataSource_WithSorting(t *testing.T) {
+	resourceName := "data.crowdstrike_content_update_policies.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccContentUpdatePoliciesDataSourceConfigWithSortingAsc(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+				),
+			},
+			{
+				Config: testAccContentUpdatePoliciesDataSourceConfigWithSortingDesc(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccContentUpdatePoliciesDataSource_ValidationErrors(t *testing.T) {
+	testCases := map[string]struct {
+		configFunc  func() string
+		expectError *regexp.Regexp
+	}{
+		"filter_with_ids": {
+			configFunc:  testAccContentUpdatePoliciesDataSourceConfigValidationFilterIDs,
+			expectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		"filter_with_individual": {
+			configFunc:  testAccContentUpdatePoliciesDataSourceConfigValidationFilterIndividual,
+			expectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		"ids_with_individual": {
+			configFunc:  testAccContentUpdatePoliciesDataSourceConfigValidationIDsIndividual,
+			expectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		"all_three": {
+			configFunc:  testAccContentUpdatePoliciesDataSourceConfigValidationAllThree,
+			expectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		"multiple_filter_methods": {
+			configFunc:  testAccContentUpdatePoliciesDataSourceConfigValidationMultipleFilter,
+			expectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		"filter_with_created_by": {
+			configFunc:  testAccContentUpdatePoliciesDataSourceConfigValidationFilterCreatedBy,
+			expectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		"ids_with_modified_by": {
+			configFunc:  testAccContentUpdatePoliciesDataSourceConfigValidationIDsModifiedBy,
+			expectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		"filter_with_description": {
+			configFunc:  testAccContentUpdatePoliciesDataSourceConfigValidationFilterDescription,
+			expectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			resource.ParallelTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+				PreCheck:                 func() { acctest.PreCheck(t) },
+				Steps: []resource.TestStep{
+					{
+						Config:      tc.configFunc(),
+						ExpectError: tc.expectError,
+					},
+				},
+			})
+		})
+	}
+}
+
+func TestAccContentUpdatePoliciesDataSource_EmptyResults(t *testing.T) {
+	resourceName := "data.crowdstrike_content_update_policies.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccContentUpdatePoliciesDataSourceConfigEmptyResults(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "policies.#", "0"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccContentUpdatePoliciesDataSource_404Handling(t *testing.T) {
+	resourceName := "data.crowdstrike_content_update_policies.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccContentUpdatePoliciesDataSourceConfig404NonExistentID(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "policies.#", "0"),
+				),
+			},
+			{
+				Config: testAccContentUpdatePoliciesDataSourceConfig404PartialResults(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "policies.#", "1"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.id"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.name"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccContentUpdatePoliciesDataSource_AllAttributes(t *testing.T) {
+	resourceName := "data.crowdstrike_content_update_policies.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccContentUpdatePoliciesDataSourceConfigBasic(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.id"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.name"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.enabled"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.created_by"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.created_timestamp"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.modified_by"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.modified_timestamp"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.host_groups.#"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccContentUpdatePoliciesDataSource_ResourceMatch(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	dataSourceName := "data.crowdstrike_content_update_policies.test"
+	resourceName := "crowdstrike_content_update_policy.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccContentUpdatePoliciesDataSourceConfigResourceMatch(rName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrPair(resourceName, "id", dataSourceName, "policies.0.id"),
+					resource.TestCheckResourceAttrPair(resourceName, "name", dataSourceName, "policies.0.name"),
+					resource.TestCheckResourceAttrPair(resourceName, "enabled", dataSourceName, "policies.0.enabled"),
+					resource.TestCheckResourceAttrPair(resourceName, "description", dataSourceName, "policies.0.description"),
+					resource.TestCheckResourceAttrPair(resourceName, "host_groups.0", dataSourceName, "policies.0.host_groups.0"),
+				),
+			},
+		},
+	})
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigBasic() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigWithFilterEnabled() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {
+  filter = "enabled:true"
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigWithFilterComplex() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {
+  filter = "name:'test'+enabled:true"
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigWithIDs() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "all" {}
+
+data "crowdstrike_content_update_policies" "test" {
+  ids = [
+    data.crowdstrike_content_update_policies.all.policies[0].id,
+    length(data.crowdstrike_content_update_policies.all.policies) > 1 ? data.crowdstrike_content_update_policies.all.policies[1].id : data.crowdstrike_content_update_policies.all.policies[0].id
+  ]
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigWithEnabledFilter() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {
+  enabled = true
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigWithNameFilter() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {
+  name = "*policy*"
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigWithDescriptionFilter() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {
+  description = "*protection*"
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigWithSortingAsc() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {
+  sort = "name.asc"
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigWithSortingDesc() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {
+  sort = "created_timestamp.desc"
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigValidationFilterIDs() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {
+  ids    = ["00000000000000000000000000000001", "00000000000000000000000000000002"]
+  description = "*protection*"
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigValidationFilterIndividual() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {
+  filter = "description:'test'"
+  name   = "test"
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigValidationIDsIndividual() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {
+  ids     = ["00000000000000000000000000000001"]
+  enabled = true
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigValidationAllThree() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {
+  ids    = ["00000000000000000000000000000001"]
+  name   = "test"
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigValidationMultipleFilter() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {
+  filter  = "name:'test'"
+  enabled = true
+  name    = "MyPolicy"
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigEmptyResults() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {
+  filter = "name:'NonExistentPolicyThatShouldNeverExist12345'"
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfig404NonExistentID() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {
+  ids = ["00000000000000000000000000000000"]
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfig404PartialResults() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "all" {}
+
+data "crowdstrike_content_update_policies" "test" {
+  ids = [
+    data.crowdstrike_content_update_policies.all.policies[0].id,
+    "00000000000000000000000000000000"
+  ]
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigResourceMatch(rName string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_host_group" "test" {
+  name        = %[1]q
+  description = "Test host group for data source acceptance test"
+  type        = "staticByID"
+  host_ids    = []
+}
+
+resource "crowdstrike_content_update_policy" "test" {
+  name            = %[1]q
+  description     = "Test policy for data source acceptance test"
+  enabled         = true
+  host_groups     = [crowdstrike_host_group.test.id]
+  
+  sensor_operations = {
+    ring_assignment = "ga"
+  }
+  
+  system_critical = {
+    ring_assignment = "ga"
+  }
+  
+  vulnerability_management = {
+    ring_assignment = "ga"
+  }
+  
+  rapid_response = {
+    ring_assignment = "ga"
+  }
+}
+
+data "crowdstrike_content_update_policies" "test" {
+  ids = [crowdstrike_content_update_policy.test.id]
+
+  depends_on = [crowdstrike_content_update_policy.test]
+}
+`, rName)
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigWithCreatedByFilter() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "all" {}
+
+data "crowdstrike_content_update_policies" "test" {
+  created_by = data.crowdstrike_content_update_policies.all.policies[0].created_by
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigWithModifiedByFilter() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "all" {}
+
+data "crowdstrike_content_update_policies" "test" {
+  modified_by = data.crowdstrike_content_update_policies.all.policies[0].modified_by
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigValidationFilterCreatedBy() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {
+  ids         = ["00000000000000000000000000000001"]
+  created_by = "testuser@example.com"
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigValidationIDsModifiedBy() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {
+  ids         = ["00000000000000000000000000000001"]
+  modified_by = "testuser@example.com"
+}
+`
+}
+
+func testAccContentUpdatePoliciesDataSourceConfigValidationFilterDescription() string {
+	return acctest.ProviderConfig + `
+data "crowdstrike_content_update_policies" "test" {
+  ids         = ["00000000000000000000000000000001"]
+  description = "*malware*"
+}
+`
+}
+
+var (
+	testBoolTrue  = true
+	testBoolFalse = false
+)
+
+var testPolicies = []*models.ContentUpdatePolicyV1{
+	{
+		ID:          utils.Addr("policy-001"),
+		Name:        utils.Addr("Production Policy"),
+		Description: utils.Addr("malware protection"),
+		CreatedBy:   utils.Addr("admin@example.com"),
+		ModifiedBy:  utils.Addr("security@example.com"),
+		Enabled:     &testBoolTrue,
+	},
+	{
+		ID:          utils.Addr("policy-002"),
+		Name:        utils.Addr("Production Backup"),
+		Description: utils.Addr("malware protection enabled"),
+		CreatedBy:   utils.Addr("admin@example.com"),
+		ModifiedBy:  utils.Addr("admin@example.com"),
+		Enabled:     &testBoolTrue,
+	},
+	{
+		ID:          utils.Addr("policy-003"),
+		Name:        utils.Addr("Production Desktop"),
+		Description: utils.Addr("endpoint protection"),
+		CreatedBy:   utils.Addr("user@example.com"),
+		ModifiedBy:  utils.Addr("security@example.com"),
+		Enabled:     &testBoolTrue,
+	},
+	{
+		ID:          utils.Addr("policy-004"),
+		Name:        utils.Addr("Test Policy"),
+		Description: utils.Addr("malware detection"),
+		CreatedBy:   utils.Addr("user@example.com"),
+		ModifiedBy:  utils.Addr("user@example.com"),
+		Enabled:     &testBoolFalse,
+	},
+	{
+		ID:          utils.Addr("policy-005"),
+		Name:        utils.Addr("Test Environment"),
+		Description: utils.Addr("ransomware protection"),
+		CreatedBy:   utils.Addr("admin@crowdstrike.com"),
+		ModifiedBy:  utils.Addr("admin@crowdstrike.com"),
+		Enabled:     &testBoolTrue,
+	},
+	{
+		ID:          utils.Addr("policy-006"),
+		Name:        utils.Addr("Windows Policy"),
+		Description: utils.Addr("Windows protection"),
+		CreatedBy:   utils.Addr("admin@example.com"),
+		ModifiedBy:  utils.Addr("admin@example.com"),
+		Enabled:     &testBoolTrue,
+	},
+	{
+		ID:          utils.Addr("policy-007"),
+		Name:        utils.Addr("Linux Policy"),
+		Description: utils.Addr("Linux protection"),
+		CreatedBy:   utils.Addr("user@example.com"),
+		ModifiedBy:  utils.Addr("user@example.com"),
+		Enabled:     &testBoolFalse,
+	},
+	{
+		ID:          utils.Addr("policy-008"),
+		Name:        utils.Addr("PRODUCTION Server"),
+		Description: utils.Addr("Server protection"),
+		CreatedBy:   utils.Addr("admin@example.com"),
+		ModifiedBy:  utils.Addr("admin@example.com"),
+		Enabled:     &testBoolTrue,
+	},
+	{
+		ID:          utils.Addr("policy-009"),
+		Name:        utils.Addr("production server"),
+		Description: utils.Addr("Desktop protection"),
+		CreatedBy:   utils.Addr("admin@example.com"),
+		ModifiedBy:  utils.Addr("admin@example.com"),
+		Enabled:     &testBoolFalse,
+	},
+	{
+		ID:          utils.Addr("policy-010"),
+		Name:        nil,
+		Description: utils.Addr("Description with no name"),
+		CreatedBy:   utils.Addr("admin@example.com"),
+		ModifiedBy:  utils.Addr("admin@example.com"),
+		Enabled:     &testBoolTrue,
+	},
+	{
+		ID:          utils.Addr("policy-011"),
+		Name:        utils.Addr("Policy with no description"),
+		Description: nil,
+		CreatedBy:   utils.Addr("admin@example.com"),
+		ModifiedBy:  utils.Addr("admin@example.com"),
+		Enabled:     &testBoolTrue,
+	},
+	{
+		ID:          utils.Addr("policy-012"),
+		Name:        utils.Addr("Policy with no user info"),
+		Description: utils.Addr("Description C"),
+		CreatedBy:   nil,
+		ModifiedBy:  nil,
+		Enabled:     &testBoolTrue,
+	},
+}
+
+func policiesByID(allPolicies []*models.ContentUpdatePolicyV1, ids ...string) []*models.ContentUpdatePolicyV1 {
+	result := make([]*models.ContentUpdatePolicyV1, 0, len(ids))
+	policyMap := make(map[string]*models.ContentUpdatePolicyV1)
+
+	for _, policy := range allPolicies {
+		if policy.ID != nil {
+			policyMap[*policy.ID] = policy
+		}
+	}
+
+	for _, id := range ids {
+		if policy, ok := policyMap[id]; ok {
+			result = append(result, policy)
+		}
+	}
+
+	return result
+}
+
+func TestFilterPoliciesByIDs(t *testing.T) {
+	tests := []struct {
+		name             string
+		inputPolicies    []*models.ContentUpdatePolicyV1
+		requestedIDs     []string
+		expectedPolicies []*models.ContentUpdatePolicyV1
+	}{
+		{
+			name:             "all_ids_found",
+			inputPolicies:    testPolicies,
+			requestedIDs:     []string{"policy-001", "policy-003", "policy-005"},
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003", "policy-005"),
+		},
+		{
+			name:             "partial_ids_found",
+			inputPolicies:    testPolicies,
+			requestedIDs:     []string{"policy-001", "non-existent", "policy-003"},
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003"),
+		},
+		{
+			name:             "no_ids_found",
+			inputPolicies:    testPolicies,
+			requestedIDs:     []string{"non-existent-1", "non-existent-2"},
+			expectedPolicies: []*models.ContentUpdatePolicyV1{},
+		},
+		{
+			name:             "empty_id_list",
+			inputPolicies:    testPolicies,
+			requestedIDs:     []string{},
+			expectedPolicies: []*models.ContentUpdatePolicyV1{},
+		},
+		{
+			name:             "nil_policies",
+			inputPolicies:    nil,
+			requestedIDs:     []string{"policy-001"},
+			expectedPolicies: []*models.ContentUpdatePolicyV1{},
+		},
+		{
+			name:             "empty_policies",
+			inputPolicies:    []*models.ContentUpdatePolicyV1{},
+			requestedIDs:     []string{"policy-001"},
+			expectedPolicies: []*models.ContentUpdatePolicyV1{},
+		},
+		{
+			name: "nil_policy_in_slice",
+			inputPolicies: []*models.ContentUpdatePolicyV1{
+				testPolicies[0],
+				nil,
+				testPolicies[1],
+			},
+			requestedIDs:     []string{"policy-001", "policy-002"},
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002"),
+		},
+		{
+			name: "policy_with_nil_id",
+			inputPolicies: []*models.ContentUpdatePolicyV1{
+				testPolicies[0],
+				{
+					ID:          nil,
+					Name:        utils.Addr("Policy with no ID"),
+					Description: utils.Addr("Test policy"),
+				},
+				testPolicies[1],
+			},
+			requestedIDs:     []string{"policy-001", "policy-002"},
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002"),
+		},
+		{
+			name:             "single_id_match",
+			inputPolicies:    testPolicies,
+			requestedIDs:     []string{"policy-006"},
+			expectedPolicies: policiesByID(testPolicies, "policy-006"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filtered := contentupdatepolicy.FilterPoliciesByIDs(tt.inputPolicies, tt.requestedIDs)
+			assert.ElementsMatch(t, tt.expectedPolicies, filtered, "Filtered policies don't match expected policies")
+		})
+	}
+}
+
+func TestFilterPoliciesByAttributes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		filters          *contentupdatepolicy.ContentUpdatePoliciesDataSourceModel
+		inputPolicies    []*models.ContentUpdatePolicyV1
+		expectedPolicies []*models.ContentUpdatePolicyV1
+	}{
+		{
+			name: "name_no_matches",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Name: types.StringValue("mac*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: []*models.ContentUpdatePolicyV1{},
+		},
+		{
+			name: "name_wildcard_at_start",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Name: types.StringValue("*Policy"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-004", "policy-006", "policy-007"),
+		},
+		{
+			name: "name_wildcard_at_end",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Name: types.StringValue("Test*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-004", "policy-005"),
+		},
+		{
+			name: "name_wildcard_in_middle",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Name: types.StringValue("Production*Desktop"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-003"),
+		},
+		{
+			name: "name_multiple_wildcards",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Name: types.StringValue("*Production*Serv*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-008", "policy-009"),
+		},
+		{
+			name: "description_exact_match",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Description: types.StringValue("malware protection"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001"),
+		},
+		{
+			name: "description_no_matches",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Description: types.StringValue("nonexistent*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: []*models.ContentUpdatePolicyV1{},
+		},
+		{
+			name: "description_wildcard_at_start",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Description: types.StringValue("*protection"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003", "policy-005", "policy-006", "policy-007", "policy-008", "policy-009"),
+		},
+		{
+			name: "description_wildcard_at_end",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Description: types.StringValue("malware*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-004"),
+		},
+		{
+			name: "description_wildcard_in_middle",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Description: types.StringValue("malware*protection"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001"),
+		},
+		{
+			name: "description_multiple_wildcards",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Description: types.StringValue("*ware*prote*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-005"),
+		},
+		{
+			name: "created_by_exact_match",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				CreatedBy: types.StringValue("admin@example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-006", "policy-008", "policy-009", "policy-010", "policy-011"),
+		},
+		{
+			name: "created_by_no_matches",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				CreatedBy: types.StringValue("nonexistent@example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: []*models.ContentUpdatePolicyV1{},
+		},
+		{
+			name: "created_by_wildcard_at_start",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				CreatedBy: types.StringValue("*@example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-003", "policy-004", "policy-006", "policy-007", "policy-008", "policy-009", "policy-010", "policy-011"),
+		},
+		{
+			name: "created_by_wildcard_at_end",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				CreatedBy: types.StringValue("user@*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-003", "policy-004", "policy-007"),
+		},
+		{
+			name: "created_by_wildcard_in_middle",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				CreatedBy: types.StringValue("admin@*example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-006", "policy-008", "policy-009", "policy-010", "policy-011"),
+		},
+		{
+			name: "created_by_multiple_wildcards",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				CreatedBy: types.StringValue("*admin*example*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-006", "policy-008", "policy-009", "policy-010", "policy-011"),
+		},
+		{
+			name: "modified_by_exact_match",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("admin@example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-002", "policy-006", "policy-008", "policy-009", "policy-010", "policy-011"),
+		},
+		{
+			name: "modified_by_no_matches",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("nonexistent@example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: []*models.ContentUpdatePolicyV1{},
+		},
+		{
+			name: "modified_by_wildcard_at_start",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("*@example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-003", "policy-004", "policy-006", "policy-007", "policy-008", "policy-009", "policy-010", "policy-011"),
+		},
+		{
+			name: "modified_by_wildcard_at_end",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("security@*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003"),
+		},
+		{
+			name: "modified_by_wildcard_in_middle",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("security@*example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003"),
+		},
+		{
+			name: "modified_by_multiple_wildcards",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("*admin*example*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-002", "policy-006", "policy-008", "policy-009", "policy-010", "policy-011"),
+		},
+		{
+			name: "enabled_true",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Enabled: types.BoolValue(true),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-003", "policy-005", "policy-006", "policy-008", "policy-010", "policy-011", "policy-012"),
+		},
+		{
+			name: "enabled_false",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Enabled: types.BoolValue(false),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-004", "policy-007", "policy-009"),
+		},
+		{
+			name: "name_and_description",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Name:        types.StringValue("*Policy"),
+				Description: types.StringValue("*protection"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-006", "policy-007"),
+		},
+		{
+			name: "all_filters",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Name:        types.StringValue("*Policy"),
+				Description: types.StringValue("Windows protection"),
+				CreatedBy:   types.StringValue("admin@example.com"),
+				ModifiedBy:  types.StringValue("admin@example.com"),
+				Enabled:     types.BoolValue(true),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-006"),
+		},
+		{
+			name: "name_and_created_by",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Name:      types.StringValue("Production*"),
+				CreatedBy: types.StringValue("admin@*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-008", "policy-009"),
+		},
+		{
+			name: "description_and_user_filters",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Description: types.StringValue("*protection"),
+				CreatedBy:   types.StringValue("admin@example.com"),
+				ModifiedBy:  types.StringValue("admin@example.com"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-006", "policy-008", "policy-009"),
+		},
+		{
+			name: "no_filtering",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Name:        types.StringNull(),
+				Description: types.StringNull(),
+				CreatedBy:   types.StringNull(),
+				ModifiedBy:  types.StringNull(),
+				Enabled:     types.BoolNull(),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: testPolicies,
+		},
+		{
+			name:             "empty_input",
+			filters:          &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{},
+			inputPolicies:    []*models.ContentUpdatePolicyV1{},
+			expectedPolicies: []*models.ContentUpdatePolicyV1{},
+		},
+		{
+			name:             "nil_input",
+			filters:          &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{},
+			inputPolicies:    nil,
+			expectedPolicies: []*models.ContentUpdatePolicyV1{},
+		},
+		{
+			name: "nil_policy_in_slice",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Name: types.StringValue("*Policy"),
+			},
+			inputPolicies: []*models.ContentUpdatePolicyV1{
+				testPolicies[0],
+				nil,
+				testPolicies[3],
+			},
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-004"),
+		},
+		{
+			name: "filter_nil_name_field",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Name: types.StringValue("*Policy"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-004", "policy-006", "policy-007"),
+		},
+		{
+			name: "filter_nil_description_field",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Description: types.StringValue("*protection"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003", "policy-005", "policy-006", "policy-007", "policy-008", "policy-009"),
+		},
+		{
+			name: "filter_nil_created_by_field",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				CreatedBy: types.StringValue("admin@*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-005", "policy-006", "policy-008", "policy-009", "policy-010", "policy-011"),
+		},
+		{
+			name: "filter_nil_modified_by_field",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("security@*"),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003"),
+		},
+		{
+			name: "filter_nil_enabled_field",
+			filters: &contentupdatepolicy.ContentUpdatePoliciesDataSourceModel{
+				Enabled: types.BoolValue(true),
+			},
+			inputPolicies:    testPolicies,
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-003", "policy-005", "policy-006", "policy-008", "policy-010", "policy-011", "policy-012"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filtered := contentupdatepolicy.FilterPoliciesByAttributes(tt.inputPolicies, tt.filters)
+			assert.ElementsMatch(t, tt.expectedPolicies, filtered, "Filtered policies don't match expected policies")
+		})
+	}
 }
