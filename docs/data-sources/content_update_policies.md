@@ -5,7 +5,7 @@ description: |-
   This data source provides information about content update policies in Falcon.
   API Scopes
   The following API scopes are required:
-  Content update policies | Read
+  content-update-policies | Read
 ---
 
 # crowdstrike_content_update_policies (Data Source)
@@ -16,7 +16,7 @@ This data source provides information about content update policies in Falcon.
 
 The following API scopes are required:
 
-- Content update policies | Read
+- content-update-policies | Read
 
 
 ## Example Usage
@@ -63,17 +63,17 @@ data "crowdstrike_content_update_policies" "specific" {
 
 ### Optional
 
-- `description` (String) Filter policies by description. Partial matches are supported, but only single words work reliably. Use single words without spaces (e.g., 'malware' works, but 'malware protection' may not return results). For complex description searches with spaces, use the 'filter' attribute instead. Cannot be used together with 'filter' or 'ids'.
-- `enabled` (Boolean) Filter policies by enabled status. Cannot be used together with 'filter' or 'ids'.
-- `filter` (String) FQL filter to apply to the content update policies query. When specified, only policies matching the filter will be returned. Cannot be used together with 'ids' or other filter attributes. Example: `enabled:true`
+- `created_by` (String) Filter policies by the user who created them. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'filter' or 'ids'.
+- `description` (String) Filter policies by description. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'filter' or 'ids'.
+- `enabled` (Boolean) Filter policies by enabled status. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Cannot be used together with 'filter' or 'ids'.
+- `filter` (String) FQL filter to apply to the content update policies query. When specified, only policies matching the filter will be returned. Cannot be used together with 'ids' or other filter attributes. Example: `platform_name:'Windows'`
 - `ids` (List of String) List of content update policy IDs to retrieve. When specified, only policies with matching IDs will be returned. Cannot be used together with 'filter' or other filter attributes.
-- `name` (String) Filter policies by name. Partial matches are supported, but only single words work reliably. Use single words without spaces (e.g., 'production' works, but 'production lab' may not return results). For complex name searches with spaces, use the 'filter' attribute instead. Cannot be used together with 'filter' or 'ids'.
-- `platform` (String) Filter policies by platform. Valid values include 'windows', 'mac', 'linux'. Cannot be used together with 'filter' or 'ids'.
-- `sort` (String) Sort order for the results. Valid values include field names with optional '.asc' or '.desc' suffix. Example: 'name.asc', 'created_timestamp.desc'
+- `modified_by` (String) Filter policies by the user who last modified them. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'filter' or 'ids'.
+- `name` (String) Filter policies by name. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'filter' or 'ids'.
+- `sort` (String) Sort order for the results. Valid values include field names with optional '.asc' or '.desc' suffix. Example: 'name.asc', 'precedence.desc'
 
 ### Read-Only
 
-- `id` (String) Identifier for this data source
 - `policies` (Attributes List) The list of content update policies (see [below for nested schema](#nestedatt--policies))
 
 <a id="nestedatt--policies"></a>
@@ -85,7 +85,7 @@ Read-Only:
 - `created_timestamp` (String) Timestamp when the policy was created
 - `description` (String) The content update policy description
 - `enabled` (Boolean) Whether the content update policy is enabled
-- `groups` (List of String) List of host group IDs assigned to the policy
+- `host_groups` (List of String) List of host group IDs assigned to the policy
 - `id` (String) The content update policy ID
 - `modified_by` (String) User who last modified the policy
 - `modified_timestamp` (String) Timestamp when the policy was last modified
