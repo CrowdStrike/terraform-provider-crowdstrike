@@ -6,13 +6,12 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/stretchr/testify/assert"
 
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 )
@@ -23,30 +22,6 @@ const (
 	testAgentlessScanningRole         = "agentless-scanning-shared-role"
 	crowdstrikeAWSAccountResourceType = "crowdstrike_cloud_aws_account"
 )
-
-// parseAndExtractRegions is a test helper that calls parseRegionsFromSettings
-// and extracts the region values from state for easy verification.
-func parseAndExtractRegions(ctx context.Context, settings any) (rtvdRegions, dspmRegions, vulnRegions []string, diags diag.Diagnostics) {
-	state := &fcs.CloudAWSAccountModel{
-		RealtimeVisibility:    &fcs.RealtimeVisibilityOptions{},
-		DSPM:                  &fcs.DSPMOptions{},
-		VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{},
-	}
-
-	diags = fcs.ParseRegionsFromSettings(ctx, settings, state)
-
-	if !state.RealtimeVisibility.Regions.IsNull() {
-		state.RealtimeVisibility.Regions.ElementsAs(ctx, &rtvdRegions, false)
-	}
-	if !state.DSPM.Regions.IsNull() {
-		state.DSPM.Regions.ElementsAs(ctx, &dspmRegions, false)
-	}
-	if !state.VulnerabilityScanning.Regions.IsNull() {
-		state.VulnerabilityScanning.Regions.ElementsAs(ctx, &vulnRegions, false)
-	}
-
-	return rtvdRegions, dspmRegions, vulnRegions, diags
-}
 
 // Basic configuration.
 func testAccCloudAwsAccountConfig_basic(account, organization_id string) string {
@@ -335,159 +310,6 @@ func TestCloudAWSAccountModelRegionFields(t *testing.T) {
 		multipleRegions := []string{"us-east-1", "us-west-2", "eu-west-1"}
 		if len(multipleRegions) < 1 {
 			t.Errorf("Multiple regions list should pass SizeAtLeast(1) validation")
-		}
-	})
-}
-
-// Test reading regions from DomainCloudAWSAccountV1 API response into Terraform state.
-func TestCloudAWSAccountRegionsFromAPI(t *testing.T) {
-	ctx := context.Background()
-
-	t.Run("RegionsFromSettingsMapInterface", func(t *testing.T) {
-		// Create a mock DomainCloudAWSAccountV1 response with Settings as map[string]string
-		cloudAccount := &models.DomainCloudAWSAccountV1{
-			AccountID: "123456789012",
-			Settings: map[string]string{
-				"rtvd.regions":                   "us-east-1,us-west-2",
-				"dspm.regions":                   "eu-west-1,ap-southeast-1",
-				"vulnerability_scanning.regions": "us-east-1",
-			},
-		}
-
-		// Test the actual ParseRegionsFromSettings function
-		rtvdRegions, dspmRegions, vulnRegions, diags := parseAndExtractRegions(ctx, cloudAccount.Settings)
-		if diags.HasError() {
-			t.Fatalf("parseAndExtractRegions failed with errors: %v", diags.Errors())
-		}
-
-		// Verify RTVD regions
-		expectedRtvd := []string{"us-east-1", "us-west-2"}
-		if len(rtvdRegions) != len(expectedRtvd) {
-			t.Errorf("Expected %d RTVD regions, got %d", len(expectedRtvd), len(rtvdRegions))
-		}
-		for i, expected := range expectedRtvd {
-			if i >= len(rtvdRegions) || rtvdRegions[i] != expected {
-				t.Errorf("Expected RTVD region %d to be %s, got %s", i, expected, rtvdRegions[i])
-			}
-		}
-
-		// Verify DSPM regions
-		expectedDspm := []string{"eu-west-1", "ap-southeast-1"}
-		if len(dspmRegions) != len(expectedDspm) {
-			t.Errorf("Expected %d DSPM regions, got %d", len(expectedDspm), len(dspmRegions))
-		}
-		for i, expected := range expectedDspm {
-			if i >= len(dspmRegions) || dspmRegions[i] != expected {
-				t.Errorf("Expected DSPM region %d to be %s, got %s", i, expected, dspmRegions[i])
-			}
-		}
-
-		// Verify Vulnerability Scanning regions
-		expectedVuln := []string{"us-east-1"}
-		if len(vulnRegions) != len(expectedVuln) {
-			t.Errorf("Expected %d vulnerability scanning regions, got %d", len(expectedVuln), len(vulnRegions))
-		}
-		for i, expected := range expectedVuln {
-			if i >= len(vulnRegions) || vulnRegions[i] != expected {
-				t.Errorf("Expected vulnerability scanning region %d to be %s, got %s", i, expected, vulnRegions[i])
-			}
-		}
-	})
-
-	t.Run("RegionsFromSettingsMapString", func(t *testing.T) {
-		// Create a mock DomainCloudAWSAccountV1 response with Settings as map[string]string
-		cloudAccount := &models.DomainCloudAWSAccountV1{
-			AccountID: "123456789012",
-			Settings: map[string]string{
-				"rtvd.regions":                   "us-west-1, us-west-2 , eu-north-1",
-				"dspm.regions":                   "us-west-1,eu-central-1",
-				"vulnerability_scanning.regions": "ap-northeast-1",
-			},
-		}
-
-		// Test the actual ParseRegionsFromSettings function
-		rtvdRegions, _, vulnRegions, diags := parseAndExtractRegions(ctx, cloudAccount.Settings)
-		if diags.HasError() {
-			t.Fatalf("parseAndExtractRegions failed with errors: %v", diags.Errors())
-		}
-
-		// Verify trimmed regions
-		expectedRtvd := []string{"us-west-1", "us-west-2", "eu-north-1"}
-		if len(rtvdRegions) != len(expectedRtvd) {
-			t.Errorf("Expected %d RTVD regions, got %d", len(expectedRtvd), len(rtvdRegions))
-		}
-		for i, expected := range expectedRtvd {
-			if i >= len(rtvdRegions) || rtvdRegions[i] != expected {
-				t.Errorf("Expected RTVD region %d to be %s, got %s", i, expected, rtvdRegions[i])
-			}
-		}
-
-		// Single region test
-		expectedVuln := []string{"ap-northeast-1"}
-		if len(vulnRegions) != len(expectedVuln) {
-			t.Errorf("Expected %d vulnerability scanning regions, got %d", len(expectedVuln), len(vulnRegions))
-		}
-		if len(vulnRegions) > 0 && vulnRegions[0] != "ap-northeast-1" {
-			t.Errorf("Expected ap-northeast-1, got %s", vulnRegions[0])
-		}
-	})
-
-	t.Run("EmptyAndMissingRegions", func(t *testing.T) {
-		// Test API response with missing/empty regions
-		cloudAccount := &models.DomainCloudAWSAccountV1{
-			AccountID: "123456789012",
-			Settings: map[string]string{
-				"rtvd.regions":  "", // Empty string
-				"other.setting": "value",
-				// dspm.regions is missing
-				// vulnerability_scanning.regions is missing
-			},
-		}
-
-		// Test the actual ParseRegionsFromSettings function with empty/missing regions
-		rtvdRegions, dspmRegions, vulnRegions, diags := parseAndExtractRegions(ctx, cloudAccount.Settings)
-		if diags.HasError() {
-			t.Fatalf("parseAndExtractRegions failed with errors: %v", diags.Errors())
-		}
-
-		// Verify regions remain unset (empty slices)
-		if len(rtvdRegions) != 0 {
-			t.Errorf("RTVD regions should be empty when empty in API response, got %v", rtvdRegions)
-		}
-		if len(dspmRegions) != 0 {
-			t.Errorf("DSPM regions should be empty when missing from API response, got %v", dspmRegions)
-		}
-		if len(vulnRegions) != 0 {
-			t.Errorf("Vulnerability scanning regions should be empty when missing from API response, got %v", vulnRegions)
-		}
-	})
-
-	t.Run("SettingsNotMapString", func(t *testing.T) {
-		// Test API response with Settings as map[string]interface{} (should be ignored)
-		cloudAccount := &models.DomainCloudAWSAccountV1{
-			AccountID: "123456789012",
-			Settings: map[string]interface{}{
-				"rtvd.regions":                   "us-east-1,us-west-2",
-				"dspm.regions":                   "eu-west-1,ap-southeast-1",
-				"vulnerability_scanning.regions": "us-east-1",
-			},
-		}
-
-		// Test the actual ParseRegionsFromSettings function - should ignore non-map[string]string
-		rtvdRegions, dspmRegions, vulnRegions, diags := parseAndExtractRegions(ctx, cloudAccount.Settings)
-		if diags.HasError() {
-			t.Fatalf("parseAndExtractRegions failed with errors: %v", diags.Errors())
-		}
-
-		// Verify regions remain unset since settings is not map[string]string
-		if len(rtvdRegions) != 0 {
-			t.Errorf("RTVD regions should be empty when settings is not map[string]string, got %v", rtvdRegions)
-		}
-		if len(dspmRegions) != 0 {
-			t.Errorf("DSPM regions should be empty when settings is not map[string]string, got %v", dspmRegions)
-		}
-		if len(vulnRegions) != 0 {
-			t.Errorf("Vulnerability scanning regions should be empty when settings is not map[string]string, got %v", vulnRegions)
 		}
 	})
 }
@@ -1101,4 +923,90 @@ func TestRegionsHandlingForAPI(t *testing.T) {
 			t.Errorf("Expected regions [us-east-1, us-west-2], got %v", rtvdRegions)
 		}
 	})
+}
+
+// TestParseRegionsFromSettings is a unit test for the fcs.ParseRegionsFromSettings function.
+func TestParseRegionsFromSettings(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	tests := []struct {
+		name     string
+		settings any
+		wantRtvd types.List
+		wantDspm types.List
+		wantVuln types.List
+	}{
+		{
+			name: "valid regions all types",
+			settings: map[string]string{
+				"rtvd.regions":                   "us-east-1,us-west-2",
+				"dspm.regions":                   "eu-west-1",
+				"vulnerability_scanning.regions": "ap-southeast-1,us-east-1",
+			},
+			wantRtvd: acctest.StringListOrNull("us-east-1", "us-west-2"),
+			wantDspm: acctest.StringListOrNull("eu-west-1"),
+			wantVuln: acctest.StringListOrNull("ap-southeast-1", "us-east-1"),
+		},
+		{
+			name: "regions with whitespace",
+			settings: map[string]string{
+				"rtvd.regions": " us-east-1 , us-west-2 ",
+				"dspm.regions": "  eu-west-1  ",
+			},
+			wantRtvd: acctest.StringListOrNull("us-east-1", "us-west-2"),
+			wantDspm: acctest.StringListOrNull("eu-west-1"),
+			wantVuln: acctest.StringListOrNull(),
+		},
+		{
+			name: "empty strings",
+			settings: map[string]string{
+				"rtvd.regions": "",
+				"dspm.regions": "",
+			},
+			wantRtvd: acctest.StringListOrNull(),
+			wantDspm: acctest.StringListOrNull(),
+			wantVuln: acctest.StringListOrNull(),
+		},
+		{
+			name:     "nil settings",
+			settings: nil,
+			wantRtvd: acctest.StringListOrNull(),
+			wantDspm: acctest.StringListOrNull(),
+			wantVuln: acctest.StringListOrNull(),
+		},
+		{
+			name: "special value all",
+			settings: map[string]string{
+				"rtvd.regions": "all",
+			},
+			wantRtvd: acctest.StringListOrNull("all"),
+			wantDspm: acctest.StringListOrNull(),
+			wantVuln: acctest.StringListOrNull(),
+		},
+		{
+			name:     "wrong settings type",
+			settings: map[string]interface{}{},
+			wantRtvd: acctest.StringListOrNull(),
+			wantDspm: acctest.StringListOrNull(),
+			wantVuln: acctest.StringListOrNull(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := &fcs.CloudAWSAccountModel{
+				RealtimeVisibility:    &fcs.RealtimeVisibilityOptions{},
+				DSPM:                  &fcs.DSPMOptions{},
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{},
+			}
+
+			diags := fcs.ParseRegionsFromSettings(ctx, tt.settings, state)
+			assert.False(t, diags.HasError(), "unexpected error: %v", diags.Errors())
+
+			assert.True(t, state.RealtimeVisibility.Regions.Equal(tt.wantRtvd), "RTVD regions mismatch: got %v, want %v", state.RealtimeVisibility.Regions, tt.wantRtvd)
+			assert.True(t, state.DSPM.Regions.Equal(tt.wantDspm), "DSPM regions mismatch: got %v, want %v", state.DSPM.Regions, tt.wantDspm)
+			assert.True(t, state.VulnerabilityScanning.Regions.Equal(tt.wantVuln), "Vulnerability regions mismatch: got %v, want %v", state.VulnerabilityScanning.Regions, tt.wantVuln)
+		})
+	}
 }

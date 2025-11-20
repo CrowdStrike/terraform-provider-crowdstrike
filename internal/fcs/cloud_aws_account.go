@@ -1695,6 +1695,10 @@ func (r *cloudAWSAccountResource) ValidateConfig(
 func parseRegionsFromSettings(ctx context.Context, settings interface{}, state *cloudAWSAccountModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
+	state.DSPM.Regions = types.ListNull(types.StringType)
+	state.RealtimeVisibility.Regions = types.ListNull(types.StringType)
+	state.VulnerabilityScanning.Regions = types.ListNull(types.StringType)
+
 	if settings == nil {
 		return diags
 	}
