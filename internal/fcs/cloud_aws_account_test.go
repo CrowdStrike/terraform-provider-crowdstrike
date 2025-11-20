@@ -692,12 +692,10 @@ func TestAccCloudAwsAccountResourceRegionsValidation(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
-			// Test that empty regions list should fail validation
 			{
 				Config:      testAccCloudAwsAccountConfig_withEmptyRegions(accountID),
 				ExpectError: regexp.MustCompile("Attribute realtime_visibility.regions list must contain at least 1 elements"),
 			},
-			// Test that single region should pass validation
 			{
 				Config: testAccCloudAwsAccountConfig_withSingleRegion(accountID),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -725,43 +723,35 @@ func TestAccCloudAwsAccountResourceRegions(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
-			// Test configuration with regions
 			{
 				Config: testAccCloudAwsAccountConfig_withRegions(accountID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
-					// Check realtime_visibility regions
 					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.enabled", "true"),
 					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.0", "us-east-1"),
 					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.1", "us-west-2"),
 					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.#", "2"),
-					// Check DSPM regions
 					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
 					resource.TestCheckResourceAttr(fullResourceName, "dspm.regions.0", "us-east-1"),
 					resource.TestCheckResourceAttr(fullResourceName, "dspm.regions.1", "eu-west-1"),
 					resource.TestCheckResourceAttr(fullResourceName, "dspm.regions.#", "2"),
-					// Check vulnerability scanning regions
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "true"),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.regions.0", "us-east-1"),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.regions.1", "ap-southeast-1"),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.regions.#", "2"),
 				),
 			},
-			// Test configuration update with different regions
 			{
 				Config: testAccCloudAwsAccountConfig_updateRegions(accountID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
-					// Check updated realtime_visibility regions (now 3 regions)
 					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.#", "3"),
 					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.0", "us-east-1"),
 					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.1", "us-west-2"),
 					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.2", "eu-central-1"),
-					// Check updated DSPM regions (still 2 but different)
 					resource.TestCheckResourceAttr(fullResourceName, "dspm.regions.#", "2"),
 					resource.TestCheckResourceAttr(fullResourceName, "dspm.regions.0", "us-west-2"),
 					resource.TestCheckResourceAttr(fullResourceName, "dspm.regions.1", "eu-west-1"),
-					// Check updated vulnerability scanning regions (now 1 region)
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.regions.#", "1"),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.regions.0", "us-east-1"),
 				),
