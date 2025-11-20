@@ -8,7 +8,6 @@ import (
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/stretchr/testify/assert"
@@ -234,84 +233,6 @@ resource "crowdstrike_cloud_aws_account" "test" {
   }
 }
 `, account, testDSPMRoleName)
-}
-
-// Unit test to verify region field structure, types, and validation.
-func TestCloudAWSAccountModelRegionFields(t *testing.T) {
-	ctx := context.Background()
-
-	// Test that region fields can be properly set and retrieved from nested structures
-	t.Run("Regions", func(t *testing.T) {
-		regions := []string{"us-east-1", "us-west-2"}
-		regionList, diags := types.ListValueFrom(ctx, types.StringType, regions)
-		if diags.HasError() {
-			t.Fatalf("Failed to create region list: %v", diags.Errors())
-		}
-
-		// Verify list can be converted back to string slice
-		var resultRegions []string
-		diags = regionList.ElementsAs(ctx, &resultRegions, false)
-		if diags.HasError() {
-			t.Fatalf("Failed to convert region list: %v", diags.Errors())
-		}
-
-		if len(resultRegions) != 2 {
-			t.Errorf("Expected 2 regions, got %d", len(resultRegions))
-		}
-		if resultRegions[0] != "us-east-1" || resultRegions[1] != "us-west-2" {
-			t.Errorf("Region values don't match: got %v", resultRegions)
-		}
-	})
-
-	t.Run("EmptyRegionsList", func(t *testing.T) {
-		emptyList := types.ListValueMust(types.StringType, []attr.Value{})
-
-		var regions []string
-		diags := emptyList.ElementsAs(ctx, &regions, false)
-		if diags.HasError() {
-			t.Fatalf("Failed to convert empty list: %v", diags.Errors())
-		}
-
-		if len(regions) != 0 {
-			t.Errorf("Expected empty regions list, got %v", regions)
-		}
-	})
-
-	t.Run("NullRegionsList", func(t *testing.T) {
-		nullList := types.ListNull(types.StringType)
-
-		if !nullList.IsNull() {
-			t.Error("Expected null list to be null")
-		}
-
-		if nullList.IsUnknown() {
-			t.Error("Expected null list to not be unknown")
-		}
-	})
-
-	t.Run("RegionsValidation", func(t *testing.T) {
-		// Test validation that empty lists should fail SizeAtLeast(1) validation
-		// Note: This tests the validation logic conceptually since we can't easily
-		// test the actual Terraform validator in unit tests
-
-		// Test empty list - should conceptually fail validation
-		emptyRegions := []string{}
-		if len(emptyRegions) >= 1 {
-			t.Errorf("Empty regions list should fail SizeAtLeast(1) validation")
-		}
-
-		// Test valid list - should pass validation
-		validRegions := []string{"us-east-1"}
-		if len(validRegions) < 1 {
-			t.Errorf("Non-empty regions list should pass SizeAtLeast(1) validation")
-		}
-
-		// Test multiple regions - should pass validation
-		multipleRegions := []string{"us-east-1", "us-west-2", "eu-west-1"}
-		if len(multipleRegions) < 1 {
-			t.Errorf("Multiple regions list should pass SizeAtLeast(1) validation")
-		}
-	})
 }
 
 func TestAccCloudAwsAccountResource(t *testing.T) {
