@@ -1,7 +1,6 @@
 package fcs_test
 
 import (
-	"context"
 	"fmt"
 	"regexp"
 	"testing"
@@ -768,81 +767,6 @@ func TestAccCloudAwsAccountResourceRegions(t *testing.T) {
 				),
 			},
 		},
-	})
-}
-
-// TestRegionsHandlingForAPI tests that regions are properly handled when creating/updating accounts
-// This ensures that null regions are converted to empty arrays for API calls.
-func TestRegionsHandlingForAPI(t *testing.T) {
-	// This test verifies the logic we implemented to send empty arrays when regions are null
-	// so the API understands to clear/reset regions
-	t.Run("NullRegionsConvertToEmptyArrays", func(t *testing.T) {
-		ctx := context.Background()
-
-		// Test the logic that handles null regions by creating empty slices
-		var rtvdRegions []string
-		var dspmRegions []string
-		var vulnRegions []string
-
-		// Simulate what happens in createCloudAccount/updateCloudAccount when regions are null
-		nullRegions := types.ListNull(types.StringType)
-
-		// This is the logic from our updated functions - when regions are null, we skip ElementsAs
-		if !nullRegions.IsNull() && !nullRegions.IsUnknown() {
-			// This should NOT execute for null regions
-			nullRegions.ElementsAs(ctx, &rtvdRegions, false)
-			t.Errorf("Null regions should not be processed through ElementsAs")
-		}
-
-		// When regions are null, we initialize empty slices and pass them to API
-		// The key point: In Go, nil slices are equivalent to empty slices when marshaled to JSON
-		// So whether we have nil or []string{}, both become [] in JSON, which is what the API needs
-
-		// Verify the null check works correctly
-		if !nullRegions.IsNull() {
-			t.Errorf("Expected regions to be null")
-		}
-
-		// The API will receive these as empty arrays in JSON
-		expectedJSONLength := 0
-		if len(rtvdRegions) != expectedJSONLength {
-			t.Logf("rtvdRegions length: %d (this is expected for nil slice)", len(rtvdRegions))
-		}
-
-		if len(dspmRegions) != expectedJSONLength {
-			t.Logf("dspmRegions length: %d (this is expected for nil slice)", len(dspmRegions))
-		}
-
-		if len(vulnRegions) != expectedJSONLength {
-			t.Logf("vulnRegions length: %d (this is expected for nil slice)", len(vulnRegions))
-		}
-	})
-
-	t.Run("SpecifiedRegionsWork", func(t *testing.T) {
-		ctx := context.Background()
-
-		// Create regions list
-		regionsList, diags := types.ListValueFrom(ctx, types.StringType, []string{"us-east-1", "us-west-2"})
-		if diags.HasError() {
-			t.Fatalf("Failed to create regions list: %v", diags.Errors())
-		}
-
-		// Test that specified regions are handled correctly
-		var rtvdRegions []string
-		if !regionsList.IsNull() && !regionsList.IsUnknown() {
-			diags := regionsList.ElementsAs(ctx, &rtvdRegions, false)
-			if diags.HasError() {
-				t.Errorf("Failed to extract regions: %v", diags.Errors())
-			}
-		}
-
-		// Should have 2 regions
-		if len(rtvdRegions) != 2 {
-			t.Errorf("Expected 2 regions, got %d", len(rtvdRegions))
-		}
-		if len(rtvdRegions) >= 2 && (rtvdRegions[0] != "us-east-1" || rtvdRegions[1] != "us-west-2") {
-			t.Errorf("Expected regions [us-east-1, us-west-2], got %v", rtvdRegions)
-		}
 	})
 }
 
