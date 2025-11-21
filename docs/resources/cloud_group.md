@@ -5,7 +5,7 @@ description: |-
   This resource manages CrowdStrike Cloud Groups for organizing cloud resources and container images.
   API Scopes
   The following API scopes are required:
-  Cloud security | Read & Write
+  Cloud Groups V2 | Read & Write
 ---
 
 # crowdstrike_cloud_group (Resource)
@@ -16,7 +16,7 @@ This resource manages CrowdStrike Cloud Groups for organizing cloud resources an
 
 The following API scopes are required:
 
-- Cloud security | Read & Write
+- Cloud Groups V2 | Read & Write
 
 
 ## Example Usage
