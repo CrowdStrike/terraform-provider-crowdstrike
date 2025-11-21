@@ -1,3 +1,41 @@
+.DEFAULT_GOAL := help
+
+.PHONY: help
+help:
+	@echo "Terraform Provider CrowdStrike - Available targets:"
+	@echo ""
+	@echo "Building:"
+	@echo "  build          - Build and install the provider to GOBIN"
+	@echo "  localinstall   - Build and install the provider to ~/go/bin"
+	@echo ""
+	@echo "Code Quality:"
+	@echo "  fmt            - Fix code formatting and linting issues automatically"
+	@echo "  fmt-check      - Check Go formatting without making changes"
+	@echo "  lint           - Run golangci-lint on the codebase"
+	@echo "  gen            - Generate provider documentation (REQUIRED before commit)"
+	@echo ""
+	@echo "Testing:"
+	@echo "  test           - Run unit tests only (no TF_ACC)"
+	@echo "  acctest        - Run acceptance tests with format check (PKG=<package> optional)"
+	@echo "  testacc        - Run acceptance tests without format check"
+	@echo ""
+	@echo "Development:"
+	@echo "  apply <resource>   - Build provider and run terraform apply on example resource"
+	@echo "  destroy <resource> - Build provider and run terraform destroy on example resource"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make build"
+	@echo "  make acctest"
+	@echo "  make acctest PKG=prevention_policy"
+	@echo "  make acctest PKG=prevention_policy TESTARGS='-run TestAccPreventionPolicyWindowsResource'"
+	@echo "  make apply crowdstrike_host_group"
+	@echo "  make destroy crowdstrike_host_group"
+	@echo ""
+	@echo "Environment Variables:"
+	@echo "  PKG      - Package name for targeted acceptance tests"
+	@echo "  TESTARGS - Additional arguments for go test (e.g., -run TestName)"
+	@echo "  TFARGS   - Additional arguments for terraform apply/destroy"
+
 .PHONY: build
 build:
 	go install .
