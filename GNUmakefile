@@ -37,7 +37,7 @@ testacc:
 	TF_ACC=1 go test ./... -v $(TESTARGS) -timeout 120m
 
 .PHONY: acctest
-acctest: fmt-check
+acctest: fmt
 	@branch=$$(git rev-parse --abbrev-ref HEAD); \
 	printf "Running acceptance tests on branch: %s\n" "$$branch"
 	TF_ACC=1 go test ./internal/$${PKG:-...} -v $(TESTARGS) -timeout 120m -parallel 10
