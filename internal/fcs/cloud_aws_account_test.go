@@ -694,7 +694,7 @@ func TestAccCloudAwsAccountResourceRegionsValidation(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccCloudAwsAccountConfig_withEmptyRegions(accountID),
-				ExpectError: regexp.MustCompile("Attribute realtime_visibility.regions list must contain at least 1 elements"),
+				ExpectError: regexp.MustCompile("Error: Empty Regions List Not Allowed"),
 			},
 			{
 				Config: testAccCloudAwsAccountConfig_withSingleRegion(accountID),

@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -377,7 +378,6 @@ func TestAWSRegionsOrAllListValidatorNullAndUnknown(t *testing.T) {
 	}
 	resp := &validator.ListResponse{}
 	v.ValidateList(context.Background(), req, resp)
-
 	if resp.Diagnostics.HasError() {
 		t.Errorf("Expected no error for null value, got: %v", resp.Diagnostics.Errors())
 	}
@@ -389,7 +389,136 @@ func TestAWSRegionsOrAllListValidatorNullAndUnknown(t *testing.T) {
 	}
 	resp = &validator.ListResponse{}
 	v.ValidateList(context.Background(), req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Errorf("Expected no error for unknown value, got: %v", resp.Diagnostics.Errors())
+	}
+}
 
+func TestAWSRegionsOrAllNonEmptyListValidator(t *testing.T) {
+	tests := []struct {
+		name          string
+		regions       []string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:          "empty list should error",
+			regions:       []string{},
+			expectError:   true,
+			errorContains: "Empty Regions List Not Allowed",
+		},
+		{
+			name:        "single 'all' is valid",
+			regions:     []string{"all"},
+			expectError: false,
+		},
+		{
+			name:        "single valid region",
+			regions:     []string{"us-east-1"},
+			expectError: false,
+		},
+		{
+			name:        "multiple valid regions",
+			regions:     []string{"us-east-1", "eu-west-1", "ap-southeast-1"},
+			expectError: false,
+		},
+		{
+			name:          "all mixed with other regions is invalid",
+			regions:       []string{"all", "us-east-1"},
+			expectError:   true,
+			errorContains: "Cannot mix 'all' with specific regions",
+		},
+		{
+			name:          "all mixed with other regions (different order) is invalid",
+			regions:       []string{"us-east-1", "all"},
+			expectError:   true,
+			errorContains: "Cannot mix 'all' with specific regions",
+		},
+		{
+			name:          "invalid region format",
+			regions:       []string{"invalid-region"},
+			expectError:   true,
+			errorContains: "not a valid AWS region",
+		},
+		{
+			name:          "mix of valid and invalid regions",
+			regions:       []string{"us-east-1", "invalid-region"},
+			expectError:   true,
+			errorContains: "not a valid AWS region",
+		},
+		{
+			name:        "multiple valid regions with different types",
+			regions:     []string{"us-east-1", "eu-west-1", "us-gov-west-1", "cn-north-1"},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := AWSRegionsOrAllNonEmptyListValidator()
+
+			// Create list value from regions
+			regionValues := make([]attr.Value, len(tt.regions))
+			for i, region := range tt.regions {
+				regionValues[i] = types.StringValue(region)
+			}
+			listValue := types.ListValueMust(types.StringType, regionValues)
+
+			req := validator.ListRequest{
+				Path:        path.Root("test"),
+				ConfigValue: listValue,
+			}
+			resp := &validator.ListResponse{}
+
+			v.ValidateList(context.Background(), req, resp)
+
+			hasError := resp.Diagnostics.HasError()
+
+			if tt.expectError && !hasError {
+				t.Errorf("Expected validation error for regions %v, but got none", tt.regions)
+			}
+
+			if !tt.expectError && hasError {
+				t.Errorf("Expected no validation error for regions %v, but got: %v", tt.regions, resp.Diagnostics.Errors())
+			}
+
+			if tt.expectError && hasError && tt.errorContains != "" {
+				found := false
+				for _, diag := range resp.Diagnostics.Errors() {
+					if contains(diag.Summary(), tt.errorContains) || contains(diag.Detail(), tt.errorContains) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("Expected error message to contain '%s', but got: %v", tt.errorContains, resp.Diagnostics.Errors())
+				}
+			}
+		})
+	}
+}
+
+func TestAWSRegionsOrAllNonEmptyListValidatorNullAndUnknown(t *testing.T) {
+	v := AWSRegionsOrAllNonEmptyListValidator()
+
+	// Test null value - should not error
+	req := validator.ListRequest{
+		Path:        path.Root("test"),
+		ConfigValue: types.ListNull(types.StringType),
+	}
+	resp := &validator.ListResponse{}
+	v.ValidateList(context.Background(), req, resp)
+	if resp.Diagnostics.HasError() {
+		t.Errorf("Expected no error for null value, got: %v", resp.Diagnostics.Errors())
+	}
+
+	// Test unknown value - should not error
+	req = validator.ListRequest{
+		Path:        path.Root("test"),
+		ConfigValue: types.ListUnknown(types.StringType),
+	}
+	resp = &validator.ListResponse{}
+	v.ValidateList(context.Background(), req, resp)
 	if resp.Diagnostics.HasError() {
 		t.Errorf("Expected no error for unknown value, got: %v", resp.Diagnostics.Errors())
 	}

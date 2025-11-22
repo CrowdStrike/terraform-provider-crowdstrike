@@ -104,6 +104,88 @@ func (v *awsRegionOrAllValidator) ValidateString(ctx context.Context, req valida
 	}
 }
 
+// AWSRegionsOrAllNonEmptyListValidator returns a validator that ensures the list contains either:
+// - A single element with value "all"
+// - One or more valid AWS regions
+// - Cannot be an empty list (must be null/unset or have at least one element).
+func AWSRegionsOrAllNonEmptyListValidator() validator.List {
+	return &awsRegionsOrAllNonEmptyListValidator{}
+}
+
+type awsRegionsOrAllNonEmptyListValidator struct{}
+
+func (v *awsRegionsOrAllNonEmptyListValidator) Description(ctx context.Context) string {
+	return "must be either a single element 'all' or a list of valid AWS regions (cannot be empty)"
+}
+
+func (v *awsRegionsOrAllNonEmptyListValidator) MarkdownDescription(ctx context.Context) string {
+	return "must be either a single element `all` or a list of valid AWS regions (cannot be empty)"
+}
+
+func (v *awsRegionsOrAllNonEmptyListValidator) ValidateList(ctx context.Context, req validator.ListRequest, resp *validator.ListResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+
+	var elements []types.String
+	diags := req.ConfigValue.ElementsAs(ctx, &elements, false)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	if len(elements) == 0 {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Empty Regions List Not Allowed",
+			"When specifying regions, you must provide at least one region. Use ['all'] to ingest events from all regions, or specify specific regions like ['us-east-1', 'us-west-2']. To use default behavior, omit the regions attribute entirely.",
+		)
+		return
+	}
+
+	// If there's exactly one element and it's "all", that's valid
+	if len(elements) == 1 {
+		value := elements[0].ValueString()
+		if value == "all" {
+			return // Valid: single element "all"
+		}
+	}
+
+	// If "all" is present with other elements, that's invalid
+	hasAll := false
+	for _, element := range elements {
+		if element.ValueString() == "all" {
+			hasAll = true
+			break
+		}
+	}
+
+	if hasAll && len(elements) > 1 {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Invalid Region Configuration",
+			"When using 'all', it must be the only element in the list. Cannot mix 'all' with specific regions.",
+		)
+		return
+	}
+
+	// Validate each element as a valid AWS region (if not "all")
+	for i, element := range elements {
+		if element.IsNull() || element.IsUnknown() {
+			continue
+		}
+
+		region := element.ValueString()
+		if region != "all" && !IsValidAWSRegion(region) {
+			resp.Diagnostics.AddAttributeError(
+				req.Path.AtListIndex(i),
+				"Invalid AWS Region",
+				fmt.Sprintf("'%s' is not a valid AWS region. AWS regions must follow the pattern like 'us-east-1', 'eu-west-1', or 'us-gov-west-1'.", region),
+			)
+		}
+	}
+}
+
 // AWSRegionsOrAllListValidator returns a validator that ensures the list contains either:
 // - A single element with value "all"
 // - One or more valid AWS regions.
