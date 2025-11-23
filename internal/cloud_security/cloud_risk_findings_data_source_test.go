@@ -7,47 +7,47 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-func TestAccCloudRisksAllDataSource(t *testing.T) {
+func TestAccCloudRiskFindingsDataSource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloudRisksAllDataSourceConfig(),
+				Config: testAccCloudRiskFindingsDataSourceConfig(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet("data.crowdstrike_cloud_risks_all.test", "risks.#"),
+					resource.TestCheckResourceAttrSet("data.crowdstrike_cloud_risk_findings.test", "risks.#"),
 				),
 			},
 		},
 	})
 }
 
-func TestAccCloudRisksAllDataSourceWithFilter(t *testing.T) {
+func TestAccCloudRiskFindingsDataSourceWithFilter(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloudRisksAllDataSourceConfigWithFilter(),
+				Config: testAccCloudRiskFindingsDataSourceConfigWithFilter(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet("data.crowdstrike_cloud_risks_all.filtered", "risks.#"),
+					resource.TestCheckResourceAttrSet("data.crowdstrike_cloud_risk_findings.filtered", "risks.#"),
 				),
 			},
 		},
 	})
 }
 
-func testAccCloudRisksAllDataSourceConfig() string {
+func testAccCloudRiskFindingsDataSourceConfig() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_cloud_risks_all" "test" {
+data "crowdstrike_cloud_risk_findings" "test" {
   filter = "status:'Open'+severity:'High'"
 }
 `
 }
 
-func testAccCloudRisksAllDataSourceConfigWithFilter() string {
+func testAccCloudRiskFindingsDataSourceConfigWithFilter() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_cloud_risks_all" "filtered" {
+data "crowdstrike_cloud_risk_findings" "filtered" {
   filter = "status:'Open'+severity:'High'"
   sort   = "first_seen|desc"
 }

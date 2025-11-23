@@ -17,11 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-var (
-	_ datasource.DataSource              = &cloudRisksDataSource{}
-	_ datasource.DataSourceWithConfigure = &cloudRisksDataSource{}
-)
-
 var cloudRisksScopes = []scopes.Scope{
 	{
 		Name:  "Cloud Security Risks",
@@ -33,25 +28,6 @@ var cloudRisksScopes = []scopes.Scope{
 		Read:  true,
 		Write: false,
 	},
-}
-
-func NewCloudRisksDataSource() datasource.DataSource {
-	return &cloudRisksDataSource{}
-}
-
-type cloudRisksDataSource struct {
-	client *client.CrowdStrikeAPISpecification
-}
-
-type cloudRisksDataSourceModel struct {
-	Filter        types.String `tfsdk:"filter"`
-	Sort          types.String `tfsdk:"sort"`
-	Limit         types.Int64  `tfsdk:"limit"`
-	Offset        types.Int64  `tfsdk:"offset"`
-	Risks         types.Set    `tfsdk:"risks"`
-	TotalCount    types.Int64  `tfsdk:"total_count"`
-	ReturnedCount types.Int64  `tfsdk:"returned_count"`
-	HasMore       types.Bool   `tfsdk:"has_more"`
 }
 
 type cloudRiskModel struct {
@@ -102,7 +78,26 @@ func (m cloudRiskModel) AttributeTypes() map[string]attr.Type {
 	}
 }
 
-func (r *cloudRisksDataSource) Configure(
+var (
+	_ datasource.DataSource              = &cloudRiskFindingsDataSource{}
+	_ datasource.DataSourceWithConfigure = &cloudRiskFindingsDataSource{}
+)
+
+func NewCloudRiskFindingsDataSource() datasource.DataSource {
+	return &cloudRiskFindingsDataSource{}
+}
+
+type cloudRiskFindingsDataSource struct {
+	client *client.CrowdStrikeAPISpecification
+}
+
+type cloudRiskFindingsDataSourceModel struct {
+	Filter types.String `tfsdk:"filter"`
+	Sort   types.String `tfsdk:"sort"`
+	Risks  types.Set    `tfsdk:"risks"`
+}
+
+func (r *cloudRiskFindingsDataSource) Configure(
 	ctx context.Context,
 	req datasource.ConfigureRequest,
 	resp *datasource.ConfigureResponse,
@@ -127,15 +122,15 @@ func (r *cloudRisksDataSource) Configure(
 	r.client = client
 }
 
-func (r *cloudRisksDataSource) Metadata(
+func (r *cloudRiskFindingsDataSource) Metadata(
 	_ context.Context,
 	req datasource.MetadataRequest,
 	resp *datasource.MetadataResponse,
 ) {
-	resp.TypeName = req.ProviderTypeName + "_cloud_risks"
+	resp.TypeName = req.ProviderTypeName + "_cloud_risk_findings"
 }
 
-func (r *cloudRisksDataSource) Schema(
+func (r *cloudRiskFindingsDataSource) Schema(
 	_ context.Context,
 	_ datasource.SchemaRequest,
 	resp *datasource.SchemaResponse,
@@ -143,7 +138,7 @@ func (r *cloudRisksDataSource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
 			"Falcon Cloud Security",
-			"This data source retrieves cloud risks with full details based on filters and sort criteria. Cloud risks represent security findings and misconfigurations detected in cloud environments. For advanced queries, use Falcon Query Language (FQL) filters. For more information, refer to the [Cloud Risks API documentation](https://falcon.crowdstrike.com/documentation/page/ed2aed27/cloud-risks).",
+			"This data source retrieves cloud risk findings from Falcon Cloud Security. It automatically handles pagination internally and returns all matching risks in a single query. Cloud risks represent security findings and misconfigurations detected in cloud environments. For advanced queries, use Falcon Query Language (FQL) filters. For more information, refer to the [Cloud Risks API documentation](https://falcon.crowdstrike.com/documentation/page/ed2aed27/cloud-risks).",
 			cloudRisksScopes,
 		),
 		Attributes: map[string]schema.Attribute{
@@ -155,17 +150,9 @@ func (r *cloudRisksDataSource) Schema(
 				Optional:            true,
 				MarkdownDescription: "The field to sort on. Use `|asc` or `|desc` suffix to specify sort direction. Supported fields: `account_id`, `account_name`, `asset_id`, `asset_name`, `asset_region`, `asset_type`, `cloud_provider`, `first_seen`, `last_seen`, `resolved_at`, `rule_name`, `service_category`, `severity`, `status`. Example: `first_seen|desc`",
 			},
-			"limit": schema.Int64Attribute{
-				Optional:            true,
-				MarkdownDescription: "The maximum number of items to return (page size). Default is 500. Maximum is 1000.",
-			},
-			"offset": schema.Int64Attribute{
-				Optional:            true,
-				MarkdownDescription: "The starting index for pagination (0-based). Default is 0. Use with `limit`, `has_more`, and `returned_count` to implement pagination by incrementing offset by the page size until `has_more` is false.",
-			},
 			"risks": schema.SetNestedAttribute{
 				Computed:    true,
-				Description: "List of cloud risks",
+				Description: "Complete list of all cloud risks matching the filter criteria",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"id": schema.StringAttribute{
@@ -253,35 +240,23 @@ func (r *cloudRisksDataSource) Schema(
 					},
 				},
 			},
-			"total_count": schema.Int64Attribute{
-				Computed:            true,
-				MarkdownDescription: "Total number of risks available matching the filter criteria.",
-			},
-			"returned_count": schema.Int64Attribute{
-				Computed:            true,
-				MarkdownDescription: "Number of risks returned in this response.",
-			},
-			"has_more": schema.BoolAttribute{
-				Computed:            true,
-				MarkdownDescription: "Indicates if there are more results available beyond the current page. Use this with manual pagination to determine when to stop.",
-			},
 		},
 	}
 }
 
-func (r *cloudRisksDataSource) Read(
+func (r *cloudRiskFindingsDataSource) Read(
 	ctx context.Context,
 	req datasource.ReadRequest,
 	resp *datasource.ReadResponse,
 ) {
-	var data cloudRisksDataSourceModel
+	var data cloudRiskFindingsDataSourceModel
 
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	risks, diags := r.getRisks(ctx, &data)
+	risks, diags := r.getAllRisks(ctx, &data)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -292,9 +267,9 @@ func (r *cloudRisksDataSource) Read(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *cloudRisksDataSource) getRisks(
+func (r *cloudRiskFindingsDataSource) getAllRisks(
 	ctx context.Context,
-	config *cloudRisksDataSourceModel,
+	config *cloudRiskFindingsDataSourceModel,
 ) (types.Set, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	allRisks := make([]cloudRiskModel, 0)
@@ -304,131 +279,140 @@ func (r *cloudRisksDataSource) getRisks(
 		[]attr.Value{},
 	)
 
-	// Set up parameters
-	params := cloud_security.NewCombinedCloudRisksParams().WithContext(ctx)
+	// Set up parameters with automatic pagination
+	limit := int64(500) // Use larger page size for efficiency
+	offset := int64(0)
 
-	if !config.Filter.IsNull() {
-		filter := config.Filter.ValueString()
-		params.SetFilter(&filter)
-	}
-
-	if !config.Sort.IsNull() {
-		sort := config.Sort.ValueString()
-		params.SetSort(&sort)
-	}
-
-	// Set user's requested limit if provided (this controls page size, not total results)
-	if !config.Limit.IsNull() {
-		limit := config.Limit.ValueInt64()
+	for {
+		params := cloud_security.NewCombinedCloudRisksParams().WithContext(ctx)
 		params.SetLimit(&limit)
-	}
+		params.SetOffset(&offset)
 
-	// Determine pagination mode
-	var offset int64
-	if !config.Offset.IsNull() {
-		offset = config.Offset.ValueInt64()
-	} else {
-		offset = 0
-	}
-	params.SetOffset(&offset)
-
-	tflog.Debug(ctx, "Fetching cloud risks", map[string]interface{}{
-		"offset": offset,
-		"filter": config.Filter.ValueString(),
-	})
-
-	response, err := r.client.CloudSecurity.CombinedCloudRisks(params)
-	if err != nil {
-		diags.AddError(
-			"Error Querying Cloud Risks",
-			fmt.Sprintf("Failed to query cloud risks: %s", err),
-		)
-		return defaultResponse, diags
-	}
-
-	if response == nil || response.Payload == nil {
-		diags.AddError(
-			"Error Fetching Cloud Risks",
-			"The API returned an empty payload.",
-		)
-		return defaultResponse, diags
-	}
-
-	payload := response.GetPayload()
-
-	if err = falcon.AssertNoError(payload.Errors); err != nil {
-		diags.AddError(
-			"Error Fetching Cloud Risks",
-			fmt.Sprintf("Failed to fetch cloud risks: %s", err.Error()),
-		)
-		return defaultResponse, diags
-	}
-
-	// Convert API response to Terraform models
-	for _, risk := range payload.Resources {
-		riskModel := cloudRiskModel{
-			ID:              types.StringPointerValue(risk.ID),
-			AccountID:       types.StringPointerValue(risk.AccountID),
-			AccountName:     types.StringPointerValue(risk.AccountName),
-			AssetGCRN:       types.StringPointerValue(risk.AssetGcrn),
-			AssetID:         types.StringPointerValue(risk.AssetID),
-			AssetName:       types.StringPointerValue(risk.AssetName),
-			AssetRegion:     types.StringValue(risk.AssetRegion),
-			AssetType:       types.StringPointerValue(risk.AssetType),
-			CloudProvider:   types.StringPointerValue(risk.Provider),
-			RuleID:          types.StringPointerValue(risk.RuleID),
-			RuleName:        types.StringPointerValue(risk.RuleName),
-			RuleDescription: types.StringPointerValue(risk.RuleDescription),
-			ServiceCategory: types.StringPointerValue(risk.ServiceCategory),
-			Severity:        types.StringPointerValue(risk.Severity),
-			Status:          types.StringPointerValue(risk.Status),
-			FirstSeen:       types.StringValue(risk.FirstSeen.String()),
-			LastSeen:        types.StringValue(risk.LastSeen.String()),
-			ResolvedAt:      types.StringNull(),
+		if !config.Filter.IsNull() {
+			filter := config.Filter.ValueString()
+			params.SetFilter(&filter)
 		}
 
-		if !risk.ResolvedAt.IsZero() {
-			riskModel.ResolvedAt = types.StringValue(risk.ResolvedAt.String())
+		if !config.Sort.IsNull() {
+			sort := config.Sort.ValueString()
+			params.SetSort(&sort)
 		}
 
-		// Convert asset tags
-		if len(risk.AssetTags) > 0 {
-			riskModel.AssetTags, diags = types.ListValueFrom(ctx, types.StringType, risk.AssetTags)
-			if diags.HasError() {
-				return defaultResponse, diags
+		tflog.Debug(ctx, "Fetching cloud risks page", map[string]interface{}{
+			"offset": offset,
+			"limit":  limit,
+			"filter": config.Filter.ValueString(),
+		})
+
+		response, err := r.client.CloudSecurity.CombinedCloudRisks(params)
+		if err != nil {
+			diags.AddError(
+				"Error Querying Cloud Risks",
+				fmt.Sprintf("Failed to query cloud risks: %s", err),
+			)
+			return defaultResponse, diags
+		}
+
+		if response == nil || response.Payload == nil {
+			diags.AddError(
+				"Error Fetching Cloud Risks",
+				"The API returned an empty payload.",
+			)
+			return defaultResponse, diags
+		}
+
+		payload := response.GetPayload()
+
+		if err = falcon.AssertNoError(payload.Errors); err != nil {
+			diags.AddError(
+				"Error Fetching Cloud Risks",
+				fmt.Sprintf("Failed to fetch cloud risks: %s", err.Error()),
+			)
+			return defaultResponse, diags
+		}
+
+		// Convert API response to Terraform models
+		for _, risk := range payload.Resources {
+			riskModel := cloudRiskModel{
+				ID:              types.StringPointerValue(risk.ID),
+				AccountID:       types.StringPointerValue(risk.AccountID),
+				AccountName:     types.StringPointerValue(risk.AccountName),
+				AssetGCRN:       types.StringPointerValue(risk.AssetGcrn),
+				AssetID:         types.StringPointerValue(risk.AssetID),
+				AssetName:       types.StringPointerValue(risk.AssetName),
+				AssetRegion:     types.StringValue(risk.AssetRegion),
+				AssetType:       types.StringPointerValue(risk.AssetType),
+				CloudProvider:   types.StringPointerValue(risk.Provider),
+				RuleID:          types.StringPointerValue(risk.RuleID),
+				RuleName:        types.StringPointerValue(risk.RuleName),
+				RuleDescription: types.StringPointerValue(risk.RuleDescription),
+				ServiceCategory: types.StringPointerValue(risk.ServiceCategory),
+				Severity:        types.StringPointerValue(risk.Severity),
+				Status:          types.StringPointerValue(risk.Status),
+				FirstSeen:       types.StringValue(risk.FirstSeen.String()),
+				LastSeen:        types.StringValue(risk.LastSeen.String()),
+				ResolvedAt:      types.StringNull(),
 			}
-		} else {
-			riskModel.AssetTags = types.ListValueMust(types.StringType, []attr.Value{})
-		}
 
-		// Convert cloud groups
-		if len(risk.CloudGroups) > 0 {
-			riskModel.CloudGroups, diags = types.ListValueFrom(ctx, types.StringType, risk.CloudGroups)
-			if diags.HasError() {
-				return defaultResponse, diags
+			if !risk.ResolvedAt.IsZero() {
+				riskModel.ResolvedAt = types.StringValue(risk.ResolvedAt.String())
 			}
-		} else {
-			riskModel.CloudGroups = types.ListValueMust(types.StringType, []attr.Value{})
+
+			// Convert asset tags
+			if len(risk.AssetTags) > 0 {
+				riskModel.AssetTags, diags = types.ListValueFrom(ctx, types.StringType, risk.AssetTags)
+				if diags.HasError() {
+					return defaultResponse, diags
+				}
+			} else {
+				riskModel.AssetTags = types.ListValueMust(types.StringType, []attr.Value{})
+			}
+
+			// Convert cloud groups
+			if len(risk.CloudGroups) > 0 {
+				riskModel.CloudGroups, diags = types.ListValueFrom(ctx, types.StringType, risk.CloudGroups)
+				if diags.HasError() {
+					return defaultResponse, diags
+				}
+			} else {
+				riskModel.CloudGroups = types.ListValueMust(types.StringType, []attr.Value{})
+			}
+
+			allRisks = append(allRisks, riskModel)
 		}
 
-		allRisks = append(allRisks, riskModel)
+		// Check pagination - stop if we've fetched all results
+		if payload.Meta == nil || payload.Meta.Pagination == nil || payload.Meta.Pagination.Total == nil {
+			diags.AddError(
+				"Error Fetching Cloud Risks",
+				"The API returned a response without pagination metadata. Cannot safely paginate results.",
+			)
+			return defaultResponse, diags
+		}
+
+		pagination := payload.Meta.Pagination
+		totalAvailable := *pagination.Total
+
+		tflog.Debug(ctx, "Cloud risks page fetched", map[string]interface{}{
+			"offset":   offset,
+			"returned": len(payload.Resources),
+			"total":    totalAvailable,
+		})
+
+		// Check if we've reached the end
+		nextOffset := offset + int64(len(payload.Resources))
+		if nextOffset >= totalAvailable {
+			tflog.Info(ctx, "Pagination complete", map[string]interface{}{
+				"total_fetched": len(allRisks),
+				"total":         totalAvailable,
+			})
+			break
+		}
+
+		offset = nextOffset
 	}
 
-	if payload.Meta == nil || payload.Meta.Pagination == nil || payload.Meta.Pagination.Total == nil {
-		diags.AddError(
-			"Error Fetching Cloud Risks",
-			"The API returned a response without pagination metadata. Cannot safely paginate results.",
-		)
-		return defaultResponse, diags
-	}
-	// Set pagination metadata
-	totalAvailable := *payload.Meta.Pagination.Total
-	config.TotalCount = types.Int64Value(totalAvailable)
-	config.ReturnedCount = types.Int64Value(int64(len(allRisks)))
-	nextOffset := offset + int64(len(allRisks))
-	config.HasMore = types.BoolValue(nextOffset < totalAvailable)
-
-	tflog.Info(ctx, "Total risks collected", map[string]interface{}{
+	tflog.Info(ctx, "All cloud risks collected", map[string]interface{}{
 		"count": len(allRisks),
 	})
 

@@ -1,34 +1,34 @@
 # Example 1: Fetch all open high severity risks
 # This automatically paginates through all pages
-data "crowdstrike_cloud_risks_all" "high_severity" {
+data "crowdstrike_cloud_risk_findings" "high_severity" {
   filter = "severity:'High'+status:'Open'"
   sort   = "first_seen|desc"
 }
 
 output "total_high_severity_risks" {
-  value = length(data.crowdstrike_cloud_risks_all.high_severity.risks)
+  value = length(data.crowdstrike_cloud_risk_findings.high_severity.risks)
 }
 
 # Example 2: Fetch all critical risks for a specific account
-data "crowdstrike_cloud_risks_all" "account_critical" {
+data "crowdstrike_cloud_risk_findings" "account_critical" {
   filter = "account_id:'123456789012'+severity:'Critical'"
 }
 
 output "critical_risks_by_rule" {
   value = {
-    for risk in data.crowdstrike_cloud_risks_all.account_critical.risks :
+    for risk in data.crowdstrike_cloud_risk_findings.account_critical.risks :
     risk.rule_name => risk.severity...
   }
 }
 
 # Example 3: Get all unresolved risks
-data "crowdstrike_cloud_risks_all" "unresolved" {
+data "crowdstrike_cloud_risk_findings" "unresolved" {
   filter = "status:'Open'+severity:'High'"
 }
 
 locals {
   risks_by_severity = {
-    for risk in data.crowdstrike_cloud_risks_all.unresolved.risks :
+    for risk in data.crowdstrike_cloud_risk_findings.unresolved.risks :
     risk.severity => risk...
   }
 }

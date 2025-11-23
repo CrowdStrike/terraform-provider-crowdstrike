@@ -1,16 +1,16 @@
 ---
-page_title: "crowdstrike_cloud_risks_all Data Source - crowdstrike"
+page_title: "crowdstrike_cloud_risk_findings Data Source - crowdstrike"
 subcategory: "Falcon Cloud Security"
 description: |-
-  This data source automatically retrieves all cloud risks matching the specified filter criteria by handling pagination internally. Unlike crowdstrike_cloud_risks, this data source fetches all pages automatically and returns the complete set of results. Use this when you need all risks without manually managing pagination. For pagination control and metadata, use crowdstrike_cloud_risks instead. Cloud risks represent security findings and misconfigurations detected in cloud environments. For advanced queries, use Falcon Query Language (FQL) filters. For more information, refer to the Cloud Risks API documentation https://falcon.crowdstrike.com/documentation/page/ed2aed27/cloud-risks.
+  This data source retrieves cloud risk findings from Falcon Cloud Security. It automatically handles pagination internally and returns all matching risks in a single query. Cloud risks represent security findings and misconfigurations detected in cloud environments. For advanced queries, use Falcon Query Language (FQL) filters. For more information, refer to the Cloud Risks API documentation https://falcon.crowdstrike.com/documentation/page/ed2aed27/cloud-risks.
   API Scopes
   The following API scopes are required:
   Cloud Security Risks | ReadCloud Security Assets | Read
 ---
 
-# crowdstrike_cloud_risks_all (Data Source)
+# crowdstrike_cloud_risk_findings (Data Source)
 
-This data source automatically retrieves **all** cloud risks matching the specified filter criteria by handling pagination internally. Unlike `crowdstrike_cloud_risks`, this data source fetches all pages automatically and returns the complete set of results. Use this when you need all risks without manually managing pagination. For pagination control and metadata, use `crowdstrike_cloud_risks` instead. Cloud risks represent security findings and misconfigurations detected in cloud environments. For advanced queries, use Falcon Query Language (FQL) filters. For more information, refer to the [Cloud Risks API documentation](https://falcon.crowdstrike.com/documentation/page/ed2aed27/cloud-risks).
+This data source retrieves cloud risk findings from Falcon Cloud Security. It automatically handles pagination internally and returns all matching risks in a single query. Cloud risks represent security findings and misconfigurations detected in cloud environments. For advanced queries, use Falcon Query Language (FQL) filters. For more information, refer to the [Cloud Risks API documentation](https://falcon.crowdstrike.com/documentation/page/ed2aed27/cloud-risks).
 
 ## API Scopes
 
@@ -25,35 +25,35 @@ The following API scopes are required:
 ```terraform
 # Example 1: Fetch all open high severity risks
 # This automatically paginates through all pages
-data "crowdstrike_cloud_risks_all" "high_severity" {
+data "crowdstrike_cloud_risk_findings" "high_severity" {
   filter = "severity:'High'+status:'Open'"
   sort   = "first_seen|desc"
 }
 
 output "total_high_severity_risks" {
-  value = length(data.crowdstrike_cloud_risks_all.high_severity.risks)
+  value = length(data.crowdstrike_cloud_risk_findings.high_severity.risks)
 }
 
 # Example 2: Fetch all critical risks for a specific account
-data "crowdstrike_cloud_risks_all" "account_critical" {
+data "crowdstrike_cloud_risk_findings" "account_critical" {
   filter = "account_id:'123456789012'+severity:'Critical'"
 }
 
 output "critical_risks_by_rule" {
   value = {
-    for risk in data.crowdstrike_cloud_risks_all.account_critical.risks :
+    for risk in data.crowdstrike_cloud_risk_findings.account_critical.risks :
     risk.rule_name => risk.severity...
   }
 }
 
 # Example 3: Get all unresolved risks
-data "crowdstrike_cloud_risks_all" "unresolved" {
+data "crowdstrike_cloud_risk_findings" "unresolved" {
   filter = "status:'Open'+severity:'High'"
 }
 
 locals {
   risks_by_severity = {
-    for risk in data.crowdstrike_cloud_risks_all.unresolved.risks :
+    for risk in data.crowdstrike_cloud_risk_findings.unresolved.risks :
     risk.severity => risk...
   }
 }
