@@ -22,6 +22,18 @@ The following API scopes are required:
 ## Example Usage
 
 ```terraform
+terraform {
+  required_providers {
+    crowdstrike = {
+      source = "registry.terraform.io/crowdstrike/crowdstrike"
+    }
+  }
+}
+
+provider "crowdstrike" {
+  cloud = "us-2"
+}
+
 # Example 1: Get all Windows file vantage policies
 data "crowdstrike_filevantage_policies" "windows_policies" {
   type = "Windows"
@@ -45,48 +57,6 @@ data "crowdstrike_filevantage_policies" "specific_policies" {
     "policy-12345678901234567890123456789012",
     "policy-98765432109876543210987654321098"
   ]
-}
-
-# Example 5: Get a single file vantage policy by ID
-data "crowdstrike_filevantage_policies" "single_policy" {
-  ids = ["policy-12345678901234567890123456789012"]
-}
-
-# Example 6: Use policy data in other resources
-resource "crowdstrike_filevantage_rule_group" "example" {
-  name        = "Example Rule Group"
-  description = "Rule group based on existing policy"
-  type        = "WindowsFiles"
-
-  # Use platform from an existing policy
-  depends_on = [data.crowdstrike_filevantage_policies.windows_policies]
-}
-
-# Output examples to show available data
-output "all_windows_policy_names" {
-  description = "Names of all Windows file vantage policies"
-  value       = [for policy in data.crowdstrike_filevantage_policies.windows_policies.policies : policy.name]
-}
-
-output "first_policy_details" {
-  description = "Details of the first Windows policy"
-  value = length(data.crowdstrike_filevantage_policies.windows_policies.policies) > 0 ? {
-    id          = data.crowdstrike_filevantage_policies.windows_policies.policies[0].id
-    name        = data.crowdstrike_filevantage_policies.windows_policies.policies[0].name
-    description = data.crowdstrike_filevantage_policies.windows_policies.policies[0].description
-    enabled     = data.crowdstrike_filevantage_policies.windows_policies.policies[0].enabled
-    host_groups = data.crowdstrike_filevantage_policies.windows_policies.policies[0].host_groups
-  } : null
-}
-
-output "enabled_policies_count" {
-  description = "Count of enabled Windows file vantage policies"
-  value       = length([for policy in data.crowdstrike_filevantage_policies.windows_policies.policies : policy if policy.enabled])
-}
-
-output "specific_policy_platforms" {
-  description = "Platform names of the specific policies requested by ID"
-  value       = [for policy in data.crowdstrike_filevantage_policies.specific_policies.policies : policy.platform_name]
 }
 ```
 
