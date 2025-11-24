@@ -11,11 +11,6 @@ help: ## Display this help
 	@echo "  make acctest PKG=prevention_policy TESTARGS='-run TestAccPreventionPolicyWindowsResource'"
 	@echo "  make apply crowdstrike_host_group"
 	@echo "  make destroy crowdstrike_host_group"
-	@echo ""
-	@echo "Environment Variables:"
-	@echo "  PKG      - Package name for targeted acceptance tests"
-	@echo "  TESTARGS - Additional arguments for go test (e.g., -run TestName)"
-	@echo "  TFARGS   - Additional arguments for terraform apply/destroy"
 
 ##@ Building
 
@@ -52,17 +47,17 @@ gen: ## Generate provider documentation
 ##@ Testing
 
 .PHONY: test
-test: ## Run unit tests only (no TF_ACC)
+test: ## Run unit tests (TESTARGS: additional go test flags)
 	@branch=$$(git rev-parse --abbrev-ref HEAD); \
 	printf "Running unit tests on branch: %s\n" "$$branch"
 	unset TF_ACC && go test ./internal/... -v $(TESTARGS) -timeout 15m
 
 .PHONY: testacc
-testacc: ## Run acceptance tests without format check
+testacc: fmt ## Run all acceptance tests (TESTARGS: additional go test flags)
 	TF_ACC=1 go test ./... -v $(TESTARGS) -timeout 120m
 
 .PHONY: acctest
-acctest: fmt-check ## Run acceptance tests with format check (PKG=<package> optional)
+acctest: fmt ## Run acceptance tests (PKG: package name, TESTARGS: additional go test flags)
 	@branch=$$(git rev-parse --abbrev-ref HEAD); \
 	printf "Running acceptance tests on branch: %s\n" "$$branch"
 	TF_ACC=1 go test ./internal/$${PKG:-...} -v $(TESTARGS) -timeout 120m -parallel 10
@@ -70,7 +65,7 @@ acctest: fmt-check ## Run acceptance tests with format check (PKG=<package> opti
 ##@ Development
 
 .PHONY: apply
-apply: build ## Build provider and run terraform apply on example resource
+apply: build ## Apply terraform example (TFARGS: additional terraform flags)
 	@$(eval RESOURCE := $(filter-out $@,$(MAKECMDGOALS)))
 	@if [ -z "$(RESOURCE)" ]; then \
 		echo "Error: RESOURCE is required. Usage: make apply crowdstrike_host_group"; \
@@ -84,7 +79,7 @@ apply: build ## Build provider and run terraform apply on example resource
 	@cd examples/resources/$(RESOURCE) && terraform init && terraform apply $${TFARGS:--auto-approve}
 
 .PHONY: destroy
-destroy: build ## Build provider and run terraform destroy on example resource
+destroy: build ## Destroy terraform example (TFARGS: additional terraform flags)
 	@$(eval RESOURCE := $(filter-out $@,$(MAKECMDGOALS)))
 	@if [ -z "$(RESOURCE)" ]; then \
 		echo "Error: RESOURCE is required. Usage: make destroy crowdstrike_host_group"; \
