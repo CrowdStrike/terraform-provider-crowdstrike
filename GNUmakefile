@@ -1,27 +1,8 @@
 .DEFAULT_GOAL := help
 
 .PHONY: help
-help:
-	@echo "Terraform Provider CrowdStrike - Available targets:"
-	@echo ""
-	@echo "Building:"
-	@echo "  build          - Build and install the provider to GOBIN"
-	@echo "  localinstall   - Build and install the provider to ~/go/bin"
-	@echo ""
-	@echo "Code Quality:"
-	@echo "  fmt            - Fix code formatting and linting issues automatically"
-	@echo "  fmt-check      - Check Go formatting without making changes"
-	@echo "  lint           - Run golangci-lint on the codebase"
-	@echo "  gen            - Generate provider documentation (REQUIRED before commit)"
-	@echo ""
-	@echo "Testing:"
-	@echo "  test           - Run unit tests only (no TF_ACC)"
-	@echo "  acctest        - Run acceptance tests with format check (PKG=<package> optional)"
-	@echo "  testacc        - Run acceptance tests without format check"
-	@echo ""
-	@echo "Development:"
-	@echo "  apply <resource>   - Build provider and run terraform apply on example resource"
-	@echo "  destroy <resource> - Build provider and run terraform destroy on example resource"
+help: ## Display this help
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 	@echo ""
 	@echo "Examples:"
 	@echo "  make build"
@@ -36,52 +17,60 @@ help:
 	@echo "  TESTARGS - Additional arguments for go test (e.g., -run TestName)"
 	@echo "  TFARGS   - Additional arguments for terraform apply/destroy"
 
+##@ Building
+
 .PHONY: build
-build:
+build: ## Build and install the provider
 	go install .
 
 .PHONY: localinstall
-localinstall:
+localinstall: ## Build and install the provider to ~/go/bin
 	go build -o terraform-provider-crowdstrike .
 	mv terraform-provider-crowdstrike ~/go/bin
 
+##@ Code Quality
+
 .PHONY: lint
-lint:
+lint: ## Run golangci-lint on the codebase
 	golangci-lint run ./...
 
 .PHONY: fmt-check
-fmt-check:
+fmt-check: ## Check Go formatting without making changes
 	@echo "Checking Go formatting..."
 	golangci-lint fmt -E gofumpt --diff
 
 .PHONY: fmt
-fmt:
+fmt: ## Fix code formatting and linting issues automatically
 	@echo "Fixing code (formatters + linters)..."
 	golangci-lint run --fix ./...
 
 .PHONY: gen
-gen:
+gen: ## Generate provider documentation
 	@echo "Generating provider documentation..."
 	go generate ./...
 
+##@ Testing
+
 .PHONY: test
-test:
+test: ## Run unit tests only (no TF_ACC)
 	@branch=$$(git rev-parse --abbrev-ref HEAD); \
 	printf "Running unit tests on branch: %s\n" "$$branch"
 	unset TF_ACC && go test ./internal/... -v $(TESTARGS) -timeout 15m
 
 .PHONY: testacc
-testacc:
+testacc: ## Run acceptance tests without format check
 	TF_ACC=1 go test ./... -v $(TESTARGS) -timeout 120m
 
 .PHONY: acctest
-acctest: fmt-check
+acctest: fmt-check ## Run acceptance tests with format check (PKG=<package> optional)
 	@branch=$$(git rev-parse --abbrev-ref HEAD); \
 	printf "Running acceptance tests on branch: %s\n" "$$branch"
 	TF_ACC=1 go test ./internal/$${PKG:-...} -v $(TESTARGS) -timeout 120m -parallel 10
 
+##@ Development
+
 .PHONY: apply
-apply: build
+apply: build ## Build provider and run terraform apply on example resource
 	@$(eval RESOURCE := $(filter-out $@,$(MAKECMDGOALS)))
 	@if [ -z "$(RESOURCE)" ]; then \
 		echo "Error: RESOURCE is required. Usage: make apply crowdstrike_host_group"; \
@@ -95,7 +84,7 @@ apply: build
 	@cd examples/resources/$(RESOURCE) && terraform init && terraform apply $${TFARGS:--auto-approve}
 
 .PHONY: destroy
-destroy: build
+destroy: build ## Build provider and run terraform destroy on example resource
 	@$(eval RESOURCE := $(filter-out $@,$(MAKECMDGOALS)))
 	@if [ -z "$(RESOURCE)" ]; then \
 		echo "Error: RESOURCE is required. Usage: make destroy crowdstrike_host_group"; \
