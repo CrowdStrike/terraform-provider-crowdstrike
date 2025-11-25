@@ -442,7 +442,7 @@ func (r *cloudGroupResource) Schema(
 			"This resource manages CrowdStrike Cloud Groups for organizing cloud resources and container images.",
 			[]scopes.Scope{
 				{
-					Name:  "Cloud security",
+					Name:  "Cloud Groups V2",
 					Read:  true,
 					Write: true,
 				},
