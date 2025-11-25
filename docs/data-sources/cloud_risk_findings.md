@@ -26,7 +26,7 @@ The following API scopes are required:
 # Example 1: Fetch all open high severity risks
 # This automatically paginates through all pages
 data "crowdstrike_cloud_risk_findings" "high_severity" {
-  filter = "severity:'High'+status:'Open'"
+  filter = "last_seen:>'2025-11-24T09:48:12.983Z'"
   sort   = "first_seen|desc"
 }
 
@@ -36,13 +36,13 @@ output "total_high_severity_risks" {
 
 # Example 2: Fetch all critical risks for a specific account
 data "crowdstrike_cloud_risk_findings" "account_critical" {
-  filter = "account_id:'123456789012'+severity:'Critical'"
+  filter = "rule_name:*'High privileged identity '+severity:'High'"
 }
 
 output "critical_risks_by_rule" {
   value = {
     for risk in data.crowdstrike_cloud_risk_findings.account_critical.risks :
-    risk.rule_name => risk.severity...
+    risk.rule_name => risk.asset_gcrn...
   }
 }
 
