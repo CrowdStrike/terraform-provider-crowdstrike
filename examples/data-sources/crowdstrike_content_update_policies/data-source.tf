@@ -24,6 +24,7 @@ data "crowdstrike_content_update_policies" "filtered_and_sorted" {
   sort   = "name.asc"
 }
 
+# Get policies by ID
 data "crowdstrike_content_update_policies" "specific" {
   ids = [
     "policy-id-1",
