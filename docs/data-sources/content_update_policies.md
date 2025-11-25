@@ -1,6 +1,6 @@
 ---
 page_title: "crowdstrike_content_update_policies Data Source - crowdstrike"
-subcategory: "Content Update Policies"
+subcategory: "Content Update Policy"
 description: |-
   This data source provides information about content update policies in Falcon.
   API Scopes
