@@ -63,28 +63,36 @@ type contentUpdatePoliciesDataSource struct {
 }
 
 type policyDataModel struct {
-	ID                types.String `tfsdk:"id"`
-	Name              types.String `tfsdk:"name"`
-	Description       types.String `tfsdk:"description"`
-	Enabled           types.Bool   `tfsdk:"enabled"`
-	CreatedBy         types.String `tfsdk:"created_by"`
-	CreatedTimestamp  types.String `tfsdk:"created_timestamp"`
-	ModifiedBy        types.String `tfsdk:"modified_by"`
-	ModifiedTimestamp types.String `tfsdk:"modified_timestamp"`
-	HostGroups        types.List   `tfsdk:"host_groups"`
+	ID                      types.String `tfsdk:"id"`
+	Name                    types.String `tfsdk:"name"`
+	Description             types.String `tfsdk:"description"`
+	Enabled                 types.Bool   `tfsdk:"enabled"`
+	CreatedBy               types.String `tfsdk:"created_by"`
+	CreatedTimestamp        types.String `tfsdk:"created_timestamp"`
+	ModifiedBy              types.String `tfsdk:"modified_by"`
+	ModifiedTimestamp       types.String `tfsdk:"modified_timestamp"`
+	HostGroups              types.List   `tfsdk:"host_groups"`
+	SensorOperations        types.Object `tfsdk:"sensor_operations"`
+	SystemCritical          types.Object `tfsdk:"system_critical"`
+	VulnerabilityManagement types.Object `tfsdk:"vulnerability_management"`
+	RapidResponse           types.Object `tfsdk:"rapid_response"`
 }
 
 func (m policyDataModel) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"id":                 types.StringType,
-		"name":               types.StringType,
-		"description":        types.StringType,
-		"enabled":            types.BoolType,
-		"created_by":         types.StringType,
-		"created_timestamp":  types.StringType,
-		"modified_by":        types.StringType,
-		"modified_timestamp": types.StringType,
-		"host_groups":        types.ListType{ElemType: types.StringType},
+		"id":                       types.StringType,
+		"name":                     types.StringType,
+		"description":              types.StringType,
+		"enabled":                  types.BoolType,
+		"created_by":               types.StringType,
+		"created_timestamp":        types.StringType,
+		"modified_by":              types.StringType,
+		"modified_timestamp":       types.StringType,
+		"host_groups":              types.ListType{ElemType: types.StringType},
+		"sensor_operations":        types.ObjectType{AttrTypes: ringAssignmentModel{}.AttributeTypes()},
+		"system_critical":          types.ObjectType{AttrTypes: ringAssignmentModel{}.AttributeTypes()},
+		"vulnerability_management": types.ObjectType{AttrTypes: ringAssignmentModel{}.AttributeTypes()},
+		"rapid_response":           types.ObjectType{AttrTypes: ringAssignmentModel{}.AttributeTypes()},
 	}
 }
 
@@ -119,11 +127,51 @@ func (m *ContentUpdatePoliciesDataSourceModel) wrap(ctx context.Context, policie
 		policyModel.ModifiedBy = types.StringPointerValue(policy.ModifiedBy)
 		policyModel.ModifiedTimestamp = types.StringValue(policy.ModifiedTimestamp.String())
 
-		hostGroups, diags := hostgroups.ConvertHostGroupsToList(ctx, policy.Groups)
+		hostGroups, hostGroupDiags := hostgroups.ConvertHostGroupsToList(ctx, policy.Groups)
+		diags.Append(hostGroupDiags...)
 		if diags.HasError() {
 			return diags
 		}
 		policyModel.HostGroups = hostGroups
+
+		if policy.Settings != nil && policy.Settings.RingAssignmentSettings != nil {
+			var sensorOperations ringAssignmentModel
+			var systemCritical ringAssignmentModel
+			var vulnerabilityManagement ringAssignmentModel
+			var rapidResponse ringAssignmentModel
+
+			for _, setting := range policy.Settings.RingAssignmentSettings {
+				if setting == nil || setting.ID == nil {
+					continue
+				}
+				switch *setting.ID {
+				case "sensor_operations":
+					sensorOperations.wrap(setting)
+				case "system_critical":
+					systemCritical.wrap(setting)
+				case "vulnerability_management":
+					vulnerabilityManagement.wrap(setting)
+				case "rapid_response_al_bl_listing":
+					rapidResponse.wrap(setting)
+				}
+			}
+
+			sensorOperationsObj, sensorOpsDiags := utils.ConvertModelToTerraformObject(ctx, &sensorOperations)
+			diags.Append(sensorOpsDiags...)
+			policyModel.SensorOperations = sensorOperationsObj
+
+			systemCriticalObj, systemCritDiags := utils.ConvertModelToTerraformObject(ctx, &systemCritical)
+			diags.Append(systemCritDiags...)
+			policyModel.SystemCritical = systemCriticalObj
+
+			vulnMgmtObj, vulnMgmtDiags := utils.ConvertModelToTerraformObject(ctx, &vulnerabilityManagement)
+			diags.Append(vulnMgmtDiags...)
+			policyModel.VulnerabilityManagement = vulnMgmtObj
+
+			rapidResponseObj, rapidRespDiags := utils.ConvertModelToTerraformObject(ctx, &rapidResponse)
+			diags.Append(rapidRespDiags...)
+			policyModel.RapidResponse = rapidResponseObj
+		}
 
 		policyModels = append(policyModels, policyModel)
 	}
@@ -170,7 +218,7 @@ func (d *contentUpdatePoliciesDataSource) Schema(
 		Attributes: map[string]schema.Attribute{
 			"filter": schema.StringAttribute{
 				Optional:    true,
-				Description: "FQL filter to apply to the content update policies query. When specified, only policies matching the filter will be returned. Cannot be used together with 'ids' or other filter attributes. Example: `platform_name:'Windows'`",
+				Description: "FQL filter to apply to the content update policies query. When specified, only policies matching the filter will be returned. Cannot be used together with 'ids' or other filter attributes. Example: `name:'*prod*'`",
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
@@ -267,6 +315,78 @@ func (d *contentUpdatePoliciesDataSource) Schema(
 							Computed:    true,
 							ElementType: types.StringType,
 							Description: "List of host group IDs assigned to the policy",
+						},
+						"sensor_operations": schema.SingleNestedAttribute{
+							Computed:    true,
+							Description: "Ring assignment settings for sensor operations content category",
+							Attributes: map[string]schema.Attribute{
+								"ring_assignment": schema.StringAttribute{
+									Computed:    true,
+									Description: "Ring assignment for the content category (ga, ea, pause)",
+								},
+								"delay_hours": schema.Int64Attribute{
+									Computed:    true,
+									Description: "Delay in hours when using 'ga' ring assignment",
+								},
+								"pinned_content_version": schema.StringAttribute{
+									Computed:    true,
+									Description: "Pinned content version for the content category",
+								},
+							},
+						},
+						"system_critical": schema.SingleNestedAttribute{
+							Computed:    true,
+							Description: "Ring assignment settings for system critical content category",
+							Attributes: map[string]schema.Attribute{
+								"ring_assignment": schema.StringAttribute{
+									Computed:    true,
+									Description: "Ring assignment for the content category (ga, ea)",
+								},
+								"delay_hours": schema.Int64Attribute{
+									Computed:    true,
+									Description: "Delay in hours when using 'ga' ring assignment",
+								},
+								"pinned_content_version": schema.StringAttribute{
+									Computed:    true,
+									Description: "Pinned content version for the content category",
+								},
+							},
+						},
+						"vulnerability_management": schema.SingleNestedAttribute{
+							Computed:    true,
+							Description: "Ring assignment settings for vulnerability management content category",
+							Attributes: map[string]schema.Attribute{
+								"ring_assignment": schema.StringAttribute{
+									Computed:    true,
+									Description: "Ring assignment for the content category (ga, ea, pause)",
+								},
+								"delay_hours": schema.Int64Attribute{
+									Computed:    true,
+									Description: "Delay in hours when using 'ga' ring assignment",
+								},
+								"pinned_content_version": schema.StringAttribute{
+									Computed:    true,
+									Description: "Pinned content version for the content category",
+								},
+							},
+						},
+						"rapid_response": schema.SingleNestedAttribute{
+							Computed:    true,
+							Description: "Ring assignment settings for rapid response allow/block listing content category",
+							Attributes: map[string]schema.Attribute{
+								"ring_assignment": schema.StringAttribute{
+									Computed:    true,
+									Description: "Ring assignment for the content category (ga, ea, pause)",
+								},
+								"delay_hours": schema.Int64Attribute{
+									Computed:    true,
+									Description: "Delay in hours when using 'ga' ring assignment",
+								},
+								"pinned_content_version": schema.StringAttribute{
+									Computed:    true,
+									Description: "Pinned content version for the content category",
+								},
+							},
 						},
 					},
 				},

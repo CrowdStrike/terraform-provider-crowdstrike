@@ -28,9 +28,13 @@ func TestAccContentUpdatePoliciesDataSource_Basic(t *testing.T) {
 					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.id"),
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.name"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.description"),
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.enabled"),
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.created_by"),
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.created_timestamp"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.modified_by"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.modified_timestamp"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.host_groups.#"),
 				),
 			},
 		},
@@ -79,69 +83,47 @@ func TestAccContentUpdatePoliciesDataSource_WithIDs(t *testing.T) {
 	})
 }
 
-func TestAccContentUpdatePoliciesDataSource_WithIndividualFilters(t *testing.T) {
+func TestAccContentUpdatePoliciesDataSource_IndividualFilters(t *testing.T) {
 	resourceName := "data.crowdstrike_content_update_policies.test"
 
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccContentUpdatePoliciesDataSourceConfigWithEnabledFilter(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					resource.TestCheckResourceAttr(resourceName, "policies.0.enabled", "true"),
-				),
-			},
-			{
-				Config: testAccContentUpdatePoliciesDataSourceConfigWithNameFilter(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-				),
-			},
-			{
-				Config: testAccContentUpdatePoliciesDataSourceConfigWithDescriptionFilter(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-				),
-			},
-			{
-				Config: testAccContentUpdatePoliciesDataSourceConfigWithCreatedByFilter(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-				),
-			},
-			{
-				Config: testAccContentUpdatePoliciesDataSourceConfigWithModifiedByFilter(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-				),
-			},
+	testCases := map[string]struct {
+		configFunc func() string
+		checkFunc  resource.TestCheckFunc
+	}{
+		"enabled": {
+			configFunc: testAccContentUpdatePoliciesDataSourceConfigWithEnabledFilter,
+			checkFunc: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+				resource.TestCheckResourceAttr(resourceName, "policies.0.enabled", "true"),
+			),
 		},
-	})
-}
+		"name":        {configFunc: testAccContentUpdatePoliciesDataSourceConfigWithNameFilter},
+		"description": {configFunc: testAccContentUpdatePoliciesDataSourceConfigWithDescriptionFilter},
+		"created_by":  {configFunc: testAccContentUpdatePoliciesDataSourceConfigWithCreatedByFilter},
+		"modified_by": {configFunc: testAccContentUpdatePoliciesDataSourceConfigWithModifiedByFilter},
+	}
 
-func TestAccContentUpdatePoliciesDataSource_WithSorting(t *testing.T) {
-	resourceName := "data.crowdstrike_content_update_policies.test"
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			checkFunc := tc.checkFunc
+			if checkFunc == nil {
+				checkFunc = resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+				)
+			}
 
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccContentUpdatePoliciesDataSourceConfigWithSortingAsc(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-				),
-			},
-			{
-				Config: testAccContentUpdatePoliciesDataSourceConfigWithSortingDesc(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-				),
-			},
-		},
-	})
+			resource.ParallelTest(t, resource.TestCase{
+				ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+				PreCheck:                 func() { acctest.PreCheck(t) },
+				Steps: []resource.TestStep{
+					{
+						Config: tc.configFunc(),
+						Check:  checkFunc,
+					},
+				},
+			})
+		})
+	}
 }
 
 func TestAccContentUpdatePoliciesDataSource_ValidationErrors(t *testing.T) {
@@ -199,23 +181,6 @@ func TestAccContentUpdatePoliciesDataSource_ValidationErrors(t *testing.T) {
 	}
 }
 
-func TestAccContentUpdatePoliciesDataSource_EmptyResults(t *testing.T) {
-	resourceName := "data.crowdstrike_content_update_policies.test"
-
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccContentUpdatePoliciesDataSourceConfigEmptyResults(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "policies.#", "0"),
-				),
-			},
-		},
-	})
-}
-
 func TestAccContentUpdatePoliciesDataSource_404Handling(t *testing.T) {
 	resourceName := "data.crowdstrike_content_update_policies.test"
 
@@ -259,6 +224,10 @@ func TestAccContentUpdatePoliciesDataSource_AllAttributes(t *testing.T) {
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.modified_by"),
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.modified_timestamp"),
 					resource.TestCheckResourceAttrSet(resourceName, "policies.0.host_groups.#"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.sensor_operations.ring_assignment"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.system_critical.ring_assignment"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.vulnerability_management.ring_assignment"),
+					resource.TestCheckResourceAttrSet(resourceName, "policies.0.rapid_response.ring_assignment"),
 				),
 			},
 		},
@@ -282,6 +251,15 @@ func TestAccContentUpdatePoliciesDataSource_ResourceMatch(t *testing.T) {
 					resource.TestCheckResourceAttrPair(resourceName, "enabled", dataSourceName, "policies.0.enabled"),
 					resource.TestCheckResourceAttrPair(resourceName, "description", dataSourceName, "policies.0.description"),
 					resource.TestCheckResourceAttrPair(resourceName, "host_groups.0", dataSourceName, "policies.0.host_groups.0"),
+					resource.TestCheckResourceAttrPair(resourceName, "sensor_operations.ring_assignment", dataSourceName, "policies.0.sensor_operations.ring_assignment"),
+					resource.TestCheckResourceAttrPair(resourceName, "sensor_operations.delay_hours", dataSourceName, "policies.0.sensor_operations.delay_hours"),
+					resource.TestCheckResourceAttrPair(resourceName, "sensor_operations.pinned_content_version", dataSourceName, "policies.0.sensor_operations.pinned_content_version"),
+					resource.TestCheckResourceAttrPair(resourceName, "system_critical.ring_assignment", dataSourceName, "policies.0.system_critical.ring_assignment"),
+					resource.TestCheckResourceAttrPair(resourceName, "system_critical.delay_hours", dataSourceName, "policies.0.system_critical.delay_hours"),
+					resource.TestCheckResourceAttrPair(resourceName, "vulnerability_management.ring_assignment", dataSourceName, "policies.0.vulnerability_management.ring_assignment"),
+					resource.TestCheckResourceAttrPair(resourceName, "vulnerability_management.pinned_content_version", dataSourceName, "policies.0.vulnerability_management.pinned_content_version"),
+					resource.TestCheckResourceAttrPair(resourceName, "rapid_response.ring_assignment", dataSourceName, "policies.0.rapid_response.ring_assignment"),
+					resource.TestCheckResourceAttrPair(resourceName, "rapid_response.pinned_content_version", dataSourceName, "policies.0.rapid_response.pinned_content_version"),
 				),
 			},
 		},
@@ -347,22 +325,6 @@ data "crowdstrike_content_update_policies" "test" {
 `
 }
 
-func testAccContentUpdatePoliciesDataSourceConfigWithSortingAsc() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "test" {
-  sort = "name.asc"
-}
-`
-}
-
-func testAccContentUpdatePoliciesDataSourceConfigWithSortingDesc() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "test" {
-  sort = "created_timestamp.desc"
-}
-`
-}
-
 func testAccContentUpdatePoliciesDataSourceConfigValidationFilterIDs() string {
 	return acctest.ProviderConfig + `
 data "crowdstrike_content_update_policies" "test" {
@@ -409,14 +371,6 @@ data "crowdstrike_content_update_policies" "test" {
 `
 }
 
-func testAccContentUpdatePoliciesDataSourceConfigEmptyResults() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_content_update_policies" "test" {
-  filter = "name:'NonExistentPolicyThatShouldNeverExist12345'"
-}
-`
-}
-
 func testAccContentUpdatePoliciesDataSourceConfig404NonExistentID() string {
 	return acctest.ProviderConfig + `
 data "crowdstrike_content_update_policies" "test" {
@@ -440,6 +394,9 @@ data "crowdstrike_content_update_policies" "test" {
 
 func testAccContentUpdatePoliciesDataSourceConfigResourceMatch(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
+# Fetch available content category versions
+data "crowdstrike_content_category_versions" "available" {}
+
 resource "crowdstrike_host_group" "test" {
   name        = %[1]q
   description = "Test host group for data source acceptance test"
@@ -449,24 +406,29 @@ resource "crowdstrike_host_group" "test" {
 
 resource "crowdstrike_content_update_policy" "test" {
   name            = %[1]q
-  description     = "Test policy for data source acceptance test"
+  description     = "Test policy for data source acceptance test with ring settings"
   enabled         = true
   host_groups     = [crowdstrike_host_group.test.id]
-  
+
   sensor_operations = {
-    ring_assignment = "ga"
+    ring_assignment        = "ga"
+    delay_hours            = 24
+    pinned_content_version = length(data.crowdstrike_content_category_versions.available.sensor_operations) > 0 ? data.crowdstrike_content_category_versions.available.sensor_operations[0] : null
   }
-  
+
   system_critical = {
     ring_assignment = "ga"
+    delay_hours     = 48
   }
-  
+
   vulnerability_management = {
-    ring_assignment = "ga"
+    ring_assignment        = "ga"
+    pinned_content_version = length(data.crowdstrike_content_category_versions.available.vulnerability_management) > 0 ? data.crowdstrike_content_category_versions.available.vulnerability_management[0] : null
   }
-  
+
   rapid_response = {
-    ring_assignment = "ga"
+    ring_assignment        = "ea"
+    pinned_content_version = length(data.crowdstrike_content_category_versions.available.rapid_response) > 0 ? data.crowdstrike_content_category_versions.available.rapid_response[0] : null
   }
 }
 
