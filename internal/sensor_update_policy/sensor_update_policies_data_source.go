@@ -8,7 +8,9 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -91,8 +93,8 @@ func (m policyDataModel) AttributeTypes() map[string]attr.Type {
 	}
 }
 
-// SensorUpdatePoliciesDataSourceModel represents the data source model (exported for testing).
-type SensorUpdatePoliciesDataSourceModel struct {
+// sensorUpdatePoliciesDataSourceModel represents the data source model (exported for testing).
+type sensorUpdatePoliciesDataSourceModel struct {
 	Filter       types.String `tfsdk:"filter"`
 	IDs          types.List   `tfsdk:"ids"`
 	Sort         types.String `tfsdk:"sort"`
@@ -105,7 +107,7 @@ type SensorUpdatePoliciesDataSourceModel struct {
 	Policies     types.List   `tfsdk:"policies"`
 }
 
-func (m *SensorUpdatePoliciesDataSourceModel) wrap(ctx context.Context, policies []*models.SensorUpdatePolicyV1) diag.Diagnostics {
+func (m *sensorUpdatePoliciesDataSourceModel) wrap(ctx context.Context, policies []*models.SensorUpdatePolicyV1) diag.Diagnostics {
 	var diags diag.Diagnostics
 	policyModels := make([]policyDataModel, 0, len(policies))
 	for _, policy := range policies {
@@ -139,7 +141,7 @@ func (m *SensorUpdatePoliciesDataSourceModel) wrap(ctx context.Context, policies
 }
 
 // hasIndividualFilters checks if any of the individual filter attributes are set.
-func (m *SensorUpdatePoliciesDataSourceModel) hasIndividualFilters() bool {
+func (m *sensorUpdatePoliciesDataSourceModel) hasIndividualFilters() bool {
 	return utils.IsKnown(m.Name) ||
 		utils.IsKnown(m.Description) ||
 		utils.IsKnown(m.Enabled) ||
@@ -179,7 +181,7 @@ func (d *sensorUpdatePoliciesDataSource) Schema(
 				Optional:    true,
 				Description: "FQL filter to apply to the sensor update policies query. When specified, only policies matching the filter will be returned. Cannot be used together with 'ids' or other filter attributes. Example: `platform_name:'Windows'`",
 				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
+					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"ids": schema.ListAttribute{
@@ -198,21 +200,21 @@ func (d *sensorUpdatePoliciesDataSource) Schema(
 				Optional:    true,
 				Description: "Sort order for the results. Valid values include field names with optional '.asc' or '.desc' suffix. Example: 'name.asc', 'precedence.desc'",
 				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
+					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"name": schema.StringAttribute{
 				Optional:    true,
 				Description: "Filter policies by name. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'filter' or 'ids'.",
 				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
+					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
 				Description: "Filter policies by description. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'filter' or 'ids'.",
 				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
+					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"enabled": schema.BoolAttribute{
@@ -230,14 +232,14 @@ func (d *sensorUpdatePoliciesDataSource) Schema(
 				Optional:    true,
 				Description: "Filter policies by the user who created them. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'filter' or 'ids'.",
 				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
+					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"modified_by": schema.StringAttribute{
 				Optional:    true,
 				Description: "Filter policies by the user who last modified them. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'filter' or 'ids'.",
 				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
+					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"policies": schema.ListNestedAttribute{
@@ -294,7 +296,7 @@ func (d *sensorUpdatePoliciesDataSource) Schema(
 }
 
 func (d *sensorUpdatePoliciesDataSource) ValidateConfig(ctx context.Context, req datasource.ValidateConfigRequest, resp *datasource.ValidateConfigResponse) {
-	var data SensorUpdatePoliciesDataSourceModel
+	var data sensorUpdatePoliciesDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -356,10 +358,7 @@ func (d *sensorUpdatePoliciesDataSource) getSensorUpdatePolicies(
 
 		res, err := d.client.SensorUpdatePolicies.QueryCombinedSensorUpdatePolicies(params)
 		if err != nil {
-			diags.AddError(
-				"Failed to query sensor update policies",
-				fmt.Sprintf("Failed to query sensor update policies: %s", err.Error()),
-			)
+			diags.Append(tferrors.NewOperationError(tferrors.Read, err))
 			return allPolicies, diags
 		}
 
@@ -409,7 +408,7 @@ func (d *sensorUpdatePoliciesDataSource) Read(
 	req datasource.ReadRequest,
 	resp *datasource.ReadResponse,
 ) {
-	var data SensorUpdatePoliciesDataSourceModel
+	var data sensorUpdatePoliciesDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -427,11 +426,11 @@ func (d *sensorUpdatePoliciesDataSource) Read(
 			return
 		}
 
-		policies = FilterPoliciesByIDs(policies, requestedIDs)
+		policies = filterPoliciesByIDs(policies, requestedIDs)
 	}
 
 	if data.hasIndividualFilters() {
-		policies = FilterPoliciesByAttributes(policies, &data)
+		policies = filterPoliciesByAttributes(policies, &data)
 	}
 
 	resp.Diagnostics.Append(data.wrap(ctx, policies)...)
@@ -442,8 +441,8 @@ func (d *sensorUpdatePoliciesDataSource) Read(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-// FilterPoliciesByIDs filters policies by their IDs (exported for testing).
-func FilterPoliciesByIDs(policies []*models.SensorUpdatePolicyV1, requestedIDs []string) []*models.SensorUpdatePolicyV1 {
+// filterPoliciesByIDs filters policies by their IDs.
+func filterPoliciesByIDs(policies []*models.SensorUpdatePolicyV1, requestedIDs []string) []*models.SensorUpdatePolicyV1 {
 	idMap := make(map[string]bool, len(requestedIDs))
 	for _, id := range requestedIDs {
 		idMap[id] = true
@@ -461,8 +460,8 @@ func FilterPoliciesByIDs(policies []*models.SensorUpdatePolicyV1, requestedIDs [
 	return filtered
 }
 
-// FilterPoliciesByAttributes filters policies by individual attributes (exported for testing).
-func FilterPoliciesByAttributes(policies []*models.SensorUpdatePolicyV1, filters *SensorUpdatePoliciesDataSourceModel) []*models.SensorUpdatePolicyV1 {
+// filterPoliciesByAttributes filters policies by individual attributes.
+func filterPoliciesByAttributes(policies []*models.SensorUpdatePolicyV1, filters *sensorUpdatePoliciesDataSourceModel) []*models.SensorUpdatePolicyV1 {
 	filtered := make([]*models.SensorUpdatePolicyV1, 0, len(policies))
 	for _, policy := range policies {
 		if policy == nil {
