@@ -7,7 +7,9 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/content_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -220,7 +222,7 @@ func (d *contentUpdatePoliciesDataSource) Schema(
 				Optional:    true,
 				Description: "FQL filter to apply to the content update policies query. When specified, only policies matching the filter will be returned. Cannot be used together with 'ids' or other filter attributes. Example: `name:'*prod*'`",
 				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
+					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"ids": schema.ListAttribute{
@@ -239,21 +241,21 @@ func (d *contentUpdatePoliciesDataSource) Schema(
 				Optional:    true,
 				Description: "Sort order for the results. Valid values include field names with optional '.asc' or '.desc' suffix. Example: 'name.asc', 'precedence.desc'",
 				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
+					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"name": schema.StringAttribute{
 				Optional:    true,
 				Description: "Filter policies by name. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'filter' or 'ids'.",
 				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
+					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
 				Description: "Filter policies by description. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'filter' or 'ids'.",
 				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
+					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"enabled": schema.BoolAttribute{
@@ -264,14 +266,14 @@ func (d *contentUpdatePoliciesDataSource) Schema(
 				Optional:    true,
 				Description: "Filter policies by the user who created them. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'filter' or 'ids'.",
 				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
+					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"modified_by": schema.StringAttribute{
 				Optional:    true,
 				Description: "Filter policies by the user who last modified them. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'filter' or 'ids'.",
 				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
+					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"policies": schema.ListNestedAttribute{
@@ -458,10 +460,7 @@ func (d *contentUpdatePoliciesDataSource) getContentUpdatePolicies(
 
 		res, err := d.client.ContentUpdatePolicies.QueryCombinedContentUpdatePolicies(params)
 		if err != nil {
-			diags.AddError(
-				"Failed to query content update policies",
-				fmt.Sprintf("Failed to query content update policies: %s", err.Error()),
-			)
+			diags.Append(tferrors.NewOperationError(tferrors.Read, err))
 			return allPolicies, diags
 		}
 
