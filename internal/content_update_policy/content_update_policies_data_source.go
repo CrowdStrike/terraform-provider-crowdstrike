@@ -215,7 +215,7 @@ func (d *contentUpdatePoliciesDataSource) Schema(
 		MarkdownDescription: utils.MarkdownDescription(
 			dataSourceDocumentationSection,
 			dataSourceMarkdownDescription,
-			dataSourceApiScopes,
+			apiScopesRead,
 		),
 		Attributes: map[string]schema.Attribute{
 			"filter": schema.StringAttribute{

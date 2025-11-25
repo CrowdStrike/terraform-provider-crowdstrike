@@ -5,7 +5,7 @@ description: |-
   This data source provides information about content update policies in Falcon.
   API Scopes
   The following API scopes are required:
-  content-update-policies | Read
+  Content Update Policy | Read
 ---
 
 # crowdstrike_content_update_policies (Data Source)
@@ -16,7 +16,7 @@ This data source provides information about content update policies in Falcon.
 
 The following API scopes are required:
 
-- content-update-policies | Read
+- Content Update Policy | Read
 
 
 ## Example Usage
