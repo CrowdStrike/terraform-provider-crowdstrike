@@ -10,7 +10,6 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/filevantage"
 	"github.com/crowdstrike/gofalcon/falcon/models"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
@@ -152,9 +151,10 @@ func (r *fimPolicyResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: fmt.Sprintf(
-			"FileVantage --- This resource allows management of a FileVantage policy. A FileVantage policy is a collection of file integrity rules and rule groups that you can apply to host groups.\n\n%s",
-			scopes.GenerateScopeDescription(apiScopes),
+		MarkdownDescription: utils.MarkdownDescription(
+			"FileVantage",
+			"This resource allows management of a FileVantage policy. A FileVantage policy is a collection of file integrity rules and rule groups that you can apply to host groups.",
+			apiScopesReadWrite,
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
