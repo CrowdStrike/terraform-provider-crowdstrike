@@ -1,6 +1,6 @@
 ---
 page_title: "crowdstrike_sensor_update_policies Data Source - crowdstrike"
-subcategory: "Sensor Update Policies"
+subcategory: "Sensor Update Policy"
 description: |-
   This data source provides information about sensor update policies in Falcon.
   API Scopes

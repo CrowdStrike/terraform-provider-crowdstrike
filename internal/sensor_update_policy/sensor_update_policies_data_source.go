@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	dataSourceDocumentationSection = "Sensor Update Policies"
+	dataSourceDocumentationSection = "Sensor Update Policy"
 	dataSourceMarkdownDescription  = "This data source provides information about sensor update policies in Falcon."
 )
 

@@ -1,6 +1,6 @@
 ---
 page_title: "crowdstrike_filevantage_policies Data Source - crowdstrike"
-subcategory: "Filevantage"
+subcategory: "FileVantage"
 description: |-
   This data source provides information about FileVantage policies in Falcon.
   API Scopes
