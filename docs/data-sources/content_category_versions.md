@@ -5,7 +5,7 @@ description: |-
   This data source provides information about available content category versions for pinning in content update policies.
   API Scopes
   The following API scopes are required:
-  Content update policy | Read
+  Content Update Policy | Read
 ---
 
 # crowdstrike_content_category_versions (Data Source)
@@ -16,7 +16,7 @@ This data source provides information about available content category versions 
 
 The following API scopes are required:
 
-- Content update policy | Read
+- Content Update Policy | Read
 
 
 ## Example Usage
