@@ -8,7 +8,6 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -150,18 +149,15 @@ data "crowdstrike_filevantage_policies" "test" {
 `, rName)
 }
 
-var (
-	testBoolTrue  = true
-	testBoolFalse = false
-)
-
 var testFilevantagePolicies = []*models.PoliciesPolicy{
 	{
 		ID:          utils.Addr("policy-001"),
 		Name:        "Production Windows Policy",
 		Description: "file integrity monitoring",
-		Enabled:     &testBoolTrue,
+		Enabled:     utils.Addr(true),
 		Platform:    "Windows",
+		CreatedBy:   "admin@example.com",
+		ModifiedBy:  utils.Addr("admin@example.com"),
 		HostGroups: []*models.PoliciesAssignedHostGroup{
 			{ID: utils.Addr("host-group-001")},
 		},
@@ -173,8 +169,10 @@ var testFilevantagePolicies = []*models.PoliciesPolicy{
 		ID:          utils.Addr("policy-002"),
 		Name:        "Production Linux Policy",
 		Description: "file monitoring enabled",
-		Enabled:     &testBoolTrue,
+		Enabled:     utils.Addr(true),
 		Platform:    "Linux",
+		CreatedBy:   "admin@example.com",
+		ModifiedBy:  utils.Addr("admin@example.com"),
 		HostGroups: []*models.PoliciesAssignedHostGroup{
 			{ID: utils.Addr("host-group-002")},
 		},
@@ -182,99 +180,38 @@ var testFilevantagePolicies = []*models.PoliciesPolicy{
 	},
 	{
 		ID:          utils.Addr("policy-003"),
-		Name:        "Production Mac Policy",
-		Description: "endpoint monitoring",
-		Enabled:     &testBoolTrue,
-		Platform:    "Mac",
-		HostGroups:  []*models.PoliciesAssignedHostGroup{},
-		RuleGroups: []*models.PoliciesAssignedRuleGroup{
-			{ID: utils.Addr("rule-group-002")},
-		},
-	},
-	{
-		ID:          utils.Addr("policy-004"),
 		Name:        "Test Windows Policy",
 		Description: "file testing",
-		Enabled:     &testBoolFalse,
+		Enabled:     utils.Addr(false),
 		Platform:    "Windows",
+		CreatedBy:   "user@example.com",
+		ModifiedBy:  utils.Addr("modifier@example.com"),
 		HostGroups: []*models.PoliciesAssignedHostGroup{
 			{ID: utils.Addr("host-group-003")},
 		},
 		RuleGroups: []*models.PoliciesAssignedRuleGroup{},
 	},
 	{
-		ID:          utils.Addr("policy-005"),
-		Name:        "Test Linux Environment",
-		Description: "monitoring management",
-		Enabled:     &testBoolTrue,
-		Platform:    "Linux",
-		HostGroups:  []*models.PoliciesAssignedHostGroup{},
-		RuleGroups:  []*models.PoliciesAssignedRuleGroup{},
-	},
-	{
-		ID:          utils.Addr("policy-006"),
+		ID:          utils.Addr("policy-004"),
 		Name:        "Windows Monitoring Policy",
 		Description: "Windows file monitoring",
-		Enabled:     &testBoolTrue,
+		Enabled:     utils.Addr(true),
 		Platform:    "Windows",
+		CreatedBy:   "admin@example.com",
+		ModifiedBy:  utils.Addr("admin@example.com"),
 		HostGroups: []*models.PoliciesAssignedHostGroup{
 			{ID: utils.Addr("host-group-004")},
 		},
 		RuleGroups: []*models.PoliciesAssignedRuleGroup{},
 	},
 	{
-		ID:          utils.Addr("policy-007"),
+		ID:          utils.Addr("policy-005"),
 		Name:        "Linux Monitoring Policy",
 		Description: "Linux file monitoring",
-		Enabled:     &testBoolFalse,
+		Enabled:     utils.Addr(false),
 		Platform:    "Linux",
-		HostGroups:  []*models.PoliciesAssignedHostGroup{},
-		RuleGroups:  []*models.PoliciesAssignedRuleGroup{},
-	},
-	{
-		ID:          utils.Addr("policy-008"),
-		Name:        "PRODUCTION Server",
-		Description: "Server monitoring",
-		Enabled:     &testBoolTrue,
-		Platform:    "Linux",
-		HostGroups: []*models.PoliciesAssignedHostGroup{
-			{ID: utils.Addr("host-group-005")},
-		},
-		RuleGroups: []*models.PoliciesAssignedRuleGroup{},
-	},
-	{
-		ID:          utils.Addr("policy-009"),
-		Name:        "production server",
-		Description: "Desktop monitoring",
-		Enabled:     &testBoolFalse,
-		Platform:    "Mac",
-		HostGroups:  []*models.PoliciesAssignedHostGroup{},
-		RuleGroups:  []*models.PoliciesAssignedRuleGroup{},
-	},
-	{
-		ID:          utils.Addr("policy-010"),
-		Name:        "",
-		Description: "Description with no name",
-		Enabled:     &testBoolTrue,
-		Platform:    "Windows",
-		HostGroups:  []*models.PoliciesAssignedHostGroup{},
-		RuleGroups:  []*models.PoliciesAssignedRuleGroup{},
-	},
-	{
-		ID:          utils.Addr("policy-011"),
-		Name:        "Policy with no description",
-		Description: "",
-		Enabled:     &testBoolTrue,
-		Platform:    "Linux",
-		HostGroups:  []*models.PoliciesAssignedHostGroup{},
-		RuleGroups:  []*models.PoliciesAssignedRuleGroup{},
-	},
-	{
-		ID:          utils.Addr("policy-012"),
-		Name:        "Policy with no groups",
-		Description: "Description C",
-		Enabled:     &testBoolTrue,
-		Platform:    "Windows",
+		CreatedBy:   "user@example.com",
+		ModifiedBy:  utils.Addr("modifier@example.com"),
 		HostGroups:  []*models.PoliciesAssignedHostGroup{},
 		RuleGroups:  []*models.PoliciesAssignedRuleGroup{},
 	},
@@ -309,44 +246,259 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		expectedPolicies []*models.PoliciesPolicy
 	}{
 		{
-			name: "platform_windows",
+			name: "name_no_matches",
 			filters: &fim.FilevantagePoliciesDataSourceModel{
-				PlatformNames: types.SetValueMust(types.StringType, []attr.Value{types.StringValue("Windows")}),
+				Name: types.StringValue("NonExistent*"),
 			},
 			inputPolicies:    testFilevantagePolicies,
-			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-004", "policy-006", "policy-010", "policy-012"),
+			expectedPolicies: []*models.PoliciesPolicy{},
 		},
 		{
-			name: "platform_linux",
+			name: "name_wildcard_at_start",
 			filters: &fim.FilevantagePoliciesDataSourceModel{
-				PlatformNames: types.SetValueMust(types.StringType, []attr.Value{types.StringValue("Linux")}),
+				Name: types.StringValue("*Policy"),
 			},
 			inputPolicies:    testFilevantagePolicies,
-			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-002", "policy-005", "policy-007", "policy-008", "policy-011"),
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-002", "policy-003", "policy-004", "policy-005"),
 		},
 		{
-			name: "platform_mac",
+			name: "name_wildcard_at_end",
 			filters: &fim.FilevantagePoliciesDataSourceModel{
-				PlatformNames: types.SetValueMust(types.StringType, []attr.Value{types.StringValue("Mac")}),
+				Name: types.StringValue("Production*"),
 			},
 			inputPolicies:    testFilevantagePolicies,
-			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-003", "policy-009"),
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-002"),
 		},
 		{
-			name: "multiple_platforms",
+			name: "name_wildcard_in_middle",
 			filters: &fim.FilevantagePoliciesDataSourceModel{
-				PlatformNames: types.SetValueMust(types.StringType, []attr.Value{
-					types.StringValue("Windows"),
-					types.StringValue("Linux"),
-				}),
+				Name: types.StringValue("*Monitoring*"),
 			},
 			inputPolicies:    testFilevantagePolicies,
-			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-002", "policy-004", "policy-005", "policy-006", "policy-007", "policy-008", "policy-010", "policy-011", "policy-012"),
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-004", "policy-005"),
+		},
+		{
+			name: "name_multiple_wildcards",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				Name: types.StringValue("*Windows*Policy"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-003", "policy-004"),
+		},
+		{
+			name: "name_case_insensitive",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				Name: types.StringValue("production*"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-002"),
+		},
+		{
+			name: "description_exact_match",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				Description: types.StringValue("file integrity monitoring"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001"),
+		},
+		{
+			name: "description_no_matches",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				Description: types.StringValue("nonexistent*"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: []*models.PoliciesPolicy{},
+		},
+		{
+			name: "description_wildcard_at_start",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				Description: types.StringValue("*monitoring"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-004", "policy-005"),
+		},
+		{
+			name: "description_wildcard_at_end",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				Description: types.StringValue("file*"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-002", "policy-003"),
+		},
+		{
+			name: "description_wildcard_in_middle",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				Description: types.StringValue("*integrity*"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001"),
+		},
+		{
+			name: "description_multiple_wildcards",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				Description: types.StringValue("*file*monitoring"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-004", "policy-005"),
+		},
+		{
+			name: "created_by_exact_match",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				CreatedBy: types.StringValue("admin@example.com"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-002", "policy-004"),
+		},
+		{
+			name: "created_by_no_matches",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				CreatedBy: types.StringValue("nonexistent@example.com"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: []*models.PoliciesPolicy{},
+		},
+		{
+			name: "created_by_wildcard_at_start",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				CreatedBy: types.StringValue("*@example.com"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: testFilevantagePolicies,
+		},
+		{
+			name: "created_by_wildcard_at_end",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				CreatedBy: types.StringValue("user@*"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-003", "policy-005"),
+		},
+		{
+			name: "created_by_wildcard_in_middle",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				CreatedBy: types.StringValue("admin@*example.com"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-002", "policy-004"),
+		},
+		{
+			name: "created_by_multiple_wildcards",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				CreatedBy: types.StringValue("*admin*example*"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-002", "policy-004"),
+		},
+		{
+			name: "modified_by_exact_match",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("admin@example.com"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-002", "policy-004"),
+		},
+		{
+			name: "modified_by_no_matches",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("nonexistent@example.com"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: []*models.PoliciesPolicy{},
+		},
+		{
+			name: "modified_by_wildcard_at_start",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("*@example.com"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: testFilevantagePolicies,
+		},
+		{
+			name: "modified_by_wildcard_at_end",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("modifier@*"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-003", "policy-005"),
+		},
+		{
+			name: "modified_by_wildcard_in_middle",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("admin@*example.com"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-002", "policy-004"),
+		},
+		{
+			name: "modified_by_multiple_wildcards",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				ModifiedBy: types.StringValue("*modifier*example*"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-003", "policy-005"),
+		},
+		{
+			name: "enabled_true",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				Enabled: types.BoolValue(true),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-002", "policy-004"),
+		},
+		{
+			name: "enabled_false",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				Enabled: types.BoolValue(false),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-003", "policy-005"),
+		},
+		{
+			name: "multiple_filters_name_and_enabled",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				Name:    types.StringValue("*Production*"),
+				Enabled: types.BoolValue(true),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-002"),
+		},
+		{
+			name: "multiple_filters_description_and_created_by",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				Description: types.StringValue("*monitoring*"),
+				CreatedBy:   types.StringValue("admin@example.com"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-002", "policy-004"),
+		},
+		{
+			name: "multiple_filters_all_match",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				Name:       types.StringValue("*Windows*"),
+				Enabled:    types.BoolValue(true),
+				CreatedBy:  types.StringValue("admin@example.com"),
+				ModifiedBy: types.StringValue("admin@example.com"),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-004"),
+		},
+		{
+			name: "multiple_filters_no_match",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				Name:    types.StringValue("*Windows*"),
+				Enabled: types.BoolValue(false),
+			},
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-003"),
 		},
 		{
 			name: "no_filtering",
 			filters: &fim.FilevantagePoliciesDataSourceModel{
-				PlatformNames: types.SetNull(types.StringType),
+				Name:        types.StringNull(),
+				Description: types.StringNull(),
+				Enabled:     types.BoolNull(),
+				CreatedBy:   types.StringNull(),
+				ModifiedBy:  types.StringNull(),
 			},
 			inputPolicies:    testFilevantagePolicies,
 			expectedPolicies: testFilevantagePolicies,
@@ -366,14 +518,14 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		{
 			name: "nil_policy_in_slice",
 			filters: &fim.FilevantagePoliciesDataSourceModel{
-				PlatformNames: types.SetValueMust(types.StringType, []attr.Value{types.StringValue("Windows")}),
+				Enabled: types.BoolValue(true),
 			},
 			inputPolicies: []*models.PoliciesPolicy{
 				testFilevantagePolicies[0],
 				nil,
-				testFilevantagePolicies[3],
+				testFilevantagePolicies[1],
 			},
-			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-004"),
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-002"),
 		},
 	}
 
