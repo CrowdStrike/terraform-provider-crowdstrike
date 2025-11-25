@@ -33,3 +33,38 @@ func TestStringValueToFramework(t *testing.T) {
 		})
 	}
 }
+
+func TestStringPointerToFramework(t *testing.T) {
+	t.Parallel()
+	emptyString := ""
+	testValue := "test-value"
+
+	tests := []struct {
+		name     string
+		input    *string
+		expected types.String
+	}{
+		{
+			name:     "nil pointer returns null",
+			input:    nil,
+			expected: types.StringNull(),
+		},
+		{
+			name:     "pointer to empty string returns null",
+			input:    &emptyString,
+			expected: types.StringNull(),
+		},
+		{
+			name:     "pointer to non-empty string returns value",
+			input:    &testValue,
+			expected: types.StringValue("test-value"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := StringPointerToFramework(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

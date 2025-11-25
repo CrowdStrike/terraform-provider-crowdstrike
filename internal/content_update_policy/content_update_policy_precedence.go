@@ -9,7 +9,6 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/content_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -29,15 +28,8 @@ var (
 )
 
 var (
-	precedenceDocumentationSection string         = "Content Update Policy"
-	precedenceMarkdownDescription  string         = "This resource allows you to set the precedence of Content Update Policies based on the order of IDs."
-	precedencerequiredScopes       []scopes.Scope = []scopes.Scope{
-		{
-			Name:  "Content update policies",
-			Read:  true,
-			Write: true,
-		},
-	}
+	precedenceDocumentationSection string = "Content Update Policy"
+	precedenceMarkdownDescription  string = "This resource allows you to set the precedence of Content Update Policies based on the order of IDs."
 
 	dynamicEnforcement = "dynamic"
 )
@@ -113,7 +105,7 @@ func (r *contentUpdatePolicyPrecedenceResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: utils.MarkdownDescription(precedenceDocumentationSection, precedenceMarkdownDescription, precedencerequiredScopes),
+		MarkdownDescription: utils.MarkdownDescription(precedenceDocumentationSection, precedenceMarkdownDescription, apiScopesReadWrite),
 		Attributes: map[string]schema.Attribute{
 			"ids": schema.ListAttribute{
 				Required:            true,
