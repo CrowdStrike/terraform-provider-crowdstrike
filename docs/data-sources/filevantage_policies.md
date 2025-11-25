@@ -2,7 +2,7 @@
 page_title: "crowdstrike_filevantage_policies Data Source - crowdstrike"
 subcategory: "Filevantage"
 description: |-
-  This data source provides information about file vantage policies in Falcon.
+  This data source provides information about FileVantage policies in Falcon.
   API Scopes
   The following API scopes are required:
   Falcon FileVantage | Read
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_filevantage_policies (Data Source)
 
-This data source provides information about file vantage policies in Falcon.
+This data source provides information about FileVantage policies in Falcon.
 
 ## API Scopes
 
@@ -34,28 +34,25 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
-# Example 1: Get all Windows file vantage policies
-data "crowdstrike_filevantage_policies" "windows_policies" {
-  type = "Windows"
+# Get all FileVantage policies
+data "crowdstrike_filevantage_policies" "all" {}
+
+# Get only enabled Windows and Linux policies
+data "crowdstrike_filevantage_policies" "enabled" {
+  platform_names = ["Windows", "Linux"]
+  enabled        = true
 }
 
-# Example 2: Get all Linux file vantage policies with sorting
-data "crowdstrike_filevantage_policies" "linux_policies_sorted" {
-  type = "Linux"
-  sort = "name.asc"
-}
-
-# Example 3: Get all Mac file vantage policies sorted by precedence
-data "crowdstrike_filevantage_policies" "mac_policies_by_precedence" {
-  type = "Mac"
+# Get policies sorted by precedence
+data "crowdstrike_filevantage_policies" "sorted" {
   sort = "precedence.desc"
 }
 
-# Example 4: Get specific file vantage policies by IDs
-data "crowdstrike_filevantage_policies" "specific_policies" {
+# Get specific policies by ID
+data "crowdstrike_filevantage_policies" "specific" {
   ids = [
-    "policy-12345678901234567890123456789012",
-    "policy-98765432109876543210987654321098"
+    "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+    "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"
   ]
 }
 ```
@@ -65,13 +62,18 @@ data "crowdstrike_filevantage_policies" "specific_policies" {
 
 ### Optional
 
-- `ids` (List of String) List of file vantage policy IDs to retrieve. Uses the /filevantage/entities/policies/v1 endpoint. Cannot be used together with 'type'.
-- `sort` (String) Sort order for the results. Can be used with 'type'. Valid values include field names with optional '.asc' or '.desc' suffix. Example: 'name.asc', 'precedence.desc'
-- `type` (String) Filter policies by platform type (Windows, Linux, Mac). Uses the /filevantage/queries/policies/v1 endpoint. Cannot be used together with 'ids'.
+- `created_by` (String) Filter policies by the user who created them. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'ids'.
+- `description` (String) Filter policies by description. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'ids'.
+- `enabled` (Boolean) Filter policies by enabled status. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Cannot be used together with 'ids'.
+- `ids` (List of String) List of FileVantage policy IDs to retrieve. Cannot be used together with 'platform_names' or other filter attributes.
+- `modified_by` (String) Filter policies by the user who last modified them. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'ids'.
+- `name` (String) Filter policies by name. All provided filter attributes must match for a policy to be returned (omitted attributes are ignored). Supports wildcard matching with '*' where '*' matches any sequence of characters until the end of the string or until the next literal character in the pattern is found. Multiple wildcards can be used in a single pattern. Matching is case insensitive. Cannot be used together with 'ids'.
+- `platform_names` (Set of String) Filter policies by platform names. Valid values: Windows, Linux, Mac. Defaults to all. Cannot be used together with 'ids'.
+- `sort` (String) Sort order for the results. Can be used with 'platform_names'. Valid values: 'precedence', 'created_timestamp', 'modified_timestamp', optionally followed by '.asc' or '.desc' (e.g., 'precedence.desc'). By default, '.asc' is used if no direction is specified. Cannot be used together with 'ids'.
 
 ### Read-Only
 
-- `policies` (Attributes List) The list of file vantage policies (see [below for nested schema](#nestedatt--policies))
+- `policies` (Attributes List) The list of FileVantage policies (see [below for nested schema](#nestedatt--policies))
 
 <a id="nestedatt--policies"></a>
 ### Nested Schema for `policies`
@@ -80,12 +82,13 @@ Read-Only:
 
 - `created_by` (String) User who created the policy
 - `created_timestamp` (String) Timestamp when the policy was created
-- `description` (String) The file vantage policy description
-- `enabled` (Boolean) Whether the file vantage policy is enabled
+- `description` (String) The FileVantage policy description
+- `enabled` (Boolean) Whether the FileVantage policy is enabled
 - `host_groups` (List of String) List of host group IDs assigned to the policy
-- `id` (String) The file vantage policy ID
-- `ioa_rule_groups` (List of String) List of IOA rule group IDs associated with the policy
+- `id` (String) The FileVantage policy ID
 - `modified_by` (String) User who last modified the policy
 - `modified_timestamp` (String) Timestamp when the policy was last modified
-- `name` (String) The file vantage policy name
+- `name` (String) The FileVantage policy name
 - `platform_name` (String) The platform name (Windows, Linux, Mac)
+- `precedence` (Number) Policy precedence/priority
+- `rule_groups` (List of String) List of rule group IDs associated with the policy

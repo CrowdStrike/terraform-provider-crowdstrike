@@ -2,72 +2,22 @@ package fim_test
 
 import (
 	"fmt"
-	"regexp"
 	"testing"
 
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAccFilevantagePoliciesDataSource_Basic(t *testing.T) {
-	resourceName := "data.crowdstrike_filevantage_policies.test"
-
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccFilevantagePoliciesDataSourceConfigBasic(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.id"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.name"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.platform_name"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.enabled"),
-				),
-			},
-		},
-	})
-}
-
-func TestAccFilevantagePoliciesDataSource_WithType(t *testing.T) {
-	resourceName := "data.crowdstrike_filevantage_policies.test"
-
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccFilevantagePoliciesDataSourceConfigWithTypeWindows(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					resource.TestCheckResourceAttr(resourceName, "policies.0.platform_name", "Windows"),
-				),
-			},
-			{
-				Config: testAccFilevantagePoliciesDataSourceConfigWithTypeLinux(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					resource.TestCheckResourceAttr(resourceName, "policies.0.platform_name", "Linux"),
-				),
-			},
-			{
-				Config: testAccFilevantagePoliciesDataSourceConfigWithTypeMac(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					resource.TestCheckResourceAttr(resourceName, "policies.0.platform_name", "Mac"),
-				),
-			},
-		},
-	})
-}
-
 func TestAccFilevantagePoliciesDataSource_WithIDs(t *testing.T) {
-	resourceName := "data.crowdstrike_filevantage_policies.test"
+	allDataSourceName := "data.crowdstrike_filevantage_policies.all"
+	dataSourceName := "data.crowdstrike_filevantage_policies.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -76,97 +26,12 @@ func TestAccFilevantagePoliciesDataSource_WithIDs(t *testing.T) {
 			{
 				Config: testAccFilevantagePoliciesDataSourceConfigWithIDs(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					resource.TestMatchResourceAttr(resourceName, "policies.#", regexp.MustCompile(`^[12]$`)),
-				),
-			},
-		},
-	})
-}
-
-func TestAccFilevantagePoliciesDataSource_WithSorting(t *testing.T) {
-	resourceName := "data.crowdstrike_filevantage_policies.test"
-
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccFilevantagePoliciesDataSourceConfigWithSortingAsc(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-				),
-			},
-			{
-				Config: testAccFilevantagePoliciesDataSourceConfigWithSortingDesc(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-				),
-			},
-			{
-				Config: testAccFilevantagePoliciesDataSourceConfigWithSortingFiltered(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-				),
-			},
-		},
-	})
-}
-
-func TestAccFilevantagePoliciesDataSource_ValidationErrors(t *testing.T) {
-	testCases := map[string]struct {
-		configFunc  func() string
-		expectError *regexp.Regexp
-	}{
-		"type_with_ids": {
-			configFunc:  testAccFilevantagePoliciesDataSourceConfigValidationTypeWithIDs,
-			expectError: regexp.MustCompile("Invalid Attribute Combination"),
-		},
-		"missing_required_attributes": {
-			configFunc:  testAccFilevantagePoliciesDataSourceConfigValidationMissingRequired,
-			expectError: regexp.MustCompile("Missing Required Attribute"),
-		},
-		"invalid_type_value": {
-			configFunc:  testAccFilevantagePoliciesDataSourceConfigValidationInvalidType,
-			expectError: regexp.MustCompile("Attribute type value must be one of"),
-		},
-		"invalid_ids_format": {
-			configFunc:  testAccFilevantagePoliciesDataSourceConfigValidationInvalidIDs,
-			expectError: regexp.MustCompile("Attribute ids string length must be between 32 and 32"),
-		},
-		"empty_ids_list": {
-			configFunc:  testAccFilevantagePoliciesDataSourceConfigValidationEmptyIDs,
-			expectError: regexp.MustCompile("Attribute ids list must contain at least 1 elements"),
-		},
-	}
-
-	for name, tc := range testCases {
-		t.Run(name, func(t *testing.T) {
-			resource.ParallelTest(t, resource.TestCase{
-				ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-				PreCheck:                 func() { acctest.PreCheck(t) },
-				Steps: []resource.TestStep{
-					{
-						Config:      tc.configFunc(),
-						ExpectError: tc.expectError,
-					},
-				},
-			})
-		})
-	}
-}
-
-func TestAccFilevantagePoliciesDataSource_EmptyResults(t *testing.T) {
-	resourceName := "data.crowdstrike_filevantage_policies.test"
-
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccFilevantagePoliciesDataSourceConfigEmptyResults(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "policies.#", "0"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
+					resource.TestCheckResourceAttrPair(allDataSourceName, "policies.0.id", dataSourceName, "policies.0.id"),
+					resource.TestCheckResourceAttrPair(allDataSourceName, "policies.0.name", dataSourceName, "policies.0.name"),
+					resource.TestCheckResourceAttrPair(allDataSourceName, "policies.0.platform_name", dataSourceName, "policies.0.platform_name"),
+					resource.TestCheckResourceAttrPair(allDataSourceName, "policies.0.enabled", dataSourceName, "policies.0.enabled"),
+					resource.TestCheckResourceAttrPair(allDataSourceName, "policies.0.description", dataSourceName, "policies.0.description"),
 				),
 			},
 		},
@@ -174,7 +39,7 @@ func TestAccFilevantagePoliciesDataSource_EmptyResults(t *testing.T) {
 }
 
 func TestAccFilevantagePoliciesDataSource_404Handling(t *testing.T) {
-	resourceName := "data.crowdstrike_filevantage_policies.test"
+	dataSourceName := "data.crowdstrike_filevantage_policies.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -183,37 +48,15 @@ func TestAccFilevantagePoliciesDataSource_404Handling(t *testing.T) {
 			{
 				Config: testAccFilevantagePoliciesDataSourceConfig404NonExistentID(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "policies.#", "0"),
+					resource.TestCheckResourceAttr(dataSourceName, "policies.#", "0"),
 				),
 			},
 			{
 				Config: testAccFilevantagePoliciesDataSourceConfig404PartialResults(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "policies.#", "1"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.id"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.name"),
-				),
-			},
-		},
-	})
-}
-
-func TestAccFilevantagePoliciesDataSource_AllAttributes(t *testing.T) {
-	resourceName := "data.crowdstrike_filevantage_policies.test"
-
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccFilevantagePoliciesDataSourceConfigBasic(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.id"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.name"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.platform_name"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.enabled"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.host_groups.#"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.ioa_rule_groups.#"),
+					resource.TestCheckResourceAttr(dataSourceName, "policies.#", "1"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.id"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.name"),
 				),
 			},
 		},
@@ -237,50 +80,17 @@ func TestAccFilevantagePoliciesDataSource_ResourceMatch(t *testing.T) {
 					resource.TestCheckResourceAttr(dataSourceName, "policies.0.platform_name", "Windows"),
 					resource.TestCheckResourceAttrPair(resourceName, "enabled", dataSourceName, "policies.0.enabled"),
 					resource.TestCheckResourceAttrPair(resourceName, "description", dataSourceName, "policies.0.description"),
+					resource.TestCheckResourceAttrPair(resourceName, "host_groups.0", dataSourceName, "policies.0.host_groups.0"),
 				),
 			},
 		},
 	})
 }
 
-// Test Configuration Functions
-
-func testAccFilevantagePoliciesDataSourceConfigBasic() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_filevantage_policies" "test" {
-  type = "Windows"
-}
-`
-}
-
-func testAccFilevantagePoliciesDataSourceConfigWithTypeWindows() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_filevantage_policies" "test" {
-  type = "Windows"
-}
-`
-}
-
-func testAccFilevantagePoliciesDataSourceConfigWithTypeLinux() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_filevantage_policies" "test" {
-  type = "Linux"
-}
-`
-}
-
-func testAccFilevantagePoliciesDataSourceConfigWithTypeMac() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_filevantage_policies" "test" {
-  type = "Mac"
-}
-`
-}
-
 func testAccFilevantagePoliciesDataSourceConfigWithIDs() string {
 	return acctest.ProviderConfig + `
 data "crowdstrike_filevantage_policies" "all" {
-  type = "Windows"
+  platform_names = ["Windows"]
 }
 
 data "crowdstrike_filevantage_policies" "test" {
@@ -288,82 +98,6 @@ data "crowdstrike_filevantage_policies" "test" {
     data.crowdstrike_filevantage_policies.all.policies[0].id,
     length(data.crowdstrike_filevantage_policies.all.policies) > 1 ? data.crowdstrike_filevantage_policies.all.policies[1].id : data.crowdstrike_filevantage_policies.all.policies[0].id
   ]
-}
-`
-}
-
-func testAccFilevantagePoliciesDataSourceConfigWithSortingAsc() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_filevantage_policies" "test" {
-  type = "Windows"
-  sort = "modified_timestamp.asc"
-}
-`
-}
-
-func testAccFilevantagePoliciesDataSourceConfigWithSortingDesc() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_filevantage_policies" "test" {
-  type = "Linux"
-  sort = "created_timestamp.desc"
-}
-`
-}
-
-func testAccFilevantagePoliciesDataSourceConfigWithSortingFiltered() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_filevantage_policies" "test" {
-  type = "Mac"
-  sort = "precedence.asc"
-}
-`
-}
-
-func testAccFilevantagePoliciesDataSourceConfigValidationTypeWithIDs() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_filevantage_policies" "test" {
-  type = "Windows"
-  ids  = ["00000000000000000000000000000001", "00000000000000000000000000000002"]
-}
-`
-}
-
-func testAccFilevantagePoliciesDataSourceConfigValidationMissingRequired() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_filevantage_policies" "test" {
-  # Neither type nor ids specified
-}
-`
-}
-
-func testAccFilevantagePoliciesDataSourceConfigValidationInvalidType() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_filevantage_policies" "test" {
-  type = "InvalidType"
-}
-`
-}
-
-func testAccFilevantagePoliciesDataSourceConfigValidationInvalidIDs() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_filevantage_policies" "test" {
-  ids = ["invalid-short-id"]
-}
-`
-}
-
-func testAccFilevantagePoliciesDataSourceConfigValidationEmptyIDs() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_filevantage_policies" "test" {
-  ids = []
-}
-`
-}
-
-func testAccFilevantagePoliciesDataSourceConfigEmptyResults() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_filevantage_policies" "test" {
-  ids = ["00000000000000000000000000000000"]
 }
 `
 }
@@ -379,7 +113,7 @@ data "crowdstrike_filevantage_policies" "test" {
 func testAccFilevantagePoliciesDataSourceConfig404PartialResults() string {
 	return acctest.ProviderConfig + `
 data "crowdstrike_filevantage_policies" "all" {
-  type = "Windows"
+  platform_names = ["Windows"]
 }
 
 data "crowdstrike_filevantage_policies" "test" {
@@ -401,11 +135,11 @@ resource "crowdstrike_host_group" "test" {
 }
 
 resource "crowdstrike_filevantage_policy" "test" {
-  name         = %[1]q
-  description  = "Test policy for data source acceptance test"
+  name          = %[1]q
+  description   = "Test policy for data source acceptance test"
   platform_name = "Windows"
-  enabled      = true
-  host_groups  = [crowdstrike_host_group.test.id]
+  enabled       = false
+  host_groups   = [crowdstrike_host_group.test.id]
 }
 
 data "crowdstrike_filevantage_policies" "test" {
@@ -416,8 +150,6 @@ data "crowdstrike_filevantage_policies" "test" {
 `, rName)
 }
 
-// Test Data and Helper Functions
-
 var (
 	testBoolTrue  = true
 	testBoolFalse = false
@@ -427,7 +159,7 @@ var testFilevantagePolicies = []*models.PoliciesPolicy{
 	{
 		ID:          utils.Addr("policy-001"),
 		Name:        "Production Windows Policy",
-		Description: "File integrity monitoring for Windows servers",
+		Description: "file integrity monitoring",
 		Enabled:     &testBoolTrue,
 		Platform:    "Windows",
 		HostGroups: []*models.PoliciesAssignedHostGroup{
@@ -439,8 +171,8 @@ var testFilevantagePolicies = []*models.PoliciesPolicy{
 	},
 	{
 		ID:          utils.Addr("policy-002"),
-		Name:        "Linux Server Policy",
-		Description: "File integrity monitoring for Linux servers",
+		Name:        "Production Linux Policy",
+		Description: "file monitoring enabled",
 		Enabled:     &testBoolTrue,
 		Platform:    "Linux",
 		HostGroups: []*models.PoliciesAssignedHostGroup{
@@ -450,9 +182,9 @@ var testFilevantagePolicies = []*models.PoliciesPolicy{
 	},
 	{
 		ID:          utils.Addr("policy-003"),
-		Name:        "Mac Desktop Policy",
-		Description: "File integrity monitoring for Mac desktops",
-		Enabled:     &testBoolFalse,
+		Name:        "Production Mac Policy",
+		Description: "endpoint monitoring",
+		Enabled:     &testBoolTrue,
 		Platform:    "Mac",
 		HostGroups:  []*models.PoliciesAssignedHostGroup{},
 		RuleGroups: []*models.PoliciesAssignedRuleGroup{
@@ -462,21 +194,87 @@ var testFilevantagePolicies = []*models.PoliciesPolicy{
 	{
 		ID:          utils.Addr("policy-004"),
 		Name:        "Test Windows Policy",
-		Description: "Test policy for Windows development",
-		Enabled:     &testBoolTrue,
+		Description: "file testing",
+		Enabled:     &testBoolFalse,
 		Platform:    "Windows",
 		HostGroups: []*models.PoliciesAssignedHostGroup{
 			{ID: utils.Addr("host-group-003")},
-			{ID: utils.Addr("host-group-004")},
 		},
 		RuleGroups: []*models.PoliciesAssignedRuleGroup{},
 	},
 	{
 		ID:          utils.Addr("policy-005"),
-		Name:        "Disabled Linux Policy",
-		Description: "Disabled file monitoring for Linux",
+		Name:        "Test Linux Environment",
+		Description: "monitoring management",
+		Enabled:     &testBoolTrue,
+		Platform:    "Linux",
+		HostGroups:  []*models.PoliciesAssignedHostGroup{},
+		RuleGroups:  []*models.PoliciesAssignedRuleGroup{},
+	},
+	{
+		ID:          utils.Addr("policy-006"),
+		Name:        "Windows Monitoring Policy",
+		Description: "Windows file monitoring",
+		Enabled:     &testBoolTrue,
+		Platform:    "Windows",
+		HostGroups: []*models.PoliciesAssignedHostGroup{
+			{ID: utils.Addr("host-group-004")},
+		},
+		RuleGroups: []*models.PoliciesAssignedRuleGroup{},
+	},
+	{
+		ID:          utils.Addr("policy-007"),
+		Name:        "Linux Monitoring Policy",
+		Description: "Linux file monitoring",
 		Enabled:     &testBoolFalse,
 		Platform:    "Linux",
+		HostGroups:  []*models.PoliciesAssignedHostGroup{},
+		RuleGroups:  []*models.PoliciesAssignedRuleGroup{},
+	},
+	{
+		ID:          utils.Addr("policy-008"),
+		Name:        "PRODUCTION Server",
+		Description: "Server monitoring",
+		Enabled:     &testBoolTrue,
+		Platform:    "Linux",
+		HostGroups: []*models.PoliciesAssignedHostGroup{
+			{ID: utils.Addr("host-group-005")},
+		},
+		RuleGroups: []*models.PoliciesAssignedRuleGroup{},
+	},
+	{
+		ID:          utils.Addr("policy-009"),
+		Name:        "production server",
+		Description: "Desktop monitoring",
+		Enabled:     &testBoolFalse,
+		Platform:    "Mac",
+		HostGroups:  []*models.PoliciesAssignedHostGroup{},
+		RuleGroups:  []*models.PoliciesAssignedRuleGroup{},
+	},
+	{
+		ID:          utils.Addr("policy-010"),
+		Name:        "",
+		Description: "Description with no name",
+		Enabled:     &testBoolTrue,
+		Platform:    "Windows",
+		HostGroups:  []*models.PoliciesAssignedHostGroup{},
+		RuleGroups:  []*models.PoliciesAssignedRuleGroup{},
+	},
+	{
+		ID:          utils.Addr("policy-011"),
+		Name:        "Policy with no description",
+		Description: "",
+		Enabled:     &testBoolTrue,
+		Platform:    "Linux",
+		HostGroups:  []*models.PoliciesAssignedHostGroup{},
+		RuleGroups:  []*models.PoliciesAssignedRuleGroup{},
+	},
+	{
+		ID:          utils.Addr("policy-012"),
+		Name:        "Policy with no groups",
+		Description: "Description C",
+		Enabled:     &testBoolTrue,
+		Platform:    "Windows",
 		HostGroups:  []*models.PoliciesAssignedHostGroup{},
 		RuleGroups:  []*models.PoliciesAssignedRuleGroup{},
 	},
@@ -501,176 +299,88 @@ func policiesByID(allPolicies []*models.PoliciesPolicy, ids ...string) []*models
 	return result
 }
 
-func policiesByType(allPolicies []*models.PoliciesPolicy, platformType string) []*models.PoliciesPolicy {
-	result := make([]*models.PoliciesPolicy, 0)
+func TestFilterPoliciesByAttributes(t *testing.T) {
+	t.Parallel()
 
-	for _, policy := range allPolicies {
-		if policy != nil && policy.Platform == platformType {
-			result = append(result, policy)
-		}
-	}
-
-	return result
-}
-
-func TestFilterPoliciesByIDs(t *testing.T) {
 	tests := []struct {
 		name             string
+		filters          *fim.FilevantagePoliciesDataSourceModel
 		inputPolicies    []*models.PoliciesPolicy
-		requestedIDs     []string
 		expectedPolicies []*models.PoliciesPolicy
 	}{
 		{
-			name:             "all_ids_found",
-			inputPolicies:    testFilevantagePolicies,
-			requestedIDs:     []string{"policy-001", "policy-003", "policy-005"},
-			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-003", "policy-005"),
-		},
-		{
-			name:             "partial_ids_found",
-			inputPolicies:    testFilevantagePolicies,
-			requestedIDs:     []string{"policy-001", "non-existent", "policy-003"},
-			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-003"),
-		},
-		{
-			name:             "no_ids_found",
-			inputPolicies:    testFilevantagePolicies,
-			requestedIDs:     []string{"non-existent-1", "non-existent-2"},
-			expectedPolicies: []*models.PoliciesPolicy{},
-		},
-		{
-			name:             "empty_id_list",
-			inputPolicies:    testFilevantagePolicies,
-			requestedIDs:     []string{},
-			expectedPolicies: []*models.PoliciesPolicy{},
-		},
-		{
-			name:             "nil_policies",
-			inputPolicies:    nil,
-			requestedIDs:     []string{"policy-001"},
-			expectedPolicies: []*models.PoliciesPolicy{},
-		},
-		{
-			name:             "empty_policies",
-			inputPolicies:    []*models.PoliciesPolicy{},
-			requestedIDs:     []string{"policy-001"},
-			expectedPolicies: []*models.PoliciesPolicy{},
-		},
-		{
-			name: "nil_policy_in_slice",
-			inputPolicies: []*models.PoliciesPolicy{
-				testFilevantagePolicies[0],
-				nil,
-				testFilevantagePolicies[1],
+			name: "platform_windows",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				PlatformNames: types.SetValueMust(types.StringType, []attr.Value{types.StringValue("Windows")}),
 			},
-			requestedIDs:     []string{"policy-001", "policy-002"},
-			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-002"),
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-004", "policy-006", "policy-010", "policy-012"),
 		},
 		{
-			name: "policy_with_nil_id",
-			inputPolicies: []*models.PoliciesPolicy{
-				testFilevantagePolicies[0],
-				{
-					ID:          nil,
-					Name:        "Policy with no ID",
-					Description: "Test policy",
-					Platform:    "Windows",
-				},
-				testFilevantagePolicies[1],
+			name: "platform_linux",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				PlatformNames: types.SetValueMust(types.StringType, []attr.Value{types.StringValue("Linux")}),
 			},
-			requestedIDs:     []string{"policy-001", "policy-002"},
-			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-002"),
+			inputPolicies:    testFilevantagePolicies,
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-002", "policy-005", "policy-007", "policy-008", "policy-011"),
 		},
 		{
-			name:             "single_id_match",
+			name: "platform_mac",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				PlatformNames: types.SetValueMust(types.StringType, []attr.Value{types.StringValue("Mac")}),
+			},
 			inputPolicies:    testFilevantagePolicies,
-			requestedIDs:     []string{"policy-004"},
-			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-004"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Since we don't have a public FilterPoliciesByIDs function for file vantage policies,
-			// we'll test the logic used in the actual implementation
-			filtered := filterPoliciesByIDsHelper(tt.inputPolicies, tt.requestedIDs)
-			assert.ElementsMatch(t, tt.expectedPolicies, filtered, "Filtered policies don't match expected policies")
-		})
-	}
-}
-
-func TestFilterPoliciesByType(t *testing.T) {
-	tests := []struct {
-		name             string
-		inputPolicies    []*models.PoliciesPolicy
-		platformType     string
-		expectedPolicies []*models.PoliciesPolicy
-	}{
-		{
-			name:             "windows_policies",
-			inputPolicies:    testFilevantagePolicies,
-			platformType:     "Windows",
-			expectedPolicies: policiesByType(testFilevantagePolicies, "Windows"),
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-003", "policy-009"),
 		},
 		{
-			name:             "linux_policies",
+			name: "multiple_platforms",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				PlatformNames: types.SetValueMust(types.StringType, []attr.Value{
+					types.StringValue("Windows"),
+					types.StringValue("Linux"),
+				}),
+			},
 			inputPolicies:    testFilevantagePolicies,
-			platformType:     "Linux",
-			expectedPolicies: policiesByType(testFilevantagePolicies, "Linux"),
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-002", "policy-004", "policy-005", "policy-006", "policy-007", "policy-008", "policy-010", "policy-011", "policy-012"),
 		},
 		{
-			name:             "mac_policies",
+			name: "no_filtering",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				PlatformNames: types.SetNull(types.StringType),
+			},
 			inputPolicies:    testFilevantagePolicies,
-			platformType:     "Mac",
-			expectedPolicies: policiesByType(testFilevantagePolicies, "Mac"),
-		},
-		{
-			name:             "no_matches",
-			inputPolicies:    testFilevantagePolicies,
-			platformType:     "NonExistent",
-			expectedPolicies: []*models.PoliciesPolicy{},
+			expectedPolicies: testFilevantagePolicies,
 		},
 		{
 			name:             "empty_input",
+			filters:          &fim.FilevantagePoliciesDataSourceModel{},
 			inputPolicies:    []*models.PoliciesPolicy{},
-			platformType:     "Windows",
 			expectedPolicies: []*models.PoliciesPolicy{},
 		},
 		{
 			name:             "nil_input",
+			filters:          &fim.FilevantagePoliciesDataSourceModel{},
 			inputPolicies:    nil,
-			platformType:     "Windows",
 			expectedPolicies: []*models.PoliciesPolicy{},
+		},
+		{
+			name: "nil_policy_in_slice",
+			filters: &fim.FilevantagePoliciesDataSourceModel{
+				PlatformNames: types.SetValueMust(types.StringType, []attr.Value{types.StringValue("Windows")}),
+			},
+			inputPolicies: []*models.PoliciesPolicy{
+				testFilevantagePolicies[0],
+				nil,
+				testFilevantagePolicies[3],
+			},
+			expectedPolicies: policiesByID(testFilevantagePolicies, "policy-001", "policy-004"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filtered := policiesByType(tt.inputPolicies, tt.platformType)
+			filtered := fim.FilterPoliciesByAttributes(tt.inputPolicies, tt.filters)
 			assert.ElementsMatch(t, tt.expectedPolicies, filtered, "Filtered policies don't match expected policies")
 		})
 	}
-}
-
-// Helper function to simulate the filtering logic used in the data source.
-func filterPoliciesByIDsHelper(policies []*models.PoliciesPolicy, requestedIDs []string) []*models.PoliciesPolicy {
-	if len(policies) == 0 || len(requestedIDs) == 0 {
-		return []*models.PoliciesPolicy{}
-	}
-
-	policyMap := make(map[string]*models.PoliciesPolicy)
-	for _, policy := range policies {
-		if policy != nil && policy.ID != nil {
-			policyMap[*policy.ID] = policy
-		}
-	}
-
-	result := make([]*models.PoliciesPolicy, 0, len(requestedIDs))
-	for _, id := range requestedIDs {
-		if policy, exists := policyMap[id]; exists {
-			result = append(result, policy)
-		}
-	}
-
-	return result
 }

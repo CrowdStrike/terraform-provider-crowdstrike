@@ -10,27 +10,24 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
-# Example 1: Get all Windows file vantage policies
-data "crowdstrike_filevantage_policies" "windows_policies" {
-  type = "Windows"
+# Get all FileVantage policies
+data "crowdstrike_filevantage_policies" "all" {}
+
+# Get only enabled Windows and Linux policies
+data "crowdstrike_filevantage_policies" "enabled" {
+  platform_names = ["Windows", "Linux"]
+  enabled        = true
 }
 
-# Example 2: Get all Linux file vantage policies with sorting
-data "crowdstrike_filevantage_policies" "linux_policies_sorted" {
-  type = "Linux"
-  sort = "name.asc"
-}
-
-# Example 3: Get all Mac file vantage policies sorted by precedence
-data "crowdstrike_filevantage_policies" "mac_policies_by_precedence" {
-  type = "Mac"
+# Get policies sorted by precedence
+data "crowdstrike_filevantage_policies" "sorted" {
   sort = "precedence.desc"
 }
 
-# Example 4: Get specific file vantage policies by IDs
-data "crowdstrike_filevantage_policies" "specific_policies" {
+# Get specific policies by ID
+data "crowdstrike_filevantage_policies" "specific" {
   ids = [
-    "policy-12345678901234567890123456789012",
-    "policy-98765432109876543210987654321098"
+    "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+    "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"
   ]
 }
