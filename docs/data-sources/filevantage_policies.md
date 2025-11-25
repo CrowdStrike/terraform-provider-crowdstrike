@@ -5,7 +5,7 @@ description: |-
   This data source provides information about file vantage policies in Falcon.
   API Scopes
   The following API scopes are required:
-  Falcon FileVantage | Read & Write
+  Falcon FileVantage | Read
 ---
 
 # crowdstrike_filevantage_policies (Data Source)
@@ -16,7 +16,7 @@ This data source provides information about file vantage policies in Falcon.
 
 The following API scopes are required:
 
-- Falcon FileVantage | Read & Write
+- Falcon FileVantage | Read
 
 
 ## Example Usage

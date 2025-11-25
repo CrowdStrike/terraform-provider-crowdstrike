@@ -179,7 +179,7 @@ func (d *filevantagePoliciesDataSource) Schema(
 		MarkdownDescription: utils.MarkdownDescription(
 			dataSourceDocumentationSection,
 			dataSourceMarkdownDescription,
-			apiScopes,
+			apiScopesRead,
 		),
 		Attributes: map[string]schema.Attribute{
 			"type": schema.StringAttribute{
