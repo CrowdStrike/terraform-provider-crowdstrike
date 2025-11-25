@@ -1,4 +1,4 @@
-package preventionpolicy_test
+package sensorupdatepolicy_test
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
-	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
+	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
@@ -15,70 +15,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAccPreventionPoliciesDataSource_Basic(t *testing.T) {
-	dataSourceName := "data.crowdstrike_prevention_policies.test"
+func TestAccSensorUpdatePoliciesDataSource_WithIDs(t *testing.T) {
+	allDataSourceName := "data.crowdstrike_sensor_update_policies.all"
+	dataSourceName := "data.crowdstrike_sensor_update_policies.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccPreventionPoliciesDataSourceConfigBasic(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.id"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.name"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.platform_name"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.enabled"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.created_by"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.created_timestamp"),
-				),
-			},
-		},
-	})
-}
-
-func TestAccPreventionPoliciesDataSource_WithFilter(t *testing.T) {
-	dataSourceName := "data.crowdstrike_prevention_policies.test"
-
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccPreventionPoliciesDataSourceConfigWithFilterWindows(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
-					resource.TestCheckResourceAttr(dataSourceName, "policies.0.platform_name", "Windows"),
-				),
-			},
-			{
-				Config: testAccPreventionPoliciesDataSourceConfigWithFilterEnabled(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
-					resource.TestCheckResourceAttr(dataSourceName, "policies.0.enabled", "true"),
-				),
-			},
-			{
-				Config: testAccPreventionPoliciesDataSourceConfigWithFilterComplex(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
-				),
-			},
-		},
-	})
-}
-
-func TestAccPreventionPoliciesDataSource_WithIDs(t *testing.T) {
-	allDataSourceName := "data.crowdstrike_prevention_policies.all"
-	dataSourceName := "data.crowdstrike_prevention_policies.test"
-
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccPreventionPoliciesDataSourceConfigWithIDs(),
+				Config: testAccSensorUpdatePoliciesDataSourceConfigWithIDs(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
 					resource.TestCheckResourceAttrPair(allDataSourceName, "policies.0.id", dataSourceName, "policies.0.id"),
@@ -92,41 +38,41 @@ func TestAccPreventionPoliciesDataSource_WithIDs(t *testing.T) {
 	})
 }
 
-func TestAccPreventionPoliciesDataSource_WithIndividualFilters(t *testing.T) {
-	dataSourceName := "data.crowdstrike_prevention_policies.test"
+func TestAccSensorUpdatePoliciesDataSource_WithIndividualFilters(t *testing.T) {
+	dataSourceName := "data.crowdstrike_sensor_update_policies.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccPreventionPoliciesDataSourceConfigWithPlatformFilter(),
+				Config: testAccSensorUpdatePoliciesDataSourceConfigWithPlatformFilter(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
 					resource.TestCheckResourceAttr(dataSourceName, "policies.0.platform_name", "Windows"),
 				),
 			},
 			{
-				Config: testAccPreventionPoliciesDataSourceConfigWithEnabledFilter(),
+				Config: testAccSensorUpdatePoliciesDataSourceConfigWithEnabledFilter(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
 					resource.TestCheckResourceAttr(dataSourceName, "policies.0.enabled", "true"),
 				),
 			},
 			{
-				Config: testAccPreventionPoliciesDataSourceConfigWithNameFilter(),
+				Config: testAccSensorUpdatePoliciesDataSourceConfigWithNameFilter(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
 				),
 			},
 			{
-				Config: testAccPreventionPoliciesDataSourceConfigWithDescriptionFilter(),
+				Config: testAccSensorUpdatePoliciesDataSourceConfigWithDescriptionFilter(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
 				),
 			},
 			{
-				Config: testAccPreventionPoliciesDataSourceConfigWithCombinedFilters(),
+				Config: testAccSensorUpdatePoliciesDataSourceConfigWithCombinedFilters(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
 					resource.TestCheckResourceAttr(dataSourceName, "policies.0.platform_name", "Windows"),
@@ -134,13 +80,13 @@ func TestAccPreventionPoliciesDataSource_WithIndividualFilters(t *testing.T) {
 				),
 			},
 			{
-				Config: testAccPreventionPoliciesDataSourceConfigWithCreatedByFilter(),
+				Config: testAccSensorUpdatePoliciesDataSourceConfigWithCreatedByFilter(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
 				),
 			},
 			{
-				Config: testAccPreventionPoliciesDataSourceConfigWithModifiedByFilter(),
+				Config: testAccSensorUpdatePoliciesDataSourceConfigWithModifiedByFilter(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
 				),
@@ -149,36 +95,7 @@ func TestAccPreventionPoliciesDataSource_WithIndividualFilters(t *testing.T) {
 	})
 }
 
-func TestAccPreventionPoliciesDataSource_WithSorting(t *testing.T) {
-	dataSourceName := "data.crowdstrike_prevention_policies.test"
-
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccPreventionPoliciesDataSourceConfigWithSortingAsc(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
-				),
-			},
-			{
-				Config: testAccPreventionPoliciesDataSourceConfigWithSortingDesc(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
-				),
-			},
-			{
-				Config: testAccPreventionPoliciesDataSourceConfigWithSortingFiltered(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
-				),
-			},
-		},
-	})
-}
-
-func TestAccPreventionPoliciesDataSource_ValidationErrors(t *testing.T) {
+func TestAccSensorUpdatePoliciesDataSource_ValidationErrors(t *testing.T) {
 	t.Parallel()
 
 	testCases := map[string]struct {
@@ -186,35 +103,35 @@ func TestAccPreventionPoliciesDataSource_ValidationErrors(t *testing.T) {
 		expectError *regexp.Regexp
 	}{
 		"filter_with_ids": {
-			configFunc:  testAccPreventionPoliciesDataSourceConfigValidationFilterIDs,
+			configFunc:  testAccSensorUpdatePoliciesDataSourceConfigValidationFilterIDs,
 			expectError: regexp.MustCompile("Invalid Attribute Combination"),
 		},
 		"filter_with_individual": {
-			configFunc:  testAccPreventionPoliciesDataSourceConfigValidationFilterIndividual,
+			configFunc:  testAccSensorUpdatePoliciesDataSourceConfigValidationFilterIndividual,
 			expectError: regexp.MustCompile("Invalid Attribute Combination"),
 		},
 		"ids_with_individual": {
-			configFunc:  testAccPreventionPoliciesDataSourceConfigValidationIDsIndividual,
+			configFunc:  testAccSensorUpdatePoliciesDataSourceConfigValidationIDsIndividual,
 			expectError: regexp.MustCompile("Invalid Attribute Combination"),
 		},
 		"all_three": {
-			configFunc:  testAccPreventionPoliciesDataSourceConfigValidationAllThree,
+			configFunc:  testAccSensorUpdatePoliciesDataSourceConfigValidationAllThree,
 			expectError: regexp.MustCompile("Invalid Attribute Combination"),
 		},
 		"multiple_filter_methods": {
-			configFunc:  testAccPreventionPoliciesDataSourceConfigValidationMultipleFilter,
+			configFunc:  testAccSensorUpdatePoliciesDataSourceConfigValidationMultipleFilter,
 			expectError: regexp.MustCompile("Invalid Attribute Combination"),
 		},
 		"filter_with_created_by": {
-			configFunc:  testAccPreventionPoliciesDataSourceConfigValidationFilterCreatedBy,
+			configFunc:  testAccSensorUpdatePoliciesDataSourceConfigValidationFilterCreatedBy,
 			expectError: regexp.MustCompile("Invalid Attribute Combination"),
 		},
 		"ids_with_modified_by": {
-			configFunc:  testAccPreventionPoliciesDataSourceConfigValidationIDsModifiedBy,
+			configFunc:  testAccSensorUpdatePoliciesDataSourceConfigValidationIDsModifiedBy,
 			expectError: regexp.MustCompile("Invalid Attribute Combination"),
 		},
 		"filter_with_description": {
-			configFunc:  testAccPreventionPoliciesDataSourceConfigValidationFilterDescription,
+			configFunc:  testAccSensorUpdatePoliciesDataSourceConfigValidationFilterDescription,
 			expectError: regexp.MustCompile("Invalid Attribute Combination"),
 		},
 	}
@@ -235,38 +152,21 @@ func TestAccPreventionPoliciesDataSource_ValidationErrors(t *testing.T) {
 	}
 }
 
-func TestAccPreventionPoliciesDataSource_EmptyResults(t *testing.T) {
-	dataSourceName := "data.crowdstrike_prevention_policies.test"
+func TestAccSensorUpdatePoliciesDataSource_404Handling(t *testing.T) {
+	dataSourceName := "data.crowdstrike_sensor_update_policies.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccPreventionPoliciesDataSourceConfigEmptyResults(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(dataSourceName, "policies.#", "0"),
-				),
-			},
-		},
-	})
-}
-
-func TestAccPreventionPoliciesDataSource_404Handling(t *testing.T) {
-	dataSourceName := "data.crowdstrike_prevention_policies.test"
-
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccPreventionPoliciesDataSourceConfig404NonExistentID(),
+				Config: testAccSensorUpdatePoliciesDataSourceConfig404NonExistentID(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(dataSourceName, "policies.#", "0"),
 				),
 			},
 			{
-				Config: testAccPreventionPoliciesDataSourceConfig404PartialResults(),
+				Config: testAccSensorUpdatePoliciesDataSourceConfig404PartialResults(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(dataSourceName, "policies.#", "1"),
 					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.id"),
@@ -277,43 +177,17 @@ func TestAccPreventionPoliciesDataSource_404Handling(t *testing.T) {
 	})
 }
 
-func TestAccPreventionPoliciesDataSource_AllAttributes(t *testing.T) {
-	dataSourceName := "data.crowdstrike_prevention_policies.test"
-
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccPreventionPoliciesDataSourceConfigBasic(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.id"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.name"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.platform_name"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.enabled"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.created_by"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.created_timestamp"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.modified_by"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.modified_timestamp"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.host_groups.#"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.ioa_rule_groups.#"),
-				),
-			},
-		},
-	})
-}
-
-func TestAccPreventionPoliciesDataSource_ResourceMatch(t *testing.T) {
+func TestAccSensorUpdatePoliciesDataSource_ResourceMatch(t *testing.T) {
 	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
-	dataSourceName := "data.crowdstrike_prevention_policies.test"
-	resourceName := "crowdstrike_prevention_policy_windows.test"
+	dataSourceName := "data.crowdstrike_sensor_update_policies.test"
+	resourceName := "crowdstrike_sensor_update_policy.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccPreventionPoliciesDataSourceConfigResourceMatch(rName),
+				Config: testAccSensorUpdatePoliciesDataSourceConfigResourceMatch(rName),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrPair(resourceName, "id", dataSourceName, "policies.0.id"),
 					resource.TestCheckResourceAttrPair(resourceName, "name", dataSourceName, "policies.0.name"),
@@ -321,152 +195,101 @@ func TestAccPreventionPoliciesDataSource_ResourceMatch(t *testing.T) {
 					resource.TestCheckResourceAttrPair(resourceName, "enabled", dataSourceName, "policies.0.enabled"),
 					resource.TestCheckResourceAttrPair(resourceName, "description", dataSourceName, "policies.0.description"),
 					resource.TestCheckResourceAttrPair(resourceName, "host_groups.0", dataSourceName, "policies.0.host_groups.0"),
-					resource.TestCheckResourceAttr(dataSourceName, "policies.0.ioa_rule_groups.#", "0"),
+					resource.TestCheckNoResourceAttr(dataSourceName, "policies.0.build"),
+					resource.TestCheckResourceAttrPair(resourceName, "uninstall_protection", dataSourceName, "policies.0.uninstall_protection"),
+					resource.TestCheckResourceAttrPair(resourceName, "schedule.enabled", dataSourceName, "policies.0.schedule.enabled"),
+					resource.TestCheckResourceAttrPair(resourceName, "schedule.timezone", dataSourceName, "policies.0.schedule.timezone"),
+					resource.TestCheckResourceAttr(dataSourceName, "policies.0.schedule.time_blocks.#", "2"),
 				),
 			},
 		},
 	})
 }
 
-func testAccPreventionPoliciesDataSourceConfigBasic() string {
+func testAccSensorUpdatePoliciesDataSourceConfigWithIDs() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {}
-`
-}
+data "crowdstrike_sensor_update_policies" "all" {}
 
-func testAccPreventionPoliciesDataSourceConfigWithFilterWindows() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
-  filter = "platform_name:'Windows'"
-}
-`
-}
-
-func testAccPreventionPoliciesDataSourceConfigWithFilterEnabled() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
-  filter = "enabled:true"
-}
-`
-}
-
-func testAccPreventionPoliciesDataSourceConfigWithFilterComplex() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
-  filter = "platform_name:'Windows'+enabled:true"
-}
-`
-}
-
-func testAccPreventionPoliciesDataSourceConfigWithIDs() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "all" {}
-
-data "crowdstrike_prevention_policies" "test" {
+data "crowdstrike_sensor_update_policies" "test" {
   ids = [
-    data.crowdstrike_prevention_policies.all.policies[0].id,
-    length(data.crowdstrike_prevention_policies.all.policies) > 1 ? data.crowdstrike_prevention_policies.all.policies[1].id : data.crowdstrike_prevention_policies.all.policies[0].id
+    data.crowdstrike_sensor_update_policies.all.policies[0].id,
+    length(data.crowdstrike_sensor_update_policies.all.policies) > 1 ? data.crowdstrike_sensor_update_policies.all.policies[1].id : data.crowdstrike_sensor_update_policies.all.policies[0].id
   ]
 }
 `
 }
 
-func testAccPreventionPoliciesDataSourceConfigWithPlatformFilter() string {
+func testAccSensorUpdatePoliciesDataSourceConfigWithPlatformFilter() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
+data "crowdstrike_sensor_update_policies" "test" {
   platform_name = "Windows"
 }
 `
 }
 
-func testAccPreventionPoliciesDataSourceConfigWithEnabledFilter() string {
+func testAccSensorUpdatePoliciesDataSourceConfigWithEnabledFilter() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
+data "crowdstrike_sensor_update_policies" "test" {
   enabled = true
 }
 `
 }
 
-func testAccPreventionPoliciesDataSourceConfigWithNameFilter() string {
+func testAccSensorUpdatePoliciesDataSourceConfigWithNameFilter() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
+data "crowdstrike_sensor_update_policies" "test" {
   name = "*policy*"
 }
 `
 }
 
-func testAccPreventionPoliciesDataSourceConfigWithDescriptionFilter() string {
+func testAccSensorUpdatePoliciesDataSourceConfigWithDescriptionFilter() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
-  description = "*protection*"
+data "crowdstrike_sensor_update_policies" "test" {
+  description = "*update*"
 }
 `
 }
 
-func testAccPreventionPoliciesDataSourceConfigWithCombinedFilters() string {
+func testAccSensorUpdatePoliciesDataSourceConfigWithCombinedFilters() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
+data "crowdstrike_sensor_update_policies" "test" {
   platform_name = "Windows"
   enabled       = true
 }
 `
 }
 
-func testAccPreventionPoliciesDataSourceConfigWithSortingAsc() string {
+func testAccSensorUpdatePoliciesDataSourceConfigValidationFilterIDs() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
-  sort = "name.asc"
-}
-`
-}
-
-func testAccPreventionPoliciesDataSourceConfigWithSortingDesc() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
-  sort = "created_timestamp.desc"
-}
-`
-}
-
-func testAccPreventionPoliciesDataSourceConfigWithSortingFiltered() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
-  filter = "platform_name:'Windows'"
-  sort   = "name.asc"
-}
-`
-}
-
-func testAccPreventionPoliciesDataSourceConfigValidationFilterIDs() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
+data "crowdstrike_sensor_update_policies" "test" {
   filter = "platform_name:'Windows'"
   ids    = ["00000000000000000000000000000001", "00000000000000000000000000000002"]
 }
 `
 }
 
-func testAccPreventionPoliciesDataSourceConfigValidationFilterIndividual() string {
+func testAccSensorUpdatePoliciesDataSourceConfigValidationFilterIndividual() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
+data "crowdstrike_sensor_update_policies" "test" {
   filter        = "platform_name:'Windows'"
   platform_name = "Linux"
 }
 `
 }
 
-func testAccPreventionPoliciesDataSourceConfigValidationIDsIndividual() string {
+func testAccSensorUpdatePoliciesDataSourceConfigValidationIDsIndividual() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
+data "crowdstrike_sensor_update_policies" "test" {
   ids     = ["00000000000000000000000000000001"]
   enabled = true
 }
 `
 }
 
-func testAccPreventionPoliciesDataSourceConfigValidationAllThree() string {
+func testAccSensorUpdatePoliciesDataSourceConfigValidationAllThree() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
+data "crowdstrike_sensor_update_policies" "test" {
   filter        = "platform_name:'Windows'"
   ids           = ["00000000000000000000000000000001"]
   platform_name = "Linux"
@@ -474,9 +297,9 @@ data "crowdstrike_prevention_policies" "test" {
 `
 }
 
-func testAccPreventionPoliciesDataSourceConfigValidationMultipleFilter() string {
+func testAccSensorUpdatePoliciesDataSourceConfigValidationMultipleFilter() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
+data "crowdstrike_sensor_update_policies" "test" {
   filter        = "name:'test'"
   platform_name = "Windows"
   enabled       = true
@@ -485,36 +308,28 @@ data "crowdstrike_prevention_policies" "test" {
 `
 }
 
-func testAccPreventionPoliciesDataSourceConfigEmptyResults() string {
+func testAccSensorUpdatePoliciesDataSourceConfig404NonExistentID() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
-  filter = "name:'NonExistentPolicyThatShouldNeverExist12345'"
-}
-`
-}
-
-func testAccPreventionPoliciesDataSourceConfig404NonExistentID() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
+data "crowdstrike_sensor_update_policies" "test" {
   ids = ["00000000000000000000000000000000"]
 }
 `
 }
 
-func testAccPreventionPoliciesDataSourceConfig404PartialResults() string {
+func testAccSensorUpdatePoliciesDataSourceConfig404PartialResults() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "all" {}
+data "crowdstrike_sensor_update_policies" "all" {}
 
-data "crowdstrike_prevention_policies" "test" {
+data "crowdstrike_sensor_update_policies" "test" {
   ids = [
-    data.crowdstrike_prevention_policies.all.policies[0].id,
+    data.crowdstrike_sensor_update_policies.all.policies[0].id,
     "00000000000000000000000000000000"
   ]
 }
 `
 }
 
-func testAccPreventionPoliciesDataSourceConfigResourceMatch(rName string) string {
+func testAccSensorUpdatePoliciesDataSourceConfigResourceMatch(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_host_group" "test" {
   name        = %[1]q
@@ -523,65 +338,84 @@ resource "crowdstrike_host_group" "test" {
   host_ids    = []
 }
 
-resource "crowdstrike_prevention_policy_windows" "test" {
-  name            = %[1]q
-  description     = "Test policy for data source acceptance test"
-  enabled         = true
-  host_groups     = [crowdstrike_host_group.test.id]
-  ioa_rule_groups = []
+resource "crowdstrike_sensor_update_policy" "test" {
+  name                = %[1]q
+  description         = "Test policy for data source acceptance test with schedule"
+  enabled             = false 
+  platform_name       = "Windows"
+  build               = ""
+  uninstall_protection = true
+  host_groups         = [crowdstrike_host_group.test.id]
+
+  schedule = {
+    enabled  = true
+    timezone = "America/New_York"
+    time_blocks = [
+      {
+        days       = ["monday", "wednesday", "friday"]
+        start_time = "09:00"
+        end_time   = "17:00"
+      },
+      {
+        days       = ["tuesday", "thursday"]
+        start_time = "10:00"
+        end_time   = "16:00"
+      }
+    ]
+  }
 }
 
-data "crowdstrike_prevention_policies" "test" {
-  ids = [crowdstrike_prevention_policy_windows.test.id]
+data "crowdstrike_sensor_update_policies" "test" {
+  ids = [crowdstrike_sensor_update_policy.test.id]
 
-  depends_on = [crowdstrike_prevention_policy_windows.test]
+  depends_on = [crowdstrike_sensor_update_policy.test]
 }
 `, rName)
 }
 
-func testAccPreventionPoliciesDataSourceConfigWithCreatedByFilter() string {
+func testAccSensorUpdatePoliciesDataSourceConfigWithCreatedByFilter() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "all" {}
+data "crowdstrike_sensor_update_policies" "all" {}
 
-data "crowdstrike_prevention_policies" "test" {
-  created_by = data.crowdstrike_prevention_policies.all.policies[0].created_by
+data "crowdstrike_sensor_update_policies" "test" {
+  created_by = data.crowdstrike_sensor_update_policies.all.policies[0].created_by
 }
 `
 }
 
-func testAccPreventionPoliciesDataSourceConfigWithModifiedByFilter() string {
+func testAccSensorUpdatePoliciesDataSourceConfigWithModifiedByFilter() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "all" {}
+data "crowdstrike_sensor_update_policies" "all" {}
 
-data "crowdstrike_prevention_policies" "test" {
-  modified_by = data.crowdstrike_prevention_policies.all.policies[0].modified_by
+data "crowdstrike_sensor_update_policies" "test" {
+  modified_by = data.crowdstrike_sensor_update_policies.all.policies[0].modified_by
 }
 `
 }
 
-func testAccPreventionPoliciesDataSourceConfigValidationFilterCreatedBy() string {
+func testAccSensorUpdatePoliciesDataSourceConfigValidationFilterCreatedBy() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
+data "crowdstrike_sensor_update_policies" "test" {
   filter     = "platform_name:'Windows'"
   created_by = "testuser@example.com"
 }
 `
 }
 
-func testAccPreventionPoliciesDataSourceConfigValidationIDsModifiedBy() string {
+func testAccSensorUpdatePoliciesDataSourceConfigValidationIDsModifiedBy() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
+data "crowdstrike_sensor_update_policies" "test" {
   ids         = ["00000000000000000000000000000001"]
   modified_by = "testuser@example.com"
 }
 `
 }
 
-func testAccPreventionPoliciesDataSourceConfigValidationFilterDescription() string {
+func testAccSensorUpdatePoliciesDataSourceConfigValidationFilterDescription() string {
 	return acctest.ProviderConfig + `
-data "crowdstrike_prevention_policies" "test" {
+data "crowdstrike_sensor_update_policies" "test" {
   filter      = "platform_name:'Windows'"
-  description = "*malware*"
+  description = "*sensor*"
 }
 `
 }
@@ -591,11 +425,11 @@ var (
 	testBoolFalse = false
 )
 
-var testPolicies = []*models.PreventionPolicyV1{
+var testPolicies = []*models.SensorUpdatePolicyV2{
 	{
 		ID:           utils.Addr("policy-001"),
 		Name:         utils.Addr("Production Policy"),
-		Description:  utils.Addr("malware protection"),
+		Description:  utils.Addr("sensor update management"),
 		CreatedBy:    utils.Addr("admin@example.com"),
 		ModifiedBy:   utils.Addr("security@example.com"),
 		Enabled:      &testBoolTrue,
@@ -604,7 +438,7 @@ var testPolicies = []*models.PreventionPolicyV1{
 	{
 		ID:           utils.Addr("policy-002"),
 		Name:         utils.Addr("Production Backup"),
-		Description:  utils.Addr("malware protection enabled"),
+		Description:  utils.Addr("sensor update enabled"),
 		CreatedBy:    utils.Addr("admin@example.com"),
 		ModifiedBy:   utils.Addr("admin@example.com"),
 		Enabled:      &testBoolTrue,
@@ -613,7 +447,7 @@ var testPolicies = []*models.PreventionPolicyV1{
 	{
 		ID:           utils.Addr("policy-003"),
 		Name:         utils.Addr("Production Desktop"),
-		Description:  utils.Addr("endpoint protection"),
+		Description:  utils.Addr("endpoint updates"),
 		CreatedBy:    utils.Addr("user@example.com"),
 		ModifiedBy:   utils.Addr("security@example.com"),
 		Enabled:      &testBoolTrue,
@@ -622,7 +456,7 @@ var testPolicies = []*models.PreventionPolicyV1{
 	{
 		ID:           utils.Addr("policy-004"),
 		Name:         utils.Addr("Test Policy"),
-		Description:  utils.Addr("malware detection"),
+		Description:  utils.Addr("sensor testing"),
 		CreatedBy:    utils.Addr("user@example.com"),
 		ModifiedBy:   utils.Addr("user@example.com"),
 		Enabled:      &testBoolFalse,
@@ -631,7 +465,7 @@ var testPolicies = []*models.PreventionPolicyV1{
 	{
 		ID:           utils.Addr("policy-005"),
 		Name:         utils.Addr("Test Environment"),
-		Description:  utils.Addr("ransomware protection"),
+		Description:  utils.Addr("update management"),
 		CreatedBy:    utils.Addr("admin@crowdstrike.com"),
 		ModifiedBy:   utils.Addr("admin@crowdstrike.com"),
 		Enabled:      &testBoolTrue,
@@ -640,7 +474,7 @@ var testPolicies = []*models.PreventionPolicyV1{
 	{
 		ID:           utils.Addr("policy-006"),
 		Name:         utils.Addr("Windows Policy"),
-		Description:  utils.Addr("Windows protection"),
+		Description:  utils.Addr("Windows updates"),
 		CreatedBy:    utils.Addr("admin@example.com"),
 		ModifiedBy:   utils.Addr("admin@example.com"),
 		Enabled:      &testBoolTrue,
@@ -649,7 +483,7 @@ var testPolicies = []*models.PreventionPolicyV1{
 	{
 		ID:           utils.Addr("policy-007"),
 		Name:         utils.Addr("Linux Policy"),
-		Description:  utils.Addr("Linux protection"),
+		Description:  utils.Addr("Linux updates"),
 		CreatedBy:    utils.Addr("user@example.com"),
 		ModifiedBy:   utils.Addr("user@example.com"),
 		Enabled:      &testBoolFalse,
@@ -658,7 +492,7 @@ var testPolicies = []*models.PreventionPolicyV1{
 	{
 		ID:           utils.Addr("policy-008"),
 		Name:         utils.Addr("PRODUCTION Server"),
-		Description:  utils.Addr("Server protection"),
+		Description:  utils.Addr("Server updates"),
 		CreatedBy:    utils.Addr("admin@example.com"),
 		ModifiedBy:   utils.Addr("admin@example.com"),
 		Enabled:      &testBoolTrue,
@@ -667,7 +501,7 @@ var testPolicies = []*models.PreventionPolicyV1{
 	{
 		ID:           utils.Addr("policy-009"),
 		Name:         utils.Addr("production server"),
-		Description:  utils.Addr("Desktop protection"),
+		Description:  utils.Addr("Desktop updates"),
 		CreatedBy:    utils.Addr("admin@example.com"),
 		ModifiedBy:   utils.Addr("admin@example.com"),
 		Enabled:      &testBoolFalse,
@@ -702,9 +536,9 @@ var testPolicies = []*models.PreventionPolicyV1{
 	},
 }
 
-func policiesByID(allPolicies []*models.PreventionPolicyV1, ids ...string) []*models.PreventionPolicyV1 {
-	result := make([]*models.PreventionPolicyV1, 0, len(ids))
-	policyMap := make(map[string]*models.PreventionPolicyV1)
+func policiesByID(allPolicies []*models.SensorUpdatePolicyV2, ids ...string) []*models.SensorUpdatePolicyV2 {
+	result := make([]*models.SensorUpdatePolicyV2, 0, len(ids))
+	policyMap := make(map[string]*models.SensorUpdatePolicyV2)
 
 	for _, policy := range allPolicies {
 		if policy.ID != nil {
@@ -726,9 +560,9 @@ func TestFilterPoliciesByIDs(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		inputPolicies    []*models.PreventionPolicyV1
+		inputPolicies    []*models.SensorUpdatePolicyV2
 		requestedIDs     []string
-		expectedPolicies []*models.PreventionPolicyV1
+		expectedPolicies []*models.SensorUpdatePolicyV2
 	}{
 		{
 			name:             "all_ids_found",
@@ -746,29 +580,29 @@ func TestFilterPoliciesByIDs(t *testing.T) {
 			name:             "no_ids_found",
 			inputPolicies:    testPolicies,
 			requestedIDs:     []string{"non-existent-1", "non-existent-2"},
-			expectedPolicies: []*models.PreventionPolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name:             "empty_id_list",
 			inputPolicies:    testPolicies,
 			requestedIDs:     []string{},
-			expectedPolicies: []*models.PreventionPolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name:             "nil_policies",
 			inputPolicies:    nil,
 			requestedIDs:     []string{"policy-001"},
-			expectedPolicies: []*models.PreventionPolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name:             "empty_policies",
-			inputPolicies:    []*models.PreventionPolicyV1{},
+			inputPolicies:    []*models.SensorUpdatePolicyV2{},
 			requestedIDs:     []string{"policy-001"},
-			expectedPolicies: []*models.PreventionPolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name: "nil_policy_in_slice",
-			inputPolicies: []*models.PreventionPolicyV1{
+			inputPolicies: []*models.SensorUpdatePolicyV2{
 				testPolicies[0],
 				nil,
 				testPolicies[1],
@@ -778,7 +612,7 @@ func TestFilterPoliciesByIDs(t *testing.T) {
 		},
 		{
 			name: "policy_with_nil_id",
-			inputPolicies: []*models.PreventionPolicyV1{
+			inputPolicies: []*models.SensorUpdatePolicyV2{
 				testPolicies[0],
 				{
 					ID:          nil,
@@ -800,7 +634,7 @@ func TestFilterPoliciesByIDs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filtered := preventionpolicy.FilterPoliciesByIDs(tt.inputPolicies, tt.requestedIDs)
+			filtered := sensorupdatepolicy.FilterPoliciesByIDs(tt.inputPolicies, tt.requestedIDs)
 			assert.ElementsMatch(t, tt.expectedPolicies, filtered, "Filtered policies don't match expected policies")
 		})
 	}
@@ -811,21 +645,21 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		filters          *preventionpolicy.PreventionPoliciesDataSourceModel
-		inputPolicies    []*models.PreventionPolicyV1
-		expectedPolicies []*models.PreventionPolicyV1
+		filters          *sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel
+		inputPolicies    []*models.SensorUpdatePolicyV2
+		expectedPolicies []*models.SensorUpdatePolicyV2
 	}{
 		{
 			name: "name_no_matches",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				Name: types.StringValue("mac*"),
 			},
 			inputPolicies:    testPolicies,
-			expectedPolicies: []*models.PreventionPolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name: "name_wildcard_at_start",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				Name: types.StringValue("*Policy"),
 			},
 			inputPolicies:    testPolicies,
@@ -833,7 +667,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "name_wildcard_at_end",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				Name: types.StringValue("Test*"),
 			},
 			inputPolicies:    testPolicies,
@@ -841,7 +675,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "name_wildcard_in_middle",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				Name: types.StringValue("Production*Desktop"),
 			},
 			inputPolicies:    testPolicies,
@@ -849,7 +683,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "name_multiple_wildcards",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				Name: types.StringValue("*Production*Serv*"),
 			},
 			inputPolicies:    testPolicies,
@@ -857,55 +691,55 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "description_exact_match",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
-				Description: types.StringValue("malware protection"),
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
+				Description: types.StringValue("sensor update management"),
 			},
 			inputPolicies:    testPolicies,
 			expectedPolicies: policiesByID(testPolicies, "policy-001"),
 		},
 		{
 			name: "description_no_matches",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				Description: types.StringValue("nonexistent*"),
 			},
 			inputPolicies:    testPolicies,
-			expectedPolicies: []*models.PreventionPolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name: "description_wildcard_at_start",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
-				Description: types.StringValue("*protection"),
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
+				Description: types.StringValue("*updates"),
 			},
 			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003", "policy-005", "policy-006", "policy-007", "policy-008", "policy-009"),
+			expectedPolicies: policiesByID(testPolicies, "policy-003", "policy-006", "policy-007", "policy-008", "policy-009"),
 		},
 		{
 			name: "description_wildcard_at_end",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
-				Description: types.StringValue("malware*"),
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
+				Description: types.StringValue("sensor*"),
 			},
 			inputPolicies:    testPolicies,
 			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-004"),
 		},
 		{
 			name: "description_wildcard_in_middle",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
-				Description: types.StringValue("malware*protection"),
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
+				Description: types.StringValue("sensor*management"),
 			},
 			inputPolicies:    testPolicies,
 			expectedPolicies: policiesByID(testPolicies, "policy-001"),
 		},
 		{
 			name: "description_multiple_wildcards",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
-				Description: types.StringValue("*ware*prote*"),
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
+				Description: types.StringValue("*update*mana*"),
 			},
 			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-002", "policy-005"),
+			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-005"),
 		},
 		{
 			name: "created_by_exact_match",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				CreatedBy: types.StringValue("admin@example.com"),
 			},
 			inputPolicies:    testPolicies,
@@ -913,15 +747,15 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "created_by_no_matches",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				CreatedBy: types.StringValue("nonexistent@example.com"),
 			},
 			inputPolicies:    testPolicies,
-			expectedPolicies: []*models.PreventionPolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name: "created_by_wildcard_at_start",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				CreatedBy: types.StringValue("*@example.com"),
 			},
 			inputPolicies:    testPolicies,
@@ -929,7 +763,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "created_by_wildcard_at_end",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				CreatedBy: types.StringValue("user@*"),
 			},
 			inputPolicies:    testPolicies,
@@ -937,7 +771,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "created_by_wildcard_in_middle",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				CreatedBy: types.StringValue("admin@*example.com"),
 			},
 			inputPolicies:    testPolicies,
@@ -945,7 +779,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "created_by_multiple_wildcards",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				CreatedBy: types.StringValue("*admin*example*"),
 			},
 			inputPolicies:    testPolicies,
@@ -953,7 +787,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "modified_by_exact_match",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				ModifiedBy: types.StringValue("admin@example.com"),
 			},
 			inputPolicies:    testPolicies,
@@ -961,15 +795,15 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "modified_by_no_matches",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				ModifiedBy: types.StringValue("nonexistent@example.com"),
 			},
 			inputPolicies:    testPolicies,
-			expectedPolicies: []*models.PreventionPolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name: "modified_by_wildcard_at_start",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				ModifiedBy: types.StringValue("*@example.com"),
 			},
 			inputPolicies:    testPolicies,
@@ -977,7 +811,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "modified_by_wildcard_at_end",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				ModifiedBy: types.StringValue("security@*"),
 			},
 			inputPolicies:    testPolicies,
@@ -985,7 +819,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "modified_by_wildcard_in_middle",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				ModifiedBy: types.StringValue("security@*example.com"),
 			},
 			inputPolicies:    testPolicies,
@@ -993,7 +827,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "modified_by_multiple_wildcards",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				ModifiedBy: types.StringValue("*admin*example*"),
 			},
 			inputPolicies:    testPolicies,
@@ -1001,7 +835,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "enabled_true",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				Enabled: types.BoolValue(true),
 			},
 			inputPolicies:    testPolicies,
@@ -1009,7 +843,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "enabled_false",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				Enabled: types.BoolValue(false),
 			},
 			inputPolicies:    testPolicies,
@@ -1017,7 +851,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "platform_name_exact_match",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				PlatformName: types.StringValue("Windows"),
 			},
 			inputPolicies:    testPolicies,
@@ -1025,7 +859,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "platform_name_case_insensitive_lowercase",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				PlatformName: types.StringValue("windows"),
 			},
 			inputPolicies:    testPolicies,
@@ -1033,7 +867,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "platform_name_case_insensitive_uppercase",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				PlatformName: types.StringValue("WINDOWS"),
 			},
 			inputPolicies:    testPolicies,
@@ -1041,7 +875,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "platform_name_linux",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				PlatformName: types.StringValue("Linux"),
 			},
 			inputPolicies:    testPolicies,
@@ -1049,7 +883,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "platform_name_mac",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				PlatformName: types.StringValue("Mac"),
 			},
 			inputPolicies:    testPolicies,
@@ -1057,18 +891,18 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "name_and_description",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				Name:        types.StringValue("*Policy"),
-				Description: types.StringValue("*protection"),
+				Description: types.StringValue("*updates"),
 			},
 			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-006", "policy-007"),
+			expectedPolicies: policiesByID(testPolicies, "policy-006", "policy-007"),
 		},
 		{
 			name: "all_filters",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				Name:         types.StringValue("*Policy"),
-				Description:  types.StringValue("Windows protection"),
+				Description:  types.StringValue("Windows updates"),
 				CreatedBy:    types.StringValue("admin@example.com"),
 				ModifiedBy:   types.StringValue("admin@example.com"),
 				Enabled:      types.BoolValue(true),
@@ -1079,7 +913,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "name_and_created_by",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				Name:      types.StringValue("Production*"),
 				CreatedBy: types.StringValue("admin@*"),
 			},
@@ -1088,8 +922,8 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "description_and_user_filters",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
-				Description: types.StringValue("*protection"),
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
+				Description: types.StringValue("*updates"),
 				CreatedBy:   types.StringValue("admin@example.com"),
 				ModifiedBy:  types.StringValue("admin@example.com"),
 			},
@@ -1098,7 +932,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "enabled_and_platform",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				Enabled:      types.BoolValue(true),
 				PlatformName: types.StringValue("Linux"),
 			},
@@ -1107,7 +941,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "no_filtering",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				Name:         types.StringNull(),
 				Description:  types.StringNull(),
 				CreatedBy:    types.StringNull(),
@@ -1120,22 +954,22 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name:             "empty_input",
-			filters:          &preventionpolicy.PreventionPoliciesDataSourceModel{},
-			inputPolicies:    []*models.PreventionPolicyV1{},
-			expectedPolicies: []*models.PreventionPolicyV1{},
+			filters:          &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{},
+			inputPolicies:    []*models.SensorUpdatePolicyV2{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name:             "nil_input",
-			filters:          &preventionpolicy.PreventionPoliciesDataSourceModel{},
+			filters:          &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{},
 			inputPolicies:    nil,
-			expectedPolicies: []*models.PreventionPolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name: "nil_policy_in_slice",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				Name: types.StringValue("*Policy"),
 			},
-			inputPolicies: []*models.PreventionPolicyV1{
+			inputPolicies: []*models.SensorUpdatePolicyV2{
 				testPolicies[0],
 				nil,
 				testPolicies[3],
@@ -1144,7 +978,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "filter_nil_name_field",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				Name: types.StringValue("*Policy"),
 			},
 			inputPolicies:    testPolicies,
@@ -1152,15 +986,15 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "filter_nil_description_field",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
-				Description: types.StringValue("*protection"),
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
+				Description: types.StringValue("*updates"),
 			},
 			inputPolicies:    testPolicies,
-			expectedPolicies: policiesByID(testPolicies, "policy-001", "policy-003", "policy-005", "policy-006", "policy-007", "policy-008", "policy-009"),
+			expectedPolicies: policiesByID(testPolicies, "policy-003", "policy-006", "policy-007", "policy-008", "policy-009"),
 		},
 		{
 			name: "filter_nil_created_by_field",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				CreatedBy: types.StringValue("admin@*"),
 			},
 			inputPolicies:    testPolicies,
@@ -1168,7 +1002,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "filter_nil_modified_by_field",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				ModifiedBy: types.StringValue("security@*"),
 			},
 			inputPolicies:    testPolicies,
@@ -1176,7 +1010,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		},
 		{
 			name: "filter_nil_enabled_field",
-			filters: &preventionpolicy.PreventionPoliciesDataSourceModel{
+			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				Enabled: types.BoolValue(true),
 			},
 			inputPolicies:    testPolicies,
@@ -1186,7 +1020,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filtered := preventionpolicy.FilterPoliciesByAttributes(tt.inputPolicies, tt.filters)
+			filtered := sensorupdatepolicy.FilterPoliciesByAttributes(tt.inputPolicies, tt.filters)
 			assert.ElementsMatch(t, tt.expectedPolicies, filtered, "Filtered policies don't match expected policies")
 		})
 	}
