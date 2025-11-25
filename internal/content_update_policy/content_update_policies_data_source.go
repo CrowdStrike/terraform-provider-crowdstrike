@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	dataSourceDocumentationSection = "Content Update Policies"
+	dataSourceDocumentationSection = "Content Update Policy"
 	dataSourceMarkdownDescription  = "This data source provides information about content update policies in Falcon."
 )
 

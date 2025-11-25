@@ -1,6 +1,6 @@
 ---
 page_title: "crowdstrike_prevention_policies Data Source - crowdstrike"
-subcategory: "Prevention Policies"
+subcategory: "Prevention Policy"
 description: |-
   This data source provides information about prevention policies in Falcon.
   API Scopes

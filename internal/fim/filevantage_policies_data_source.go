@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	dataSourceDocumentationSection = "Filevantage"
+	dataSourceDocumentationSection = "FileVantage"
 	dataSourceMarkdownDescription  = "This data source provides information about FileVantage policies in Falcon."
 )
 
