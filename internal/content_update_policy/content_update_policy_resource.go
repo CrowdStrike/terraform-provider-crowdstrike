@@ -296,15 +296,7 @@ func (r *contentPolicyResource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: fmt.Sprintf(
 			"Content Update Policy --- This resource allows management of content update policies in the CrowdStrike Falcon platform. Content update policies control how and when CrowdStrike content updates are deployed to hosts.\n\n%s",
-			scopes.GenerateScopeDescription(
-				[]scopes.Scope{
-					{
-						Name:  "Content update policies",
-						Read:  true,
-						Write: true,
-					},
-				},
-			),
+			scopes.GenerateScopeDescription(apiScopesReadWrite),
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
