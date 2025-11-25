@@ -207,7 +207,6 @@ func (r *sensorUpdatePolicyPrecedenceResource) Read(
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-
 	var state sensorUpdatePolicyPrecedenceResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -235,7 +234,6 @@ func (r *sensorUpdatePolicyPrecedenceResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-
 	var plan sensorUpdatePolicyPrecedenceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -319,7 +317,6 @@ func (r *sensorUpdatePolicyPrecedenceResource) getSensorUpdatePoliciesByPreceden
 			Sort:    &sort,
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Error reading CrowdStrike sensor update policies",

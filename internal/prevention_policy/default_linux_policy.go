@@ -413,7 +413,6 @@ func (r *defaultPreventionPolicyLinuxResource) ValidateConfig(
 	req resource.ValidateConfigRequest,
 	resp *resource.ValidateConfigResponse,
 ) {
-
 	var config defaultPreventionPolicyLinuxResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon"
 	cloudcompliance "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_compliance"
+	cloudgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_group"
 	cloudsecurity "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_security"
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
@@ -31,8 +32,10 @@ import (
 )
 
 // Ensure ScaffoldingProvider satisfies various provider interfaces.
-var _ provider.Provider = &CrowdStrikeProvider{}
-var _ provider.ProviderWithFunctions = &CrowdStrikeProvider{}
+var (
+	_ provider.Provider              = &CrowdStrikeProvider{}
+	_ provider.ProviderWithFunctions = &CrowdStrikeProvider{}
+)
 
 // CrowdStrikeProvider defines the provider implementation.
 type CrowdStrikeProvider struct {
@@ -215,7 +218,6 @@ func (p *CrowdStrikeProvider) Configure(
 	}
 
 	client, err := falcon.NewClient(&apiConfig)
-
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create CrowdStrike API Client",
@@ -263,6 +265,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		itautomation.NewItAutomationPolicyPrecedenceResource,
 		cloudsecurity.NewCloudSecurityCustomRuleResource,
 		cloudcompliance.NewCloudComplianceCustomFrameworkResource,
+		cloudgroup.NewCloudGroupResource,
 	}
 }
 
@@ -272,6 +275,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		sensorupdatepolicy.NewSensorUpdatePoliciesDataSource,
 		fcs.NewCloudAwsAccountsDataSource,
 		contentupdatepolicy.NewContentCategoryVersionsDataSource,
+		contentupdatepolicy.NewContentUpdatePoliciesDataSource,
 		cloudsecurity.NewCloudSecurityRulesDataSource,
 		cloudcompliance.NewCloudComplianceFrameworkControlDataSource,
 		preventionpolicy.NewPreventionPoliciesDataSource,

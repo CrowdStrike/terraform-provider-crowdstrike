@@ -5,7 +5,7 @@ description: |-
   This resource allows management of the default content update policy in the CrowdStrike Falcon platform. Destruction of this resource will not delete the default content update policy or remove any configured settings.
   API Scopes
   The following API scopes are required:
-  Content update policies | Read & Write
+  Content Update Policy | Read & Write
 ---
 
 # crowdstrike_default_content_update_policy (Resource)
@@ -16,7 +16,7 @@ This resource allows management of the default content update policy in the Crow
 
 The following API scopes are required:
 
-- Content update policies | Read & Write
+- Content Update Policy | Read & Write
 
 
 ## Example Usage

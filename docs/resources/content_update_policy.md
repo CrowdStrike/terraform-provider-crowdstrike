@@ -5,7 +5,7 @@ description: |-
   This resource allows management of content update policies in the CrowdStrike Falcon platform. Content update policies control how and when CrowdStrike content updates are deployed to hosts.
   API Scopes
   The following API scopes are required:
-  Content update policies | Read & Write
+  Content Update Policy | Read & Write
 ---
 
 # crowdstrike_content_update_policy (Resource)
@@ -16,7 +16,7 @@ This resource allows management of content update policies in the CrowdStrike Fa
 
 The following API scopes are required:
 
-- Content update policies | Read & Write
+- Content Update Policy | Read & Write
 
 
 ## Example Usage
