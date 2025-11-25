@@ -37,6 +37,36 @@ provider "crowdstrike" {
 # Get all sensor update policies
 data "crowdstrike_sensor_update_policies" "all" {}
 
+# Output IDs of policies with build turned off (null)
+output "policy_ids_with_build_off" {
+  value = [
+    for policy in data.crowdstrike_sensor_update_policies.all.policies :
+    policy.id if policy.build == null
+  ]
+}
+
+# Output IDs of Linux policies with ARM64 builds turned off (null)
+output "linux_policy_ids_with_arm64_off" {
+  value = [
+    for policy in data.crowdstrike_sensor_update_policies.all.policies :
+    policy.id if policy.platform_name == "Linux" && policy.build_arm64 == null
+  ]
+}
+
+# Output IDs of all policies with any build turned off (standard or ARM64)
+output "all_policy_ids_with_builds_off" {
+  value = setunion(
+    [
+      for policy in data.crowdstrike_sensor_update_policies.all.policies :
+      policy.id if policy.build == null
+    ],
+    [
+      for policy in data.crowdstrike_sensor_update_policies.all.policies :
+      policy.id if policy.platform_name == "Linux" && policy.build_arm64 == null
+    ]
+  )
+}
+
 # Get only enabled policies
 data "crowdstrike_sensor_update_policies" "enabled" {
   enabled = true
@@ -44,7 +74,7 @@ data "crowdstrike_sensor_update_policies" "enabled" {
 
 # Get policies for a specific platform
 data "crowdstrike_sensor_update_policies" "windows_policies" {
-  platform = "Windows"
+  platform_name = "Windows"
 }
 
 # Get policies using FQL filter
@@ -60,19 +90,9 @@ data "crowdstrike_sensor_update_policies" "sorted" {
 # Get specific policies by ID
 data "crowdstrike_sensor_update_policies" "specific" {
   ids = [
-    "policy-id-1",
-    "policy-id-2"
+    "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+    "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7"
   ]
-}
-
-# Filter by name pattern
-data "crowdstrike_sensor_update_policies" "by_name" {
-  name = "production"
-}
-
-# Filter by description
-data "crowdstrike_sensor_update_policies" "by_description" {
-  description = "critical"
 }
 ```
 
@@ -100,6 +120,8 @@ data "crowdstrike_sensor_update_policies" "by_description" {
 
 Read-Only:
 
+- `build` (String) The target build applied to devices in the policy
+- `build_arm64` (String) The ARM64 build applied to Linux devices (only set for Linux policies)
 - `created_by` (String) User who created the policy
 - `created_timestamp` (String) Timestamp when the policy was created
 - `description` (String) The sensor update policy description
@@ -110,3 +132,23 @@ Read-Only:
 - `modified_timestamp` (String) Timestamp when the policy was last modified
 - `name` (String) The sensor update policy name
 - `platform_name` (String) The platform name (Windows, Linux, Mac)
+- `schedule` (Attributes) The schedule that controls when sensor updates are allowed (see [below for nested schema](#nestedatt--policies--schedule))
+- `uninstall_protection` (Boolean) Whether uninstall protection is enabled
+
+<a id="nestedatt--policies--schedule"></a>
+### Nested Schema for `policies.schedule`
+
+Read-Only:
+
+- `enabled` (Boolean) Whether the update schedule is enabled
+- `time_blocks` (Attributes Set) Time blocks when sensor updates are prohibited (see [below for nested schema](#nestedatt--policies--schedule--time_blocks))
+- `timezone` (String) The timezone used for the time blocks
+
+<a id="nestedatt--policies--schedule--time_blocks"></a>
+### Nested Schema for `policies.schedule.time_blocks`
+
+Read-Only:
+
+- `days` (Set of String) Days of the week when this time block is active
+- `end_time` (String) End time in 24HR format
+- `start_time` (String) Start time in 24HR format

@@ -16,7 +16,7 @@ import (
 )
 
 func TestAccPreventionPoliciesDataSource_Basic(t *testing.T) {
-	resourceName := "data.crowdstrike_prevention_policies.test"
+	dataSourceName := "data.crowdstrike_prevention_policies.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -25,13 +25,13 @@ func TestAccPreventionPoliciesDataSource_Basic(t *testing.T) {
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigBasic(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.id"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.name"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.platform_name"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.enabled"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.created_by"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.created_timestamp"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.id"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.name"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.platform_name"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.enabled"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.created_by"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.created_timestamp"),
 				),
 			},
 		},
@@ -39,7 +39,7 @@ func TestAccPreventionPoliciesDataSource_Basic(t *testing.T) {
 }
 
 func TestAccPreventionPoliciesDataSource_WithFilter(t *testing.T) {
-	resourceName := "data.crowdstrike_prevention_policies.test"
+	dataSourceName := "data.crowdstrike_prevention_policies.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -48,21 +48,21 @@ func TestAccPreventionPoliciesDataSource_WithFilter(t *testing.T) {
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithFilterWindows(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					resource.TestCheckResourceAttr(resourceName, "policies.0.platform_name", "Windows"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
+					resource.TestCheckResourceAttr(dataSourceName, "policies.0.platform_name", "Windows"),
 				),
 			},
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithFilterEnabled(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					resource.TestCheckResourceAttr(resourceName, "policies.0.enabled", "true"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
+					resource.TestCheckResourceAttr(dataSourceName, "policies.0.enabled", "true"),
 				),
 			},
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithFilterComplex(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
 				),
 			},
 		},
@@ -70,7 +70,8 @@ func TestAccPreventionPoliciesDataSource_WithFilter(t *testing.T) {
 }
 
 func TestAccPreventionPoliciesDataSource_WithIDs(t *testing.T) {
-	resourceName := "data.crowdstrike_prevention_policies.test"
+	allDataSourceName := "data.crowdstrike_prevention_policies.all"
+	dataSourceName := "data.crowdstrike_prevention_policies.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -79,8 +80,12 @@ func TestAccPreventionPoliciesDataSource_WithIDs(t *testing.T) {
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithIDs(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					resource.TestMatchResourceAttr(resourceName, "policies.#", regexp.MustCompile(`^[12]$`)),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
+					resource.TestCheckResourceAttrPair(allDataSourceName, "policies.0.id", dataSourceName, "policies.0.id"),
+					resource.TestCheckResourceAttrPair(allDataSourceName, "policies.0.name", dataSourceName, "policies.0.name"),
+					resource.TestCheckResourceAttrPair(allDataSourceName, "policies.0.platform_name", dataSourceName, "policies.0.platform_name"),
+					resource.TestCheckResourceAttrPair(allDataSourceName, "policies.0.enabled", dataSourceName, "policies.0.enabled"),
+					resource.TestCheckResourceAttrPair(allDataSourceName, "policies.0.description", dataSourceName, "policies.0.description"),
 				),
 			},
 		},
@@ -88,7 +93,7 @@ func TestAccPreventionPoliciesDataSource_WithIDs(t *testing.T) {
 }
 
 func TestAccPreventionPoliciesDataSource_WithIndividualFilters(t *testing.T) {
-	resourceName := "data.crowdstrike_prevention_policies.test"
+	dataSourceName := "data.crowdstrike_prevention_policies.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -97,47 +102,47 @@ func TestAccPreventionPoliciesDataSource_WithIndividualFilters(t *testing.T) {
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithPlatformFilter(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					resource.TestCheckResourceAttr(resourceName, "policies.0.platform_name", "Windows"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
+					resource.TestCheckResourceAttr(dataSourceName, "policies.0.platform_name", "Windows"),
 				),
 			},
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithEnabledFilter(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					resource.TestCheckResourceAttr(resourceName, "policies.0.enabled", "true"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
+					resource.TestCheckResourceAttr(dataSourceName, "policies.0.enabled", "true"),
 				),
 			},
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithNameFilter(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
 				),
 			},
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithDescriptionFilter(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
 				),
 			},
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithCombinedFilters(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
-					resource.TestCheckResourceAttr(resourceName, "policies.0.platform_name", "Windows"),
-					resource.TestCheckResourceAttr(resourceName, "policies.0.enabled", "true"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
+					resource.TestCheckResourceAttr(dataSourceName, "policies.0.platform_name", "Windows"),
+					resource.TestCheckResourceAttr(dataSourceName, "policies.0.enabled", "true"),
 				),
 			},
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithCreatedByFilter(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
 				),
 			},
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithModifiedByFilter(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
 				),
 			},
 		},
@@ -145,7 +150,7 @@ func TestAccPreventionPoliciesDataSource_WithIndividualFilters(t *testing.T) {
 }
 
 func TestAccPreventionPoliciesDataSource_WithSorting(t *testing.T) {
-	resourceName := "data.crowdstrike_prevention_policies.test"
+	dataSourceName := "data.crowdstrike_prevention_policies.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -154,19 +159,19 @@ func TestAccPreventionPoliciesDataSource_WithSorting(t *testing.T) {
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithSortingAsc(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
 				),
 			},
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithSortingDesc(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
 				),
 			},
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigWithSortingFiltered(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.#"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.#"),
 				),
 			},
 		},
@@ -174,6 +179,8 @@ func TestAccPreventionPoliciesDataSource_WithSorting(t *testing.T) {
 }
 
 func TestAccPreventionPoliciesDataSource_ValidationErrors(t *testing.T) {
+	t.Parallel()
+
 	testCases := map[string]struct {
 		configFunc  func() string
 		expectError *regexp.Regexp
@@ -229,7 +236,7 @@ func TestAccPreventionPoliciesDataSource_ValidationErrors(t *testing.T) {
 }
 
 func TestAccPreventionPoliciesDataSource_EmptyResults(t *testing.T) {
-	resourceName := "data.crowdstrike_prevention_policies.test"
+	dataSourceName := "data.crowdstrike_prevention_policies.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -238,7 +245,7 @@ func TestAccPreventionPoliciesDataSource_EmptyResults(t *testing.T) {
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigEmptyResults(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "policies.#", "0"),
+					resource.TestCheckResourceAttr(dataSourceName, "policies.#", "0"),
 				),
 			},
 		},
@@ -246,7 +253,7 @@ func TestAccPreventionPoliciesDataSource_EmptyResults(t *testing.T) {
 }
 
 func TestAccPreventionPoliciesDataSource_404Handling(t *testing.T) {
-	resourceName := "data.crowdstrike_prevention_policies.test"
+	dataSourceName := "data.crowdstrike_prevention_policies.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -255,15 +262,15 @@ func TestAccPreventionPoliciesDataSource_404Handling(t *testing.T) {
 			{
 				Config: testAccPreventionPoliciesDataSourceConfig404NonExistentID(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "policies.#", "0"),
+					resource.TestCheckResourceAttr(dataSourceName, "policies.#", "0"),
 				),
 			},
 			{
 				Config: testAccPreventionPoliciesDataSourceConfig404PartialResults(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "policies.#", "1"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.id"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.name"),
+					resource.TestCheckResourceAttr(dataSourceName, "policies.#", "1"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.id"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.name"),
 				),
 			},
 		},
@@ -271,7 +278,7 @@ func TestAccPreventionPoliciesDataSource_404Handling(t *testing.T) {
 }
 
 func TestAccPreventionPoliciesDataSource_AllAttributes(t *testing.T) {
-	resourceName := "data.crowdstrike_prevention_policies.test"
+	dataSourceName := "data.crowdstrike_prevention_policies.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -280,16 +287,16 @@ func TestAccPreventionPoliciesDataSource_AllAttributes(t *testing.T) {
 			{
 				Config: testAccPreventionPoliciesDataSourceConfigBasic(),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.id"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.name"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.platform_name"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.enabled"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.created_by"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.created_timestamp"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.modified_by"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.modified_timestamp"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.host_groups.#"),
-					resource.TestCheckResourceAttrSet(resourceName, "policies.0.ioa_rule_groups.#"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.id"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.name"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.platform_name"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.enabled"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.created_by"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.created_timestamp"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.modified_by"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.modified_timestamp"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.host_groups.#"),
+					resource.TestCheckResourceAttrSet(dataSourceName, "policies.0.ioa_rule_groups.#"),
 				),
 			},
 		},
@@ -715,6 +722,8 @@ func policiesByID(allPolicies []*models.PreventionPolicyV1, ids ...string) []*mo
 }
 
 func TestFilterPoliciesByIDs(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		inputPolicies    []*models.PreventionPolicyV1

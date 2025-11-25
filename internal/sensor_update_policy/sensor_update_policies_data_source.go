@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
@@ -125,15 +126,15 @@ func (m *sensorUpdatePoliciesDataSourceModel) wrap(ctx context.Context, policies
 
 		policyModel := policyDataModel{}
 
-		policyModel.ID = types.StringPointerValue(policy.ID)
-		policyModel.Name = types.StringPointerValue(policy.Name)
-		policyModel.Description = types.StringPointerValue(policy.Description)
-		policyModel.PlatformName = types.StringPointerValue(policy.PlatformName)
+		policyModel.ID = flex.StringPointerToFramework(policy.ID)
+		policyModel.Name = flex.StringPointerToFramework(policy.Name)
+		policyModel.Description = flex.StringPointerToFramework(policy.Description)
+		policyModel.PlatformName = flex.StringPointerToFramework(policy.PlatformName)
 		policyModel.Enabled = types.BoolPointerValue(policy.Enabled)
-		policyModel.CreatedBy = types.StringPointerValue(policy.CreatedBy)
-		policyModel.CreatedTimestamp = types.StringValue(policy.CreatedTimestamp.String())
-		policyModel.ModifiedBy = types.StringPointerValue(policy.ModifiedBy)
-		policyModel.ModifiedTimestamp = types.StringValue(policy.ModifiedTimestamp.String())
+		policyModel.CreatedBy = flex.StringPointerToFramework(policy.CreatedBy)
+		policyModel.CreatedTimestamp = flex.StringValueToFramework(policy.CreatedTimestamp.String())
+		policyModel.ModifiedBy = flex.StringPointerToFramework(policy.ModifiedBy)
+		policyModel.ModifiedTimestamp = flex.StringValueToFramework(policy.ModifiedTimestamp.String())
 
 		hostGroups, diagsHostGroups := hostgroups.ConvertHostGroupsToList(ctx, policy.Groups)
 		diags.Append(diagsHostGroups...)
@@ -143,11 +144,7 @@ func (m *sensorUpdatePoliciesDataSourceModel) wrap(ctx context.Context, policies
 		policyModel.HostGroups = hostGroups
 
 		if policy.Settings != nil {
-			if policy.Settings.Build != nil && *policy.Settings.Build != "" {
-				policyModel.Build = types.StringValue(*policy.Settings.Build)
-			} else {
-				policyModel.Build = types.StringNull()
-			}
+			policyModel.Build = flex.StringPointerToFramework(policy.Settings.Build)
 
 			if policy.Settings.UninstallProtection != nil {
 				if *policy.Settings.UninstallProtection == "ENABLED" {
@@ -160,11 +157,7 @@ func (m *sensorUpdatePoliciesDataSourceModel) wrap(ctx context.Context, policies
 			if policy.PlatformName != nil && strings.ToLower(*policy.PlatformName) == "linux" && policy.Settings.Variants != nil {
 				for _, v := range policy.Settings.Variants {
 					if v != nil && v.Platform != nil && strings.EqualFold(*v.Platform, linuxArm64Varient) {
-						if v.Build != nil && *v.Build != "" {
-							policyModel.BuildArm64 = types.StringValue(*v.Build)
-						} else {
-							policyModel.BuildArm64 = types.StringNull()
-						}
+						policyModel.BuildArm64 = flex.StringPointerToFramework(v.Build)
 						break
 					}
 				}
@@ -177,11 +170,7 @@ func (m *sensorUpdatePoliciesDataSourceModel) wrap(ctx context.Context, policies
 				policySchedule.Enabled = types.BoolPointerValue(policy.Settings.Scheduler.Enabled)
 
 				if policy.Settings.Scheduler.Enabled != nil && *policy.Settings.Scheduler.Enabled {
-					if policy.Settings.Scheduler.Timezone != nil && *policy.Settings.Scheduler.Timezone != "" {
-						policySchedule.Timezone = types.StringValue(*policy.Settings.Scheduler.Timezone)
-					} else {
-						policySchedule.Timezone = types.StringNull()
-					}
+					policySchedule.Timezone = flex.StringPointerToFramework(policy.Settings.Scheduler.Timezone)
 
 					if len(policy.Settings.Scheduler.Schedules) > 0 {
 						timeBlockObjects := []timeBlock{}
@@ -198,22 +187,10 @@ func (m *sensorUpdatePoliciesDataSourceModel) wrap(ctx context.Context, policies
 								return diags
 							}
 
-							var startTime, endTime types.String
-							if s.Start != nil && *s.Start != "" {
-								startTime = types.StringValue(*s.Start)
-							} else {
-								startTime = types.StringNull()
-							}
-							if s.End != nil && *s.End != "" {
-								endTime = types.StringValue(*s.End)
-							} else {
-								endTime = types.StringNull()
-							}
-
 							timeBlockObjects = append(timeBlockObjects, timeBlock{
 								Days:      days,
-								StartTime: startTime,
-								EndTime:   endTime,
+								StartTime: flex.StringPointerToFramework(s.Start),
+								EndTime:   flex.StringPointerToFramework(s.End),
 							})
 						}
 

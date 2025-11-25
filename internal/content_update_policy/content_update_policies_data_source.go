@@ -528,11 +528,11 @@ func (d *contentUpdatePoliciesDataSource) Read(
 			return
 		}
 
-		policies = FilterPoliciesByIDs(policies, requestedIDs)
+		policies = filterPoliciesByIDs(policies, requestedIDs)
 	}
 
 	if data.hasIndividualFilters() {
-		policies = FilterPoliciesByAttributes(policies, &data)
+		policies = filterPoliciesByAttributes(policies, &data)
 	}
 
 	resp.Diagnostics.Append(data.wrap(ctx, policies)...)
@@ -543,7 +543,7 @@ func (d *contentUpdatePoliciesDataSource) Read(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func FilterPoliciesByIDs(policies []*models.ContentUpdatePolicyV1, requestedIDs []string) []*models.ContentUpdatePolicyV1 {
+func filterPoliciesByIDs(policies []*models.ContentUpdatePolicyV1, requestedIDs []string) []*models.ContentUpdatePolicyV1 {
 	idMap := make(map[string]bool, len(requestedIDs))
 	for _, id := range requestedIDs {
 		idMap[id] = true
@@ -561,7 +561,7 @@ func FilterPoliciesByIDs(policies []*models.ContentUpdatePolicyV1, requestedIDs 
 	return filtered
 }
 
-func FilterPoliciesByAttributes(policies []*models.ContentUpdatePolicyV1, filters *ContentUpdatePoliciesDataSourceModel) []*models.ContentUpdatePolicyV1 {
+func filterPoliciesByAttributes(policies []*models.ContentUpdatePolicyV1, filters *ContentUpdatePoliciesDataSourceModel) []*models.ContentUpdatePolicyV1 {
 	filtered := make([]*models.ContentUpdatePolicyV1, 0, len(policies))
 	for _, policy := range policies {
 		if policy == nil {
