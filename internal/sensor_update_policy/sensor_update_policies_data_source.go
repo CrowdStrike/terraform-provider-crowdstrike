@@ -66,30 +66,38 @@ type sensorUpdatePoliciesDataSource struct {
 }
 
 type policyDataModel struct {
-	ID                types.String `tfsdk:"id"`
-	Name              types.String `tfsdk:"name"`
-	Description       types.String `tfsdk:"description"`
-	Enabled           types.Bool   `tfsdk:"enabled"`
-	PlatformName      types.String `tfsdk:"platform_name"`
-	CreatedBy         types.String `tfsdk:"created_by"`
-	CreatedTimestamp  types.String `tfsdk:"created_timestamp"`
-	ModifiedBy        types.String `tfsdk:"modified_by"`
-	ModifiedTimestamp types.String `tfsdk:"modified_timestamp"`
-	HostGroups        types.List   `tfsdk:"host_groups"`
+	ID                  types.String `tfsdk:"id"`
+	Name                types.String `tfsdk:"name"`
+	Description         types.String `tfsdk:"description"`
+	Enabled             types.Bool   `tfsdk:"enabled"`
+	PlatformName        types.String `tfsdk:"platform_name"`
+	CreatedBy           types.String `tfsdk:"created_by"`
+	CreatedTimestamp    types.String `tfsdk:"created_timestamp"`
+	ModifiedBy          types.String `tfsdk:"modified_by"`
+	ModifiedTimestamp   types.String `tfsdk:"modified_timestamp"`
+	HostGroups          types.List   `tfsdk:"host_groups"`
+	Build               types.String `tfsdk:"build"`
+	BuildArm64          types.String `tfsdk:"build_arm64"`
+	UninstallProtection types.Bool   `tfsdk:"uninstall_protection"`
+	Schedule            types.Object `tfsdk:"schedule"`
 }
 
 func (m policyDataModel) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"id":                 types.StringType,
-		"name":               types.StringType,
-		"description":        types.StringType,
-		"enabled":            types.BoolType,
-		"platform_name":      types.StringType,
-		"created_by":         types.StringType,
-		"created_timestamp":  types.StringType,
-		"modified_by":        types.StringType,
-		"modified_timestamp": types.StringType,
-		"host_groups":        types.ListType{ElemType: types.StringType},
+		"id":                   types.StringType,
+		"name":                 types.StringType,
+		"description":          types.StringType,
+		"enabled":              types.BoolType,
+		"platform_name":        types.StringType,
+		"created_by":           types.StringType,
+		"created_timestamp":    types.StringType,
+		"modified_by":          types.StringType,
+		"modified_timestamp":   types.StringType,
+		"host_groups":          types.ListType{ElemType: types.StringType},
+		"build":                types.StringType,
+		"build_arm64":          types.StringType,
+		"uninstall_protection": types.BoolType,
+		"schedule":             types.ObjectType{AttrTypes: policySchedule{}.AttributeTypes()},
 	}
 }
 
@@ -107,7 +115,7 @@ type sensorUpdatePoliciesDataSourceModel struct {
 	Policies     types.List   `tfsdk:"policies"`
 }
 
-func (m *sensorUpdatePoliciesDataSourceModel) wrap(ctx context.Context, policies []*models.SensorUpdatePolicyV1) diag.Diagnostics {
+func (m *sensorUpdatePoliciesDataSourceModel) wrap(ctx context.Context, policies []*models.SensorUpdatePolicyV2) diag.Diagnostics {
 	var diags diag.Diagnostics
 	policyModels := make([]policyDataModel, 0, len(policies))
 	for _, policy := range policies {
@@ -127,11 +135,113 @@ func (m *sensorUpdatePoliciesDataSourceModel) wrap(ctx context.Context, policies
 		policyModel.ModifiedBy = types.StringPointerValue(policy.ModifiedBy)
 		policyModel.ModifiedTimestamp = types.StringValue(policy.ModifiedTimestamp.String())
 
-		hostGroups, diags := hostgroups.ConvertHostGroupsToList(ctx, policy.Groups)
+		hostGroups, diagsHostGroups := hostgroups.ConvertHostGroupsToList(ctx, policy.Groups)
+		diags.Append(diagsHostGroups...)
 		if diags.HasError() {
 			return diags
 		}
 		policyModel.HostGroups = hostGroups
+
+		if policy.Settings != nil {
+			if policy.Settings.Build != nil && *policy.Settings.Build != "" {
+				policyModel.Build = types.StringValue(*policy.Settings.Build)
+			} else {
+				policyModel.Build = types.StringNull()
+			}
+
+			if policy.Settings.UninstallProtection != nil {
+				if *policy.Settings.UninstallProtection == "ENABLED" {
+					policyModel.UninstallProtection = types.BoolValue(true)
+				} else {
+					policyModel.UninstallProtection = types.BoolValue(false)
+				}
+			}
+
+			if policy.PlatformName != nil && strings.ToLower(*policy.PlatformName) == "linux" && policy.Settings.Variants != nil {
+				for _, v := range policy.Settings.Variants {
+					if v != nil && v.Platform != nil && strings.EqualFold(*v.Platform, linuxArm64Varient) {
+						if v.Build != nil && *v.Build != "" {
+							policyModel.BuildArm64 = types.StringValue(*v.Build)
+						} else {
+							policyModel.BuildArm64 = types.StringNull()
+						}
+						break
+					}
+				}
+			}
+
+			policySchedule := policySchedule{}
+			policySchedule.TimeBlocks = types.SetNull(types.ObjectType{AttrTypes: timeBlock{}.AttributeTypes()})
+
+			if policy.Settings.Scheduler != nil {
+				policySchedule.Enabled = types.BoolPointerValue(policy.Settings.Scheduler.Enabled)
+
+				if policy.Settings.Scheduler.Enabled != nil && *policy.Settings.Scheduler.Enabled {
+					if policy.Settings.Scheduler.Timezone != nil && *policy.Settings.Scheduler.Timezone != "" {
+						policySchedule.Timezone = types.StringValue(*policy.Settings.Scheduler.Timezone)
+					} else {
+						policySchedule.Timezone = types.StringNull()
+					}
+
+					if len(policy.Settings.Scheduler.Schedules) > 0 {
+						timeBlockObjects := []timeBlock{}
+
+						for _, s := range policy.Settings.Scheduler.Schedules {
+							daysStr := []string{}
+							for _, d := range s.Days {
+								daysStr = append(daysStr, int64ToDay[d])
+							}
+
+							days, diagsDay := types.SetValueFrom(ctx, types.StringType, daysStr)
+							diags.Append(diagsDay...)
+							if diags.HasError() {
+								return diags
+							}
+
+							var startTime, endTime types.String
+							if s.Start != nil && *s.Start != "" {
+								startTime = types.StringValue(*s.Start)
+							} else {
+								startTime = types.StringNull()
+							}
+							if s.End != nil && *s.End != "" {
+								endTime = types.StringValue(*s.End)
+							} else {
+								endTime = types.StringNull()
+							}
+
+							timeBlockObjects = append(timeBlockObjects, timeBlock{
+								Days:      days,
+								StartTime: startTime,
+								EndTime:   endTime,
+							})
+						}
+
+						timeBlocks, diagsTimeBlocks := types.SetValueFrom(
+							ctx,
+							types.ObjectType{AttrTypes: timeBlock{}.AttributeTypes()},
+							timeBlockObjects,
+						)
+						diags.Append(diagsTimeBlocks...)
+						if diags.HasError() {
+							return diags
+						}
+						policySchedule.TimeBlocks = timeBlocks
+					}
+				}
+			}
+
+			scheduleObj, diagsSchedule := types.ObjectValueFrom(
+				ctx,
+				policySchedule.AttributeTypes(),
+				policySchedule,
+			)
+			diags.Append(diagsSchedule...)
+			if diags.HasError() {
+				return diags
+			}
+			policyModel.Schedule = scheduleObj
+		}
 
 		policyModels = append(policyModels, policyModel)
 	}
@@ -288,6 +398,53 @@ func (d *sensorUpdatePoliciesDataSource) Schema(
 							ElementType: types.StringType,
 							Description: "List of host group IDs assigned to the policy",
 						},
+						"build": schema.StringAttribute{
+							Computed:    true,
+							Description: "The target build applied to devices in the policy",
+						},
+						"build_arm64": schema.StringAttribute{
+							Computed:    true,
+							Description: "The ARM64 build applied to Linux devices (only set for Linux policies)",
+						},
+						"uninstall_protection": schema.BoolAttribute{
+							Computed:    true,
+							Description: "Whether uninstall protection is enabled",
+						},
+						"schedule": schema.SingleNestedAttribute{
+							Computed:    true,
+							Description: "The schedule that controls when sensor updates are allowed",
+							Attributes: map[string]schema.Attribute{
+								"enabled": schema.BoolAttribute{
+									Computed:    true,
+									Description: "Whether the update schedule is enabled",
+								},
+								"timezone": schema.StringAttribute{
+									Computed:    true,
+									Description: "The timezone used for the time blocks",
+								},
+								"time_blocks": schema.SetNestedAttribute{
+									Computed:    true,
+									Description: "Time blocks when sensor updates are prohibited",
+									NestedObject: schema.NestedAttributeObject{
+										Attributes: map[string]schema.Attribute{
+											"days": schema.SetAttribute{
+												Computed:    true,
+												ElementType: types.StringType,
+												Description: "Days of the week when this time block is active",
+											},
+											"start_time": schema.StringAttribute{
+												Computed:    true,
+												Description: "Start time in 24HR format",
+											},
+											"end_time": schema.StringAttribute{
+												Computed:    true,
+												Description: "End time in 24HR format",
+											},
+										},
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -329,9 +486,9 @@ func (d *sensorUpdatePoliciesDataSource) getSensorUpdatePolicies(
 	ctx context.Context,
 	filter string,
 	sort string,
-) ([]*models.SensorUpdatePolicyV1, diag.Diagnostics) {
+) ([]*models.SensorUpdatePolicyV2, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	var allPolicies []*models.SensorUpdatePolicyV1
+	var allPolicies []*models.SensorUpdatePolicyV2
 
 	tflog.Debug(
 		ctx,
@@ -342,7 +499,7 @@ func (d *sensorUpdatePoliciesDataSource) getSensorUpdatePolicies(
 	offset := int64(0)
 
 	for {
-		params := &sensor_update_policies.QueryCombinedSensorUpdatePoliciesParams{
+		params := &sensor_update_policies.QueryCombinedSensorUpdatePoliciesV2Params{
 			Context: ctx,
 			Limit:   &limit,
 			Offset:  &offset,
@@ -356,7 +513,7 @@ func (d *sensorUpdatePoliciesDataSource) getSensorUpdatePolicies(
 			params.Sort = &sort
 		}
 
-		res, err := d.client.SensorUpdatePolicies.QueryCombinedSensorUpdatePolicies(params)
+		res, err := d.client.SensorUpdatePolicies.QueryCombinedSensorUpdatePoliciesV2(params)
 		if err != nil {
 			diags.Append(tferrors.NewOperationError(tferrors.Read, err))
 			return allPolicies, diags
@@ -442,13 +599,13 @@ func (d *sensorUpdatePoliciesDataSource) Read(
 }
 
 // filterPoliciesByIDs filters policies by their IDs.
-func filterPoliciesByIDs(policies []*models.SensorUpdatePolicyV1, requestedIDs []string) []*models.SensorUpdatePolicyV1 {
+func filterPoliciesByIDs(policies []*models.SensorUpdatePolicyV2, requestedIDs []string) []*models.SensorUpdatePolicyV2 {
 	idMap := make(map[string]bool, len(requestedIDs))
 	for _, id := range requestedIDs {
 		idMap[id] = true
 	}
 
-	filtered := make([]*models.SensorUpdatePolicyV1, 0, len(requestedIDs))
+	filtered := make([]*models.SensorUpdatePolicyV2, 0, len(requestedIDs))
 	for _, policy := range policies {
 		if policy != nil && policy.ID != nil && idMap[*policy.ID] {
 			filtered = append(filtered, policy)
@@ -461,8 +618,8 @@ func filterPoliciesByIDs(policies []*models.SensorUpdatePolicyV1, requestedIDs [
 }
 
 // filterPoliciesByAttributes filters policies by individual attributes.
-func filterPoliciesByAttributes(policies []*models.SensorUpdatePolicyV1, filters *sensorUpdatePoliciesDataSourceModel) []*models.SensorUpdatePolicyV1 {
-	filtered := make([]*models.SensorUpdatePolicyV1, 0, len(policies))
+func filterPoliciesByAttributes(policies []*models.SensorUpdatePolicyV2, filters *sensorUpdatePoliciesDataSourceModel) []*models.SensorUpdatePolicyV2 {
+	filtered := make([]*models.SensorUpdatePolicyV2, 0, len(policies))
 	for _, policy := range policies {
 		if policy == nil {
 			continue

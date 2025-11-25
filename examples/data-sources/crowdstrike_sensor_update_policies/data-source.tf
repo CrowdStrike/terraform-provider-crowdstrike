@@ -13,6 +13,14 @@ provider "crowdstrike" {
 # Get all sensor update policies
 data "crowdstrike_sensor_update_policies" "all" {}
 
+# Output policies with null descriptions
+output "policies_with_null_description" {
+  value = [
+    for policy in data.crowdstrike_sensor_update_policies.all.policies :
+    policy if policy.description == null
+  ]
+}
+
 # Get only enabled policies
 data "crowdstrike_sensor_update_policies" "enabled" {
   enabled = true
@@ -20,7 +28,7 @@ data "crowdstrike_sensor_update_policies" "enabled" {
 
 # Get policies for a specific platform
 data "crowdstrike_sensor_update_policies" "windows_policies" {
-  platform = "Windows"
+  platform_name = "Windows"
 }
 
 # Get policies using FQL filter

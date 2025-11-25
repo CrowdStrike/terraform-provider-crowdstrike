@@ -587,7 +587,7 @@ var (
 	testBoolFalse = false
 )
 
-var testPolicies = []*models.SensorUpdatePolicyV1{
+var testPolicies = []*models.SensorUpdatePolicyV2{
 	{
 		ID:           utils.Addr("policy-001"),
 		Name:         utils.Addr("Production Policy"),
@@ -698,9 +698,9 @@ var testPolicies = []*models.SensorUpdatePolicyV1{
 	},
 }
 
-func policiesByID(allPolicies []*models.SensorUpdatePolicyV1, ids ...string) []*models.SensorUpdatePolicyV1 {
-	result := make([]*models.SensorUpdatePolicyV1, 0, len(ids))
-	policyMap := make(map[string]*models.SensorUpdatePolicyV1)
+func policiesByID(allPolicies []*models.SensorUpdatePolicyV2, ids ...string) []*models.SensorUpdatePolicyV2 {
+	result := make([]*models.SensorUpdatePolicyV2, 0, len(ids))
+	policyMap := make(map[string]*models.SensorUpdatePolicyV2)
 
 	for _, policy := range allPolicies {
 		if policy.ID != nil {
@@ -720,9 +720,9 @@ func policiesByID(allPolicies []*models.SensorUpdatePolicyV1, ids ...string) []*
 func TestFilterPoliciesByIDs(t *testing.T) {
 	tests := []struct {
 		name             string
-		inputPolicies    []*models.SensorUpdatePolicyV1
+		inputPolicies    []*models.SensorUpdatePolicyV2
 		requestedIDs     []string
-		expectedPolicies []*models.SensorUpdatePolicyV1
+		expectedPolicies []*models.SensorUpdatePolicyV2
 	}{
 		{
 			name:             "all_ids_found",
@@ -740,29 +740,29 @@ func TestFilterPoliciesByIDs(t *testing.T) {
 			name:             "no_ids_found",
 			inputPolicies:    testPolicies,
 			requestedIDs:     []string{"non-existent-1", "non-existent-2"},
-			expectedPolicies: []*models.SensorUpdatePolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name:             "empty_id_list",
 			inputPolicies:    testPolicies,
 			requestedIDs:     []string{},
-			expectedPolicies: []*models.SensorUpdatePolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name:             "nil_policies",
 			inputPolicies:    nil,
 			requestedIDs:     []string{"policy-001"},
-			expectedPolicies: []*models.SensorUpdatePolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name:             "empty_policies",
-			inputPolicies:    []*models.SensorUpdatePolicyV1{},
+			inputPolicies:    []*models.SensorUpdatePolicyV2{},
 			requestedIDs:     []string{"policy-001"},
-			expectedPolicies: []*models.SensorUpdatePolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name: "nil_policy_in_slice",
-			inputPolicies: []*models.SensorUpdatePolicyV1{
+			inputPolicies: []*models.SensorUpdatePolicyV2{
 				testPolicies[0],
 				nil,
 				testPolicies[1],
@@ -772,7 +772,7 @@ func TestFilterPoliciesByIDs(t *testing.T) {
 		},
 		{
 			name: "policy_with_nil_id",
-			inputPolicies: []*models.SensorUpdatePolicyV1{
+			inputPolicies: []*models.SensorUpdatePolicyV2{
 				testPolicies[0],
 				{
 					ID:          nil,
@@ -806,8 +806,8 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 	tests := []struct {
 		name             string
 		filters          *sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel
-		inputPolicies    []*models.SensorUpdatePolicyV1
-		expectedPolicies []*models.SensorUpdatePolicyV1
+		inputPolicies    []*models.SensorUpdatePolicyV2
+		expectedPolicies []*models.SensorUpdatePolicyV2
 	}{
 		{
 			name: "name_no_matches",
@@ -815,7 +815,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 				Name: types.StringValue("mac*"),
 			},
 			inputPolicies:    testPolicies,
-			expectedPolicies: []*models.SensorUpdatePolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name: "name_wildcard_at_start",
@@ -863,7 +863,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 				Description: types.StringValue("nonexistent*"),
 			},
 			inputPolicies:    testPolicies,
-			expectedPolicies: []*models.SensorUpdatePolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name: "description_wildcard_at_start",
@@ -911,7 +911,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 				CreatedBy: types.StringValue("nonexistent@example.com"),
 			},
 			inputPolicies:    testPolicies,
-			expectedPolicies: []*models.SensorUpdatePolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name: "created_by_wildcard_at_start",
@@ -959,7 +959,7 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 				ModifiedBy: types.StringValue("nonexistent@example.com"),
 			},
 			inputPolicies:    testPolicies,
-			expectedPolicies: []*models.SensorUpdatePolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name: "modified_by_wildcard_at_start",
@@ -1115,21 +1115,21 @@ func TestFilterPoliciesByAttributes(t *testing.T) {
 		{
 			name:             "empty_input",
 			filters:          &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{},
-			inputPolicies:    []*models.SensorUpdatePolicyV1{},
-			expectedPolicies: []*models.SensorUpdatePolicyV1{},
+			inputPolicies:    []*models.SensorUpdatePolicyV2{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name:             "nil_input",
 			filters:          &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{},
 			inputPolicies:    nil,
-			expectedPolicies: []*models.SensorUpdatePolicyV1{},
+			expectedPolicies: []*models.SensorUpdatePolicyV2{},
 		},
 		{
 			name: "nil_policy_in_slice",
 			filters: &sensorupdatepolicy.SensorUpdatePoliciesDataSourceModel{
 				Name: types.StringValue("*Policy"),
 			},
-			inputPolicies: []*models.SensorUpdatePolicyV1{
+			inputPolicies: []*models.SensorUpdatePolicyV2{
 				testPolicies[0],
 				nil,
 				testPolicies[3],
