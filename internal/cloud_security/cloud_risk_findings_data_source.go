@@ -313,12 +313,8 @@ func (r *cloudRiskFindingsDataSource) getAllRisks(
 			return defaultResponse, diags
 		}
 
-		if response == nil || response.Payload == nil {
-			diags.AddError(
-				"Error Fetching Cloud Risks",
-				"The API returned an empty payload.",
-			)
-			return defaultResponse, diags
+		if response == nil || response.Payload == nil || len(response.Payload.Resources) == 0 {
+			break
 		}
 
 		payload := response.GetPayload()
@@ -381,35 +377,8 @@ func (r *cloudRiskFindingsDataSource) getAllRisks(
 			allRisks = append(allRisks, riskModel)
 		}
 
-		// Check pagination - stop if we've fetched all results
-		if payload.Meta == nil || payload.Meta.Pagination == nil || payload.Meta.Pagination.Total == nil {
-			diags.AddError(
-				"Error Fetching Cloud Risks",
-				"The API returned a response without pagination metadata. Cannot safely paginate results.",
-			)
-			return defaultResponse, diags
-		}
-
-		pagination := payload.Meta.Pagination
-		totalAvailable := *pagination.Total
-
-		tflog.Debug(ctx, "Cloud risks page fetched", map[string]interface{}{
-			"offset":   offset,
-			"returned": len(payload.Resources),
-			"total":    totalAvailable,
-		})
-
-		// Check if we've reached the end
-		nextOffset := offset + int64(len(payload.Resources))
-		if nextOffset >= totalAvailable {
-			tflog.Info(ctx, "Pagination complete", map[string]interface{}{
-				"total_fetched": len(allRisks),
-				"total":         totalAvailable,
-			})
-			break
-		}
-
-		offset = nextOffset
+		// Move to next page
+		offset += limit
 	}
 
 	tflog.Info(ctx, "All cloud risks collected", map[string]interface{}{
