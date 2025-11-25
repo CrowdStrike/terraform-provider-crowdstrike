@@ -5,7 +5,7 @@ description: |-
   This data source provides information about sensor update policies in Falcon.
   API Scopes
   The following API scopes are required:
-  sensor-update-policies | Read
+  Sensor update policies | Read
 ---
 
 # crowdstrike_sensor_update_policies (Data Source)
@@ -16,7 +16,7 @@ This data source provides information about sensor update policies in Falcon.
 
 The following API scopes are required:
 
-- sensor-update-policies | Read
+- Sensor update policies | Read
 
 
 ## Example Usage

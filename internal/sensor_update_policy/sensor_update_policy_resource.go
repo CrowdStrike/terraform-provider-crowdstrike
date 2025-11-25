@@ -290,15 +290,7 @@ func (r *sensorUpdatePolicyResource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: fmt.Sprintf(
 			"Sensor Update Policy --- This resource allows management of sensor update policies in the CrowdStrike Falcon platform. Sensor update policies allow you to control the update process across a set of hosts.\n\n%s",
-			scopes.GenerateScopeDescription(
-				[]scopes.Scope{
-					{
-						Name:  "Sensor update policies",
-						Read:  true,
-						Write: true,
-					},
-				},
-			),
+			scopes.GenerateScopeDescription(apiScopesReadWrite),
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
