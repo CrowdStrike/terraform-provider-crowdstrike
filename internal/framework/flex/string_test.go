@@ -68,3 +68,41 @@ func TestStringPointerToFramework(t *testing.T) {
 		})
 	}
 }
+
+func TestFrameworkToStringPointer(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		input    types.String
+		expected string
+	}{
+		{
+			name:     "null string returns pointer to empty string",
+			input:    types.StringNull(),
+			expected: "",
+		},
+		{
+			name:     "unknown string returns pointer to empty string",
+			input:    types.StringUnknown(),
+			expected: "",
+		},
+		{
+			name:     "empty string returns pointer to empty string",
+			input:    types.StringValue(""),
+			expected: "",
+		},
+		{
+			name:     "non-empty string returns pointer to value",
+			input:    types.StringValue("test-value"),
+			expected: "test-value",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FrameworkToStringPointer(tt.input)
+			assert.NotNil(t, result)
+			assert.Equal(t, tt.expected, *result)
+		})
+	}
+}
