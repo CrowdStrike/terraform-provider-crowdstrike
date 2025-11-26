@@ -390,9 +390,9 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) updateRegistration(
 	deploymentMethod := "terraform-native"
 	updateReq := &models.DtoUpdateGCPRegistrationRequest{
 		DeploymentMethod:             &deploymentMethod,
-		LogIngestionSinkName:         data.LogIngestionSinkName.ValueString(),
-		LogIngestionTopicID:          data.LogIngestionTopicID.ValueString(),
-		LogIngestionSubscriptionName: data.LogIngestionSubscriptionName.ValueString(),
+		LogIngestionSinkName:         flex.FrameworkToStringPointer(data.LogIngestionSinkName),
+		LogIngestionTopicID:          flex.FrameworkToStringPointer(data.LogIngestionTopicID),
+		LogIngestionSubscriptionName: flex.FrameworkToStringPointer(data.LogIngestionSubscriptionName),
 		WifProjectID:                 data.WifProjectID.ValueString(),
 		WifProjectNumber:             data.WifProjectNumber.ValueString(),
 	}
