@@ -6,7 +6,10 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/stretchr/testify/assert"
 
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 )
@@ -80,6 +83,48 @@ resource "crowdstrike_cloud_aws_account" "test" {
 `, account, testVulnRoleName)
 }
 
+func testAccCloudAwsAccountConfig_withRegions(account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  realtime_visibility = {
+    enabled           = true
+    cloudtrail_region = "us-east-1"
+    regions     = ["us-east-1", "us-west-2"]
+  }
+  dspm = {
+    enabled       = true
+    regions = ["us-east-1", "eu-west-1"]
+  }
+  vulnerability_scanning = {
+    enabled                          = true
+    regions = ["us-east-1", "ap-southeast-1"]
+  }
+}
+`, account)
+}
+
+func testAccCloudAwsAccountConfig_updateRegions(account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  realtime_visibility = {
+    enabled           = true
+    cloudtrail_region = "us-east-1"
+    regions     = ["us-east-1", "us-west-2", "eu-central-1"]
+  }
+  dspm = {
+    enabled       = true
+    regions = ["us-west-2", "eu-west-1"]
+  }
+  vulnerability_scanning = {
+    enabled                          = true
+    regions = ["us-east-1"]
+  }
+}
+`, account)
+}
+
 func testAccCloudAwsAccountConfig_vulnerabilityScanningNoRoleName(account string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_aws_account" "test" {
@@ -144,6 +189,31 @@ resource "crowdstrike_cloud_aws_account" "test" {
   }
   vulnerability_scanning = {
     enabled = true
+  }
+}
+`, account)
+}
+
+func testAccCloudAwsAccountConfig_withEmptyRegions(account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  realtime_visibility = {
+    enabled           = true
+    cloudtrail_region = "us-east-1"
+    regions     = []
+  }
+}
+`, account)
+}
+
+func testAccCloudAwsAccountConfig_withSingleRegion(account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  dspm = {
+    enabled = true
+    regions = ["us-east-1"]
   }
 }
 `, account)
@@ -613,4 +683,165 @@ resource "crowdstrike_cloud_aws_account" "test" {
   account_id = %[1]q
 }
 `, accountID)
+}
+
+func TestAccCloudAwsAccountResourceRegionsValidation(t *testing.T) {
+	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccCloudAwsAccountConfig_withEmptyRegions(accountID),
+				ExpectError: regexp.MustCompile("Error: Empty Regions List Not Allowed"),
+			},
+			{
+				Config: testAccCloudAwsAccountConfig_withSingleRegion(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"crowdstrike_cloud_aws_account.test",
+						"dspm.regions.#",
+						"1",
+					),
+					resource.TestCheckResourceAttr(
+						"crowdstrike_cloud_aws_account.test",
+						"dspm.regions.0",
+						"us-east-1",
+					),
+				),
+			},
+		},
+	})
+}
+
+func TestAccCloudAwsAccountResourceRegions(t *testing.T) {
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
+	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAwsAccountConfig_withRegions(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.0", "us-east-1"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.1", "us-west-2"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.#", "2"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.regions.0", "us-east-1"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.regions.1", "eu-west-1"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.regions.#", "2"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.regions.0", "us-east-1"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.regions.1", "ap-southeast-1"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.regions.#", "2"),
+				),
+			},
+			{
+				Config: testAccCloudAwsAccountConfig_updateRegions(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.#", "3"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.0", "us-east-1"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.1", "us-west-2"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.2", "eu-central-1"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.regions.#", "2"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.regions.0", "us-west-2"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.regions.1", "eu-west-1"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.regions.#", "1"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.regions.0", "us-east-1"),
+				),
+			},
+		},
+	})
+}
+
+// TestParseRegionsFromSettings is a unit test for the fcs.ParseRegionsFromSettings function.
+func TestParseRegionsFromSettings(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	tests := []struct {
+		name     string
+		settings any
+		wantRtvd types.List
+		wantDspm types.List
+		wantVuln types.List
+	}{
+		{
+			name: "valid regions all types",
+			settings: map[string]string{
+				"rtvd.regions":                   "us-east-1,us-west-2",
+				"dspm.regions":                   "eu-west-1",
+				"vulnerability_scanning.regions": "ap-southeast-1,us-east-1",
+			},
+			wantRtvd: acctest.StringListOrNull("us-east-1", "us-west-2"),
+			wantDspm: acctest.StringListOrNull("eu-west-1"),
+			wantVuln: acctest.StringListOrNull("ap-southeast-1", "us-east-1"),
+		},
+		{
+			name: "regions with whitespace",
+			settings: map[string]string{
+				"rtvd.regions": " us-east-1 , us-west-2 ",
+				"dspm.regions": "  eu-west-1  ",
+			},
+			wantRtvd: acctest.StringListOrNull("us-east-1", "us-west-2"),
+			wantDspm: acctest.StringListOrNull("eu-west-1"),
+			wantVuln: acctest.StringListOrNull(),
+		},
+		{
+			name: "empty strings",
+			settings: map[string]string{
+				"rtvd.regions": "",
+				"dspm.regions": "",
+			},
+			wantRtvd: acctest.StringListOrNull(),
+			wantDspm: acctest.StringListOrNull(),
+			wantVuln: acctest.StringListOrNull(),
+		},
+		{
+			name:     "nil settings",
+			settings: nil,
+			wantRtvd: acctest.StringListOrNull(),
+			wantDspm: acctest.StringListOrNull(),
+			wantVuln: acctest.StringListOrNull(),
+		},
+		{
+			name: "special value all",
+			settings: map[string]string{
+				"rtvd.regions": "all",
+			},
+			wantRtvd: acctest.StringListOrNull("all"),
+			wantDspm: acctest.StringListOrNull(),
+			wantVuln: acctest.StringListOrNull(),
+		},
+		{
+			name:     "wrong settings type",
+			settings: map[string]interface{}{},
+			wantRtvd: acctest.StringListOrNull(),
+			wantDspm: acctest.StringListOrNull(),
+			wantVuln: acctest.StringListOrNull(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := &fcs.CloudAWSAccountModel{
+				RealtimeVisibility:    &fcs.RealtimeVisibilityOptions{},
+				DSPM:                  &fcs.DSPMOptions{},
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{},
+			}
+
+			diags := fcs.ParseRegionsFromSettings(ctx, tt.settings, state)
+			assert.False(t, diags.HasError(), "unexpected error: %v", diags.Errors())
+
+			assert.True(t, state.RealtimeVisibility.Regions.Equal(tt.wantRtvd), "RTVD regions mismatch: got %v, want %v", state.RealtimeVisibility.Regions, tt.wantRtvd)
+			assert.True(t, state.DSPM.Regions.Equal(tt.wantDspm), "DSPM regions mismatch: got %v, want %v", state.DSPM.Regions, tt.wantDspm)
+			assert.True(t, state.VulnerabilityScanning.Regions.Equal(tt.wantVuln), "Vulnerability regions mismatch: got %v, want %v", state.VulnerabilityScanning.Regions, tt.wantVuln)
+		})
+	}
 }
