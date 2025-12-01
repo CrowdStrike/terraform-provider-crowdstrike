@@ -138,7 +138,7 @@ func (r *cloudRiskFindingsDataSource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
 			"Falcon Cloud Security",
-			"This data source retrieves cloud risk findings from Falcon Cloud Security. It automatically handles pagination internally and returns all matching risks in a single query. Cloud risks represent security findings and misconfigurations detected in cloud environments. For advanced queries, use Falcon Query Language (FQL) filters. For more information, refer to the [Cloud Risks API documentation](https://falcon.crowdstrike.com/documentation/page/ed2aed27/cloud-risks).",
+			"This data source retrieves cloud risk findings from Falcon Cloud Security. Cloud risks represent security findings and misconfigurations detected in cloud environments. For advanced queries, use Falcon Query Language (FQL) filters. For more information, refer to the [Cloud Risks API documentation](https://docs.crowdstrike.com/r/ed2aed27).",
 			cloudRisksScopes,
 		),
 		Attributes: map[string]schema.Attribute{
@@ -148,7 +148,7 @@ func (r *cloudRiskFindingsDataSource) Schema(
 			},
 			"sort": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "The field to sort on. Use `|asc` or `|desc` suffix to specify sort direction. Supported fields: `account_id`, `account_name`, `asset_id`, `asset_name`, `asset_region`, `asset_type`, `cloud_provider`, `first_seen`, `last_seen`, `resolved_at`, `rule_name`, `service_category`, `severity`, `status`. Example: `first_seen|desc`",
+				MarkdownDescription: "The field to sort on. Use `.asc` or `.desc` suffix to specify sort direction. Supported fields: `account_id`, `account_name`, `asset_id`, `asset_name`, `asset_region`, `asset_type`, `cloud_provider`, `first_seen`, `last_seen`, `resolved_at`, `rule_name`, `service_category`, `severity`, `status`. Example: `first_seen.desc`",
 			},
 			"risks": schema.SetNestedAttribute{
 				Computed:    true,

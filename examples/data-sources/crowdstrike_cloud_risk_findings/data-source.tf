@@ -2,7 +2,7 @@
 # This automatically paginates through all pages
 data "crowdstrike_cloud_risk_findings" "high_severity" {
   filter = "last_seen:>'2025-11-24T09:48:12.983Z'"
-  sort   = "first_seen|desc"
+  sort   = "first_seen.desc"
 }
 
 output "total_high_severity_risks" {

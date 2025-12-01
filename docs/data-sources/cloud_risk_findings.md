@@ -2,7 +2,7 @@
 page_title: "crowdstrike_cloud_risk_findings Data Source - crowdstrike"
 subcategory: "Falcon Cloud Security"
 description: |-
-  This data source retrieves cloud risk findings from Falcon Cloud Security. It automatically handles pagination internally and returns all matching risks in a single query. Cloud risks represent security findings and misconfigurations detected in cloud environments. For advanced queries, use Falcon Query Language (FQL) filters. For more information, refer to the Cloud Risks API documentation https://falcon.crowdstrike.com/documentation/page/ed2aed27/cloud-risks.
+  This data source retrieves cloud risk findings from Falcon Cloud Security. Cloud risks represent security findings and misconfigurations detected in cloud environments. For advanced queries, use Falcon Query Language (FQL) filters. For more information, refer to the Cloud Risks API documentation https://docs.crowdstrike.com/r/ed2aed27.
   API Scopes
   The following API scopes are required:
   Cloud Security Risks | ReadCloud Security Assets | Read
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_cloud_risk_findings (Data Source)
 
-This data source retrieves cloud risk findings from Falcon Cloud Security. It automatically handles pagination internally and returns all matching risks in a single query. Cloud risks represent security findings and misconfigurations detected in cloud environments. For advanced queries, use Falcon Query Language (FQL) filters. For more information, refer to the [Cloud Risks API documentation](https://falcon.crowdstrike.com/documentation/page/ed2aed27/cloud-risks).
+This data source retrieves cloud risk findings from Falcon Cloud Security. Cloud risks represent security findings and misconfigurations detected in cloud environments. For advanced queries, use Falcon Query Language (FQL) filters. For more information, refer to the [Cloud Risks API documentation](https://docs.crowdstrike.com/r/ed2aed27).
 
 ## API Scopes
 
@@ -27,7 +27,7 @@ The following API scopes are required:
 # This automatically paginates through all pages
 data "crowdstrike_cloud_risk_findings" "high_severity" {
   filter = "last_seen:>'2025-11-24T09:48:12.983Z'"
-  sort   = "first_seen|desc"
+  sort   = "first_seen.desc"
 }
 
 output "total_high_severity_risks" {
@@ -72,7 +72,7 @@ output "risk_counts_by_severity" {
 ### Optional
 
 - `filter` (String) FQL filter string. Supported fields: `account_id`, `account_name`, `asset_gcrn`, `asset_id`, `asset_name`, `asset_region`, `asset_type`, `cloud_group`, `cloud_provider`, `first_seen`, `last_seen`, `resolved_at`, `risk_factor`, `rule_id`, `rule_name`, `service_category`, `severity`, `status`, `suppressed_by`, `suppressed_reason`, `tags`. Example: `severity:'High'+status:'open'`
-- `sort` (String) The field to sort on. Use `|asc` or `|desc` suffix to specify sort direction. Supported fields: `account_id`, `account_name`, `asset_id`, `asset_name`, `asset_region`, `asset_type`, `cloud_provider`, `first_seen`, `last_seen`, `resolved_at`, `rule_name`, `service_category`, `severity`, `status`. Example: `first_seen|desc`
+- `sort` (String) The field to sort on. Use `.asc` or `.desc` suffix to specify sort direction. Supported fields: `account_id`, `account_name`, `asset_id`, `asset_name`, `asset_region`, `asset_type`, `cloud_provider`, `first_seen`, `last_seen`, `resolved_at`, `rule_name`, `service_category`, `severity`, `status`. Example: `first_seen.desc`
 
 ### Read-Only
 
