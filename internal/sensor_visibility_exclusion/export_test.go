@@ -1,3 +1,0 @@
-package sensorvisibilityexclusion
-
-var FilterExclusionsByAttributes = filterExclusionsByAttributes

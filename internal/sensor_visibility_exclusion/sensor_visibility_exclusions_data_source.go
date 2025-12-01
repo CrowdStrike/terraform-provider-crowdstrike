@@ -3,7 +3,6 @@ package sensorvisibilityexclusion
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
@@ -317,6 +316,91 @@ func (d *sensorVisibilityExclusionsDataSource) ValidateConfig(ctx context.Contex
 	}
 }
 
+// querySensorVisibilityExclusions returns all sensor visibility exclusions matching filter.
+func (d *sensorVisibilityExclusionsDataSource) querySensorVisibilityExclusions(
+	ctx context.Context,
+	filter string,
+	sort string,
+) ([]*models.SvExclusionsSVExclusionV1, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	var allExclusions []*models.SvExclusionsSVExclusionV1
+
+	tflog.Debug(
+		ctx,
+		"[datasource] Getting all sensor visibility exclusions",
+	)
+
+	limit := int64(5000)
+	offset := int64(0)
+
+	for {
+		params := &sensor_visibility_exclusions.QuerySensorVisibilityExclusionsV1Params{
+			Context: ctx,
+			Limit:   &limit,
+			Offset:  &offset,
+		}
+
+		if filter != "" {
+			params.Filter = &filter
+		}
+
+		if sort != "" {
+			params.Sort = &sort
+		}
+
+		res, err := d.client.SensorVisibilityExclusions.QuerySensorVisibilityExclusionsV1(params)
+		if err != nil {
+			diags.Append(tferrors.NewOperationError(tferrors.Read, err))
+			return allExclusions, diags
+		}
+
+		if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
+			tflog.Debug(ctx, "[datasource] No more sensor visibility exclusions to retrieve",
+				map[string]interface{}{
+					"total_retrieved": len(allExclusions),
+				})
+			break
+		}
+
+		// Get detailed exclusion information for the IDs returned by the query
+		exclusions, exclusionDiags := d.getSensorVisibilityExclusions(ctx, res.Payload.Resources)
+		diags.Append(exclusionDiags...)
+		if diags.HasError() {
+			return allExclusions, diags
+		}
+
+		allExclusions = append(allExclusions, exclusions...)
+		tflog.Debug(ctx, "[datasource] Retrieved page of sensor visibility exclusions",
+			map[string]interface{}{
+				"page_count":  len(exclusions),
+				"total_count": len(allExclusions),
+				"offset":      offset,
+			})
+
+		if res.Payload.Meta == nil || res.Payload.Meta.Pagination == nil ||
+			res.Payload.Meta.Pagination.Offset == nil || res.Payload.Meta.Pagination.Total == nil {
+			tflog.Warn(ctx, "Missing pagination metadata in API response, using offset+limit for next page",
+				map[string]interface{}{
+					"meta": res.Payload.Meta,
+				})
+			offset += limit
+			continue
+		}
+
+		offset = int64(*res.Payload.Meta.Pagination.Offset)
+		if offset >= *res.Payload.Meta.Pagination.Total {
+			tflog.Info(ctx, "[datasource] Pagination complete",
+				map[string]interface{}{
+					"total_retrieved": len(allExclusions),
+					"total_available": *res.Payload.Meta.Pagination.Total,
+				})
+			break
+		}
+	}
+
+	return allExclusions, diags
+}
+
 // getSensorVisibilityExclusions returns sensor visibility exclusions matching the provided IDs.
 func (d *sensorVisibilityExclusionsDataSource) getSensorVisibilityExclusions(
 	ctx context.Context,
@@ -340,17 +424,14 @@ func (d *sensorVisibilityExclusionsDataSource) getSensorVisibilityExclusions(
 
 	res, err := d.client.SensorVisibilityExclusions.GetSensorVisibilityExclusionsV1(params)
 	if err != nil {
-		// Handle 404 errors gracefully by returning an empty list
-		// This occurs when querying for non-existent IDs
-		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "status "+fmt.Sprint(http.StatusNotFound)) {
-			tflog.Debug(ctx, "[datasource] Sensor visibility exclusions not found, returning empty list",
+		// Handle 404 errors gracefully - return empty list instead of error
+		if strings.Contains(err.Error(), "404") {
+			tflog.Debug(ctx, "[datasource] Sensor visibility exclusions not found (404), returning empty list",
 				map[string]any{
-					"ids":   ids,
-					"error": err.Error(),
+					"ids": ids,
 				})
 			return []*models.SvExclusionsSVExclusionV1{}, diags
 		}
-
 		diags.Append(tferrors.NewOperationError(tferrors.Read, err))
 		return nil, diags
 	}
@@ -388,6 +469,7 @@ func (d *sensorVisibilityExclusionsDataSource) Read(
 	var exclusions []*models.SvExclusionsSVExclusionV1
 	var diags diag.Diagnostics
 
+	// If specific IDs are requested, get them directly
 	if utils.IsKnown(data.IDs) {
 		requestedIDs := utils.ListTypeAs[string](ctx, data.IDs, &resp.Diagnostics)
 		if resp.Diagnostics.HasError() {
@@ -400,24 +482,16 @@ func (d *sensorVisibilityExclusionsDataSource) Read(
 			return
 		}
 	} else {
-		// Note: The current API only supports getting exclusions by specific IDs
-		// If no IDs are provided, we return an empty list
-		// This may be enhanced in the future if a query API becomes available
-		exclusions = []*models.SvExclusionsSVExclusionV1{}
-
-		// If filter or individual filters are specified but no IDs, warn the user
-		if utils.IsKnown(data.Filter) || data.hasIndividualFilters() {
-			resp.Diagnostics.AddWarning(
-				"Limited Filtering Support",
-				"The sensor visibility exclusions API currently requires specific exclusion IDs. "+
-					"Filter and individual filter attributes can only be used in combination with 'ids'. "+
-					"Without 'ids', an empty list will be returned.",
-			)
+		// Otherwise, query all exclusions and filter as needed
+		exclusions, diags = d.querySensorVisibilityExclusions(ctx, data.Filter.ValueString(), data.Sort.ValueString())
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
 		}
-	}
 
-	if data.hasIndividualFilters() {
-		exclusions = filterExclusionsByAttributes(exclusions, &data)
+		if data.hasIndividualFilters() {
+			exclusions = FilterExclusionsByAttributes(exclusions, &data)
+		}
 	}
 
 	resp.Diagnostics.Append(data.wrap(ctx, exclusions)...)
@@ -428,8 +502,8 @@ func (d *sensorVisibilityExclusionsDataSource) Read(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-// filterExclusionsByAttributes filters exclusions by individual attributes.
-func filterExclusionsByAttributes(exclusions []*models.SvExclusionsSVExclusionV1, filters *SensorVisibilityExclusionsDataSourceModel) []*models.SvExclusionsSVExclusionV1 {
+// FilterExclusionsByAttributes filters exclusions by individual attributes.
+func FilterExclusionsByAttributes(exclusions []*models.SvExclusionsSVExclusionV1, filters *SensorVisibilityExclusionsDataSourceModel) []*models.SvExclusionsSVExclusionV1 {
 	filtered := make([]*models.SvExclusionsSVExclusionV1, 0, len(exclusions))
 	for _, exclusion := range exclusions {
 		if exclusion == nil {
