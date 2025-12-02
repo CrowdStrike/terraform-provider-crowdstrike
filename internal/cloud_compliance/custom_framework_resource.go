@@ -43,7 +43,7 @@ var (
 )
 
 var (
-	customFrameworkDocumentationSection        = "Cloud Compliance"
+	customFrameworkDocumentationSection        = "Falcon Cloud Security"
 	customFrameworkResourceMarkdownDescription = "This resource allows managing custom compliance frameworks in the CrowdStrike Falcon Platform."
 	customFrameworkRequiredScopes              = cloudComplianceCustomFrameworkScopes
 )

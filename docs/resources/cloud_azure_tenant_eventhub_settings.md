@@ -76,7 +76,7 @@ output "eventhub_settings" {
 
 Required:
 
-- `consumer_group` (String) NEED DESCRIPTION
+- `consumer_group` (String) The Azure Event Hub consumer group name used to read events from the Event Hub.
 - `id` (String) The Azure eventhub ID.
 - `type` (String) The type of eventhub.
 

@@ -128,7 +128,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) Schema(
 						},
 						"consumer_group": schema.StringAttribute{
 							Required:    true,
-							Description: "NEED DESCRIPTION",
+							Description: "The Azure Event Hub consumer group name used to read events from the Event Hub.",
 						},
 					},
 				},

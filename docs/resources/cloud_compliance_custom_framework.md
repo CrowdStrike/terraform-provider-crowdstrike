@@ -1,6 +1,6 @@
 ---
 page_title: "crowdstrike_cloud_compliance_custom_framework Resource - crowdstrike"
-subcategory: "Cloud Compliance"
+subcategory: "Falcon Cloud Security"
 description: |-
   This resource allows managing custom compliance frameworks in the CrowdStrike Falcon Platform.
   API Scopes
