@@ -7,12 +7,15 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_security"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -145,10 +148,22 @@ func (r *cloudRiskFindingsDataSource) Schema(
 			"filter": schema.StringAttribute{
 				Optional:            true,
 				MarkdownDescription: "FQL filter string. Supported fields: `account_id`, `account_name`, `asset_gcrn`, `asset_id`, `asset_name`, `asset_region`, `asset_type`, `cloud_group`, `cloud_provider`, `first_seen`, `last_seen`, `resolved_at`, `risk_factor`, `rule_id`, `rule_name`, `service_category`, `severity`, `status`, `suppressed_by`, `suppressed_reason`, `tags`. Example: `severity:'High'+status:'open'`",
+				Validators: []validator.String{
+					validators.StringNotWhitespace(),
+				},
 			},
 			"sort": schema.StringAttribute{
 				Optional:            true,
 				MarkdownDescription: "The field to sort on. Use `.asc` or `.desc` suffix to specify sort direction. Supported fields: `account_id`, `account_name`, `asset_id`, `asset_name`, `asset_region`, `asset_type`, `cloud_provider`, `first_seen`, `last_seen`, `resolved_at`, `rule_name`, `service_category`, `severity`, `status`. Example: `first_seen.desc`",
+				Validators: []validator.String{
+					validators.StringNotWhitespace(),
+					validators.SortField([]string{
+						"account_id", "account_name", "asset_id", "asset_name",
+						"asset_region", "asset_type", "cloud_provider", "first_seen",
+						"last_seen", "resolved_at", "rule_name", "service_category",
+						"severity", "status",
+					}),
+				},
 			},
 			"risks": schema.SetNestedAttribute{
 				Computed:    true,
@@ -274,13 +289,7 @@ func (r *cloudRiskFindingsDataSource) getAllRisks(
 	var diags diag.Diagnostics
 	allRisks := make([]cloudRiskModel, 0)
 
-	defaultResponse := types.SetValueMust(
-		types.ObjectType{AttrTypes: cloudRiskModel{}.AttributeTypes()},
-		[]attr.Value{},
-	)
-
-	// Set up parameters with automatic pagination
-	limit := int64(500) // Use larger page size for efficiency
+	limit := int64(500)
 	offset := int64(0)
 
 	for {
@@ -298,7 +307,7 @@ func (r *cloudRiskFindingsDataSource) getAllRisks(
 			params.SetSort(&sort)
 		}
 
-		tflog.Debug(ctx, "Fetching cloud risks page", map[string]interface{}{
+		tflog.Debug(ctx, "Fetching cloud risk findings page", map[string]interface{}{
 			"offset": offset,
 			"limit":  limit,
 			"filter": config.Filter.ValueString(),
@@ -306,11 +315,8 @@ func (r *cloudRiskFindingsDataSource) getAllRisks(
 
 		response, err := r.client.CloudSecurity.CombinedCloudRisks(params)
 		if err != nil {
-			diags.AddError(
-				"Error Querying Cloud Risks",
-				fmt.Sprintf("Failed to query cloud risks: %s", err),
-			)
-			return defaultResponse, diags
+			diags.Append(tferrors.NewOperationError(tferrors.Read, err))
+			break
 		}
 
 		if response == nil || response.Payload == nil || len(response.Payload.Resources) == 0 {
@@ -320,14 +326,10 @@ func (r *cloudRiskFindingsDataSource) getAllRisks(
 		payload := response.GetPayload()
 
 		if err = falcon.AssertNoError(payload.Errors); err != nil {
-			diags.AddError(
-				"Error Fetching Cloud Risks",
-				fmt.Sprintf("Failed to fetch cloud risks: %s", err.Error()),
-			)
-			return defaultResponse, diags
+			diags.Append(tferrors.NewOperationError(tferrors.Read, err))
+			break
 		}
 
-		// Convert API response to Terraform models
 		for _, risk := range payload.Resources {
 			riskModel := cloudRiskModel{
 				ID:              types.StringPointerValue(risk.ID),
@@ -338,7 +340,9 @@ func (r *cloudRiskFindingsDataSource) getAllRisks(
 				AssetName:       types.StringPointerValue(risk.AssetName),
 				AssetRegion:     types.StringValue(risk.AssetRegion),
 				AssetType:       types.StringPointerValue(risk.AssetType),
+				AssetTags:       types.ListValueMust(types.StringType, []attr.Value{}),
 				CloudProvider:   types.StringPointerValue(risk.Provider),
+				CloudGroups:     types.ListValueMust(types.StringType, []attr.Value{}),
 				RuleID:          types.StringPointerValue(risk.RuleID),
 				RuleName:        types.StringPointerValue(risk.RuleName),
 				RuleDescription: types.StringPointerValue(risk.RuleDescription),
@@ -354,45 +358,40 @@ func (r *cloudRiskFindingsDataSource) getAllRisks(
 				riskModel.ResolvedAt = types.StringValue(risk.ResolvedAt.String())
 			}
 
-			// Convert asset tags
 			if len(risk.AssetTags) > 0 {
-				riskModel.AssetTags, diags = types.ListValueFrom(ctx, types.StringType, risk.AssetTags)
+				assetTags, diag := types.ListValueFrom(ctx, types.StringType, risk.AssetTags)
+				diags.Append(diag...)
 				if diags.HasError() {
-					return defaultResponse, diags
+					break
 				}
-			} else {
-				riskModel.AssetTags = types.ListValueMust(types.StringType, []attr.Value{})
+				riskModel.AssetTags = assetTags
 			}
 
-			// Convert cloud groups
 			if len(risk.CloudGroups) > 0 {
-				riskModel.CloudGroups, diags = types.ListValueFrom(ctx, types.StringType, risk.CloudGroups)
+				cloudGroups, diag := types.ListValueFrom(ctx, types.StringType, risk.CloudGroups)
+				diags.Append(diag...)
 				if diags.HasError() {
-					return defaultResponse, diags
+					break
 				}
-			} else {
-				riskModel.CloudGroups = types.ListValueMust(types.StringType, []attr.Value{})
+				riskModel.CloudGroups = cloudGroups
 			}
 
 			allRisks = append(allRisks, riskModel)
 		}
 
-		// Move to next page
+		if diags.HasError() {
+			break
+		}
+
 		offset += limit
 	}
 
-	tflog.Info(ctx, "All cloud risks collected", map[string]interface{}{
-		"count": len(allRisks),
-	})
-
-	risksSet, diags := types.SetValueFrom(
+	risksSet, convertDiags := types.SetValueFrom(
 		ctx,
 		types.ObjectType{AttrTypes: cloudRiskModel{}.AttributeTypes()},
 		allRisks,
 	)
-	if diags.HasError() {
-		return defaultResponse, diags
-	}
+	diags.Append(convertDiags...)
 
 	return risksSet, diags
 }

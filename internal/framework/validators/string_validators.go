@@ -1,7 +1,10 @@
 package validators
 
 import (
+	"context"
+	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -35,4 +38,67 @@ func StringIsEmailAddress() validator.String {
 		regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`),
 		"must be a valid email address",
 	)
+}
+
+// sortFieldValidator validates that a string is a valid sort field with .asc or .desc suffix.
+type sortFieldValidator struct {
+	validFields []string
+}
+
+// Description returns a plain text description of the validator's behavior.
+func (v sortFieldValidator) Description(_ context.Context) string {
+	return fmt.Sprintf("must be one of the valid sort fields (%s) with either .asc or .desc suffix", strings.Join(v.validFields, ", "))
+}
+
+// MarkdownDescription returns a markdown formatted description of the validator's behavior.
+func (v sortFieldValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v sortFieldValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+
+	value := req.ConfigValue.ValueString()
+
+	if !strings.HasSuffix(value, ".asc") && !strings.HasSuffix(value, ".desc") {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Invalid Sort Field Format",
+			fmt.Sprintf("Sort field must end with '.asc' or '.desc', got: %s", value),
+		)
+	}
+
+	fieldName := strings.TrimSuffix(strings.TrimSuffix(value, ".asc"), ".desc")
+
+	validField := false
+	for _, field := range v.validFields {
+		if field == fieldName {
+			validField = true
+			break
+		}
+	}
+
+	if !validField {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Invalid Sort Field",
+			fmt.Sprintf("Sort field '%s' is not valid. Valid fields are: %s", fieldName, strings.Join(v.validFields, ", ")),
+		)
+	}
+}
+
+// SortField returns a validator that ensures a string is a valid sort field
+// from the provided list with either .asc or .desc suffix.
+//
+// The validator checks that:
+// 1. The string ends with either ".asc" or ".desc"
+// 2. The field name (before the suffix) is in the list of valid fields
+//
+// Null (unconfigured) and unknown (known after apply) values are skipped.
+func SortField(validFields []string) validator.String {
+	return sortFieldValidator{
+		validFields: validFields,
+	}
 }

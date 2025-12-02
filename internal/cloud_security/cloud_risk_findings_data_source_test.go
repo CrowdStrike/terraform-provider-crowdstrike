@@ -8,7 +8,7 @@ import (
 )
 
 func TestAccCloudRiskFindingsDataSource(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -23,7 +23,7 @@ func TestAccCloudRiskFindingsDataSource(t *testing.T) {
 }
 
 func TestAccCloudRiskFindingsDataSourceWithFilter(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -49,7 +49,7 @@ func testAccCloudRiskFindingsDataSourceConfigWithFilter() string {
 	return acctest.ProviderConfig + `
 data "crowdstrike_cloud_risk_findings" "filtered" {
   filter = "status:'Open'+severity:'High'"
-  sort   = "first_seen|desc"
+  sort   = "first_seen.desc"
 }
 `
 }
