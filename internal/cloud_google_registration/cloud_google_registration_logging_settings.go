@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_google_cloud_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
@@ -194,6 +195,9 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Create(
 		return
 	}
 
+	diags = r.triggerHealthCheck(ctx, data.RegistrationID.ValueString())
+	resp.Diagnostics.Append(diags...)
+
 	data.wrap(registration)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -258,6 +262,9 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Update(
 		)
 		return
 	}
+
+	diags = r.triggerHealthCheck(ctx, data.RegistrationID.ValueString())
+	resp.Diagnostics.Append(diags...)
 
 	data.wrap(registration)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -433,4 +440,25 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) updateRegistration(
 	}
 
 	return res.Payload.Resources[0], diags
+}
+
+func (r *cloudGoogleRegistrationLoggingSettingsResource) triggerHealthCheck(
+	ctx context.Context,
+	registrationID string,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+	params := cloud_google_cloud_registration.CloudRegistrationGcpTriggerHealthCheckParams{
+		Ids:     []string{registrationID},
+		Context: ctx,
+	}
+
+	_, err := r.client.CloudGoogleCloudRegistration.CloudRegistrationGcpTriggerHealthCheck(&params)
+	if err != nil {
+		diags.AddWarning(
+			"Failed to trigger health check scan.",
+			fmt.Sprintf("Failed to trigger health check scan for Google Cloud registration: %s", falcon.ErrorExplain(err)),
+		)
+	}
+
+	return diags
 }
