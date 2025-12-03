@@ -615,7 +615,7 @@ resource "crowdstrike_cloud_aws_account" "test" {
 `, accountID)
 }
 
-// S3 Log Ingestion test configurations
+// S3 Log Ingestion test configurations.
 func testAccCloudAwsAccountConfig_s3LogIngestionRequired(accountID string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_aws_account" "test" {
@@ -747,7 +747,7 @@ resource "crowdstrike_cloud_aws_account" "test" {
 `, accountID)
 }
 
-// TestAccCloudAWSAccount_S3LogIngestion tests S3 log ingestion configurations
+// TestAccCloudAWSAccount_S3LogIngestion tests S3 log ingestion configurations.
 func TestAccCloudAWSAccount_S3LogIngestion(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
@@ -799,7 +799,7 @@ func TestAccCloudAWSAccount_S3LogIngestion(t *testing.T) {
 	})
 }
 
-// TestAccCloudAWSAccount_S3LogIngestionValidation tests validation for S3 log ingestion
+// TestAccCloudAWSAccount_S3LogIngestionValidation tests validation for S3 log ingestion.
 func TestAccCloudAWSAccount_S3LogIngestionValidation(t *testing.T) {
 	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
 
@@ -831,7 +831,7 @@ func TestAccCloudAWSAccount_S3LogIngestionValidation(t *testing.T) {
 	})
 }
 
-// TestAccCloudAWSAccount_S3LogIngestionBasic tests basic S3 log ingestion functionality
+// TestAccCloudAWSAccount_S3LogIngestionBasic tests basic S3 log ingestion functionality.
 func TestAccCloudAWSAccount_S3LogIngestionBasic(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
@@ -854,7 +854,7 @@ func TestAccCloudAWSAccount_S3LogIngestionBasic(t *testing.T) {
 	})
 }
 
-// TestAccCloudAWSAccount_S3LogIngestionCreateWithOptional tests if API returns optional fields when set during CREATE
+// TestAccCloudAWSAccount_S3LogIngestionCreateWithOptional tests if API returns optional fields when set during CREATE.
 func TestAccCloudAWSAccount_S3LogIngestionCreateWithOptional(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
@@ -879,7 +879,7 @@ func TestAccCloudAWSAccount_S3LogIngestionCreateWithOptional(t *testing.T) {
 	})
 }
 
-// TestAccCloudAWSAccount_EventBridgeLogIngestion tests explicit EventBridge log ingestion
+// TestAccCloudAWSAccount_EventBridgeLogIngestion tests explicit EventBridge log ingestion.
 func TestAccCloudAWSAccount_EventBridgeLogIngestion(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
@@ -904,7 +904,7 @@ func TestAccCloudAWSAccount_EventBridgeLogIngestion(t *testing.T) {
 	})
 }
 
-// TestAccCloudAWSAccount_LogIngestionMethodSwitching tests switching between log ingestion methods
+// TestAccCloudAWSAccount_LogIngestionMethodSwitching tests switching between log ingestion methods.
 func TestAccCloudAWSAccount_LogIngestionMethodSwitching(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
@@ -948,7 +948,7 @@ func TestAccCloudAWSAccount_LogIngestionMethodSwitching(t *testing.T) {
 	})
 }
 
-// TestAccCloudAWSAccount_S3LogIngestionExpansion tests expanding S3 configuration
+// TestAccCloudAWSAccount_S3LogIngestionExpansion tests expanding S3 configuration.
 func TestAccCloudAWSAccount_S3LogIngestionExpansion(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
@@ -988,7 +988,7 @@ func TestAccCloudAWSAccount_S3LogIngestionExpansion(t *testing.T) {
 	})
 }
 
-// TestAccCloudAWSAccount_S3LogIngestionDisableRTVD tests S3 → disabled RTVD → re-enabled transitions
+// TestAccCloudAWSAccount_S3LogIngestionDisableRTVD tests S3 → disabled RTVD → re-enabled transitions.
 func TestAccCloudAWSAccount_S3LogIngestionDisableRTVD(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
@@ -997,7 +997,7 @@ func TestAccCloudAWSAccount_S3LogIngestionDisableRTVD(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
-			// Step 1: Create with S3 log ingestion enabled
+			// Step 1: Create with S3 log ingestion enabled.
 			{
 				Config: testAccCloudAwsAccountConfig_s3LogIngestionRequired(accountID),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -1008,7 +1008,7 @@ func TestAccCloudAWSAccount_S3LogIngestionDisableRTVD(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.log_ingestion_sns_topic_arn", "arn:aws:sns:us-east-1:123456789012:cloudtrail-notifications"),
 				),
 			},
-			// Step 2: Disable RTVD entirely
+			// Step 2: Disable RTVD entirely.
 			{
 				Config: testAccCloudAwsAccountConfig_rtvdDisabled(accountID),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -1017,7 +1017,7 @@ func TestAccCloudAWSAccount_S3LogIngestionDisableRTVD(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "us-east-1"),
 				),
 			},
-			// Step 3: Re-enable RTVD with EventBridge method
+			// Step 3: Re-enable RTVD with EventBridge method.
 			{
 				Config: testAccCloudAwsAccountConfig_eventBridgeLogIngestion(accountID),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -1025,12 +1025,12 @@ func TestAccCloudAWSAccount_S3LogIngestionDisableRTVD(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.log_ingestion_method", "eventbridge"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "us-east-1"),
-					// S3 fields should not be set when using EventBridge
+					// S3 fields should not be set when using EventBridge.
 					resource.TestCheckNoResourceAttr(resourceName, "realtime_visibility.log_ingestion_s3_bucket_name"),
 					resource.TestCheckNoResourceAttr(resourceName, "realtime_visibility.log_ingestion_sns_topic_arn"),
 				),
 			},
-			// Step 4: Switch back to S3 method to test memory of previous settings
+			// Step 4: Switch back to S3 method to test memory of previous settings.
 			{
 				Config: testAccCloudAwsAccountConfig_s3LogIngestionRequired(accountID),
 				Check: resource.ComposeAggregateTestCheckFunc(
