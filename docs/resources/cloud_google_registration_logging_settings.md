@@ -2,7 +2,7 @@
 page_title: "crowdstrike_cloud_google_registration_logging_settings Resource - crowdstrike"
 subcategory: "Falcon Cloud Security"
 description: |-
-  This resource manages the log ingestion settings for a Google Cloud project registration in Falcon Cloud Security.
+  This resource manages the log ingestion settings for a Google Cloud registration in Falcon Cloud Security.
   API Scopes
   The following API scopes are required:
   Cloud Security Google Cloud Registration | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_cloud_google_registration_logging_settings (Resource)
 
-This resource manages the log ingestion settings for a Google Cloud project registration in Falcon Cloud Security.
+This resource manages the log ingestion settings for a Google Cloud registration in Falcon Cloud Security.
 
 ## API Scopes
 

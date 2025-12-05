@@ -89,7 +89,7 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
 			"Falcon Cloud Security",
-			"This resource manages the log ingestion settings for a Google Cloud project registration in Falcon Cloud Security.",
+			"This resource manages the log ingestion settings for a Google Cloud registration in Falcon Cloud Security.",
 			gcpRegistrationScopes,
 		),
 		Attributes: map[string]schema.Attribute{
