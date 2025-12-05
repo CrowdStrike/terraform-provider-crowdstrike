@@ -35,27 +35,31 @@ type defaultPreventionPolicyLinuxResourceModel struct {
 	ID          types.String `tfsdk:"id"`
 	LastUpdated types.String `tfsdk:"last_updated"`
 
-	Description                        types.String `tfsdk:"description"`
-	RuleGroups                         types.Set    `tfsdk:"ioa_rule_groups"`
-	CloudAntiMalware                   types.Object `tfsdk:"cloud_anti_malware"`
-	OnSensorMLSlider                   types.Object `tfsdk:"sensor_anti_malware"`
-	UnknownDetectionRelatedExecutables types.Bool   `tfsdk:"upload_unknown_detection_related_executables"`
-	UnknownExecutables                 types.Bool   `tfsdk:"upload_unknown_executables"`
-	ScriptBasedExecutionMonitoring     types.Bool   `tfsdk:"script_based_execution_monitoring"`
-	NextGenAV                          types.Bool   `tfsdk:"quarantine"`
-	CustomBlacklisting                 types.Bool   `tfsdk:"custom_blocking"`
-	PreventSuspiciousProcesses         types.Bool   `tfsdk:"prevent_suspicious_processes"`
-	DriftPrevention                    types.Bool   `tfsdk:"drift_prevention"`
-	FilesystemVisibility               types.Bool   `tfsdk:"filesystem_visibility"`
-	NetworkVisibility                  types.Bool   `tfsdk:"network_visibility"`
-	HTTPVisibility                     types.Bool   `tfsdk:"http_visibility"`
-	FTPVisibility                      types.Bool   `tfsdk:"ftp_visibility"`
-	TLSVisibility                      types.Bool   `tfsdk:"tls_visibility"`
-	EmailProtocolVisibility            types.Bool   `tfsdk:"email_protocol_visibility"`
-	SensorTamperingProtection          types.Bool   `tfsdk:"sensor_tampering_protection"`
-	MemoryVisibility                   types.Bool   `tfsdk:"memory_visibility"`
-	OnWriteScriptFileVisibility        types.Bool   `tfsdk:"on_write_script_file_visibility"`
-	ExtendedCommandLineVisibility      types.Bool   `tfsdk:"extended_command_line_visibility"`
+	Description                          types.String `tfsdk:"description"`
+	RuleGroups                           types.Set    `tfsdk:"ioa_rule_groups"`
+	CloudAntiMalware                     types.Object `tfsdk:"cloud_anti_malware"`
+	OnSensorMLSlider                     types.Object `tfsdk:"sensor_anti_malware"`
+	UnknownDetectionRelatedExecutables   types.Bool   `tfsdk:"upload_unknown_detection_related_executables"`
+	UnknownExecutables                   types.Bool   `tfsdk:"upload_unknown_executables"`
+	ScriptBasedExecutionMonitoring       types.Bool   `tfsdk:"script_based_execution_monitoring"`
+	NextGenAV                            types.Bool   `tfsdk:"quarantine"`
+	CustomBlacklisting                   types.Bool   `tfsdk:"custom_blocking"`
+	PreventSuspiciousProcesses           types.Bool   `tfsdk:"prevent_suspicious_processes"`
+	DriftPrevention                      types.Bool   `tfsdk:"drift_prevention"`
+	FilesystemVisibility                 types.Bool   `tfsdk:"filesystem_visibility"`
+	NetworkVisibility                    types.Bool   `tfsdk:"network_visibility"`
+	HTTPVisibility                       types.Bool   `tfsdk:"http_visibility"`
+	FTPVisibility                        types.Bool   `tfsdk:"ftp_visibility"`
+	TLSVisibility                        types.Bool   `tfsdk:"tls_visibility"`
+	EmailProtocolVisibility              types.Bool   `tfsdk:"email_protocol_visibility"`
+	SensorTamperingProtection            types.Bool   `tfsdk:"sensor_tampering_protection"`
+	MemoryVisibility                     types.Bool   `tfsdk:"memory_visibility"`
+	OnWriteScriptFileVisibility          types.Bool   `tfsdk:"on_write_script_file_visibility"`
+	ExtendedCommandLineVisibility        types.Bool   `tfsdk:"extended_command_line_visibility"`
+	DBusVisibility                       types.Bool   `tfsdk:"dbus_visibility"`
+	EnhancePHPVisibility                 types.Bool   `tfsdk:"enhance_php_visibility"`
+	EnhanceEnvironmentVariableVisibility types.Bool   `tfsdk:"enhance_environment_variable_visibility"`
+	SuspiciousFileAnalysis               types.Bool   `tfsdk:"suspicious_file_analysis"`
 }
 
 // wrap transforms Go values to their terraform wrapped values.
@@ -84,23 +88,27 @@ func (m *defaultPreventionPolicyLinuxResourceModel) generatePreventionSettings(c
 	var diags diag.Diagnostics
 
 	toggleSettings := map[string]types.Bool{
-		"UnknownDetectionRelatedExecutables": m.UnknownDetectionRelatedExecutables,
-		"UnknownExecutables":                 m.UnknownExecutables,
-		"ScriptBasedExecutionMonitoring":     m.ScriptBasedExecutionMonitoring,
-		"NextGenAV":                          m.NextGenAV,
-		"CustomBlacklisting":                 m.CustomBlacklisting,
-		"PreventSuspiciousProcesses":         m.PreventSuspiciousProcesses,
-		"DriftPrevention":                    m.DriftPrevention,
-		"FilesystemVisibility":               m.FilesystemVisibility,
-		"NetworkVisibility":                  m.NetworkVisibility,
-		"HTTPVisibility":                     m.HTTPVisibility,
-		"FTPVisibility":                      m.FTPVisibility,
-		"TLSVisibility":                      m.TLSVisibility,
-		"EmailProtocolVisibility":            m.EmailProtocolVisibility,
-		"SensorTamperingProtection":          m.SensorTamperingProtection,
-		"MemoryVisibility":                   m.MemoryVisibility,
-		"OnWriteScriptFileVisibility":        m.OnWriteScriptFileVisibility,
-		"ExtendedCommandLineVisibility":      m.ExtendedCommandLineVisibility,
+		"UnknownDetectionRelatedExecutables":   m.UnknownDetectionRelatedExecutables,
+		"UnknownExecutables":                   m.UnknownExecutables,
+		"ScriptBasedExecutionMonitoring":       m.ScriptBasedExecutionMonitoring,
+		"NextGenAV":                            m.NextGenAV,
+		"CustomBlacklisting":                   m.CustomBlacklisting,
+		"PreventSuspiciousProcesses":           m.PreventSuspiciousProcesses,
+		"DriftPrevention":                      m.DriftPrevention,
+		"FilesystemVisibility":                 m.FilesystemVisibility,
+		"NetworkVisibility":                    m.NetworkVisibility,
+		"HTTPVisibility":                       m.HTTPVisibility,
+		"FTPVisibility":                        m.FTPVisibility,
+		"TLSVisibility":                        m.TLSVisibility,
+		"EmailProtocolVisibility":              m.EmailProtocolVisibility,
+		"SensorTamperingProtection":            m.SensorTamperingProtection,
+		"MemoryVisibility":                     m.MemoryVisibility,
+		"OnWriteScriptFileVisibility":          m.OnWriteScriptFileVisibility,
+		"ExtendedCommandLineVisibility":        m.ExtendedCommandLineVisibility,
+		"DBusVisibility":                       m.DBusVisibility,
+		"EnhancePHPVisibility":                 m.EnhancePHPVisibility,
+		"EnhanceEnvironmentVariableVisibility": m.EnhanceEnvironmentVariableVisibility,
+		"SuspiciousFileAnalysis":               m.SuspiciousFileAnalysis,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}
@@ -185,6 +193,12 @@ func (m *defaultPreventionPolicyLinuxResourceModel) assignPreventionSettings(
 	m.ExtendedCommandLineVisibility = defaultBoolFalse(
 		toggleSettings["ExtendedCommandLineVisibility"],
 	)
+	m.DBusVisibility = defaultBoolFalse(toggleSettings["DBusVisibility"])
+	m.EnhancePHPVisibility = defaultBoolFalse(toggleSettings["EnhancePHPVisibility"])
+	m.EnhanceEnvironmentVariableVisibility = defaultBoolFalse(
+		toggleSettings["EnhanceEnvironmentVariableVisibility"],
+	)
+	m.SuspiciousFileAnalysis = defaultBoolFalse(toggleSettings["SuspiciousFileAnalysis"])
 
 	// mlslider settings
 	if slider, ok := mlSliderSettings["CloudAntiMalware"]; ok {
@@ -399,7 +413,6 @@ func (r *defaultPreventionPolicyLinuxResource) ValidateConfig(
 	req resource.ValidateConfigRequest,
 	resp *resource.ValidateConfigResponse,
 ) {
-
 	var config defaultPreventionPolicyLinuxResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {

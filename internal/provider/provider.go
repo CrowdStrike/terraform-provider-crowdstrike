@@ -8,6 +8,8 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon"
 	cloudcompliance "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_compliance"
+	cloudgoogleregistration "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_google_registration"
+	cloudgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_group"
 	cloudsecurity "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_security"
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
@@ -31,8 +33,10 @@ import (
 )
 
 // Ensure ScaffoldingProvider satisfies various provider interfaces.
-var _ provider.Provider = &CrowdStrikeProvider{}
-var _ provider.ProviderWithFunctions = &CrowdStrikeProvider{}
+var (
+	_ provider.Provider              = &CrowdStrikeProvider{}
+	_ provider.ProviderWithFunctions = &CrowdStrikeProvider{}
+)
 
 // CrowdStrikeProvider defines the provider implementation.
 type CrowdStrikeProvider struct {
@@ -215,7 +219,6 @@ func (p *CrowdStrikeProvider) Configure(
 	}
 
 	client, err := falcon.NewClient(&apiConfig)
-
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create CrowdStrike API Client",
@@ -252,6 +255,8 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		fcs.NewCloudAWSAccountResource,
 		fcs.NewCloudAzureTenantEventhubSettingsResource,
 		fcs.NewCloudAzureTenantResource,
+		cloudgoogleregistration.NewCloudGoogleRegistrationResource,
+		cloudgoogleregistration.NewCloudGoogleRegistrationLoggingSettingsResource,
 		contentupdatepolicy.NewContentPolicyResource,
 		contentupdatepolicy.NewDefaultContentUpdatePolicyResource,
 		contentupdatepolicy.NewContentUpdatePolicyPrecedenceResource,
@@ -263,17 +268,22 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		itautomation.NewItAutomationPolicyPrecedenceResource,
 		cloudsecurity.NewCloudSecurityCustomRuleResource,
 		cloudcompliance.NewCloudComplianceCustomFrameworkResource,
+		cloudgroup.NewCloudGroupResource,
 	}
 }
 
 func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		sensorupdatepolicy.NewSensorUpdateBuildsDataSource,
+		sensorupdatepolicy.NewSensorUpdatePoliciesDataSource,
 		fcs.NewCloudAwsAccountsDataSource,
 		contentupdatepolicy.NewContentCategoryVersionsDataSource,
+		contentupdatepolicy.NewContentUpdatePoliciesDataSource,
 		cloudsecurity.NewCloudSecurityRulesDataSource,
+		cloudsecurity.NewCloudRiskFindingsDataSource,
 		cloudcompliance.NewCloudComplianceFrameworkControlDataSource,
 		preventionpolicy.NewPreventionPoliciesDataSource,
+		fim.NewFilevantagePoliciesDataSource,
 	}
 }
 

@@ -10,7 +10,6 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/filevantage"
 	"github.com/crowdstrike/gofalcon/falcon/models"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
@@ -152,9 +151,10 @@ func (r *fimPolicyResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: fmt.Sprintf(
-			"FileVantage --- This resource allows management of a FileVantage policy. A FileVantage policy is a collection of file integrity rules and rule groups that you can apply to host groups.\n\n%s",
-			scopes.GenerateScopeDescription(apiScopes),
+		MarkdownDescription: utils.MarkdownDescription(
+			"FileVantage",
+			"This resource allows management of a FileVantage policy. A FileVantage policy is a collection of file integrity rules and rule groups that you can apply to host groups.",
+			apiScopesReadWrite,
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -338,7 +338,6 @@ func (r *fimPolicyResource) Create(
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-
 	var plan fimPolicyResourceModel
 
 	diags := req.Plan.Get(ctx, &plan)
@@ -736,7 +735,6 @@ func (r *fimPolicyResource) deleteFIMPolicy(
 			Ids:     []string{config.ID.ValueString()},
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Error deleting filevantage policy",
@@ -769,7 +767,6 @@ func (r *fimPolicyResource) updatePolicy(
 			},
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Error updating filevantage policy",
@@ -795,7 +792,6 @@ func (r *fimPolicyResource) getFIMPolicy(
 		Context: ctx,
 		Ids:     []string{id},
 	})
-
 	if err != nil {
 		diags.AddError(
 			"Failed to get FileVantage policy",
@@ -827,7 +823,6 @@ func (r *fimPolicyResource) createFIMPolicy(
 			Platform:    config.PlatformName.ValueString(),
 		},
 	})
-
 	if err != nil {
 		diags.AddError(
 			"Failed to create FileVantage policy",
@@ -894,7 +889,6 @@ func (r *fimPolicyResource) updateHostGroups(
 			PolicyID: id,
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Error updating filevantage policy host groups",
@@ -934,7 +928,6 @@ func (r *fimPolicyResource) assignHostGroups(
 	config *fimPolicyResourceModel,
 	groups []*models.PoliciesAssignedHostGroup,
 ) diag.Diagnostics {
-
 	var hostGroups []string
 	for _, hostGroup := range groups {
 		hostGroups = append(hostGroups, *hostGroup.ID)
@@ -1002,7 +995,6 @@ func (r *fimPolicyResource) updateRuleGroups(
 			PolicyID: id,
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Error updating filevantage policy rule groups",
@@ -1071,8 +1063,8 @@ func (r *fimPolicyResource) syncScheduledExclusions(
 	var exclusionsToDelete []string
 	var exclusionsToUpdate []scheduledExclusion
 
-	var stateMap = make(map[string]scheduledExclusion)
-	var planMap = make(map[string]scheduledExclusion)
+	stateMap := make(map[string]scheduledExclusion)
+	planMap := make(map[string]scheduledExclusion)
 
 	for _, exclusion := range stateExclusions {
 		exclusion := *exclusion
@@ -1195,7 +1187,6 @@ func (r *fimPolicyResource) getScheduledExclusions(
 	}
 
 	queryRes, err := r.client.Filevantage.QueryScheduledExclusions(&queryParams)
-
 	if err != nil {
 		diags.AddError(
 			"Error getting scheduled exclusions",
@@ -1220,7 +1211,6 @@ func (r *fimPolicyResource) getScheduledExclusions(
 	}
 
 	res, err := r.client.Filevantage.GetScheduledExclusions(&getParams)
-
 	if err != nil {
 		diags.AddError(
 			"Error getting scheduled exclusions",
@@ -1333,7 +1323,6 @@ func (r *fimPolicyResource) updateScheduledExclusion(
 		}
 
 		res, err := r.client.Filevantage.UpdateScheduledExclusions(&params)
-
 		if err != nil {
 			errMsg := fmt.Sprintf(
 				"Could not update scheduled exclusion (%s): %s",
@@ -1393,7 +1382,6 @@ func (r *fimPolicyResource) deleteScheduledExclusions(
 	}
 
 	res, err := r.client.Filevantage.DeleteScheduledExclusions(&params)
-
 	if err != nil {
 		diags.AddError(
 			"Error deleting scheduled exclusion",
@@ -1521,7 +1509,6 @@ func (r *fimPolicyResource) createScheduledExclusions(
 		}
 
 		res, err := r.client.Filevantage.CreateScheduledExclusions(&params)
-
 		if err != nil {
 			errMsg := fmt.Sprintf(
 				"Could not create scheduled exclusion: %s",

@@ -8,7 +8,6 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/filevantage"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -30,9 +29,8 @@ var (
 )
 
 var (
-	precedenceDocumentationSection string         = "FileVantage"
-	precedenceMarkdownDescription  string         = "This resource allows you to set the precedence of FileVantage Policies based on the order of IDs."
-	precedencerequiredScopes       []scopes.Scope = apiScopes
+	precedenceDocumentationSection string = "FileVantage"
+	precedenceMarkdownDescription  string = "This resource allows you to set the precedence of FileVantage Policies based on the order of IDs."
 
 	dynamicEnforcement = "dynamic"
 )
@@ -109,7 +107,7 @@ func (r *filevantagePolicyPrecedenceResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: utils.MarkdownDescription(precedenceDocumentationSection, precedenceMarkdownDescription, precedencerequiredScopes),
+		MarkdownDescription: utils.MarkdownDescription(precedenceDocumentationSection, precedenceMarkdownDescription, apiScopesReadWrite),
 		Attributes: map[string]schema.Attribute{
 			"ids": schema.ListAttribute{
 				Required:            true,
@@ -201,7 +199,6 @@ func (r *filevantagePolicyPrecedenceResource) Read(
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-
 	var state filevantagePolicyPrecedenceResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -229,7 +226,6 @@ func (r *filevantagePolicyPrecedenceResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-
 	var plan filevantagePolicyPrecedenceResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -319,7 +315,6 @@ func (r *filevantagePolicyPrecedenceResource) getFilevantagePoilciesByPrecedence
 				Offset:  &offset,
 			},
 		)
-
 		if err != nil {
 			diags.AddError(
 				"Error reading CrowdStrike filevantage policies",

@@ -22,12 +22,12 @@ type resource struct {
 func (r resource) generateImport(tpl *template.Template) error {
 	filename := fmt.Sprintf("./examples/resources/crowdstrike_%s/import.sh", r.SnakeCaseName)
 
-	err := os.MkdirAll(filepath.Dir(filename), 0755)
+	err := os.MkdirAll(filepath.Dir(filename), 0o755)
 	if err != nil {
 		return fmt.Errorf("error creating directories: %w", err)
 	}
 
-	file, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0644)
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		return fmt.Errorf("error creating file: %w", err)
 	}
@@ -45,12 +45,12 @@ func (r resource) generateImport(tpl *template.Template) error {
 func (r resource) generateExample(tpl *template.Template) error {
 	filename := fmt.Sprintf("./examples/resources/crowdstrike_%s/resource.tf", r.SnakeCaseName)
 
-	err := os.MkdirAll(filepath.Dir(filename), 0755)
+	err := os.MkdirAll(filepath.Dir(filename), 0o755)
 	if err != nil {
 		return fmt.Errorf("error creating directories: %w", err)
 	}
 
-	file, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0644)
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		return fmt.Errorf("error creating file: %w", err)
 	}
@@ -68,12 +68,12 @@ func (r resource) generateExample(tpl *template.Template) error {
 func (r resource) generateResource(tpl *template.Template) error {
 	filename := fmt.Sprintf("./internal/%s/%s.go", r.SnakeCaseName, r.SnakeCaseName)
 
-	err := os.MkdirAll(filepath.Dir(filename), 0755)
+	err := os.MkdirAll(filepath.Dir(filename), 0o755)
 	if err != nil {
 		return fmt.Errorf("error creating directories: %w", err)
 	}
 
-	file, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0644)
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		return fmt.Errorf("error creating file: %w", err)
 	}

@@ -105,6 +105,7 @@ type preventionPolicyWindowsResourceModel struct {
 	FileSystemContainmentEnabled               types.Bool   `tfsdk:"file_system_containment"`
 	BootConfigurationDatabaseProtection        types.Bool   `tfsdk:"boot_configuration_database_protection"`
 	WSL2Visibility                             types.Bool   `tfsdk:"wsl2_visibility"`
+	SuspiciousFileAnalysis                     types.Bool   `tfsdk:"suspicious_file_analysis"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -158,7 +159,6 @@ func (r *preventionPolicyWindowsResource) Create(
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-
 	var plan preventionPolicyWindowsResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -695,7 +695,6 @@ func (r *preventionPolicyWindowsResource) assignRuleGroups(
 	config *preventionPolicyWindowsResourceModel,
 	groups []*models.IoaRuleGroupsRuleGroupV1,
 ) diag.Diagnostics {
-
 	ruleGroups := make([]types.String, 0, len(groups))
 	for _, ruleGroup := range groups {
 		ruleGroups = append(ruleGroups, types.StringValue(*ruleGroup.ID))
@@ -713,7 +712,6 @@ func (r *preventionPolicyWindowsResource) assignHostGroups(
 	config *preventionPolicyWindowsResourceModel,
 	groups []*models.HostGroupsHostGroupV1,
 ) diag.Diagnostics {
-
 	hostGroups := make([]types.String, 0, len(groups))
 	for _, hostGroup := range groups {
 		hostGroups = append(hostGroups, types.StringValue(*hostGroup.ID))
@@ -821,6 +819,7 @@ func (r *preventionPolicyWindowsResource) assignPreventionSettings(
 		toggleSettings["BootConfigurationDatabaseProtection"],
 	)
 	state.WSL2Visibility = defaultBoolFalse(toggleSettings["WSL2Visibility"])
+	state.SuspiciousFileAnalysis = defaultBoolFalse(toggleSettings["SuspiciousFileAnalysis"])
 
 	// mlslider settings
 	if detectionSlider, ok := detectionMlSliderSettings["ExtendedUserModeDataSlider"]; ok {
@@ -965,6 +964,7 @@ func (r *preventionPolicyWindowsResource) generatePreventionSettings(
 		"FileSystemContainmentEnabled":              config.FileSystemContainmentEnabled,
 		"BootConfigurationDatabaseProtection":       config.BootConfigurationDatabaseProtection,
 		"WSL2Visibility":                            config.WSL2Visibility,
+		"SuspiciousFileAnalysis":                    config.SuspiciousFileAnalysis,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}

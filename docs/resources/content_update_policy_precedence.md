@@ -5,7 +5,7 @@ description: |-
   This resource allows you to set the precedence of Content Update Policies based on the order of IDs.
   API Scopes
   The following API scopes are required:
-  Content update policies | Read & Write
+  Content Update Policy | Read & Write
 ---
 
 # crowdstrike_content_update_policy_precedence (Resource)
@@ -16,7 +16,7 @@ This resource allows you to set the precedence of Content Update Policies based 
 
 The following API scopes are required:
 
-- Content update policies | Read & Write
+- Content Update Policy | Read & Write
 
 
 ## Example Usage

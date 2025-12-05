@@ -54,15 +54,7 @@ func (d *contentCategoryVersionsDataSource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: fmt.Sprintf(
 			"Content Update Policy --- This data source provides information about available content category versions for pinning in content update policies.\n\n%s",
-			scopes.GenerateScopeDescription(
-				[]scopes.Scope{
-					{
-						Name:  "Content update policy",
-						Read:  true,
-						Write: false,
-					},
-				},
-			),
+			scopes.GenerateScopeDescription(apiScopesRead),
 		),
 		Attributes: map[string]schema.Attribute{
 			"sensor_operations": schema.ListAttribute{
@@ -115,7 +107,6 @@ func (d *contentCategoryVersionsDataSource) Read(
 				Category: apiCategory,
 			},
 		)
-
 		if err != nil {
 			resp.Diagnostics.AddError(
 				fmt.Sprintf("Unable to read content versions for category %s", apiCategory),

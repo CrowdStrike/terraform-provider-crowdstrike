@@ -43,7 +43,7 @@ var (
 )
 
 var (
-	customFrameworkDocumentationSection        = "Cloud Compliance"
+	customFrameworkDocumentationSection        = "Falcon Cloud Security"
 	customFrameworkResourceMarkdownDescription = "This resource allows managing custom compliance frameworks in the CrowdStrike Falcon Platform."
 	customFrameworkRequiredScopes              = cloudComplianceCustomFrameworkScopes
 )
@@ -80,7 +80,6 @@ func (d *cloudComplianceCustomFrameworkResourceModel) wrap(
 	_ context.Context,
 	framework *models.ApimodelsSecurityFramework,
 ) {
-
 	d.ID = types.StringValue(framework.UUID)
 	d.Name = types.StringPointerValue(framework.Name)
 	d.Description = types.StringValue(framework.Description)

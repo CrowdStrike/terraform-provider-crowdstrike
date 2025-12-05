@@ -10,7 +10,6 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/filevantage"
 	"github.com/crowdstrike/gofalcon/falcon/models"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -188,9 +187,10 @@ func (r *filevantageRuleGroupResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: fmt.Sprintf(
-			"FileVantage --- This resource allows management of a FileVantage rule group. A FileVantage rule group is a collection of file integrity rules that can be assigned to a FileVantge policy.\n\n%s",
-			scopes.GenerateScopeDescription(apiScopes),
+		MarkdownDescription: utils.MarkdownDescription(
+			"FileVantage",
+			"This resource allows management of a FileVantage rule group. A FileVantage rule group is a collection of file integrity rules that can be assigned to a FileVantge policy.",
+			apiScopesReadWrite,
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -754,7 +754,6 @@ func (r *filevantageRuleGroupResource) Delete(
 	}
 
 	_, err := r.client.Filevantage.DeleteRuleGroups(&params)
-
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to delete filevantage rule group",
@@ -1116,8 +1115,8 @@ func (r *filevantageRuleGroupResource) syncRules(
 	var rulesToDelete []string
 	var rulesToUpdate []fimRule
 
-	var stateMap = make(map[string]fimRule)
-	var planMap = make(map[string]fimRule)
+	stateMap := make(map[string]fimRule)
+	planMap := make(map[string]fimRule)
 
 	for _, rule := range stateRules {
 		rule := *rule
@@ -1185,7 +1184,6 @@ func (r *filevantageRuleGroupResource) getRules(
 			RuleGroupID: ruleGroupID,
 			Context:     ctx,
 		})
-
 		if err != nil {
 			diags.AddError(
 				"Failed to get rules assigned to rule group",
@@ -1290,7 +1288,6 @@ func (r *filevantageRuleGroupResource) deleteRules(
 	}
 
 	res, err := r.client.Filevantage.DeleteRules(&params)
-
 	if err != nil {
 		diags.AddError(
 			"Failed to delete rules associated with rule group",

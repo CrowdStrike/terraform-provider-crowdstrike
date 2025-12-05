@@ -2,6 +2,7 @@ package hostgroups_test
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"testing"
 
@@ -381,4 +382,72 @@ resource "crowdstrike_host_group" "test" {
 			},
 		},
 	})
+}
+
+func TestAccHostGroupResourceValidation(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+
+	hostGroup := func(name, typ, attrs string) string {
+		return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_host_group" "test" {
+  name        = "%s"
+  description = "made with terraform"
+  type        = "%s"
+  %s
+}
+`, name, typ, attrs)
+	}
+
+	tests := []struct {
+		name        string
+		config      string
+		expectError *regexp.Regexp
+	}{
+		{
+			name:        "name_empty",
+			config:      hostGroup("", "dynamic", `assignment_rule = "tags:'test'"`),
+			expectError: regexp.MustCompile(`must not be empty or contain only whitespace`),
+		},
+		{
+			name:        "name_whitespace_only",
+			config:      hostGroup("   ", "dynamic", `assignment_rule = "tags:'test'"`),
+			expectError: regexp.MustCompile(`must not be empty or contain only whitespace`),
+		},
+		{
+			name:        "hostname_empty",
+			config:      hostGroup(rName, "static", `hostnames = [""]`),
+			expectError: regexp.MustCompile(`must not be empty or contain only whitespace`),
+		},
+		{
+			name:        "hostname_whitespace_only",
+			config:      hostGroup(rName, "static", `hostnames = ["  "]`),
+			expectError: regexp.MustCompile(`must not be empty or contain only\s+whitespace`),
+		},
+		{
+			name:        "host_id_empty",
+			config:      hostGroup(rName, "staticByID", `host_ids = [""]`),
+			expectError: regexp.MustCompile(`must not be empty or contain only whitespace`),
+		},
+		{
+			name:        "host_id_whitespace_only",
+			config:      hostGroup(rName, "staticByID", `host_ids = ["   "]`),
+			expectError: regexp.MustCompile(`must not be empty or contain only\s+whitespace`),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resource.Test(t, resource.TestCase{
+				ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+				PreCheck:                 func() { acctest.PreCheck(t) },
+				Steps: []resource.TestStep{
+					{
+						Config:      tt.config,
+						ExpectError: tt.expectError,
+						PlanOnly:    true,
+					},
+				},
+			})
+		})
+	}
 }

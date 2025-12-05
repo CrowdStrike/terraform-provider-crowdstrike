@@ -168,7 +168,6 @@ func (d *sensorUpdatePolicyBuildsDataSource) Read(
 			Context: ctx,
 		},
 	)
-
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read sensor update policy builds", err.Error())
 		return

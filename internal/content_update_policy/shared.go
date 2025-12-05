@@ -41,7 +41,6 @@ func getContentUpdatePolicy(
 			Ids:     []string{policyID},
 		},
 	)
-
 	if err != nil {
 		tflog.Error(ctx, "API call failed in getContentUpdatePolicy", map[string]interface{}{
 			"policyID": policyID,

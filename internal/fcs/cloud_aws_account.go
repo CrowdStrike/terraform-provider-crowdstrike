@@ -819,7 +819,6 @@ func (r *cloudAWSAccountResource) createCSPMAccount(
 func (r *cloudAWSAccountResource) createCloudAccount(
 	ctx context.Context,
 	model cloudAWSAccountModel,
-
 ) (*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	createAccount := models.RestCloudAWSAccountCreateExtV1{
@@ -1410,7 +1409,6 @@ func (r *cloudAWSAccountResource) updateCSPMAccount(
 			},
 		},
 	)
-
 	if err != nil {
 		if _, ok := err.(*cspm_registration.PatchCSPMAwsAccountForbidden); ok {
 			diags.AddError(
@@ -1495,7 +1493,6 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 			},
 		},
 	)
-
 	if err != nil {
 		if _, ok := err.(*cloud_aws_registration.CloudRegistrationAwsUpdateAccountForbidden); ok {
 			diags.AddError(

@@ -230,15 +230,7 @@ func (r *defaultContentUpdatePolicyResource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: fmt.Sprintf(
 			"Content Update Policy --- This resource allows management of the default content update policy in the CrowdStrike Falcon platform. Destruction of this resource *will not* delete the default content update policy or remove any configured settings.\n\n%s",
-			scopes.GenerateScopeDescription(
-				[]scopes.Scope{
-					{
-						Name:  "Content update policies",
-						Read:  true,
-						Write: true,
-					},
-				},
-			),
+			scopes.GenerateScopeDescription(apiScopesReadWrite),
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -818,7 +810,6 @@ func (r *defaultContentUpdatePolicyResource) updateDefaultPolicy(
 	}
 
 	_, err := r.client.ContentUpdatePolicies.UpdateContentUpdatePolicies(&policyParams)
-
 	if err != nil {
 		diags.AddError(
 			"Error updating CrowdStrike default content update policy",
@@ -845,7 +836,6 @@ func (r *defaultContentUpdatePolicyResource) getDefaultPolicy(
 			Filter:  &filter,
 		},
 	)
-
 	if err != nil {
 		diags.AddError(
 			"Failed to get default content update policy",
