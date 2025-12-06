@@ -1,18 +1,21 @@
-package fcs
+package fcs_test
 
 import (
 	"context"
 	"regexp"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestIsValidAWSRegion(t *testing.T) {
-	tests := []struct {
+	t.Parallel()
+	testCases := []struct {
 		name     string
 		region   string
 		expected bool
@@ -56,25 +59,23 @@ func TestIsValidAWSRegion(t *testing.T) {
 		{"Wrong separator", "us.east.1", false},
 		{"Invalid number format", "us-east-01", false},
 
-		// Future regions that would be valid (demonstrating future-proofing)
+		// Future regions that would be valid
 		{"Future US region", "us-central-3", true},
 		{"Future EU region", "eu-southeast-2", true},
 		{"Future AP region", "ap-northwest-5", true},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := IsValidAWSRegion(tt.region)
-			if result != tt.expected {
-				t.Errorf("IsValidAWSRegion(%q) = %v; expected %v", tt.region, result, tt.expected)
-			}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := fcs.IsValidAWSRegion(tc.region)
+			assert.Equal(t, tc.expected, result, "IsValidAWSRegion(%q) should return %v", tc.region, tc.expected)
 		})
 	}
 }
 
 func TestRegexPatterns(t *testing.T) {
-	// Test individual patterns
-	tests := []struct {
+	t.Parallel()
+	testCases := []struct {
 		name    string
 		pattern *regexp.Regexp
 		valid   []string
@@ -82,444 +83,228 @@ func TestRegexPatterns(t *testing.T) {
 	}{
 		{
 			name:    "Commercial",
-			pattern: CommercialRegionRegex,
+			pattern: fcs.CommercialRegionRegex,
 			valid:   []string{"us-east-1", "eu-west-2", "ap-southeast-3", "ca-central-1"},
 			invalid: []string{"us-gov-west-1", "cn-north-1", "invalid-region"},
 		},
 		{
 			name:    "GovCloud",
-			pattern: GovCloudRegionRegex,
+			pattern: fcs.GovCloudRegionRegex,
 			valid:   []string{"us-gov-west-1", "us-gov-east-1"},
 			invalid: []string{"us-east-1", "eu-gov-west-1", "cn-gov-north-1"},
 		},
 		{
 			name:    "China",
-			pattern: ChinaRegionRegex,
+			pattern: fcs.ChinaRegionRegex,
 			valid:   []string{"cn-north-1", "cn-northwest-1"},
 			invalid: []string{"us-east-1", "cn-gov-west-1"},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			for _, valid := range tt.valid {
-				if !tt.pattern.MatchString(valid) {
-					t.Errorf("%s pattern should match %q", tt.name, valid)
-				}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, valid := range tc.valid {
+				assert.True(t, tc.pattern.MatchString(valid), "%s pattern should match %q", tc.name, valid)
 			}
 
-			for _, invalid := range tt.invalid {
-				if tt.pattern.MatchString(invalid) {
-					t.Errorf("%s pattern should NOT match %q", tt.name, invalid)
-				}
+			for _, invalid := range tc.invalid {
+				assert.False(t, tc.pattern.MatchString(invalid), "%s pattern should NOT match %q", tc.name, invalid)
 			}
 		})
 	}
 }
 
 func TestAWSRegionValidator(t *testing.T) {
-	tests := []struct {
+	t.Parallel()
+	testCases := []struct {
 		name          string
-		region        string
+		region        types.String
 		expectError   bool
 		errorContains string
 	}{
 		{
 			name:        "valid us-east-1",
-			region:      "us-east-1",
+			region:      types.StringValue("us-east-1"),
 			expectError: false,
 		},
 		{
 			name:        "valid eu-west-1",
-			region:      "eu-west-1",
+			region:      types.StringValue("eu-west-1"),
 			expectError: false,
 		},
 		{
 			name:        "valid ap-southeast-1",
-			region:      "ap-southeast-1",
+			region:      types.StringValue("ap-southeast-1"),
 			expectError: false,
 		},
 		{
 			name:        "valid us-gov-west-1",
-			region:      "us-gov-west-1",
+			region:      types.StringValue("us-gov-west-1"),
 			expectError: false,
 		},
 		{
 			name:        "valid cn-north-1",
-			region:      "cn-north-1",
+			region:      types.StringValue("cn-north-1"),
 			expectError: false,
 		},
 		{
 			name:          "invalid region format",
-			region:        "invalid-region",
+			region:        types.StringValue("invalid-region"),
 			expectError:   true,
 			errorContains: "not a valid AWS region",
 		},
 		{
 			name:          "empty string",
-			region:        "",
+			region:        types.StringValue(""),
 			expectError:   true,
 			errorContains: "not a valid AWS region",
 		},
 		{
 			name:          "wrong format underscore",
-			region:        "us_east_1",
+			region:        types.StringValue("us_east_1"),
 			expectError:   true,
 			errorContains: "not a valid AWS region",
 		},
 		{
 			name:        "future region that follows pattern",
-			region:      "us-central-5",
+			region:      types.StringValue("us-central-5"),
 			expectError: false,
 		},
 		{
 			name:        "future EU region",
-			region:      "eu-southeast-3",
+			region:      types.StringValue("eu-southeast-3"),
+			expectError: false,
+		},
+		{
+			name:        "null value",
+			region:      types.StringNull(),
+			expectError: false,
+		},
+		{
+			name:        "unknown value",
+			region:      types.StringUnknown(),
 			expectError: false,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			v := AWSRegionValidator()
-
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			v := fcs.AWSRegionValidator()
 			req := validator.StringRequest{
 				Path:        path.Root("test"),
-				ConfigValue: types.StringValue(tt.region),
+				ConfigValue: tc.region,
 			}
-
 			resp := &validator.StringResponse{}
-
 			v.ValidateString(context.Background(), req, resp)
 
 			hasError := resp.Diagnostics.HasError()
-
-			if tt.expectError && !hasError {
-				t.Errorf("Expected validation error for region '%s', but got none", tt.region)
-			}
-
-			if !tt.expectError && hasError {
-				t.Errorf("Expected no validation error for region '%s', but got: %v", tt.region, resp.Diagnostics.Errors())
-			}
-
-			if tt.expectError && hasError && tt.errorContains != "" {
-				found := false
-				for _, diag := range resp.Diagnostics.Errors() {
-					if contains(diag.Summary(), tt.errorContains) || contains(diag.Detail(), tt.errorContains) {
-						found = true
-						break
-					}
+			if tc.expectError {
+				assert.True(t, hasError, "Expected validation error for region '%s'", tc.region)
+				if tc.errorContains != "" {
+					errs := resp.Diagnostics.Errors()
+					assert.NotEmpty(t, errs)
+					errorText := errs[0].Summary() + " " + errs[0].Detail()
+					assert.Contains(t, errorText, tc.errorContains)
 				}
-				if !found {
-					t.Errorf("Expected error message to contain '%s', but got: %v", tt.errorContains, resp.Diagnostics.Errors())
-				}
+			} else {
+				assert.False(t, hasError, "Expected no validation error for region '%s', but got: %v", tc.region, resp.Diagnostics.Errors())
 			}
 		})
 	}
-}
-
-func TestAWSRegionValidatorNullAndUnknown(t *testing.T) {
-	v := AWSRegionValidator()
-
-	// Test null value - should not error
-	req := validator.StringRequest{
-		Path:        path.Root("test"),
-		ConfigValue: types.StringNull(),
-	}
-	resp := &validator.StringResponse{}
-	v.ValidateString(context.Background(), req, resp)
-
-	if resp.Diagnostics.HasError() {
-		t.Errorf("Expected no error for null value, got: %v", resp.Diagnostics.Errors())
-	}
-
-	// Test unknown value - should not error
-	req = validator.StringRequest{
-		Path:        path.Root("test"),
-		ConfigValue: types.StringUnknown(),
-	}
-	resp = &validator.StringResponse{}
-	v.ValidateString(context.Background(), req, resp)
-
-	if resp.Diagnostics.HasError() {
-		t.Errorf("Expected no error for unknown value, got: %v", resp.Diagnostics.Errors())
-	}
-}
-
-// Helper function to check if a string contains a substring.
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || (len(substr) > 0 && indexOf(s, substr) >= 0))
-}
-
-func indexOf(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
 }
 
 func TestAWSRegionsOrAllListValidator(t *testing.T) {
-	tests := []struct {
+	t.Parallel()
+
+	testCases := []struct {
 		name          string
-		regions       []string
+		list          types.List
 		expectError   bool
 		errorContains string
 	}{
 		{
-			name:        "empty list is valid",
-			regions:     []string{},
+			name:        "empty list",
+			list:        acctest.StringListOrNull(),
 			expectError: false,
 		},
 		{
 			name:        "single 'all' is valid",
-			regions:     []string{"all"},
+			list:        acctest.StringListOrNull("all"),
 			expectError: false,
 		},
 		{
 			name:        "single valid region",
-			regions:     []string{"us-east-1"},
+			list:        acctest.StringListOrNull("us-east-1"),
 			expectError: false,
 		},
 		{
 			name:        "multiple valid regions",
-			regions:     []string{"us-east-1", "eu-west-1", "ap-southeast-1"},
+			list:        acctest.StringListOrNull("us-east-1", "eu-west-1", "ap-southeast-1"),
 			expectError: false,
 		},
 		{
 			name:          "all mixed with other regions is invalid",
-			regions:       []string{"all", "us-east-1"},
+			list:          acctest.StringListOrNull("all", "us-east-1"),
 			expectError:   true,
 			errorContains: "Cannot mix 'all' with specific regions",
 		},
 		{
 			name:          "all mixed with other regions (different order) is invalid",
-			regions:       []string{"us-east-1", "all"},
+			list:          acctest.StringListOrNull("us-east-1", "all"),
 			expectError:   true,
 			errorContains: "Cannot mix 'all' with specific regions",
 		},
 		{
 			name:          "invalid region format",
-			regions:       []string{"invalid-region"},
+			list:          acctest.StringListOrNull("invalid-region"),
 			expectError:   true,
 			errorContains: "not a valid AWS region",
 		},
 		{
 			name:          "mix of valid and invalid regions",
-			regions:       []string{"us-east-1", "invalid-region"},
+			list:          acctest.StringListOrNull("us-east-1", "invalid-region"),
 			expectError:   true,
 			errorContains: "not a valid AWS region",
 		},
 		{
 			name:        "multiple valid regions with different types",
-			regions:     []string{"us-east-1", "eu-west-1", "us-gov-west-1", "cn-north-1"},
+			list:        acctest.StringListOrNull("us-east-1", "eu-west-1", "us-gov-west-1", "cn-north-1"),
+			expectError: false,
+		},
+		{
+			name:        "null value",
+			list:        types.ListNull(types.StringType),
+			expectError: false,
+		},
+		{
+			name:        "unknown value",
+			list:        types.ListUnknown(types.StringType),
 			expectError: false,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			v := AWSRegionsOrAllListValidator()
-
-			// Convert string slice to list of types.String
-			var elements []types.String
-			for _, region := range tt.regions {
-				elements = append(elements, types.StringValue(region))
-			}
-
-			listValue, diags := types.ListValueFrom(context.Background(), types.StringType, elements)
-			if diags.HasError() {
-				t.Fatalf("Failed to create list value: %v", diags.Errors())
-			}
-
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			v := fcs.AWSRegionsOrAllListValidator()
 			req := validator.ListRequest{
 				Path:        path.Root("test"),
-				ConfigValue: listValue,
+				ConfigValue: tc.list,
 			}
-
 			resp := &validator.ListResponse{}
-
 			v.ValidateList(context.Background(), req, resp)
 
 			hasError := resp.Diagnostics.HasError()
-
-			if tt.expectError && !hasError {
-				t.Errorf("Expected validation error for regions %v, but got none", tt.regions)
-			}
-
-			if !tt.expectError && hasError {
-				t.Errorf("Expected no validation error for regions %v, but got: %v", tt.regions, resp.Diagnostics.Errors())
-			}
-
-			if tt.expectError && hasError && tt.errorContains != "" {
-				found := false
-				for _, diag := range resp.Diagnostics.Errors() {
-					if contains(diag.Summary(), tt.errorContains) || contains(diag.Detail(), tt.errorContains) {
-						found = true
-						break
-					}
+			if tc.expectError {
+				assert.True(t, hasError, "Expected validation error for list '%s'", tc.list)
+				if tc.errorContains != "" {
+					errs := resp.Diagnostics.Errors()
+					assert.NotEmpty(t, errs)
+					errorText := errs[0].Summary() + " " + errs[0].Detail()
+					assert.Contains(t, errorText, tc.errorContains)
 				}
-				if !found {
-					t.Errorf("Expected error message to contain '%s', but got: %v", tt.errorContains, resp.Diagnostics.Errors())
-				}
+			} else {
+				assert.False(t, hasError, "Expected no validation error for list '%s', but got: %v", tc.list, resp.Diagnostics.Errors())
 			}
 		})
-	}
-}
-
-func TestAWSRegionsOrAllListValidatorNullAndUnknown(t *testing.T) {
-	v := AWSRegionsOrAllListValidator()
-
-	// Test null value - should not error
-	req := validator.ListRequest{
-		Path:        path.Root("test"),
-		ConfigValue: types.ListNull(types.StringType),
-	}
-	resp := &validator.ListResponse{}
-	v.ValidateList(context.Background(), req, resp)
-	if resp.Diagnostics.HasError() {
-		t.Errorf("Expected no error for null value, got: %v", resp.Diagnostics.Errors())
-	}
-
-	// Test unknown value - should not error
-	req = validator.ListRequest{
-		Path:        path.Root("test"),
-		ConfigValue: types.ListUnknown(types.StringType),
-	}
-	resp = &validator.ListResponse{}
-	v.ValidateList(context.Background(), req, resp)
-	if resp.Diagnostics.HasError() {
-		t.Errorf("Expected no error for unknown value, got: %v", resp.Diagnostics.Errors())
-	}
-}
-
-func TestAWSRegionsOrAllNonEmptyListValidator(t *testing.T) {
-	tests := []struct {
-		name          string
-		regions       []string
-		expectError   bool
-		errorContains string
-	}{
-		{
-			name:          "empty list should error",
-			regions:       []string{},
-			expectError:   true,
-			errorContains: "Empty Regions List Not Allowed",
-		},
-		{
-			name:        "single 'all' is valid",
-			regions:     []string{"all"},
-			expectError: false,
-		},
-		{
-			name:        "single valid region",
-			regions:     []string{"us-east-1"},
-			expectError: false,
-		},
-		{
-			name:        "multiple valid regions",
-			regions:     []string{"us-east-1", "eu-west-1", "ap-southeast-1"},
-			expectError: false,
-		},
-		{
-			name:          "all mixed with other regions is invalid",
-			regions:       []string{"all", "us-east-1"},
-			expectError:   true,
-			errorContains: "Cannot mix 'all' with specific regions",
-		},
-		{
-			name:          "all mixed with other regions (different order) is invalid",
-			regions:       []string{"us-east-1", "all"},
-			expectError:   true,
-			errorContains: "Cannot mix 'all' with specific regions",
-		},
-		{
-			name:          "invalid region format",
-			regions:       []string{"invalid-region"},
-			expectError:   true,
-			errorContains: "not a valid AWS region",
-		},
-		{
-			name:          "mix of valid and invalid regions",
-			regions:       []string{"us-east-1", "invalid-region"},
-			expectError:   true,
-			errorContains: "not a valid AWS region",
-		},
-		{
-			name:        "multiple valid regions with different types",
-			regions:     []string{"us-east-1", "eu-west-1", "us-gov-west-1", "cn-north-1"},
-			expectError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			v := AWSRegionsOrAllNonEmptyListValidator()
-
-			// Create list value from regions
-			regionValues := make([]attr.Value, len(tt.regions))
-			for i, region := range tt.regions {
-				regionValues[i] = types.StringValue(region)
-			}
-			listValue := types.ListValueMust(types.StringType, regionValues)
-
-			req := validator.ListRequest{
-				Path:        path.Root("test"),
-				ConfigValue: listValue,
-			}
-			resp := &validator.ListResponse{}
-
-			v.ValidateList(context.Background(), req, resp)
-
-			hasError := resp.Diagnostics.HasError()
-
-			if tt.expectError && !hasError {
-				t.Errorf("Expected validation error for regions %v, but got none", tt.regions)
-			}
-
-			if !tt.expectError && hasError {
-				t.Errorf("Expected no validation error for regions %v, but got: %v", tt.regions, resp.Diagnostics.Errors())
-			}
-
-			if tt.expectError && hasError && tt.errorContains != "" {
-				found := false
-				for _, diag := range resp.Diagnostics.Errors() {
-					if contains(diag.Summary(), tt.errorContains) || contains(diag.Detail(), tt.errorContains) {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("Expected error message to contain '%s', but got: %v", tt.errorContains, resp.Diagnostics.Errors())
-				}
-			}
-		})
-	}
-}
-
-func TestAWSRegionsOrAllNonEmptyListValidatorNullAndUnknown(t *testing.T) {
-	v := AWSRegionsOrAllNonEmptyListValidator()
-
-	// Test null value - should not error
-	req := validator.ListRequest{
-		Path:        path.Root("test"),
-		ConfigValue: types.ListNull(types.StringType),
-	}
-	resp := &validator.ListResponse{}
-	v.ValidateList(context.Background(), req, resp)
-	if resp.Diagnostics.HasError() {
-		t.Errorf("Expected no error for null value, got: %v", resp.Diagnostics.Errors())
-	}
-
-	// Test unknown value - should not error
-	req = validator.ListRequest{
-		Path:        path.Root("test"),
-		ConfigValue: types.ListUnknown(types.StringType),
-	}
-	resp = &validator.ListResponse{}
-	v.ValidateList(context.Background(), req, resp)
-	if resp.Diagnostics.HasError() {
-		t.Errorf("Expected no error for unknown value, got: %v", resp.Diagnostics.Errors())
 	}
 }
