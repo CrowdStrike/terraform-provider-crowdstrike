@@ -1720,7 +1720,7 @@ func (r *cloudAWSAccountResource) deleteCloudAccount(
 
 // Configure adds the provider configured client to the resource.
 func (r *cloudAWSAccountResource) Configure(
-	_ context.Context,
+	ctx context.Context,
 	req resource.ConfigureRequest,
 	resp *resource.ConfigureResponse,
 ) {
@@ -1728,7 +1728,7 @@ func (r *cloudAWSAccountResource) Configure(
 		return
 	}
 
-	apiClient, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
 
 	if !ok {
 		resp.Diagnostics.AddError(
@@ -1742,7 +1742,7 @@ func (r *cloudAWSAccountResource) Configure(
 		return
 	}
 
-	r.client = apiClient
+	r.client = client
 }
 
 // ImportState implements the logic to support resource imports.
