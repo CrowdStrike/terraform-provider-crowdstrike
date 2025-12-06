@@ -1,6 +1,6 @@
 module github.com/crowdstrike/terraform-provider-crowdstrike
 
-go 1.24.9
+go 1.24.3
 
 require (
 	github.com/crowdstrike/gofalcon v0.18.1-0.20251205193705-9d1d8ae62d63
