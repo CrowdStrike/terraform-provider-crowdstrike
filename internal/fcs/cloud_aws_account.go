@@ -11,6 +11,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_aws_registration"
 	"github.com/crowdstrike/gofalcon/falcon/client/cspm_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	privatestate "github.com/crowdstrike/terraform-provider-crowdstrike/internal/private_state"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
@@ -364,10 +365,11 @@ func (r *cloudAWSAccountResource) Schema(
 					},
 					"regions": schema.ListAttribute{
 						Optional:    true,
-						Description: "List of AWS regions for Real-Time Visibility and Detection. Set to ['all'] to ingest events from all regions, or specify a list of specific regions",
+						Description: "List of AWS regions for Real-Time Visibility and Detection. If not specified, defaults to all regions",
 						ElementType: types.StringType,
 						Validators: []validator.List{
-							AWSRegionsOrAllNonEmptyListValidator(),
+							listvalidator.SizeAtLeast(1),
+							AWSRegionsOrAllListValidator(),
 						},
 					},
 				},
@@ -711,11 +713,7 @@ func (r *cloudAWSAccountResource) Create(
 	// update with data from backend
 
 	state.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
-	if cspmAccount.AwsCloudtrailRegion != "" {
-		state.RealtimeVisibility.CloudTrailRegion = types.StringValue(
-			cspmAccount.AwsCloudtrailRegion,
-		)
-	}
+	state.RealtimeVisibility.CloudTrailRegion = flex.StringValueToFramework(cspmAccount.AwsCloudtrailRegion)
 
 	state.SensorManagement.Enabled = types.BoolPointerValue(cspmAccount.SensorManagementEnabled)
 
@@ -886,30 +884,32 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 		}
 	}
 
-	// Add regions - only set when explicitly provided
+	rtvdRegions := []string{}
 	if model.RealtimeVisibility != nil && utils.IsKnown(model.RealtimeVisibility.Regions) {
-		var rtvdRegions []string
 		diags.Append(model.RealtimeVisibility.Regions.ElementsAs(ctx, &rtvdRegions, false)...)
-		if !diags.HasError() {
-			createAccount.IoaRegions = rtvdRegions
+		if diags.HasError() {
+			return nil, diags
 		}
 	}
+	createAccount.IoaRegions = rtvdRegions
 
+	dspmRegions := []string{}
 	if model.DSPM != nil && utils.IsKnown(model.DSPM.Regions) {
-		var dspmRegions []string
 		diags.Append(model.DSPM.Regions.ElementsAs(ctx, &dspmRegions, false)...)
-		if !diags.HasError() {
-			createAccount.DspmRegions = dspmRegions
+		if diags.HasError() {
+			return nil, diags
 		}
 	}
+	createAccount.DspmRegions = dspmRegions
 
+	vulnRegions := []string{}
 	if model.VulnerabilityScanning != nil && utils.IsKnown(model.VulnerabilityScanning.Regions) {
-		var vulnRegions []string
 		diags.Append(model.VulnerabilityScanning.Regions.ElementsAs(ctx, &vulnRegions, false)...)
-		if !diags.HasError() {
-			createAccount.VulnerabilityScanningRegions = vulnRegions
+		if diags.HasError() {
+			return nil, diags
 		}
 	}
+	createAccount.VulnerabilityScanningRegions = vulnRegions
 
 	if model.RealtimeVisibility != nil && model.RealtimeVisibility.Enabled.ValueBool() {
 		createAccount.CspEvents = true
@@ -988,14 +988,13 @@ func (r *cloudAWSAccountResource) Read(
 	}
 
 	var state cloudAWSAccountModel
-	var oldState cloudAWSAccountModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &oldState)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if oldState.AccountID.ValueString() == "" {
+	if state.AccountID.ValueString() == "" {
 		return
 	}
 
@@ -1003,7 +1002,7 @@ func (r *cloudAWSAccountResource) Read(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	cspmAccount, diags := r.getCSPMAccount(ctx, oldState.AccountID.ValueString())
+	cspmAccount, diags := r.getCSPMAccount(ctx, state.AccountID.ValueString())
 	for _, diagErr := range diags.Errors() {
 		if strings.Contains(diagErr.Detail(), "404 Not Found") {
 			tflog.Warn(
@@ -1026,12 +1025,9 @@ func (r *cloudAWSAccountResource) Read(
 	// imports should use the org id from the API since state will be nil.
 	if isImport {
 		state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
-	} else {
-		state.OrganizationID = oldState.OrganizationID
 	}
 
 	state.AccountType = types.StringValue(cspmAccount.AccountType)
-	state.DeploymentMethod = oldState.DeploymentMethod
 	if state.DeploymentMethod.IsNull() {
 		state.DeploymentMethod = types.StringValue("terraform-native")
 	}
@@ -1064,77 +1060,30 @@ func (r *cloudAWSAccountResource) Read(
 
 	state.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
 
-	// for each feature options
-	// if old state is nil, we are importing
-	// if not, copy old state and then update with data from backend
-	if oldState.AssetInventory != nil {
-		state.AssetInventory = oldState.AssetInventory
-	} else {
-		state.AssetInventory = &assetInventoryOptions{
-			Enabled: types.BoolValue(true), // asset inventory is always enabled
-		}
-	}
-
-	if oldState.RealtimeVisibility != nil {
-		state.RealtimeVisibility = &realtimeVisibilityOptions{
-			UseExistingCloudTrail: oldState.RealtimeVisibility.UseExistingCloudTrail,
-			CloudTrailRegion:      oldState.RealtimeVisibility.CloudTrailRegion,
-			Regions:               safeRegionsCopy(ctx, oldState.RealtimeVisibility.Regions),
-		}
-	} else {
+	if state.RealtimeVisibility == nil {
 		state.RealtimeVisibility = &realtimeVisibilityOptions{
 			UseExistingCloudTrail: types.BoolValue(true),
-			Regions:               types.ListNull(types.StringType),
 		}
 	}
 	state.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
-	if cspmAccount.AwsCloudtrailRegion != "" {
-		state.RealtimeVisibility.CloudTrailRegion = types.StringValue(
-			cspmAccount.AwsCloudtrailRegion,
-		)
-	}
+	state.RealtimeVisibility.CloudTrailRegion = flex.StringValueToFramework(cspmAccount.AwsCloudtrailRegion)
 
-	if oldState.SensorManagement != nil {
-		state.SensorManagement = oldState.SensorManagement
-	} else {
+	if state.SensorManagement == nil {
 		state.SensorManagement = &sensorManagementOptions{}
 	}
 	state.SensorManagement.Enabled = types.BoolPointerValue(cspmAccount.SensorManagementEnabled)
 
-	if oldState.DSPM != nil {
-		state.DSPM = &dspmOptions{
-			Enabled:  oldState.DSPM.Enabled,
-			RoleName: oldState.DSPM.RoleName,
-			Regions:  safeRegionsCopy(ctx, oldState.DSPM.Regions),
-		}
-	} else {
-		state.DSPM = &dspmOptions{
-			Regions: types.ListNull(types.StringType),
-		}
+	if state.DSPM == nil {
+		state.DSPM = &dspmOptions{}
 	}
 	state.DSPM.Enabled = types.BoolValue(cspmAccount.DspmEnabled)
 
-	if oldState.VulnerabilityScanning != nil {
-		state.VulnerabilityScanning = &vulnerabilityScanningOptions{
-			Enabled:  oldState.VulnerabilityScanning.Enabled,
-			RoleName: oldState.VulnerabilityScanning.RoleName,
-			Regions:  safeRegionsCopy(ctx, oldState.VulnerabilityScanning.Regions),
-		}
-	} else {
-		state.VulnerabilityScanning = &vulnerabilityScanningOptions{
-			Regions: types.ListNull(types.StringType),
-		}
+	if state.VulnerabilityScanning == nil {
+		state.VulnerabilityScanning = &vulnerabilityScanningOptions{}
 	}
 	state.VulnerabilityScanning.Enabled = types.BoolValue(cspmAccount.VulnerabilityScanningEnabled)
 
-	// save current state
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	cloudAccount, _, diags := r.getCloudAccount(ctx, oldState.AccountID.ValueString())
+	cloudAccount, _, diags := r.getCloudAccount(ctx, state.AccountID.ValueString())
 
 	for _, diagErr := range diags.Errors() {
 		if strings.Contains(diagErr.Detail(), "404 Not Found") {
@@ -1156,12 +1105,8 @@ func (r *cloudAWSAccountResource) Read(
 
 	state.wrap(cloudAccount)
 
-	if oldState.IDP != nil {
-		state.IDP = oldState.IDP
-	} else {
-		state.IDP = &idpOptions{
-			Enabled: types.BoolValue(false),
-		}
+	if state.IDP == nil {
+		state.IDP = &idpOptions{}
 	}
 
 	if cloudAccState.Created {
@@ -1181,7 +1126,7 @@ func (r *cloudAWSAccountResource) Read(
 		state.ResourceNameSuffix = types.StringValue(cloudAccount.ResourceNameSuffix)
 
 		// Parse regions from Settings map
-		diags := parseRegionsFromSettings(ctx, cloudAccount.Settings, &state, &oldState)
+		diags := parseRegionsFromSettings(ctx, cloudAccount.Settings, &state)
 		resp.Diagnostics.Append(diags...)
 	} else {
 		// Cloud Registration account doesn't exist - set regions to null
@@ -1418,9 +1363,6 @@ func (r *cloudAWSAccountResource) Update(
 
 	plan.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
 
-	// Preserve regions from the plan (these are input from the user and not returned from CSPM API)
-	// The regions are only used in Cloud Registration API calls
-
 	plan.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
 	if cspmAccount.AwsCloudtrailRegion != "" {
 		plan.RealtimeVisibility.CloudTrailRegion = types.StringValue(
@@ -1573,30 +1515,32 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 		}
 	}
 
-	// Add regions - only set when explicitly provided
+	rtvdRegions := []string{}
 	if model.RealtimeVisibility != nil && utils.IsKnown(model.RealtimeVisibility.Regions) {
-		var rtvdRegions []string
 		diags.Append(model.RealtimeVisibility.Regions.ElementsAs(ctx, &rtvdRegions, false)...)
-		if !diags.HasError() {
-			patchAccount.IoaRegions = rtvdRegions
+		if diags.HasError() {
+			return nil, diags
 		}
 	}
+	patchAccount.IoaRegions = rtvdRegions
 
+	dspmRegions := []string{}
 	if model.DSPM != nil && utils.IsKnown(model.DSPM.Regions) {
-		var dspmRegions []string
 		diags.Append(model.DSPM.Regions.ElementsAs(ctx, &dspmRegions, false)...)
-		if !diags.HasError() {
-			patchAccount.DspmRegions = dspmRegions
+		if diags.HasError() {
+			return nil, diags
 		}
 	}
+	patchAccount.DspmRegions = dspmRegions
 
+	vulnRegions := []string{}
 	if model.VulnerabilityScanning != nil && utils.IsKnown(model.VulnerabilityScanning.Regions) {
-		var vulnRegions []string
 		diags.Append(model.VulnerabilityScanning.Regions.ElementsAs(ctx, &vulnRegions, false)...)
-		if !diags.HasError() {
-			patchAccount.VulnerabilityScanningRegions = vulnRegions
+		if diags.HasError() {
+			return nil, diags
 		}
 	}
+	patchAccount.VulnerabilityScanningRegions = vulnRegions
 
 	if model.AssetInventory != nil && model.AssetInventory.Enabled.ValueBool() {
 		patchAccount.CspEvents = true
@@ -1869,84 +1813,25 @@ func (r *cloudAWSAccountResource) ValidateConfig(
 	}
 }
 
-// safeRegionsCopy safely copies regions from source, ensuring proper type conversion.
-// If source is null or has type issues, returns a proper null list.
-func safeRegionsCopy(ctx context.Context, source types.List) types.List {
-	if source.IsNull() {
-		return types.ListNull(types.StringType)
-	}
-	if source.IsUnknown() {
-		return types.ListUnknown(types.StringType)
-	}
-
-	// Check if this is an uninitialized (zero-value) list
-	// Zero-value lists have no type information and will cause conversion errors
-	if source.Equal(types.List{}) {
-		return types.ListNull(types.StringType)
-	}
-
-	// Check if the list has invalid or missing element type information
-	listType := source.Type(ctx)
-	if listType == nil {
-		return types.ListNull(types.StringType)
-	}
-
-	// If the source list has the wrong element type, try to extract and recreate it
-	var regions []string
-	if diags := source.ElementsAs(ctx, &regions, false); diags.HasError() {
-		// If we can't extract the elements, return null
-		return types.ListNull(types.StringType)
-	}
-
-	// Recreate the list with proper typing
-	attrs := make([]attr.Value, len(regions))
-	for i, region := range regions {
-		attrs[i] = types.StringValue(region)
-	}
-
-	if len(attrs) == 0 {
-		return types.ListValueMust(types.StringType, []attr.Value{})
-	}
-
-	return types.ListValueMust(types.StringType, attrs)
-}
-
 // parseRegionsFromSettings parses region information from the cloudAccount Settings map
 // and populates the appropriate region fields in the state model.
-// It preserves the original plan values when regions were not explicitly set.
-func parseRegionsFromSettings(
-	ctx context.Context,
-	settings interface{},
-	state *cloudAWSAccountModel,
-	oldState *cloudAWSAccountModel,
-) diag.Diagnostics {
+func parseRegionsFromSettings(ctx context.Context, settings interface{}, state *cloudAWSAccountModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	// Initialize with old state values to preserve original plan values using safe copying
-	if oldState.DSPM != nil {
-		state.DSPM.Regions = safeRegionsCopy(ctx, oldState.DSPM.Regions)
-	} else {
-		state.DSPM.Regions = types.ListNull(types.StringType)
-	}
-
-	if oldState.RealtimeVisibility != nil {
-		state.RealtimeVisibility.Regions = safeRegionsCopy(ctx, oldState.RealtimeVisibility.Regions)
-	} else {
-		state.RealtimeVisibility.Regions = types.ListNull(types.StringType)
-	}
-
-	if oldState.VulnerabilityScanning != nil {
-		state.VulnerabilityScanning.Regions = safeRegionsCopy(ctx, oldState.VulnerabilityScanning.Regions)
-	} else {
-		state.VulnerabilityScanning.Regions = types.ListNull(types.StringType)
-	}
+	state.DSPM.Regions = types.ListNull(types.StringType)
+	state.RealtimeVisibility.Regions = types.ListNull(types.StringType)
+	state.VulnerabilityScanning.Regions = types.ListNull(types.StringType)
 
 	if settings == nil {
 		return diags
 	}
 
-	settingsMap, ok := settings.(map[string]string)
+	settingsMap, ok := settings.(map[string]interface{})
 	if !ok {
+		diags.AddError(
+			"Failed to parse settings",
+			fmt.Sprintf("Expected settings to be map[string]interface{}, got: %T", settings),
+		)
 		return diags
 	}
 
@@ -1962,34 +1847,36 @@ func parseRegionsFromSettings(
 		return types.ListValueFrom(ctx, types.StringType, regions)
 	}
 
-	// Only update regions if they were originally set (not null) in the plan
-	// Parse RTVD regions - only update if originally set
-	if oldState.RealtimeVisibility != nil && utils.IsKnown(oldState.RealtimeVisibility.Regions) {
-		rtvdRegionsStr := settingsMap["rtvd.regions"]
-		if regionsList, regionDiags := parseRegions(rtvdRegionsStr); !regionDiags.HasError() {
-			state.RealtimeVisibility.Regions = regionsList
-		} else {
-			diags.Append(regionDiags...)
+	// Parse RTVD regions - always set (null if not present)
+	if rtvdRegions, exists := settingsMap["rtvd.regions"]; exists && rtvdRegions != nil {
+		if rtvdRegionsStr, ok := rtvdRegions.(string); ok {
+			if regionsList, regionDiags := parseRegions(rtvdRegionsStr); !regionDiags.HasError() {
+				state.RealtimeVisibility.Regions = regionsList
+			} else {
+				diags.Append(regionDiags...)
+			}
 		}
 	}
 
-	// Parse DSPM regions - only update if originally set
-	if oldState.DSPM != nil && utils.IsKnown(oldState.DSPM.Regions) {
-		dspmRegionsStr := settingsMap["dspm.regions"]
-		if regionsList, regionDiags := parseRegions(dspmRegionsStr); !regionDiags.HasError() {
-			state.DSPM.Regions = regionsList
-		} else {
-			diags.Append(regionDiags...)
+	// Parse DSPM regions - always set (null if not present)
+	if dspmRegions, exists := settingsMap["dspm.regions"]; exists && dspmRegions != nil {
+		if dspmRegionsStr, ok := dspmRegions.(string); ok {
+			if regionsList, regionDiags := parseRegions(dspmRegionsStr); !regionDiags.HasError() {
+				state.DSPM.Regions = regionsList
+			} else {
+				diags.Append(regionDiags...)
+			}
 		}
 	}
 
-	// Parse Vulnerability Scanning regions - only update if originally set
-	if oldState.VulnerabilityScanning != nil && utils.IsKnown(oldState.VulnerabilityScanning.Regions) {
-		vulnRegionsStr := settingsMap["vulnerability_scanning.regions"]
-		if regionsList, regionDiags := parseRegions(vulnRegionsStr); !regionDiags.HasError() {
-			state.VulnerabilityScanning.Regions = regionsList
-		} else {
-			diags.Append(regionDiags...)
+	// Parse Vulnerability Scanning regions - always set (null if not present)
+	if vulnRegions, exists := settingsMap["vulnerability_scanning.regions"]; exists && vulnRegions != nil {
+		if vulnRegionsStr, ok := vulnRegions.(string); ok {
+			if regionsList, regionDiags := parseRegions(vulnRegionsStr); !regionDiags.HasError() {
+				state.VulnerabilityScanning.Regions = regionsList
+			} else {
+				diags.Append(regionDiags...)
+			}
 		}
 	}
 
