@@ -426,15 +426,28 @@ func (r *cloudAzureTenantEventhubSettingsResource) triggerHealthCheck(
 	tenantID string,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
-	params := cloud_azure_registration.CloudRegistrationAzureTriggerHealthCheckParams{
-		TenantIds: []string{tenantID},
-		Context:   ctx,
-	}
+	if err := func() error {
+		// 1. validate the registration and discover subscriptions under the tenant if it is a tenant/management group level registration
+		_, err := r.client.CloudAzureRegistration.CloudRegistrationAzureValidateRegistration(&cloud_azure_registration.CloudRegistrationAzureValidateRegistrationParams{
+			TenantID: tenantID,
+			Context:  ctx,
+		})
+		if err != nil {
+			return err
+		}
 
-	_, err := r.client.CloudAzureRegistration.CloudRegistrationAzureTriggerHealthCheck(&params)
-	if err != nil {
+		// 2. trigger health check scan for the tenant. the scan might not be completed immediately.
+		_, err = r.client.CloudAzureRegistration.CloudRegistrationAzureTriggerHealthCheck(&cloud_azure_registration.CloudRegistrationAzureTriggerHealthCheckParams{
+			TenantIds: []string{tenantID},
+			Context:   ctx,
+		})
+		if err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
 		diags.AddWarning(
-			"Failed to trigger health check scan. Please go to the Falcon console and trigger health check scan manually to reflect the latest state.",
+			"Failed to validate registration and trigger health check scan. Please go to the Falcon console and trigger health check scan manually to reflect the latest state.",
 			fmt.Sprintf("Failed to trigger health check scan for Azure tenant registration: %s", falcon.ErrorExplain(err)),
 		)
 	}
