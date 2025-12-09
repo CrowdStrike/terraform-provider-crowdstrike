@@ -80,6 +80,62 @@ resource "crowdstrike_cloud_aws_account" "test" {
 `, account, testVulnRoleName)
 }
 
+func testAccCloudAwsAccountConfig_withRegions(account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  realtime_visibility = {
+    enabled           = true
+    cloudtrail_region = "us-east-1"
+    regions     = ["us-east-1", "us-west-2"]
+  }
+  dspm = {
+    enabled       = true
+  }
+  vulnerability_scanning = {
+    enabled                          = true
+  }
+}
+`, account)
+}
+
+func testAccCloudAwsAccountConfig_updateRegions(account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  realtime_visibility = {
+    enabled           = true
+    cloudtrail_region = "us-east-1"
+    regions     = ["us-east-1", "us-west-2", "eu-central-1"]
+  }
+  dspm = {
+    enabled       = true
+  }
+  vulnerability_scanning = {
+    enabled       = true
+  }
+}
+`, account)
+}
+
+func testAccCloudAwsAccountConfig_withoutRegions(account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  realtime_visibility = {
+    enabled           = true
+    cloudtrail_region = "us-east-1"
+  }
+  dspm = {
+    enabled = true
+  }
+  vulnerability_scanning = {
+    enabled = true
+  }
+}
+`, account)
+}
+
 func testAccCloudAwsAccountConfig_vulnerabilityScanningNoRoleName(account string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_aws_account" "test" {
@@ -143,6 +199,30 @@ resource "crowdstrike_cloud_aws_account" "test" {
     enabled = true
   }
   vulnerability_scanning = {
+    enabled = true
+  }
+}
+`, account)
+}
+
+func testAccCloudAwsAccountConfig_withEmptyRegions(account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  realtime_visibility = {
+    enabled           = true
+    cloudtrail_region = "us-east-1"
+    regions     = []
+  }
+}
+`, account)
+}
+
+func testAccCloudAwsAccountConfig_withSingleRegion(account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  dspm = {
     enabled = true
   }
 }
@@ -1039,6 +1119,75 @@ func TestAccCloudAWSAccount_S3LogIngestionDisableRTVD(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.log_ingestion_method", "s3"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.log_ingestion_s3_bucket_name", "test-cloudtrail-logs-bucket"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.log_ingestion_sns_topic_arn", "arn:aws:sns:us-east-1:123456789012:cloudtrail-notifications"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccCloudAwsAccountResourceRegionsValidation(t *testing.T) {
+	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccCloudAwsAccountConfig_withEmptyRegions(accountID),
+				ExpectError: regexp.MustCompile("list must contain at least 1 element"),
+			},
+			{
+				Config: testAccCloudAwsAccountConfig_withSingleRegion(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"crowdstrike_cloud_aws_account.test",
+						"dspm.enabled",
+						"true",
+					),
+				),
+			},
+		},
+	})
+}
+
+func TestAccCloudAwsAccountResourceRegions(t *testing.T) {
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
+	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAwsAccountConfig_withRegions(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.0", "us-east-1"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.1", "us-west-2"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.#", "2"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "true"),
+				),
+			},
+			{
+				Config: testAccCloudAwsAccountConfig_updateRegions(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.#", "3"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.0", "us-east-1"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.1", "us-west-2"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.2", "eu-central-1"),
+				),
+			},
+			{
+				Config: testAccCloudAwsAccountConfig_withoutRegions(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.regions.#", "0"),
 				),
 			},
 		},
