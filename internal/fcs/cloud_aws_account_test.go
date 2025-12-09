@@ -8,9 +8,10 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/stretchr/testify/assert"
+
+	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 )
 
 const (
