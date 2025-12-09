@@ -329,6 +329,7 @@ func TestAccCloudGoogleRegistrationResource_RequiresReplace(t *testing.T) {
 }
 
 func TestAccCloudGoogleRegistrationResource_RemoveLabelsAndTags(t *testing.T) {
+	t.Skip("labels and tags currently cannot be nulled out due to API limitations")
 	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	projectID := generateGoogleCloudProjectID()
 	infraProjectID := generateGoogleCloudProjectID()
