@@ -2,7 +2,7 @@
 page_title: "crowdstrike_prevention_policy_attachment Resource - crowdstrike"
 subcategory: "Prevention Policy"
 description: |-
-  This resource allows managing the host groups and ioa rule groups attached to a prevention policy. This resource takes exclusive ownership over the host groups and ioa rule groups assigned to a prevention policy. If you want to fully create or manage a prevention policy please use the prevention_policy_* resource for the platform you want to manage.
+  This resource allows managing the host groups and ioa rule groups attached to a prevention policy. By default (when exclusive is true), this resource takes exclusive ownership over the host groups and ioa rule groups assigned to a prevention policy. When exclusive is false, this resource only manages the specific host groups and ioa rule groups defined in the configuration. If you want to fully create or manage a prevention policy please use the prevention_policy_* resource for the platform you want to manage.
   API Scopes
   The following API scopes are required:
   Prevention policies | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_prevention_policy_attachment (Resource)
 
-This resource allows managing the host groups and ioa rule groups attached to a prevention policy. This resource takes exclusive ownership over the host groups and ioa rule groups assigned to a prevention policy. If you want to fully create or manage a prevention policy please use the `prevention_policy_*` resource for the platform you want to manage.
+This resource allows managing the host groups and ioa rule groups attached to a prevention policy. By default (when `exclusive` is true), this resource takes exclusive ownership over the host groups and ioa rule groups assigned to a prevention policy. When `exclusive` is false, this resource only manages the specific host groups and ioa rule groups defined in the configuration. If you want to fully create or manage a prevention policy please use the `prevention_policy_*` resource for the platform you want to manage.
 
 ## API Scopes
 
@@ -34,11 +34,11 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
-
 resource "crowdstrike_prevention_policy_attachment" "example" {
   id              = "16c0eecfeebb47ce95185fda2e5b3112"
   host_groups     = ["df868c936cd443e5a95b2603e2483602"]
   ioa_rule_groups = ["507117bc669d41bb93d0a009f557bb23"]
+  exclusive       = false
 }
 
 output "prevention_policy_attachment" {
@@ -55,8 +55,9 @@ output "prevention_policy_attachment" {
 
 ### Optional
 
-- `host_groups` (Set of String) Host Group ids to attach to the prevention policy.
-- `ioa_rule_groups` (Set of String) IOA Rule Group to attach to the prevention policy.
+- `exclusive` (Boolean) When true (default), this resource takes exclusive ownership of all host groups and ioa rule groups attached to the prevention policy. When false, this resource only manages the specific host groups and ioa rule groups defined in the configuration, leaving other groups untouched.
+- `host_groups` (Set of String) Host Group IDs to attach to the prevention policy.
+- `ioa_rule_groups` (Set of String) IOA Rule Group IDs to attach to the prevention policy.
 
 ### Read-Only
 

@@ -6,16 +6,21 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -30,7 +35,7 @@ var (
 
 var (
 	documentationSection        string         = "Prevention Policy"
-	resourceMarkdownDescription string         = "This resource allows managing the host groups and ioa rule groups attached to a prevention policy. This resource takes exclusive ownership over the host groups and ioa rule groups assigned to a prevention policy. If you want to fully create or manage a prevention policy please use the `prevention_policy_*` resource for the platform you want to manage."
+	resourceMarkdownDescription string         = "This resource allows managing the host groups and ioa rule groups attached to a prevention policy. By default (when `exclusive` is true), this resource takes exclusive ownership over the host groups and ioa rule groups assigned to a prevention policy. When `exclusive` is false, this resource only manages the specific host groups and ioa rule groups defined in the configuration. If you want to fully create or manage a prevention policy please use the `prevention_policy_*` resource for the platform you want to manage."
 	requiredScopes              []scopes.Scope = apiScopes
 )
 
@@ -47,35 +52,171 @@ type preventionPolicyAttachmentResourceModel struct {
 	LastUpdated types.String `tfsdk:"last_updated"`
 	HostGroups  types.Set    `tfsdk:"host_groups"`
 	RuleGroups  types.Set    `tfsdk:"ioa_rule_groups"`
+	Exclusive   types.Bool   `tfsdk:"exclusive"`
 }
 
 // wrap transforms Go values to their terraform wrapped values.
-func (d *preventionPolicyAttachmentResourceModel) wrap(
+func (m *preventionPolicyAttachmentResourceModel) wrap(
 	ctx context.Context,
 	policy models.PreventionPolicyV1,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	d.ID = types.StringValue(*policy.ID)
-	hostGroupSet, diag := hostgroups.ConvertHostGroupsToSet(ctx, policy.Groups)
-	diags.Append(diag...)
-	if diags.HasError() {
-		return diags
-	}
-	if !d.HostGroups.IsNull() || len(hostGroupSet.Elements()) != 0 {
-		d.HostGroups = hostGroupSet
-	}
+	m.ID = types.StringPointerValue(policy.ID)
 
-	ruleGroupSet, diag := ioarulegroup.ConvertIOARuleGroupToSet(ctx, policy.IoaRuleGroups)
-	diags.Append(diag...)
-	if diags.HasError() {
-		return diags
+	hostGroups := types.SetNull(types.StringType)
+	ruleGroups := types.SetNull(types.StringType)
+
+	if m.Exclusive.ValueBool() {
+		hostGroupSet, diag := hostgroups.ConvertHostGroupsToSet(ctx, policy.Groups)
+		diags.Append(diag...)
+		if diags.HasError() {
+			return diags
+		}
+
+		if len(hostGroupSet.Elements()) != 0 {
+			hostGroups = hostGroupSet
+		}
+
+		ruleGroupSet, diag := ioarulegroup.ConvertIOARuleGroupToSet(ctx, policy.IoaRuleGroups)
+		diags.Append(diag...)
+		if diags.HasError() {
+			return diags
+		}
+		if len(ruleGroupSet.Elements()) != 0 {
+			ruleGroups = ruleGroupSet
+		}
+	} else {
+		existingHostGroups := make(map[string]bool)
+		for _, hg := range policy.Groups {
+			if hg != nil && hg.ID != nil {
+				existingHostGroups[*hg.ID] = true
+			}
+		}
+
+		existingRuleGroups := make(map[string]bool)
+		for _, rg := range policy.IoaRuleGroups {
+			if rg != nil && rg.ID != nil {
+				existingRuleGroups[*rg.ID] = true
+			}
+		}
+
+		if !m.HostGroups.IsNull() {
+			planHostGroups := flex.ExpandSetAs[types.String](ctx, m.HostGroups, &diags)
+			if diags.HasError() {
+				return diags
+			}
+
+			var currentHostGroups []types.String
+			for _, hg := range planHostGroups {
+				if existingHostGroups[hg.ValueString()] {
+					currentHostGroups = append(currentHostGroups, hg)
+				}
+			}
+
+			hgSet, diag := types.SetValueFrom(ctx, types.StringType, currentHostGroups)
+			diags.Append(diag...)
+			if diags.HasError() {
+				return diags
+			}
+			hostGroups = hgSet
+		}
+
+		if !m.RuleGroups.IsNull() {
+			planRuleGroups := flex.ExpandSetAs[types.String](ctx, m.RuleGroups, &diags)
+			if diags.HasError() {
+				return diags
+			}
+
+			var currentRuleGroups []types.String
+			for _, rg := range planRuleGroups {
+				if existingRuleGroups[rg.ValueString()] {
+					currentRuleGroups = append(currentRuleGroups, rg)
+				}
+			}
+
+			rgSet, diag := types.SetValueFrom(ctx, types.StringType, currentRuleGroups)
+			diags.Append(diag...)
+			if diags.HasError() {
+				return diags
+			}
+			ruleGroups = rgSet
+		}
 	}
-	if !d.RuleGroups.IsNull() || len(ruleGroupSet.Elements()) != 0 {
-		d.RuleGroups = ruleGroupSet
-	}
+	m.HostGroups = hostGroups
+	m.RuleGroups = ruleGroups
 
 	return diags
+}
+
+// mergeSetItems merges existing set items with plan set items.
+// Returns the merged set or reports diagnostics on error.
+func mergeSetItems(
+	ctx context.Context,
+	existingSet types.Set,
+	planSet types.Set,
+	diags *diag.Diagnostics,
+) types.Set {
+	existingItems := flex.ExpandSetAs[types.String](ctx, existingSet, diags)
+	if diags.HasError() {
+		return types.SetNull(types.StringType)
+	}
+
+	planItems := flex.ExpandSetAs[types.String](ctx, planSet, diags)
+	if diags.HasError() {
+		return types.SetNull(types.StringType)
+	}
+
+	allItems := make([]types.String, 0, len(existingItems)+len(planItems))
+	allItems = append(allItems, existingItems...)
+	allItems = append(allItems, planItems...)
+	uniqueItems := flex.Unique(allItems)
+
+	mergedSet, mergeDiags := types.SetValueFrom(ctx, types.StringType, uniqueItems)
+	diags.Append(mergeDiags...)
+
+	return mergedSet
+}
+
+// findGroupsToRemove compares state and plan sets and returns the IDs that
+// exist in state but not in plan (groups that should be removed).
+func findGroupsToRemove(
+	ctx context.Context,
+	stateSet types.Set,
+	planSet types.Set,
+	diags *diag.Diagnostics,
+) []types.String {
+	if stateSet.IsNull() {
+		return nil
+	}
+
+	stateItems := flex.ExpandSetAs[types.String](ctx, stateSet, diags)
+	if diags.HasError() {
+		return nil
+	}
+
+	if planSet.IsNull() {
+		return stateItems
+	}
+
+	planItems := flex.ExpandSetAs[types.String](ctx, planSet, diags)
+	if diags.HasError() {
+		return nil
+	}
+
+	planMap := make(map[string]bool)
+	for _, item := range planItems {
+		planMap[item.ValueString()] = true
+	}
+
+	var toRemove []types.String
+	for _, item := range stateItems {
+		if !planMap[item.ValueString()] {
+			toRemove = append(toRemove, item)
+		}
+	}
+
+	return toRemove
 }
 
 func (r *preventionPolicyAttachmentResource) Configure(
@@ -135,15 +276,33 @@ func (r *preventionPolicyAttachmentResource) Schema(
 				Computed:    true,
 				Description: "Timestamp of the last Terraform update of the resource.",
 			},
+			"exclusive": schema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     booldefault.StaticBool(true),
+				Description: "When true (default), this resource takes exclusive ownership of all host groups and ioa rule groups attached to the prevention policy. When false, this resource only manages the specific host groups and ioa rule groups defined in the configuration, leaving other groups untouched.",
+			},
 			"ioa_rule_groups": schema.SetAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
-				Description: "IOA Rule Group to attach to the prevention policy.",
+				Description: "IOA Rule Group IDs to attach to the prevention policy.",
+				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
+					setvalidator.ValueStringsAre(
+						validators.StringNotWhitespace(),
+					),
+				},
 			},
 			"host_groups": schema.SetAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
-				Description: "Host Group ids to attach to the prevention policy.",
+				Description: "Host Group IDs to attach to the prevention policy.",
+				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
+					setvalidator.ValueStringsAre(
+						validators.StringNotWhitespace(),
+					),
+				},
 			},
 		},
 	}
@@ -166,49 +325,41 @@ func (r *preventionPolicyAttachmentResource) Create(
 		return
 	}
 
-	hostGroups := policy.Groups
-	ruleGroups := policy.IoaRuleGroups
-	hostGroupSet := types.SetNull(types.StringType)
-	ruleGroupSet := types.SetNull(types.StringType)
+	existingHostGroups, diag := hostgroups.ConvertHostGroupsToSet(ctx, policy.Groups)
+	resp.Diagnostics.Append(diag...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	if len(hostGroups) > 0 {
-		hgIDs := make([]types.String, 0, len(hostGroups))
-		for _, hg := range hostGroups {
-			hgIDs = append(hgIDs, types.StringValue(*hg.ID))
-		}
+	existingRuleGroups, diag := ioarulegroup.ConvertIOARuleGroupToSet(ctx, policy.IoaRuleGroups)
+	resp.Diagnostics.Append(diag...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-		hgSet, diags := types.SetValueFrom(ctx, types.StringType, hgIDs)
-		hostGroupSet = hgSet
+	planHostGroups := plan.HostGroups
+	planRuleGroups := plan.RuleGroups
 
-		resp.Diagnostics.Append(diags...)
+	if !plan.Exclusive.ValueBool() {
+		planHostGroups = mergeSetItems(ctx, existingHostGroups, plan.HostGroups, &resp.Diagnostics)
 		if resp.Diagnostics.HasError() {
 			return
 		}
-	}
 
-	if len(ruleGroups) > 0 {
-		rgIDs := make([]types.String, 0, len(hostGroups))
-		for _, rg := range ruleGroups {
-			rgIDs = append(rgIDs, types.StringValue(*rg.ID))
-		}
-
-		rgSet, diags := types.SetValueFrom(ctx, types.StringType, rgIDs)
-		ruleGroupSet = rgSet
-
-		resp.Diagnostics.Append(diags...)
+		planRuleGroups = mergeSetItems(ctx, existingRuleGroups, plan.RuleGroups, &resp.Diagnostics)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 	}
 
 	resp.Diagnostics.Append(
-		syncHostGroups(ctx, r.client, plan.HostGroups, hostGroupSet, plan.ID.ValueString())...)
+		syncHostGroups(ctx, r.client, planHostGroups, existingHostGroups, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	resp.Diagnostics.Append(
-		syncRuleGroups(ctx, r.client, plan.RuleGroups, ruleGroupSet, plan.ID.ValueString())...)
+		syncRuleGroups(ctx, r.client, planRuleGroups, existingRuleGroups, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -268,20 +419,91 @@ func (r *preventionPolicyAttachmentResource) Update(
 	var state preventionPolicyAttachmentResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	planHostGroups := plan.HostGroups
+	planRuleGroups := plan.RuleGroups
+
+	if !plan.Exclusive.ValueBool() {
+		hostGroupsToRemove := findGroupsToRemove(ctx, state.HostGroups, plan.HostGroups, &resp.Diagnostics)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		ruleGroupsToRemove := findGroupsToRemove(ctx, state.RuleGroups, plan.RuleGroups, &resp.Diagnostics)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		policy, diags := getPreventionPolicy(ctx, r.client, plan.ID.ValueString())
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		removeMap := make(map[string]bool)
+		for _, id := range hostGroupsToRemove {
+			removeMap[id.ValueString()] = true
+		}
+
+		var existingHostGroups []*models.HostGroupsHostGroupV1
+		for _, hg := range policy.Groups {
+			if hg != nil && hg.ID != nil && !removeMap[*hg.ID] {
+				existingHostGroups = append(existingHostGroups, hg)
+			}
+		}
+
+		existingHostGroupSet, diag := hostgroups.ConvertHostGroupsToSet(ctx, existingHostGroups)
+		resp.Diagnostics.Append(diag...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		removeRuleGroupMap := make(map[string]bool)
+		for _, id := range ruleGroupsToRemove {
+			removeRuleGroupMap[id.ValueString()] = true
+		}
+
+		var existingRuleGroups []*models.IoaRuleGroupsRuleGroupV1
+		for _, rg := range policy.IoaRuleGroups {
+			if rg != nil && rg.ID != nil && !removeRuleGroupMap[*rg.ID] {
+				existingRuleGroups = append(existingRuleGroups, rg)
+			}
+		}
+
+		existingRuleGroupSet, diag := ioarulegroup.ConvertIOARuleGroupToSet(ctx, existingRuleGroups)
+		resp.Diagnostics.Append(diag...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		planHostGroups = mergeSetItems(ctx, existingHostGroupSet, plan.HostGroups, &resp.Diagnostics)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		planRuleGroups = mergeSetItems(ctx, existingRuleGroupSet, plan.RuleGroups, &resp.Diagnostics)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
 	resp.Diagnostics.Append(
-		syncHostGroups(ctx, r.client, plan.HostGroups, state.HostGroups, plan.ID.ValueString())...)
+		syncHostGroups(ctx, r.client, planHostGroups, state.HostGroups, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	resp.Diagnostics.Append(
-		syncRuleGroups(ctx, r.client, plan.RuleGroups, state.RuleGroups, plan.ID.ValueString())...)
+		syncRuleGroups(ctx, r.client, planRuleGroups, state.RuleGroups, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	policy, diag := getPreventionPolicy(ctx, r.client, plan.ID.ValueString())
-	resp.Diagnostics.Append(diag...)
+	policy, diags := getPreventionPolicy(ctx, r.client, plan.ID.ValueString())
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -298,23 +520,16 @@ func (r *preventionPolicyAttachmentResource) Delete(
 ) {
 	var state preventionPolicyAttachmentResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	emptySet := basetypes.SetValue{}
 
 	resp.Diagnostics.Append(
-		syncHostGroups(
-			ctx,
-			r.client,
-			basetypes.SetValue{},
-			state.HostGroups,
-			state.ID.ValueString(),
-		)...)
+		syncHostGroups(ctx, r.client, emptySet, state.HostGroups, state.ID.ValueString())...)
 	resp.Diagnostics.Append(
-		syncRuleGroups(
-			ctx,
-			r.client,
-			basetypes.SetValue{},
-			state.RuleGroups,
-			state.ID.ValueString(),
-		)...)
+		syncRuleGroups(ctx, r.client, emptySet, state.RuleGroups, state.ID.ValueString())...)
 }
 
 func (r *preventionPolicyAttachmentResource) ImportState(
@@ -322,6 +537,11 @@ func (r *preventionPolicyAttachmentResource) ImportState(
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
 ) {
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("exclusive"), true)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
