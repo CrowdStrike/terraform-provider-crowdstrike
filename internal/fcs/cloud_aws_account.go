@@ -68,13 +68,11 @@ type sensorManagementOptions struct {
 type dspmOptions struct {
 	Enabled  types.Bool   `tfsdk:"enabled"`
 	RoleName types.String `tfsdk:"role_name"`
-	Regions  types.List   `tfsdk:"regions"`
 }
 
 type vulnerabilityScanningOptions struct {
 	Enabled  types.Bool   `tfsdk:"enabled"`
 	RoleName types.String `tfsdk:"role_name"`
-	Regions  types.List   `tfsdk:"regions"`
 }
 
 // cloudStateKey the private state key used in terraform.
@@ -485,29 +483,16 @@ func (r *cloudAWSAccountResource) Schema(
 							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
-					"regions": schema.ListAttribute{
-						Optional:    true,
-						Description: "List of AWS regions for Data Security Posture Management",
-						ElementType: types.StringType,
-						Validators: []validator.List{
-							listvalidator.SizeAtLeast(1),
-							listvalidator.ValueStringsAre(
-								AWSRegionValidator(),
-							),
-						},
-					},
 				},
 				Default: objectdefault.StaticValue(
 					types.ObjectValueMust(
 						map[string]attr.Type{
 							"enabled":   types.BoolType,
 							"role_name": types.StringType,
-							"regions":   types.ListType{ElemType: types.StringType},
 						},
 						map[string]attr.Value{
 							"enabled":   types.BoolValue(false),
 							"role_name": types.StringNull(),
-							"regions":   types.ListNull(types.StringType),
 						},
 					),
 				),
@@ -534,29 +519,16 @@ func (r *cloudAWSAccountResource) Schema(
 							stringplanmodifier.UseStateForUnknown(),
 						},
 					},
-					"regions": schema.ListAttribute{
-						Optional:    true,
-						Description: "List of AWS regions for Vulnerability Scanning",
-						ElementType: types.StringType,
-						Validators: []validator.List{
-							listvalidator.SizeAtLeast(1),
-							listvalidator.ValueStringsAre(
-								AWSRegionValidator(),
-							),
-						},
-					},
 				},
 				Default: objectdefault.StaticValue(
 					types.ObjectValueMust(
 						map[string]attr.Type{
 							"enabled":   types.BoolType,
 							"role_name": types.StringType,
-							"regions":   types.ListType{ElemType: types.StringType},
 						},
 						map[string]attr.Value{
 							"enabled":   types.BoolValue(false),
 							"role_name": types.StringNull(),
-							"regions":   types.ListNull(types.StringType),
 						},
 					),
 				),
@@ -890,24 +862,6 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 		}
 	}
 	createAccount.IoaRegions = rtvdRegions
-
-	dspmRegions := []string{}
-	if model.DSPM != nil && utils.IsKnown(model.DSPM.Regions) {
-		diags.Append(model.DSPM.Regions.ElementsAs(ctx, &dspmRegions, false)...)
-		if diags.HasError() {
-			return nil, diags
-		}
-	}
-	createAccount.DspmRegions = dspmRegions
-
-	vulnRegions := []string{}
-	if model.VulnerabilityScanning != nil && utils.IsKnown(model.VulnerabilityScanning.Regions) {
-		diags.Append(model.VulnerabilityScanning.Regions.ElementsAs(ctx, &vulnRegions, false)...)
-		if diags.HasError() {
-			return nil, diags
-		}
-	}
-	createAccount.VulnerabilityScanningRegions = vulnRegions
 
 	if model.RealtimeVisibility != nil && model.RealtimeVisibility.Enabled.ValueBool() {
 		createAccount.CspEvents = true
@@ -1243,8 +1197,6 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 	m.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringNull()
 	m.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringNull()
 	m.RealtimeVisibility.Regions = types.ListNull(types.StringType)
-	m.DSPM.Regions = types.ListNull(types.StringType)
-	m.VulnerabilityScanning.Regions = types.ListNull(types.StringType)
 
 	if cloudAccount == nil || cloudAccount.Settings == nil {
 		return diags
@@ -1253,8 +1205,6 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 	settings := newSettingsConfig(ctx, cloudAccount.Settings, &diags)
 
 	m.RealtimeVisibility.Regions = settings.RTVDRegions
-	m.DSPM.Regions = settings.DSPMRegions
-	m.VulnerabilityScanning.Regions = settings.VulnerabilityScanningRegions
 
 	if !settings.LogIngestionMethod.IsNull() {
 		m.RealtimeVisibility.LogIngestionMethod = settings.LogIngestionMethod
@@ -1502,24 +1452,6 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 		}
 	}
 	patchAccount.IoaRegions = rtvdRegions
-
-	dspmRegions := []string{}
-	if model.DSPM != nil && utils.IsKnown(model.DSPM.Regions) {
-		diags.Append(model.DSPM.Regions.ElementsAs(ctx, &dspmRegions, false)...)
-		if diags.HasError() {
-			return nil, diags
-		}
-	}
-	patchAccount.DspmRegions = dspmRegions
-
-	vulnRegions := []string{}
-	if model.VulnerabilityScanning != nil && utils.IsKnown(model.VulnerabilityScanning.Regions) {
-		diags.Append(model.VulnerabilityScanning.Regions.ElementsAs(ctx, &vulnRegions, false)...)
-		if diags.HasError() {
-			return nil, diags
-		}
-	}
-	patchAccount.VulnerabilityScanningRegions = vulnRegions
 
 	if model.AssetInventory != nil && model.AssetInventory.Enabled.ValueBool() {
 		patchAccount.CspEvents = true

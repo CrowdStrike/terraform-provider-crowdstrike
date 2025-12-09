@@ -121,7 +121,6 @@ Required:
 
 Optional:
 
-- `regions` (List of String) List of AWS regions for Data Security Posture Management
 - `role_name` (String) Custom AWS IAM role name for Data Security Posture Management
 
 
@@ -173,7 +172,6 @@ Required:
 
 Optional:
 
-- `regions` (List of String) List of AWS regions for Vulnerability Scanning
 - `role_name` (String) Custom AWS IAM role name for Vulnerability Scanning
 
 ## Import

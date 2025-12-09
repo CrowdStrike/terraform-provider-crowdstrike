@@ -12,9 +12,7 @@ import (
 )
 
 type settingsConfig struct {
-	RTVDRegions                  types.List
-	DSPMRegions                  types.List
-	VulnerabilityScanningRegions types.List
+	RTVDRegions types.List
 
 	LogIngestionMethod         types.String
 	LogIngestionS3BucketName   types.String
@@ -48,9 +46,7 @@ func parseRegionString(ctx context.Context, regionStr string, diags *diag.Diagno
 // Missing fields will default to their null types.
 func newSettingsConfig(ctx context.Context, settings interface{}, diags *diag.Diagnostics) *settingsConfig {
 	config := &settingsConfig{
-		RTVDRegions:                  types.ListNull(types.StringType),
-		DSPMRegions:                  types.ListNull(types.StringType),
-		VulnerabilityScanningRegions: types.ListNull(types.StringType),
+		RTVDRegions: types.ListNull(types.StringType),
 		// if other registration endpoints will default log ingestion method to eventbridge
 		// then this logic can be updated to default to eventbridge here instead of the
 		// resource logic checking if the output is null.
@@ -68,8 +64,6 @@ func newSettingsConfig(ctx context.Context, settings interface{}, diags *diag.Di
 	// Temporary struct for decoding raw values from settings map using mapstructure tags
 	var raw struct {
 		RTVDRegions                string `mapstructure:"rtvd.regions"`
-		DSPMRegions                string `mapstructure:"dspm.regions"`
-		VulnRegions                string `mapstructure:"vulnerability_scanning.regions"`
 		LogIngestionMethod         string `mapstructure:"log.ingestion.method"`
 		LogIngestionS3BucketName   string `mapstructure:"s3.log.ingestion.bucket.name"`
 		LogIngestionSnsTopicArn    string `mapstructure:"s3.log.ingestion.sns.topic.arn"`
@@ -86,8 +80,6 @@ func newSettingsConfig(ctx context.Context, settings interface{}, diags *diag.Di
 	}
 
 	config.RTVDRegions = parseRegionString(ctx, raw.RTVDRegions, diags)
-	config.DSPMRegions = parseRegionString(ctx, raw.DSPMRegions, diags)
-	config.VulnerabilityScanningRegions = parseRegionString(ctx, raw.VulnRegions, diags)
 
 	config.LogIngestionMethod = flex.StringValueToFramework(raw.LogIngestionMethod)
 	config.LogIngestionS3BucketName = flex.StringValueToFramework(raw.LogIngestionS3BucketName)
