@@ -547,23 +547,19 @@ func (r *cloudGoogleRegistrationResource) Create(
 		WifProjectID:      &wifProjectID,
 	}
 
-	if !plan.ResourceNamePrefix.IsNull() {
-		createReq.ResourceNamePrefix = plan.ResourceNamePrefix.ValueString()
-	}
+	createReq.ResourceNameSuffix = flex.FrameworkToStringPointer(plan.ResourceNameSuffix)
+	createReq.ResourceNamePrefix = flex.FrameworkToStringPointer(plan.ResourceNamePrefix)
 
-	if !plan.ResourceNameSuffix.IsNull() {
-		createReq.ResourceNameSuffix = plan.ResourceNameSuffix.ValueString()
-	}
-
+	patterns := []string{}
 	if !plan.ExcludedProjectPatterns.IsNull() {
-		var patterns []string
 		resp.Diagnostics.Append(plan.ExcludedProjectPatterns.ElementsAs(ctx, &patterns, false)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		createReq.ExcludedProjectPatterns = patterns
 	}
+	createReq.ExcludedProjectPatterns = patterns
 
+	// todo: labels and tags currently can not be nulled out due to the api
 	if !plan.Labels.IsNull() {
 		var labels map[string]string
 		resp.Diagnostics.Append(plan.Labels.ElementsAs(ctx, &labels, false)...)
@@ -706,13 +702,8 @@ func (r *cloudGoogleRegistrationResource) Update(
 		WifProjectID:      plan.WifProjectID.ValueString(),
 	}
 
-	if !plan.ResourceNamePrefix.IsNull() {
-		updateReq.ResourceNamePrefix = plan.ResourceNamePrefix.ValueString()
-	}
-
-	if !plan.ResourceNameSuffix.IsNull() {
-		updateReq.ResourceNameSuffix = plan.ResourceNameSuffix.ValueString()
-	}
+	updateReq.ResourceNameSuffix = flex.FrameworkToStringPointer(plan.ResourceNameSuffix)
+	updateReq.ResourceNamePrefix = flex.FrameworkToStringPointer(plan.ResourceNamePrefix)
 
 	if !plan.ExcludedProjectPatterns.IsNull() {
 		var patterns []string
