@@ -6,10 +6,7 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/stretchr/testify/assert"
 
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 )
@@ -1218,90 +1215,4 @@ func TestAccCloudAwsAccountResourceRegions(t *testing.T) {
 			},
 		},
 	})
-}
-
-// TestParseRegionsFromSettings is a unit test for the fcs.ParseRegionsFromSettings function.
-func TestParseRegionsFromSettings(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-
-	tests := []struct {
-		name     string
-		settings any
-		wantRtvd types.List
-		wantDspm types.List
-		wantVuln types.List
-	}{
-		{
-			name: "valid regions all types",
-			settings: map[string]interface{}{
-				"rtvd.regions":                   "us-east-1,us-west-2",
-				"dspm.regions":                   "eu-west-1",
-				"vulnerability_scanning.regions": "ap-southeast-1,us-east-1",
-			},
-			wantRtvd: acctest.StringListOrNull("us-east-1", "us-west-2"),
-			wantDspm: acctest.StringListOrNull("eu-west-1"),
-			wantVuln: acctest.StringListOrNull("ap-southeast-1", "us-east-1"),
-		},
-		{
-			name: "regions with whitespace",
-			settings: map[string]interface{}{
-				"rtvd.regions": " us-east-1 , us-west-2 ",
-				"dspm.regions": "  eu-west-1  ",
-			},
-			wantRtvd: acctest.StringListOrNull("us-east-1", "us-west-2"),
-			wantDspm: acctest.StringListOrNull("eu-west-1"),
-			wantVuln: acctest.StringListOrNull(),
-		},
-		{
-			name: "empty strings",
-			settings: map[string]interface{}{
-				"rtvd.regions": "",
-				"dspm.regions": "",
-			},
-			wantRtvd: acctest.StringListOrNull(),
-			wantDspm: acctest.StringListOrNull(),
-			wantVuln: acctest.StringListOrNull(),
-		},
-		{
-			name:     "nil settings",
-			settings: nil,
-			wantRtvd: acctest.StringListOrNull(),
-			wantDspm: acctest.StringListOrNull(),
-			wantVuln: acctest.StringListOrNull(),
-		},
-		{
-			name: "special value all",
-			settings: map[string]interface{}{
-				"rtvd.regions": "all",
-			},
-			wantRtvd: acctest.StringListOrNull("all"),
-			wantDspm: acctest.StringListOrNull(),
-			wantVuln: acctest.StringListOrNull(),
-		},
-		{
-			name:     "wrong settings type",
-			settings: map[string]interface{}{},
-			wantRtvd: acctest.StringListOrNull(),
-			wantDspm: acctest.StringListOrNull(),
-			wantVuln: acctest.StringListOrNull(),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			state := &fcs.CloudAWSAccountModel{
-				RealtimeVisibility:    &fcs.RealtimeVisibilityOptions{},
-				DSPM:                  &fcs.DSPMOptions{},
-				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{},
-			}
-
-			diags := fcs.ParseRegionsFromSettings(ctx, tt.settings, state)
-			assert.False(t, diags.HasError(), "unexpected error: %v", diags.Errors())
-
-			assert.True(t, state.RealtimeVisibility.Regions.Equal(tt.wantRtvd), "RTVD regions mismatch: got %v, want %v", state.RealtimeVisibility.Regions, tt.wantRtvd)
-			assert.True(t, state.DSPM.Regions.Equal(tt.wantDspm), "DSPM regions mismatch: got %v, want %v", state.DSPM.Regions, tt.wantDspm)
-			assert.True(t, state.VulnerabilityScanning.Regions.Equal(tt.wantVuln), "Vulnerability regions mismatch: got %v, want %v", state.VulnerabilityScanning.Regions, tt.wantVuln)
-		})
-	}
 }

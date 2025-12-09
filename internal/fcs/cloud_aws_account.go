@@ -681,51 +681,43 @@ func (r *cloudAWSAccountResource) Create(
 	}
 
 	tflog.Info(ctx, "cspm account created", map[string]interface{}{"account": cspmAccount})
-	state := plan
-	state.AccountID = types.StringValue(cspmAccount.AccountID)
-	state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
-	state.AccountType = types.StringValue(cspmAccount.AccountType)
+	plan.AccountID = types.StringValue(cspmAccount.AccountID)
+	plan.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
+	plan.AccountType = types.StringValue(cspmAccount.AccountType)
 	if cspmAccount.IsMaster && len(cspmAccount.TargetOus) > 0 {
 		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, cspmAccount.TargetOus)
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
 		}
-		state.TargetOUs = targetOUs
+		plan.TargetOUs = targetOUs
 	}
-	state.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
-	state.ExternalID = types.StringValue(cspmAccount.ExternalID)
-	state.IntermediateRoleArn = types.StringValue(cspmAccount.IntermediateRoleArn)
-	state.IamRoleArn = types.StringValue(cspmAccount.IamRoleArn)
-	state.IamRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.IamRoleArn))
-	state.EventbusName = types.StringValue(cspmAccount.EventbusName)
-	state.EventbusArn = types.StringValue(cspmAccount.AwsEventbusArn)
-	state.CloudTrailBucketName = types.StringValue(cspmAccount.AwsCloudtrailBucketName)
-	state.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
-	state.DspmRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.DspmRoleArn))
-	state.VulnerabilityScanningRoleArn = types.StringValue(cspmAccount.VulnerabilityScanningRoleArn)
-	state.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.VulnerabilityScanningRoleArn))
+	plan.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
+	plan.ExternalID = types.StringValue(cspmAccount.ExternalID)
+	plan.IntermediateRoleArn = types.StringValue(cspmAccount.IntermediateRoleArn)
+	plan.IamRoleArn = types.StringValue(cspmAccount.IamRoleArn)
+	plan.IamRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.IamRoleArn))
+	plan.EventbusName = types.StringValue(cspmAccount.EventbusName)
+	plan.EventbusArn = types.StringValue(cspmAccount.AwsEventbusArn)
+	plan.CloudTrailBucketName = types.StringValue(cspmAccount.AwsCloudtrailBucketName)
+	plan.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
+	plan.DspmRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.DspmRoleArn))
+	plan.VulnerabilityScanningRoleArn = types.StringValue(cspmAccount.VulnerabilityScanningRoleArn)
+	plan.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.VulnerabilityScanningRoleArn))
 
 	agentlessRoleName := resolveAgentlessScanningRoleName(cspmAccount)
 
-	state.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
+	plan.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
 
 	// for each feature options
 	// update with data from backend
 
-	state.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
-	state.RealtimeVisibility.CloudTrailRegion = flex.StringValueToFramework(cspmAccount.AwsCloudtrailRegion)
+	plan.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
+	plan.RealtimeVisibility.CloudTrailRegion = flex.StringValueToFramework(cspmAccount.AwsCloudtrailRegion)
 
-	state.SensorManagement.Enabled = types.BoolPointerValue(cspmAccount.SensorManagementEnabled)
+	plan.SensorManagement.Enabled = types.BoolPointerValue(cspmAccount.SensorManagementEnabled)
 
-	state.DSPM.Enabled = types.BoolValue(cspmAccount.DspmEnabled)
-	state.VulnerabilityScanning.Enabled = types.BoolValue(cspmAccount.VulnerabilityScanningEnabled)
-
-	// save current state
-	diags = resp.State.Set(ctx, state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	plan.DSPM.Enabled = types.BoolValue(cspmAccount.DspmEnabled)
+	plan.VulnerabilityScanning.Enabled = types.BoolValue(cspmAccount.VulnerabilityScanningEnabled)
 
 	// create Cloud Registration account
 	cloudAccount, diags := r.createCloudAccount(ctx, plan)
@@ -733,19 +725,25 @@ func (r *cloudAWSAccountResource) Create(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state.IDP = &idpOptions{
+
+	resp.Diagnostics.Append(plan.wrap(ctx, cloudAccount)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	plan.IDP = &idpOptions{
 		Enabled: types.BoolValue(false),
 		Status:  types.StringValue("configured"),
 	}
 	for _, p := range cloudAccount.Products {
 		if *p.Product == "idp" {
-			state.IDP.Enabled = types.BoolValue(true)
+			plan.IDP.Enabled = types.BoolValue(true)
 			break
 		}
 	}
 
 	// Set refreshed state
-	diags = resp.State.Set(ctx, state)
+	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -1103,7 +1101,10 @@ func (r *cloudAWSAccountResource) Read(
 		return
 	}
 
-	state.wrap(cloudAccount)
+	resp.Diagnostics.Append(state.wrap(ctx, cloudAccount)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	if state.IDP == nil {
 		state.IDP = &idpOptions{}
@@ -1124,21 +1125,6 @@ func (r *cloudAWSAccountResource) Read(
 		}
 		state.ResourceNamePrefix = types.StringValue(cloudAccount.ResourceNamePrefix)
 		state.ResourceNameSuffix = types.StringValue(cloudAccount.ResourceNameSuffix)
-
-		// Parse regions from Settings map
-		diags := parseRegionsFromSettings(ctx, cloudAccount.Settings, &state)
-		resp.Diagnostics.Append(diags...)
-	} else {
-		// Cloud Registration account doesn't exist - set regions to null
-		if state.RealtimeVisibility != nil {
-			state.RealtimeVisibility.Regions = types.ListNull(types.StringType)
-		}
-		if state.DSPM != nil {
-			state.DSPM.Regions = types.ListNull(types.StringType)
-		}
-		if state.VulnerabilityScanning != nil {
-			state.VulnerabilityScanning.Regions = types.ListNull(types.StringType)
-		}
 	}
 
 	cloudAccPrivateState, err := json.Marshal(cloudAccState)
@@ -1248,48 +1234,37 @@ func (r *cloudAWSAccountResource) getCloudAccount(
 	return res.Payload.Resources[0], true, diags
 }
 
-func (m *cloudAWSAccountModel) wrap(cloudAccount *models.DomainCloudAWSAccountV1) {
-	// Update S3 log ingestion fields from API response settings
-	// All APIs now use period notation consistently
+func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.DomainCloudAWSAccountV1) diag.Diagnostics {
+	var diags diag.Diagnostics
+
 	m.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
 	m.RealtimeVisibility.LogIngestionS3BucketName = types.StringNull()
 	m.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringNull()
 	m.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringNull()
 	m.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringNull()
+	m.RealtimeVisibility.Regions = types.ListNull(types.StringType)
+	m.DSPM.Regions = types.ListNull(types.StringType)
+	m.VulnerabilityScanning.Regions = types.ListNull(types.StringType)
 
-	if cloudAccount.Settings != nil {
-		if settings, ok := cloudAccount.Settings.(map[string]interface{}); ok {
-			if method, exists := settings["log.ingestion.method"]; exists && method != nil {
-				if methodStr, ok := method.(string); ok {
-					m.RealtimeVisibility.LogIngestionMethod = types.StringValue(methodStr)
-				}
-			}
-
-			if bucketName, exists := settings["s3.log.ingestion.bucket.name"]; exists && bucketName != nil {
-				if bucketNameStr, ok := bucketName.(string); ok {
-					m.RealtimeVisibility.LogIngestionS3BucketName = types.StringValue(bucketNameStr)
-				}
-			}
-
-			if snsTopicArn, exists := settings["s3.log.ingestion.sns.topic.arn"]; exists && snsTopicArn != nil {
-				if snsTopicArnStr, ok := snsTopicArn.(string); ok {
-					m.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringValue(snsTopicArnStr)
-				}
-			}
-
-			if bucketPrefix, exists := settings["s3.log.ingestion.bucket.prefix"]; exists && bucketPrefix != nil {
-				if bucketPrefixStr, ok := bucketPrefix.(string); ok {
-					m.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringValue(bucketPrefixStr)
-				}
-			}
-
-			if kmsKeyArn, exists := settings["s3.log.ingestion.kms.key.arn"]; exists && kmsKeyArn != nil {
-				if kmsKeyArnStr, ok := kmsKeyArn.(string); ok {
-					m.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringValue(kmsKeyArnStr)
-				}
-			}
-		}
+	if cloudAccount == nil || cloudAccount.Settings == nil {
+		return diags
 	}
+
+	settings := newSettingsConfig(ctx, cloudAccount.Settings, &diags)
+
+	m.RealtimeVisibility.Regions = settings.RTVDRegions
+	m.DSPM.Regions = settings.DSPMRegions
+	m.VulnerabilityScanning.Regions = settings.VulnerabilityScanningRegions
+
+	if !settings.LogIngestionMethod.IsNull() {
+		m.RealtimeVisibility.LogIngestionMethod = settings.LogIngestionMethod
+	}
+	m.RealtimeVisibility.LogIngestionS3BucketName = settings.LogIngestionS3BucketName
+	m.RealtimeVisibility.LogIngestionSnsTopicArn = settings.LogIngestionSnsTopicArn
+	m.RealtimeVisibility.LogIngestionS3BucketPrefix = settings.LogIngestionS3BucketPrefix
+	m.RealtimeVisibility.LogIngestionKmsKeyArn = settings.LogIngestionKmsKeyArn
+
+	return diags
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
@@ -1394,7 +1369,11 @@ func (r *cloudAWSAccountResource) Update(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	plan.wrap(cloudAccount)
+
+	resp.Diagnostics.Append(plan.wrap(ctx, cloudAccount)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	plan.IDP = &idpOptions{
 		Enabled: types.BoolValue(false),
@@ -1811,74 +1790,4 @@ func (r *cloudAWSAccountResource) ValidateConfig(
 			)
 		}
 	}
-}
-
-// parseRegionsFromSettings parses region information from the cloudAccount Settings map
-// and populates the appropriate region fields in the state model.
-func parseRegionsFromSettings(ctx context.Context, settings interface{}, state *cloudAWSAccountModel) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	state.DSPM.Regions = types.ListNull(types.StringType)
-	state.RealtimeVisibility.Regions = types.ListNull(types.StringType)
-	state.VulnerabilityScanning.Regions = types.ListNull(types.StringType)
-
-	if settings == nil {
-		return diags
-	}
-
-	settingsMap, ok := settings.(map[string]interface{})
-	if !ok {
-		diags.AddError(
-			"Failed to parse settings",
-			fmt.Sprintf("Expected settings to be map[string]interface{}, got: %T", settings),
-		)
-		return diags
-	}
-
-	// Helper function to parse comma-separated regions
-	parseRegions := func(regionStr string) (types.List, diag.Diagnostics) {
-		if regionStr == "" {
-			return types.ListNull(types.StringType), diag.Diagnostics{}
-		}
-		regions := strings.Split(regionStr, ",")
-		for i, region := range regions {
-			regions[i] = strings.TrimSpace(region)
-		}
-		return types.ListValueFrom(ctx, types.StringType, regions)
-	}
-
-	// Parse RTVD regions - always set (null if not present)
-	if rtvdRegions, exists := settingsMap["rtvd.regions"]; exists && rtvdRegions != nil {
-		if rtvdRegionsStr, ok := rtvdRegions.(string); ok {
-			if regionsList, regionDiags := parseRegions(rtvdRegionsStr); !regionDiags.HasError() {
-				state.RealtimeVisibility.Regions = regionsList
-			} else {
-				diags.Append(regionDiags...)
-			}
-		}
-	}
-
-	// Parse DSPM regions - always set (null if not present)
-	if dspmRegions, exists := settingsMap["dspm.regions"]; exists && dspmRegions != nil {
-		if dspmRegionsStr, ok := dspmRegions.(string); ok {
-			if regionsList, regionDiags := parseRegions(dspmRegionsStr); !regionDiags.HasError() {
-				state.DSPM.Regions = regionsList
-			} else {
-				diags.Append(regionDiags...)
-			}
-		}
-	}
-
-	// Parse Vulnerability Scanning regions - always set (null if not present)
-	if vulnRegions, exists := settingsMap["vulnerability_scanning.regions"]; exists && vulnRegions != nil {
-		if vulnRegionsStr, ok := vulnRegions.(string); ok {
-			if regionsList, regionDiags := parseRegions(vulnRegionsStr); !regionDiags.HasError() {
-				state.VulnerabilityScanning.Regions = regionsList
-			} else {
-				diags.Append(regionDiags...)
-			}
-		}
-	}
-
-	return diags
 }
