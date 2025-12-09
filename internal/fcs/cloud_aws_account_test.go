@@ -91,11 +91,9 @@ resource "crowdstrike_cloud_aws_account" "test" {
   }
   dspm = {
     enabled       = true
-    regions = ["us-east-1", "eu-west-1"]
   }
   vulnerability_scanning = {
     enabled                          = true
-    regions = ["us-east-1", "ap-southeast-1"]
   }
 }
 `, account)
@@ -112,11 +110,9 @@ resource "crowdstrike_cloud_aws_account" "test" {
   }
   dspm = {
     enabled       = true
-    regions = ["us-west-2", "eu-west-1"]
   }
   vulnerability_scanning = {
-    enabled                          = true
-    regions = ["us-east-1"]
+    enabled       = true
   }
 }
 `, account)
@@ -228,7 +224,6 @@ resource "crowdstrike_cloud_aws_account" "test" {
   account_id = "%s"
   dspm = {
     enabled = true
-    regions = ["us-east-1"]
   }
 }
 `, account)
