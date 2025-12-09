@@ -56,17 +56,8 @@ func TestMergeSetItems(t *testing.T) {
 
 			assert.False(t, diags.HasError(), "unexpected diagnostics errors: %v", diags.Errors())
 
-			resultElements := result.Elements()
-			assert.Len(t, resultElements, len(tc.expected))
-
-			resultMap := make(map[string]bool)
-			for _, elem := range resultElements {
-				resultMap[elem.(types.String).ValueString()] = true
-			}
-
-			for _, expectedID := range tc.expected {
-				assert.True(t, resultMap[expectedID], "expected to find %s in result", expectedID)
-			}
+			expected := acctest.StringSetOrNull(tc.expected...)
+			assert.True(t, result.Equal(expected), "expected %v, got %v", expected, result)
 		})
 	}
 }
@@ -130,19 +121,19 @@ func TestFindGroupsToRemove(t *testing.T) {
 				return
 			}
 
-			assert.NotNil(t, result)
-			assert.Len(t, result, len(tc.expected))
-
-			resultMap := make(map[string]bool)
-			for _, id := range result {
-				resultMap[id.ValueString()] = true
-			}
-
-			for _, expectedID := range tc.expected {
-				assert.True(t, resultMap[expectedID], "expected to find %s in result", expectedID)
-			}
+			resultSet := acctest.StringSetOrNull(convertToStrings(result)...)
+			expectedSet := acctest.StringSetOrNull(tc.expected...)
+			assert.True(t, resultSet.Equal(expectedSet), "expected %v, got %v", expectedSet, resultSet)
 		})
 	}
+}
+
+func convertToStrings(items []types.String) []string {
+	result := make([]string, len(items))
+	for i, item := range items {
+		result[i] = item.ValueString()
+	}
+	return result
 }
 
 func TestAccPreventionPolicyAttachmentResource_basic(t *testing.T) {

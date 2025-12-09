@@ -167,7 +167,9 @@ func mergeSetItems(
 		return types.SetNull(types.StringType)
 	}
 
-	allItems := append(existingItems, planItems...)
+	allItems := make([]types.String, 0, len(existingItems)+len(planItems))
+	allItems = append(allItems, existingItems...)
+	allItems = append(allItems, planItems...)
 	uniqueItems := flex.Unique(allItems)
 
 	mergedSet, mergeDiags := types.SetValueFrom(ctx, types.StringType, uniqueItems)
