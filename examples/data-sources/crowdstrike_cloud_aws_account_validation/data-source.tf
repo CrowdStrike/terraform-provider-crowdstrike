@@ -10,7 +10,13 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
-# validate the integrated AWS account
-data "crowdstrike_cloud_aws_account_validation" "this" {
+# validate the integrated standalone/child AWS account
+data "crowdstrike_cloud_aws_account_validation" "normal_account" {
   account_id = "123456789012"
+}
+
+# validate the integrated AWS organization management account
+data "crowdstrike_cloud_aws_account_validation" "org_account" {
+  account_id = "123456789012"
+  organization_id = "o-1122aabbcc"
 }

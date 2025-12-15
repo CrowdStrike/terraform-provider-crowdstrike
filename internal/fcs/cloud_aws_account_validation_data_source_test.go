@@ -12,14 +12,17 @@ import (
 
 func TestAccCloudAwsAccountValidationDataSource(t *testing.T) {
 	testAccountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	testOrgAccountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	testOrgID := fmt.Sprintf("o-%s", sdkacctest.RandStringFromCharSet(10, sdkacctest.CharSetAlpha))
 
 	dataSourceNameStandalone := "data.crowdstrike_cloud_aws_account_validation.standalone"
+	dataSourceNameOrg := "data.crowdstrike_cloud_aws_account_validation.org"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
-			// Test validation for standalone account (should skip validation)
+			// Test validation for standalone account
 			{
 				Config: testAccCloudAwsAccountValidationDataSource_standalone(testAccountID),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -36,10 +39,49 @@ func TestAccCloudAwsAccountValidationDataSource(t *testing.T) {
 						"account_id",
 						testAccountID,
 					),
+					// organization_id should not be specified for standalone accounts
+					resource.TestCheckNoResourceAttr(
+						dataSourceNameStandalone,
+						"organization_id",
+					),
 					resource.TestCheckResourceAttr(
 						dataSourceNameStandalone,
 						"validated",
-						"true",
+						"false", // The validation is expected to fail because we don't have resources deployed
+					),
+				),
+			},
+			// Test validation for organization account
+			{
+				Config: testAccCloudAwsAccountValidationDataSource_organization(testOrgAccountID, testOrgID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Check resource was created
+					resource.TestCheckResourceAttr(
+						"crowdstrike_cloud_aws_account.org",
+						"account_id",
+						testOrgAccountID,
+					),
+					resource.TestCheckResourceAttr(
+						"crowdstrike_cloud_aws_account.org",
+						"organization_id",
+						testOrgID,
+					),
+
+					// Check data source attributes
+					resource.TestCheckResourceAttr(
+						dataSourceNameOrg,
+						"account_id",
+						testOrgAccountID,
+					),
+					resource.TestCheckResourceAttr(
+						dataSourceNameOrg,
+						"organization_id",
+						testOrgID,
+					),
+					resource.TestCheckResourceAttr(
+						dataSourceNameOrg,
+						"validated",
+						"false", // The validation is expected to fail because we don't have resources deployed
 					),
 				),
 			},
@@ -54,10 +96,27 @@ resource "crowdstrike_cloud_aws_account" "standalone" {
 }
 
 data "crowdstrike_cloud_aws_account_validation" "standalone" {
-  account_id                         = "%s"
+  account_id = "%s"
   depends_on = [
     crowdstrike_cloud_aws_account.standalone
   ]
 }
 `, accountID, accountID)
+}
+
+func testAccCloudAwsAccountValidationDataSource_organization(accountID string, organizationID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "org" {
+  account_id      = "%s"
+  organization_id = "%s"
+}
+
+data "crowdstrike_cloud_aws_account_validation" "org" {
+  account_id      = "%s"
+  organization_id = "%s"
+  depends_on = [
+    crowdstrike_cloud_aws_account.org
+  ]
+}
+`, accountID, organizationID, accountID, organizationID)
 }

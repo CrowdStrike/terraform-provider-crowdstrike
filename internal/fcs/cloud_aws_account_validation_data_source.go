@@ -3,14 +3,17 @@ package fcs
 import (
 	"context"
 	"fmt"
+	"regexp"
 
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_aws_registration"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -27,8 +30,9 @@ type cloudAwsAccountValidationDataSource struct {
 }
 
 type cloudAwsAccountValidationDataSourceModel struct {
-	AccountID types.String `tfsdk:"account_id"`
-	Validated types.Bool   `tfsdk:"validated"`
+	AccountID      types.String `tfsdk:"account_id"`
+	OrganizationID types.String `tfsdk:"organization_id"`
+	Validated      types.Bool   `tfsdk:"validated"`
 }
 
 // NewCloudAwsAccountValidationDataSource is a helper function to simplify the provider implementation.
@@ -60,6 +64,22 @@ func (d *cloudAwsAccountValidationDataSource) Schema(
 			"account_id": schema.StringAttribute{
 				Required:    true,
 				Description: "AWS account to be validated",
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^\d{12}$`),
+						"must be in AWS account ID format",
+					),
+				},
+			},
+			"organization_id": schema.StringAttribute{
+				Optional:    true,
+				Description: "AWS organization to be validated",
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^o-[0-9a-z]{10,32}$`),
+						"must be in AWS organization ID format",
+					),
+				},
 			},
 			"validated": schema.BoolAttribute{
 				Computed:    true,
@@ -67,6 +87,29 @@ func (d *cloudAwsAccountValidationDataSource) Schema(
 			},
 		},
 	}
+}
+
+func (d *cloudAwsAccountValidationDataSource) triggerHealthCheck(ctx context.Context, accountID string, orgID string) diag.Diagnostics {
+	var diags diag.Diagnostics
+	tflog.Info(ctx, "[datasource] Trigger Health Check Scan",
+		map[string]interface{}{"accountID": accountID, "organizationID": orgID})
+
+	params := &cloud_aws_registration.CloudRegistrationAwsTriggerHealthCheckParams{
+		Context: ctx,
+	}
+	if len(orgID) > 0 {
+		params.OrganizationIds = []string{orgID}
+	} else {
+		params.AccountIds = []string{accountID}
+	}
+	_, err := d.client.CloudAwsRegistration.CloudRegistrationAwsTriggerHealthCheck(params)
+	if err != nil {
+		diags.AddWarning(
+			"Failed to trigger health check scan. Please go to the Falcon console and trigger health check scan manually to reflect the latest state.",
+			fmt.Sprintf("Failed to trigger health check: %s", falcon.ErrorExplain(err)),
+		)
+	}
+	return diags
 }
 
 func (d *cloudAwsAccountValidationDataSource) validateAccount(ctx context.Context, accountID string) diag.Diagnostics {
@@ -83,7 +126,7 @@ func (d *cloudAwsAccountValidationDataSource) validateAccount(ctx context.Contex
 	if err != nil {
 		diags.AddWarning(
 			"Failed to validate AWS account. Please go to the Falcon console and trigger health check scan manually to reflect the latest state.",
-			fmt.Sprintf("Failed to validate AWS account for AWS account: %s", falcon.ErrorExplain(err)),
+			fmt.Sprintf("Failed to validate AWS account: %s", falcon.ErrorExplain(err)),
 		)
 	}
 	return diags
@@ -100,19 +143,18 @@ func (d *cloudAwsAccountValidationDataSource) Read(
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	diags := d.validateAccount(ctx, data.AccountID.ValueString())
 	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
+	data.Validated = types.BoolValue(!diags.HasError() && diags.WarningsCount() == 0)
+
+	if data.Validated.ValueBool() {
+		diags = d.triggerHealthCheck(ctx, data.OrganizationID.ValueString(), data.OrganizationID.ValueString())
+		resp.Diagnostics.Append(diags...)
 	}
-	data.Validated = types.BoolValue(true)
 
 	// Set state
 	diags = resp.State.Set(ctx, &data)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 }
 
 // Configure adds the provider configured client to the data source.
