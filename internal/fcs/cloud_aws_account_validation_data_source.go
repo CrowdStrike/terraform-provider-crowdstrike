@@ -154,7 +154,7 @@ func (d *cloudAwsAccountValidationDataSource) Read(
 	}
 
 	// Set state
-	diags = resp.State.Set(ctx, &data)
+	resp.State.Set(ctx, &data)
 }
 
 // Configure adds the provider configured client to the data source.
