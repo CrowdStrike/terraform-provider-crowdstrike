@@ -104,7 +104,7 @@ data "crowdstrike_cloud_aws_account_validation" "standalone" {
 `, accountID, accountID)
 }
 
-func testAccCloudAwsAccountValidationDataSource_organization(accountID string, organizationID string) string {
+func testAccCloudAwsAccountValidationDataSource_organization(accountID, organizationID string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_aws_account" "org" {
   account_id      = "%s"

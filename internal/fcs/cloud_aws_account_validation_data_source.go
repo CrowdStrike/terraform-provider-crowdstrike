@@ -89,7 +89,7 @@ func (d *cloudAwsAccountValidationDataSource) Schema(
 	}
 }
 
-func (d *cloudAwsAccountValidationDataSource) triggerHealthCheck(ctx context.Context, accountID string, orgID string) diag.Diagnostics {
+func (d *cloudAwsAccountValidationDataSource) triggerHealthCheck(ctx context.Context, accountID, orgID string) diag.Diagnostics {
 	var diags diag.Diagnostics
 	tflog.Info(ctx, "[datasource] Trigger Health Check Scan",
 		map[string]interface{}{"accountID": accountID, "organizationID": orgID})
@@ -114,7 +114,7 @@ func (d *cloudAwsAccountValidationDataSource) triggerHealthCheck(ctx context.Con
 
 func (d *cloudAwsAccountValidationDataSource) validateAccount(ctx context.Context, accountID string) diag.Diagnostics {
 	var diags diag.Diagnostics
-	tflog.Info(ctx, "[datasource] Validate Cloud AWS Accounts ",
+	tflog.Info(ctx, "[datasource] Validate Cloud AWS Account",
 		map[string]interface{}{"accountID": accountID})
 
 	_, err := d.client.CloudAwsRegistration.CloudRegistrationAwsValidateAccounts(
