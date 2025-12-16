@@ -248,8 +248,12 @@ func (r *cloudAzureTenantEventhubSettingsResource) Update(
 		return
 	}
 
-	diags := r.triggerHealthCheck(ctx, data.TenantId.ValueString())
-	resp.Diagnostics.Append(diags...)
+	vdiags := r.validateRegistration(ctx, data.TenantId.ValueString())
+	resp.Diagnostics.Append(vdiags...)
+	if !vdiags.HasError() && vdiags.WarningsCount() == 0 {
+		hcDiags := r.triggerHealthCheck(ctx, data.TenantId.ValueString())
+		resp.Diagnostics.Append(hcDiags...)
+	}
 
 	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -436,6 +440,27 @@ func (r *cloudAzureTenantEventhubSettingsResource) triggerHealthCheck(
 		diags.AddWarning(
 			"Failed to trigger health check scan. Please go to the Falcon console and trigger health check scan manually to reflect the latest state.",
 			fmt.Sprintf("Failed to trigger health check scan for Azure tenant registration: %s", falcon.ErrorExplain(err)),
+		)
+	}
+
+	return diags
+}
+
+func (r *cloudAzureTenantEventhubSettingsResource) validateRegistration(
+	ctx context.Context,
+	tenantID string,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+	params := cloud_azure_registration.CloudRegistrationAzureValidateRegistrationParams{
+		Context:  ctx,
+		TenantID: tenantID,
+	}
+
+	_, err := r.client.CloudAzureRegistration.CloudRegistrationAzureValidateRegistration(&params)
+	if err != nil {
+		diags.AddWarning(
+			"Failed to validate registration. Please go to the Falcon console and trigger health check scan manually to reflect the latest state.",
+			fmt.Sprintf("Failed to validate Azure tenant registration: %s", falcon.ErrorExplain(err)),
 		)
 	}
 
