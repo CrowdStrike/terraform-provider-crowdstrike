@@ -3,6 +3,7 @@ package fcs
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
@@ -190,7 +191,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) Create(
 		return
 	}
 
-	diags = r.triggerHealthCheck(ctx, data.TenantId.ValueString())
+	diags = r.validateRegistrationAndTriggerHealthCheck(ctx, data.TenantId.ValueString())
 	resp.Diagnostics.Append(diags...)
 
 	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
@@ -249,7 +250,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) Update(
 		return
 	}
 
-	diags := r.triggerHealthCheck(ctx, data.TenantId.ValueString())
+	diags := r.validateRegistrationAndTriggerHealthCheck(ctx, data.TenantId.ValueString())
 	resp.Diagnostics.Append(diags...)
 
 	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
@@ -441,4 +442,39 @@ func (r *cloudAzureTenantEventhubSettingsResource) triggerHealthCheck(
 	}
 
 	return diags
+}
+
+func (r *cloudAzureTenantEventhubSettingsResource) validateRegistration(
+	ctx context.Context,
+	tenantID string,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+	params := cloud_azure_registration.CloudRegistrationAzureValidateRegistrationParams{
+		Context:  ctx,
+		TenantID: tenantID,
+	}
+
+	_, err := r.client.CloudAzureRegistration.CloudRegistrationAzureValidateRegistration(&params)
+	if err != nil {
+		diags.AddWarning(
+			"Failed to validate registration. Please go to the Falcon console and trigger health check scan manually to reflect the latest state.",
+			fmt.Sprintf("Failed to validate Azure tenant registration: %s", falcon.ErrorExplain(err)),
+		)
+	}
+
+	return diags
+}
+
+func (r *cloudAzureTenantEventhubSettingsResource) validateRegistrationAndTriggerHealthCheck(
+	ctx context.Context,
+	tenantID string,
+) diag.Diagnostics {
+	time.Sleep(30 * time.Second)
+	diags := r.validateRegistration(ctx, tenantID)
+	if diags.HasError() || diags.WarningsCount() > 0 {
+		return diags
+	}
+
+	hcDiags := r.triggerHealthCheck(ctx, tenantID)
+	return hcDiags
 }
