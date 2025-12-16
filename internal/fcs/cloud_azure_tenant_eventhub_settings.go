@@ -189,8 +189,12 @@ func (r *cloudAzureTenantEventhubSettingsResource) Create(
 		return
 	}
 
-	diags = r.triggerHealthCheck(ctx, data.TenantId.ValueString())
-	resp.Diagnostics.Append(diags...)
+	vdiags := r.validateRegistration(ctx, data.TenantId.ValueString())
+	resp.Diagnostics.Append(vdiags...)
+	if !vdiags.HasError() && vdiags.WarningsCount() == 0 {
+		hcDiags := r.triggerHealthCheck(ctx, data.TenantId.ValueString())
+		resp.Diagnostics.Append(hcDiags...)
+	}
 
 	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
