@@ -77,8 +77,6 @@ type cloudGoogleRegistrationLoggingSettingsModel struct {
 	LogIngestionSinkName         types.String `tfsdk:"log_ingestion_sink_name"`
 	LogIngestionTopicID          types.String `tfsdk:"log_ingestion_topic_id"`
 	LogIngestionSubscriptionName types.String `tfsdk:"log_ingestion_subscription_name"`
-	WifProjectID                 types.String `tfsdk:"wif_project"`
-	WifProjectNumber             types.String `tfsdk:"wif_project_number"`
 }
 
 func (r *cloudGoogleRegistrationLoggingSettingsResource) Schema(
@@ -124,20 +122,6 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Schema(
 					validators.StringNotWhitespace(),
 				},
 			},
-			"wif_project": schema.StringAttribute{
-				Required:    true,
-				Description: "The Google Cloud project ID for Workload Identity Federation.",
-				Validators: []validator.String{
-					validators.StringNotWhitespace(),
-				},
-			},
-			"wif_project_number": schema.StringAttribute{
-				Required:    true,
-				Description: "The Google Cloud project number for Workload Identity Federation.",
-				Validators: []validator.String{
-					validators.StringNotWhitespace(),
-				},
-			},
 		},
 	}
 }
@@ -156,14 +140,6 @@ func (m *cloudGoogleRegistrationLoggingSettingsModel) wrap(
 	m.LogIngestionSinkName = flex.StringValueToFramework(sinkName)
 	m.LogIngestionTopicID = flex.StringValueToFramework(topicID)
 	m.LogIngestionSubscriptionName = flex.StringValueToFramework(subscriptionID)
-
-	var wifProjectID, wifProjectNumber string
-	if registration.WifProperties != nil {
-		wifProjectID = registration.WifProperties.ProjectID
-		wifProjectNumber = registration.WifProperties.ProjectNumber
-	}
-	m.WifProjectID = types.StringValue(wifProjectID)
-	m.WifProjectNumber = types.StringValue(wifProjectNumber)
 }
 
 func (r *cloudGoogleRegistrationLoggingSettingsResource) Create(
@@ -184,7 +160,11 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Create(
 		return
 	}
 
-	if !r.isIOAEnabled(registration) {
+	hasLogSettings := !data.LogIngestionSinkName.IsNull() ||
+		!data.LogIngestionTopicID.IsNull() ||
+		!data.LogIngestionSubscriptionName.IsNull()
+
+	if hasLogSettings && !r.isIOAEnabled(registration) {
 		resp.Diagnostics.AddError(
 			"IOA Not Enabled",
 			fmt.Sprintf(
@@ -252,7 +232,11 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Update(
 		return
 	}
 
-	if !r.isIOAEnabled(registration) {
+	hasLogSettings := !data.LogIngestionSinkName.IsNull() ||
+		!data.LogIngestionTopicID.IsNull() ||
+		!data.LogIngestionSubscriptionName.IsNull()
+
+	if hasLogSettings && !r.isIOAEnabled(registration) {
 		resp.Diagnostics.AddError(
 			"IOA Not Enabled",
 			fmt.Sprintf(
@@ -284,8 +268,6 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Delete(
 	data.LogIngestionSinkName = types.StringValue("")
 	data.LogIngestionTopicID = types.StringValue("")
 	data.LogIngestionSubscriptionName = types.StringValue("")
-	data.WifProjectID = types.StringValue("")
-	data.WifProjectNumber = types.StringValue("")
 
 	registration, err := r.updateRegistration(ctx, &data)
 	resp.Diagnostics.Append(err...)
@@ -400,8 +382,6 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) updateRegistration(
 		LogIngestionSinkName:         flex.FrameworkToStringPointer(data.LogIngestionSinkName),
 		LogIngestionTopicID:          flex.FrameworkToStringPointer(data.LogIngestionTopicID),
 		LogIngestionSubscriptionName: flex.FrameworkToStringPointer(data.LogIngestionSubscriptionName),
-		WifProjectID:                 data.WifProjectID.ValueString(),
-		WifProjectNumber:             data.WifProjectNumber.ValueString(),
 	}
 
 	params := &cloud_google_cloud_registration.CloudRegistrationGcpUpdateRegistrationParams{

@@ -50,8 +50,6 @@ resource "crowdstrike_cloud_google_registration_logging_settings" "example" {
   log_ingestion_sink_name         = "crowdstrike-log-sink"
   log_ingestion_topic_id          = "crowdstrike-log-topic"
   log_ingestion_subscription_name = "crowdstrike-log-subscription"
-  wif_project                     = "my-wif-project-id"
-  wif_project_number              = "123456789012"
 
   depends_on = [crowdstrike_cloud_google_registration.registration]
 }
@@ -67,8 +65,6 @@ output "log_ingestion_settings" {
 ### Required
 
 - `registration_id` (String) The Google Cloud registration ID to configure log ingestion settings for.
-- `wif_project` (String) The Google Cloud project ID for Workload Identity Federation.
-- `wif_project_number` (String) The Google Cloud project number for Workload Identity Federation.
 
 ### Optional
 
