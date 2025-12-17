@@ -60,4 +60,4 @@ data "crowdstrike_cloud_aws_account_validation" "org_account" {
 
 ### Read-Only
 
-- `validated` (Boolean) Indicates whether the AWS account is validated successfully
+- `validated` (Boolean) Indicates whether the AWS account validation completed successfully without errors or warnings. Visit the Falcon console for detailed validation status and any issues found

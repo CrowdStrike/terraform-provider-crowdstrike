@@ -83,7 +83,7 @@ func (d *cloudAwsAccountValidationDataSource) Schema(
 			},
 			"validated": schema.BoolAttribute{
 				Computed:    true,
-				Description: "Indicates whether the AWS account is validated successfully",
+				Description: "Indicates whether the AWS account validation completed successfully without errors or warnings. Visit the Falcon console for detailed validation status and any issues found",
 			},
 		},
 	}

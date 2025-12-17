@@ -11,7 +11,7 @@ provider "crowdstrike" {
 }
 
 # validate the integrated standalone/child AWS account
-data "crowdstrike_cloud_aws_account_validation" "normal_account" {
+data "crowdstrike_cloud_aws_account_validation" "account" {
   account_id = "123456789012"
 }
 
