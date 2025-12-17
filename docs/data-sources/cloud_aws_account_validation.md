@@ -20,6 +20,8 @@ The following API scopes are required:
 - CSPM registration | Read & Write
 
 
+~> **Warning** This data source validates AWS account resources by calling Falcon Cloud Security APIs, which in turn communicate with your AWS account via AWS APIs with the created IAM role. Each validation consumes API quota from your AWS account. To avoid hitting AWS API rate limits, use this data source sparingly.
+
 ## Example Usage
 
 ```terraform
@@ -36,7 +38,7 @@ provider "crowdstrike" {
 }
 
 # validate the integrated standalone/child AWS account
-data "crowdstrike_cloud_aws_account_validation" "normal_account" {
+data "crowdstrike_cloud_aws_account_validation" "account" {
   account_id = "123456789012"
 }
 
