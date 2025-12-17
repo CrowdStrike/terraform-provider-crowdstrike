@@ -744,6 +744,7 @@ func (r *cloudGoogleRegistrationResource) Update(
 		InfraProjectID:    plan.InfraProjectID.ValueString(),
 		WifProjectID:      plan.WifProjectID.ValueString(),
 		WifProjectNumber:  plan.WifProjectNumber.ValueString(),
+		FalconClientKeyID: r.clientId,
 	}
 
 	updateReq.ResourceNameSuffix = flex.FrameworkToStringPointer(plan.ResourceNameSuffix)
