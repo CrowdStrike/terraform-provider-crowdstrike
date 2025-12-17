@@ -1,0 +1,40 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+{{ if gt (len (split .Description " --- ")) 1 -}}
+subcategory: "{{ index (split .Description " --- ") 0 }}"
+{{- else -}}
+subcategory: ""
+{{- end }}
+description: |-
+{{ if gt (len (split .Description " --- ")) 1 -}}
+{{ index (split .Description " --- ") 1 | plainmarkdown | trimspace | prefixlines "  " }}
+{{- else -}}
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+{{- end }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ if gt (len (split .Description " --- ")) 1 -}}
+{{ index (split .Description " --- ") 1 | trimspace }}
+{{ else }}
+{{ .Description | trimspace }}
+{{- end }}
+
+~> **Warning** This data source validates AWS account resources by calling Falcon Cloud Security APIs, which in turn communicate with your AWS account via AWS APIs with the created IAM role. Each validation consumes API quota from your AWS account. To avoid hitting AWS API rate limits, use this data source sparingly.
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile (printf "%s%s%s" "examples/data-sources/" .Name "/data-source.tf") }}
+{{- end }}
+
+{{ .SchemaMarkdown | trimspace }}
+{{- if .HasImport }}
+
+## Import
+
+Import is supported using the following syntax:
+
+{{ codefile "shell" (printf "%s%s%s" "examples/data-sources/" .Name "/import.sh") }}
+{{- end }}
