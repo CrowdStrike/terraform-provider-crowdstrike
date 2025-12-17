@@ -11,6 +11,7 @@ import (
 	cloudgoogleregistration "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_google_registration"
 	cloudgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_group"
 	cloudsecurity "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_security"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
@@ -46,7 +47,7 @@ type CrowdStrikeProvider struct {
 	version string
 }
 
-// CrowdStrikeProviderModel describes the provider data model.
+// CrowdStrikeProviderModel  the provider data model.
 type CrowdStrikeProviderModel struct {
 	Cloud        types.String `tfsdk:"cloud"`
 	ClientSecret types.String `tfsdk:"client_secret"`
@@ -108,15 +109,15 @@ func (p *CrowdStrikeProvider) Configure(
 	req provider.ConfigureRequest,
 	resp *provider.ConfigureResponse,
 ) {
-	var config CrowdStrikeProviderModel
+	var model CrowdStrikeProviderModel
 
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &model)...)
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if config.Cloud.IsUnknown() {
+	if model.Cloud.IsUnknown() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("cloud"),
 			"Unknown CrowdStrike API Cloud",
@@ -125,7 +126,7 @@ func (p *CrowdStrikeProvider) Configure(
 		)
 	}
 
-	if config.ClientId.IsUnknown() {
+	if model.ClientId.IsUnknown() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("client_id"),
 			"Unknown CrowdStrike API Client ID",
@@ -134,7 +135,7 @@ func (p *CrowdStrikeProvider) Configure(
 		)
 	}
 
-	if config.ClientSecret.IsUnknown() {
+	if model.ClientSecret.IsUnknown() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("client_secret"),
 			"Unknown CrowdStrike API Client Secret",
@@ -153,20 +154,20 @@ func (p *CrowdStrikeProvider) Configure(
 	clientId := os.Getenv("FALCON_CLIENT_ID")
 	clientSecret := os.Getenv("FALCON_CLIENT_SECRET")
 
-	if !config.Cloud.IsNull() {
-		cloud = config.Cloud.ValueString()
+	if !model.Cloud.IsNull() {
+		cloud = model.Cloud.ValueString()
 	}
 
 	if cloud == "" {
 		cloud = "autodiscover"
 	}
 
-	if !config.ClientId.IsNull() {
-		clientId = config.ClientId.ValueString()
+	if !model.ClientId.IsNull() {
+		clientId = model.ClientId.ValueString()
 	}
 
-	if !config.ClientSecret.IsNull() {
-		clientSecret = config.ClientSecret.ValueString()
+	if !model.ClientSecret.IsNull() {
+		clientSecret = model.ClientSecret.ValueString()
 	}
 
 	if clientId == "" {
@@ -196,7 +197,7 @@ func (p *CrowdStrikeProvider) Configure(
 	ctx = tflog.SetField(ctx, "crowdstrike_cloud", cloud)
 	ctx = tflog.SetField(ctx, "crowdstrike_client_id", clientId)
 	ctx = tflog.SetField(ctx, "crowdstrike_client_secret", clientSecret)
-	ctx = tflog.SetField(ctx, "crowdstrike_member_cid", config.MemberCID.ValueString())
+	ctx = tflog.SetField(ctx, "crowdstrike_member_cid", model.MemberCID.ValueString())
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "crowdstrike_client_id")
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "crowdstrike_client_secret")
 
@@ -214,8 +215,8 @@ func (p *CrowdStrikeProvider) Configure(
 		}),
 	}
 
-	if !config.MemberCID.IsNull() {
-		apiConfig.MemberCID = config.MemberCID.ValueString()
+	if !model.MemberCID.IsNull() {
+		apiConfig.MemberCID = model.MemberCID.ValueString()
 	}
 
 	client, err := falcon.NewClient(&apiConfig)
@@ -228,8 +229,12 @@ func (p *CrowdStrikeProvider) Configure(
 		)
 	}
 
-	resp.DataSourceData = client
-	resp.ResourceData = client
+	providerConfig := config.ProviderConfig{
+		ClientId: clientId,
+		Client:   client,
+	}
+	resp.DataSourceData = providerConfig
+	resp.ResourceData = providerConfig
 
 	tflog.Info(ctx, "Configured CrowdStrike client", map[string]any{"success": true})
 }

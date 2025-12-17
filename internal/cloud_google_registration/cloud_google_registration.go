@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_google_cloud_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
@@ -56,7 +57,8 @@ func NewCloudGoogleRegistrationResource() resource.Resource {
 }
 
 type cloudGoogleRegistrationResource struct {
-	client *client.CrowdStrikeAPISpecification
+	client   *client.CrowdStrikeAPISpecification
+	clientId string
 }
 
 type realtimeVisibilityModel struct {
@@ -254,13 +256,13 @@ func (r *cloudGoogleRegistrationResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
@@ -268,7 +270,8 @@ func (r *cloudGoogleRegistrationResource) Configure(
 		return
 	}
 
-	r.client = client
+	r.client = config.Client
+	r.clientId = config.ClientId
 }
 
 func (r *cloudGoogleRegistrationResource) Metadata(
@@ -634,7 +637,8 @@ func (r *cloudGoogleRegistrationResource) Create(
 
 	if !plan.WifProjectNumber.IsNull() {
 		updateReq := &models.DtoUpdateGCPRegistrationRequest{
-			WifProjectNumber: plan.WifProjectNumber.ValueString(),
+			WifProjectNumber:  plan.WifProjectNumber.ValueString(),
+			FalconClientKeyID: r.clientId,
 		}
 
 		patchParams := &cloud_google_cloud_registration.CloudRegistrationGcpUpdateRegistrationParams{

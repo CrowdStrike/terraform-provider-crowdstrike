@@ -16,12 +16,13 @@ func TestAccCloudGoogleRegistrationLoggingSettingsResource_Basic(t *testing.T) {
 	projectID := generateGoogleCloudProjectID()
 	infraProjectID := generateGoogleCloudProjectID()
 	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
 	rtvdEnabled := true
 
 	projectResourceName := "crowdstrike_cloud_google_registration.test"
 	settingsResourceName := "crowdstrike_cloud_google_registration_logging_settings.test"
 
-	registrationConfig := cloudGoogleRegistrationConfig(rName, projectID, infraProjectID, wifProjectID, rtvdEnabled)
+	registrationConfig := cloudGoogleRegistrationConfig(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, rtvdEnabled)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -85,12 +86,13 @@ func TestAccCloudGoogleRegistrationLoggingSettingsResource_IOANotEnabled(t *test
 	projectID := generateGoogleCloudProjectID()
 	infraProjectID := generateGoogleCloudProjectID()
 	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
 	rtvdEnabled := false
 
 	settingsResourceName := "crowdstrike_cloud_google_registration_logging_settings.test"
 	projectResourceName := "crowdstrike_cloud_google_registration.test"
 
-	registrationConfig := cloudGoogleRegistrationConfig(rName, projectID, infraProjectID, wifProjectID, rtvdEnabled)
+	registrationConfig := cloudGoogleRegistrationConfig(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, rtvdEnabled)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -123,21 +125,23 @@ func cloudGoogleRegistrationConfig(
 	rName,
 	projectID,
 	infraProjectID,
-	wifProjectID string,
+	wifProjectID,
+	wifProjectNumber string,
 	rtvdEnabled bool,
 ) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_google_registration" "test" {
-  name          = %[1]q
-  projects      = [%[2]q]
-  infra_project = %[3]q
-  wif_project   = %[4]q
+  name               = %[1]q
+  projects           = [%[2]q]
+  infra_project      = %[3]q
+  wif_project        = %[4]q
+  wif_project_number = %[5]q
 
   realtime_visibility = {
-    enabled = %[5]t 
+    enabled = %[6]t 
   }
 }
-`, rName, projectID, infraProjectID, wifProjectID, rtvdEnabled)
+`, rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, rtvdEnabled)
 }
 
 func testAccCloudGoogleRegistrationLoggingSettingsConfig_basic() string {
