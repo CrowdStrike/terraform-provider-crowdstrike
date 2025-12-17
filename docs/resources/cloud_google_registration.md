@@ -122,6 +122,7 @@ output "example_registration" {
 - `infra_project` (String) The Google Cloud project ID where CrowdStrike infrastructure resources will be created
 - `name` (String) The name of the registration
 - `wif_project` (String) The Google Cloud project ID for Workload Identity Federation
+- `wif_project_number` (String) Google Cloud project number for Workload Identity Federation
 
 ### Optional
 
@@ -143,7 +144,6 @@ output "example_registration" {
 - `status` (String) The current status of the registration. Possible values: `partial` (registration is in setup incomplete status), `complete` (registration was setup successfully and validation succeeded), `validation_failed` (registration was setup successfully, but validation failed)
 - `wif_pool_id` (String) Workload Identity Federation pool ID
 - `wif_pool_name` (String) Workload Identity Federation pool name
-- `wif_project_number` (String) Google Cloud project number for Workload Identity Federation
 - `wif_provider_id` (String) Workload Identity Federation provider ID
 - `wif_provider_name` (String) Workload Identity Federation provider name
 

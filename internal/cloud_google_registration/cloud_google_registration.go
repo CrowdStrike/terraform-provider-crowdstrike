@@ -388,6 +388,18 @@ func (r *cloudGoogleRegistrationResource) Schema(
 					),
 				},
 			},
+			"wif_project_number": schema.StringAttribute{
+				Required:    true,
+				Description: "Google Cloud project number for Workload Identity Federation",
+				Validators: []validator.String{
+					validators.StringNotWhitespace(),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^[0-9]+$`),
+						"must be numeric",
+					),
+				},
+			},
+
 			"excluded_project_patterns": schema.ListAttribute{
 				Optional:    true,
 				Description: "Regex patterns to exclude specific projects from registration",
@@ -452,10 +464,6 @@ func (r *cloudGoogleRegistrationResource) Schema(
 			"wif_pool_name": schema.StringAttribute{
 				Computed:    true,
 				Description: "Workload Identity Federation pool name",
-			},
-			"wif_project_number": schema.StringAttribute{
-				Computed:    true,
-				Description: "Google Cloud project number for Workload Identity Federation",
 			},
 			"wif_provider_id": schema.StringAttribute{
 				Computed:    true,
@@ -621,16 +629,47 @@ func (r *cloudGoogleRegistrationResource) Create(
 	}
 
 	registration := res.Payload.Resources[0]
-	state := plan
-	state.ID = types.StringValue(registration.RegistrationID)
+	plan.ID = types.StringValue(registration.RegistrationID)
+	resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)
 
-	resp.Diagnostics.Append(state.wrap(ctx, registration)...)
+	if !plan.WifProjectNumber.IsNull() {
+		updateReq := &models.DtoUpdateGCPRegistrationRequest{
+			WifProjectNumber: plan.WifProjectNumber.ValueString(),
+		}
+
+		patchParams := &cloud_google_cloud_registration.CloudRegistrationGcpUpdateRegistrationParams{
+			Context: ctx,
+			Ids:     registration.RegistrationID,
+			Body: &models.DtoGCPRegistrationUpdateRequestExtV1{
+				Resources: []*models.DtoUpdateGCPRegistrationRequest{updateReq},
+			},
+		}
+
+		patchRes, err := r.client.CloudGoogleCloudRegistration.CloudRegistrationGcpUpdateRegistration(patchParams)
+		if err != nil {
+			if _, ok := err.(*cloud_google_cloud_registration.CloudRegistrationGcpUpdateRegistrationForbidden); ok {
+				resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Create, gcpRegistrationScopes))
+				return
+			}
+			resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Create, err))
+			return
+		}
+
+		if patchRes == nil || patchRes.Payload == nil || len(patchRes.Payload.Resources) == 0 || patchRes.Payload.Resources[0] == nil {
+			resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
+			return
+		}
+
+		registration = patchRes.Payload.Resources[0]
+	}
+
+	resp.Diagnostics.Append(plan.wrap(ctx, registration)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	tflog.Info(ctx, "Google Cloud registration created", map[string]interface{}{"registration_id": registration.RegistrationID})
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *cloudGoogleRegistrationResource) Read(
@@ -700,6 +739,7 @@ func (r *cloudGoogleRegistrationResource) Update(
 		RegistrationName:  plan.Name.ValueString(),
 		InfraProjectID:    plan.InfraProjectID.ValueString(),
 		WifProjectID:      plan.WifProjectID.ValueString(),
+		WifProjectNumber:  plan.WifProjectNumber.ValueString(),
 	}
 
 	updateReq.ResourceNameSuffix = flex.FrameworkToStringPointer(plan.ResourceNameSuffix)

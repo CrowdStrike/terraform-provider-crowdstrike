@@ -19,12 +19,17 @@ func generateGoogleCloudOrgID() string {
 	return sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
 }
 
+func generateGoogleCloudProjectNumber() string {
+	return sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+}
+
 func TestAccCloudGoogleRegistrationResource_Complete(t *testing.T) {
 	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	rNameUpdated := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	projectID := generateGoogleCloudProjectID()
 	infraProjectID := generateGoogleCloudProjectID()
 	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
 	resourceName := "crowdstrike_cloud_google_registration.test"
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -32,7 +37,7 @@ func TestAccCloudGoogleRegistrationResource_Complete(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloudGoogleRegistrationConfig_complete(rName, projectID, infraProjectID, wifProjectID),
+				Config: testAccCloudGoogleRegistrationConfig_complete(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckResourceAttr(resourceName, "registration_scope", "project"),
@@ -40,6 +45,7 @@ func TestAccCloudGoogleRegistrationResource_Complete(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "deployment_method", "terraform-native"),
 					resource.TestCheckResourceAttr(resourceName, "infra_project", infraProjectID),
 					resource.TestCheckResourceAttr(resourceName, "wif_project", wifProjectID),
+					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
 					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.#", "2"),
 					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.0", "^test-.*"),
 					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.1", ".*-sandbox$"),
@@ -64,7 +70,7 @@ func TestAccCloudGoogleRegistrationResource_Complete(t *testing.T) {
 				ImportStateVerify: true,
 			},
 			{
-				Config: testAccCloudGoogleRegistrationConfig_completeUpdated(rNameUpdated, projectID, infraProjectID, wifProjectID),
+				Config: testAccCloudGoogleRegistrationConfig_completeUpdated(rNameUpdated, projectID, infraProjectID, wifProjectID, wifProjectNumber),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rNameUpdated),
 					resource.TestCheckResourceAttr(resourceName, "registration_scope", "project"),
@@ -83,6 +89,7 @@ func TestAccCloudGoogleRegistrationResource_Complete(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "tags.%", "1"),
 					resource.TestCheckResourceAttr(resourceName, "tags.compliance", "optional"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "status"),
 				),
@@ -97,6 +104,7 @@ func TestAccCloudGoogleRegistrationResource_Project(t *testing.T) {
 	projectID2 := generateGoogleCloudProjectID()
 	infraProjectID := generateGoogleCloudProjectID()
 	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
 	resourceName := "crowdstrike_cloud_google_registration.test"
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -104,7 +112,7 @@ func TestAccCloudGoogleRegistrationResource_Project(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, projectID),
+				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber, projectID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckResourceAttr(resourceName, "registration_scope", "project"),
@@ -112,6 +120,7 @@ func TestAccCloudGoogleRegistrationResource_Project(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "deployment_method", "terraform-native"),
 					resource.TestCheckResourceAttr(resourceName, "infra_project", infraProjectID),
 					resource.TestCheckResourceAttr(resourceName, "wif_project", wifProjectID),
+					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "status"),
 					resource.TestCheckResourceAttrSet(resourceName, "wif_pool_id"),
@@ -124,7 +133,7 @@ func TestAccCloudGoogleRegistrationResource_Project(t *testing.T) {
 				ImportStateVerify: true,
 			},
 			{
-				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, projectID, projectID2),
+				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber, projectID, projectID2),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckResourceAttr(resourceName, "registration_scope", "project"),
@@ -132,6 +141,7 @@ func TestAccCloudGoogleRegistrationResource_Project(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "deployment_method", "terraform-native"),
 					resource.TestCheckResourceAttr(resourceName, "infra_project", infraProjectID),
 					resource.TestCheckResourceAttr(resourceName, "wif_project", wifProjectID),
+					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "status"),
 					resource.TestCheckResourceAttrSet(resourceName, "wif_pool_id"),
@@ -148,6 +158,7 @@ func TestAccCloudGoogleRegistrationResource_Organization(t *testing.T) {
 	orgIDUpdated := generateGoogleCloudOrgID()
 	infraProjectID := generateGoogleCloudProjectID()
 	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
 	resourceName := "crowdstrike_cloud_google_registration.test"
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -155,11 +166,12 @@ func TestAccCloudGoogleRegistrationResource_Organization(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloudGoogleRegistrationConfig_organization(rName, orgID, infraProjectID, wifProjectID),
+				Config: testAccCloudGoogleRegistrationConfig_organization(rName, orgID, infraProjectID, wifProjectID, wifProjectNumber),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckResourceAttr(resourceName, "registration_scope", "organization"),
 					resource.TestCheckResourceAttr(resourceName, "organization", orgID),
+					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "status"),
 					resource.TestCheckResourceAttrSet(resourceName, "wif_pool_id"),
@@ -172,11 +184,12 @@ func TestAccCloudGoogleRegistrationResource_Organization(t *testing.T) {
 				ImportStateVerify: true,
 			},
 			{
-				Config: testAccCloudGoogleRegistrationConfig_organization(rName, orgIDUpdated, infraProjectID, wifProjectID),
+				Config: testAccCloudGoogleRegistrationConfig_organization(rName, orgIDUpdated, infraProjectID, wifProjectID, wifProjectNumber),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckResourceAttr(resourceName, "registration_scope", "organization"),
 					resource.TestCheckResourceAttr(resourceName, "organization", orgIDUpdated),
+					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "status"),
 					resource.TestCheckResourceAttrSet(resourceName, "wif_pool_id"),
@@ -192,16 +205,18 @@ func TestAccCloudGoogleRegistrationResource_RealtimeVisibility(t *testing.T) {
 	projectID := generateGoogleCloudProjectID()
 	infraProjectID := generateGoogleCloudProjectID()
 	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
 	resourceName := "crowdstrike_cloud_google_registration.test"
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloudGoogleRegistrationConfig_realtimeVisibility(rName, projectID, infraProjectID, wifProjectID, true),
+				Config: testAccCloudGoogleRegistrationConfig_realtimeVisibility(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, true),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "status"),
 					resource.TestCheckResourceAttrSet(resourceName, "wif_pool_id"),
@@ -214,16 +229,17 @@ func TestAccCloudGoogleRegistrationResource_RealtimeVisibility(t *testing.T) {
 				ImportStateVerify: true,
 			},
 			{
-				Config: testAccCloudGoogleRegistrationConfig_realtimeVisibility(rName, projectID, infraProjectID, wifProjectID, false),
+				Config: testAccCloudGoogleRegistrationConfig_realtimeVisibility(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, false),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "status"),
 				),
 			},
 			{
-				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, projectID),
+				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber, projectID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckNoResourceAttr(resourceName, "realtime_visibility.enabled"),
@@ -245,6 +261,7 @@ func TestAccCloudGoogleRegistrationResource_RequiresReplace(t *testing.T) {
 	orgID2 := generateGoogleCloudOrgID()
 	infraProjectID := generateGoogleCloudProjectID()
 	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
 	resourceName := "crowdstrike_cloud_google_registration.test"
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -252,7 +269,7 @@ func TestAccCloudGoogleRegistrationResource_RequiresReplace(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, projectID),
+				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber, projectID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckResourceAttr(resourceName, "registration_scope", "project"),
@@ -260,7 +277,7 @@ func TestAccCloudGoogleRegistrationResource_RequiresReplace(t *testing.T) {
 				),
 			},
 			{
-				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, projectID, projectID2),
+				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber, projectID, projectID2),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckResourceAttr(resourceName, "registration_scope", "project"),
@@ -273,7 +290,7 @@ func TestAccCloudGoogleRegistrationResource_RequiresReplace(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccCloudGoogleRegistrationConfig_folder(rName, folderID, infraProjectID, wifProjectID),
+				Config: testAccCloudGoogleRegistrationConfig_folder(rName, folderID, infraProjectID, wifProjectID, wifProjectNumber),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckResourceAttr(resourceName, "registration_scope", "folder"),
@@ -286,7 +303,7 @@ func TestAccCloudGoogleRegistrationResource_RequiresReplace(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccCloudGoogleRegistrationConfig_folder(rName, folderID2, infraProjectID, wifProjectID),
+				Config: testAccCloudGoogleRegistrationConfig_folder(rName, folderID2, infraProjectID, wifProjectID, wifProjectNumber),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckResourceAttr(resourceName, "registration_scope", "folder"),
@@ -299,7 +316,7 @@ func TestAccCloudGoogleRegistrationResource_RequiresReplace(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccCloudGoogleRegistrationConfig_organization(rName, orgID, infraProjectID, wifProjectID),
+				Config: testAccCloudGoogleRegistrationConfig_organization(rName, orgID, infraProjectID, wifProjectID, wifProjectNumber),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckResourceAttr(resourceName, "registration_scope", "organization"),
@@ -312,7 +329,7 @@ func TestAccCloudGoogleRegistrationResource_RequiresReplace(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccCloudGoogleRegistrationConfig_organization(rName, orgID2, infraProjectID, wifProjectID),
+				Config: testAccCloudGoogleRegistrationConfig_organization(rName, orgID2, infraProjectID, wifProjectID, wifProjectNumber),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckResourceAttr(resourceName, "registration_scope", "organization"),
@@ -334,6 +351,7 @@ func TestAccCloudGoogleRegistrationResource_RemoveLabelsAndTags(t *testing.T) {
 	projectID := generateGoogleCloudProjectID()
 	infraProjectID := generateGoogleCloudProjectID()
 	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
 	resourceName := "crowdstrike_cloud_google_registration.test"
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -341,9 +359,14 @@ func TestAccCloudGoogleRegistrationResource_RemoveLabelsAndTags(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloudGoogleRegistrationConfig_withLabelsAndTags(rName, projectID, infraProjectID, wifProjectID),
+				Config: testAccCloudGoogleRegistrationConfig_withLabelsAndTags(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
+					resource.TestCheckResourceAttr(resourceName, "registration_scope", "project"),
+					resource.TestCheckResourceAttr(resourceName, "projects.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "infra_project", infraProjectID),
+					resource.TestCheckResourceAttr(resourceName, "wif_project", wifProjectID),
+					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
 					resource.TestCheckResourceAttr(resourceName, "labels.%", "2"),
 					resource.TestCheckResourceAttr(resourceName, "labels.environment", "test"),
 					resource.TestCheckResourceAttr(resourceName, "labels.managed-by", "terraform"),
@@ -355,9 +378,14 @@ func TestAccCloudGoogleRegistrationResource_RemoveLabelsAndTags(t *testing.T) {
 				),
 			},
 			{
-				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, projectID),
+				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber, projectID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
+					resource.TestCheckResourceAttr(resourceName, "registration_scope", "project"),
+					resource.TestCheckResourceAttr(resourceName, "projects.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "infra_project", infraProjectID),
+					resource.TestCheckResourceAttr(resourceName, "wif_project", wifProjectID),
+					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
 					resource.TestCheckNoResourceAttr(resourceName, "labels.%"),
 					resource.TestCheckNoResourceAttr(resourceName, "tags.%"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
@@ -373,6 +401,7 @@ func TestAccCloudGoogleRegistrationResource_RemoveResourceNamePrefixAndSuffix(t 
 	projectID := generateGoogleCloudProjectID()
 	infraProjectID := generateGoogleCloudProjectID()
 	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
 	resourceName := "crowdstrike_cloud_google_registration.test"
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -380,7 +409,7 @@ func TestAccCloudGoogleRegistrationResource_RemoveResourceNamePrefixAndSuffix(t 
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloudGoogleRegistrationConfig_withResourceNamePrefixAndSuffix(rName, projectID, infraProjectID, wifProjectID),
+				Config: testAccCloudGoogleRegistrationConfig_withResourceNamePrefixAndSuffix(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckResourceAttr(resourceName, "resource_name_prefix", "cs-"),
@@ -390,7 +419,7 @@ func TestAccCloudGoogleRegistrationResource_RemoveResourceNamePrefixAndSuffix(t 
 				),
 			},
 			{
-				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, projectID),
+				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber, projectID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckNoResourceAttr(resourceName, "resource_name_prefix"),
@@ -403,7 +432,7 @@ func TestAccCloudGoogleRegistrationResource_RemoveResourceNamePrefixAndSuffix(t 
 	})
 }
 
-func testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID string, projectIDs ...string) string {
+func testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber string, projectIDs ...string) string {
 	projectsList := make([]string, len(projectIDs))
 	for i, pid := range projectIDs {
 		projectsList[i] = fmt.Sprintf("%q", pid)
@@ -412,46 +441,50 @@ func testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProj
 	return acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_cloud_google_registration" "test" {
   name = %[1]q
-  projects       = [%[4]s]
-  infra_project  = %[2]q
-  wif_project    = %[3]q
+  projects            = [%[5]s]
+  infra_project       = %[2]q
+  wif_project         = %[3]q
+  wif_project_number  = %[4]q
 }
-`, rName, infraProjectID, wifProjectID, strings.Join(projectsList, ", "))
+`, rName, infraProjectID, wifProjectID, wifProjectNumber, strings.Join(projectsList, ", "))
 }
 
-func testAccCloudGoogleRegistrationConfig_organization(rName, orgID, infraProjectID, wifProjectID string) string {
+func testAccCloudGoogleRegistrationConfig_organization(rName, orgID, infraProjectID, wifProjectID, wifProjectNumber string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_cloud_google_registration" "test" {
   name = %[1]q
-  organization      = %[2]q
-  infra_project  = %[3]q
-  wif_project    = %[4]q
+  organization        = %[2]q
+  infra_project       = %[3]q
+  wif_project         = %[4]q
+  wif_project_number  = %[5]q
 }
-`, rName, orgID, infraProjectID, wifProjectID)
+`, rName, orgID, infraProjectID, wifProjectID, wifProjectNumber)
 }
 
-func testAccCloudGoogleRegistrationConfig_realtimeVisibility(rName, projectID, infraProjectID, wifProjectID string, enabled bool) string {
+func testAccCloudGoogleRegistrationConfig_realtimeVisibility(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber string, enabled bool) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_cloud_google_registration" "test" {
   name = %[1]q
-  projects          = [%[2]q]
-  infra_project  = %[3]q
-  wif_project    = %[4]q
+  projects            = [%[2]q]
+  infra_project       = %[3]q
+  wif_project         = %[4]q
+  wif_project_number  = %[5]q
 
   realtime_visibility = {
-    enabled = %[5]t
+    enabled = %[6]t
   }
 }
-`, rName, projectID, infraProjectID, wifProjectID, enabled)
+`, rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, enabled)
 }
 
-func testAccCloudGoogleRegistrationConfig_complete(rName, projectID, infraProjectID, wifProjectID string) string {
+func testAccCloudGoogleRegistrationConfig_complete(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_cloud_google_registration" "test" {
   name              = %[1]q
   projects          = [%[2]q]
   infra_project     = %[3]q
   wif_project       = %[4]q
+  wif_project_number = %[5]q
   deployment_method = "terraform-native"
 
   excluded_project_patterns = [
@@ -476,16 +509,17 @@ resource "crowdstrike_cloud_google_registration" "test" {
     enabled = true
   }
 }
-`, rName, projectID, infraProjectID, wifProjectID)
+`, rName, projectID, infraProjectID, wifProjectID, wifProjectNumber)
 }
 
-func testAccCloudGoogleRegistrationConfig_completeUpdated(rName, projectID, infraProjectID, wifProjectID string) string {
+func testAccCloudGoogleRegistrationConfig_completeUpdated(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_cloud_google_registration" "test" {
   name              = %[1]q
   projects          = [%[2]q]
   infra_project     = %[3]q
   wif_project       = %[4]q
+  wif_project_number = %[5]q
   deployment_method = "infrastructure-manager"
 
   excluded_project_patterns = [
@@ -509,16 +543,17 @@ resource "crowdstrike_cloud_google_registration" "test" {
     enabled = false
   }
 }
-`, rName, projectID, infraProjectID, wifProjectID)
+`, rName, projectID, infraProjectID, wifProjectID, wifProjectNumber)
 }
 
-func testAccCloudGoogleRegistrationConfig_withLabelsAndTags(rName, projectID, infraProjectID, wifProjectID string) string {
+func testAccCloudGoogleRegistrationConfig_withLabelsAndTags(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_cloud_google_registration" "test" {
   name          = %[1]q
   projects      = [%[2]q]
   infra_project = %[3]q
   wif_project   = %[4]q
+  wif_project_number = %[5]q
 
   labels = {
     environment = "test"
@@ -530,29 +565,31 @@ resource "crowdstrike_cloud_google_registration" "test" {
     cost-center = "engineering"
   }
 }
-`, rName, projectID, infraProjectID, wifProjectID)
+`, rName, projectID, infraProjectID, wifProjectID, wifProjectNumber)
 }
 
-func testAccCloudGoogleRegistrationConfig_withResourceNamePrefixAndSuffix(rName, projectID, infraProjectID, wifProjectID string) string {
+func testAccCloudGoogleRegistrationConfig_withResourceNamePrefixAndSuffix(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_cloud_google_registration" "test" {
   name                 = %[1]q
   projects             = [%[2]q]
   infra_project        = %[3]q
   wif_project          = %[4]q
+  wif_project_number   = %[5]q
   resource_name_prefix = "cs-"
   resource_name_suffix = "-prod"
 }
-`, rName, projectID, infraProjectID, wifProjectID)
+`, rName, projectID, infraProjectID, wifProjectID, wifProjectNumber)
 }
 
-func testAccCloudGoogleRegistrationConfig_folder(rName, folderID, infraProjectID, wifProjectID string) string {
+func testAccCloudGoogleRegistrationConfig_folder(rName, folderID, infraProjectID, wifProjectID, wifProjectNumber string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_cloud_google_registration" "test" {
   name = %[1]q
   folders       = [%[2]q]
   infra_project = %[3]q
   wif_project   = %[4]q
+  wif_project_number = %[5]q
 }
-`, rName, folderID, infraProjectID, wifProjectID)
+`, rName, folderID, infraProjectID, wifProjectID, wifProjectNumber)
 }
