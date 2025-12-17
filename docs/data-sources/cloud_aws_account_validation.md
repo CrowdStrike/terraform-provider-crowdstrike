@@ -59,6 +59,7 @@ data "crowdstrike_cloud_aws_account_validation" "org_account" {
 ### Optional
 
 - `organization_id` (String) AWS organization to be validated
+- `wait_time` (Number) Time in seconds to wait before starting validation. Defaults to 15 seconds. Set to 0 to validate immediately
 
 ### Read-Only
 

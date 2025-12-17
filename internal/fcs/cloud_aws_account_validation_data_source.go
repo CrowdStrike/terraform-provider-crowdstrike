@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
@@ -32,6 +33,7 @@ type cloudAwsAccountValidationDataSource struct {
 type cloudAwsAccountValidationDataSourceModel struct {
 	AccountID      types.String `tfsdk:"account_id"`
 	OrganizationID types.String `tfsdk:"organization_id"`
+	WaitTime       types.Int32  `tfsdk:"wait_time"`
 	Validated      types.Bool   `tfsdk:"validated"`
 }
 
@@ -80,6 +82,10 @@ func (d *cloudAwsAccountValidationDataSource) Schema(
 						"must be in AWS organization ID format",
 					),
 				},
+			},
+			"wait_time": schema.Int32Attribute{
+				Optional:    true,
+				Description: "Time in seconds to wait before starting validation. Defaults to 15 seconds. Set to 0 to validate immediately",
 			},
 			"validated": schema.BoolAttribute{
 				Computed:    true,
@@ -142,6 +148,15 @@ func (d *cloudAwsAccountValidationDataSource) Read(
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	waitTime := 15
+	if !data.WaitTime.IsNull() {
+		waitTime = int(data.WaitTime.ValueInt32())
+	}
+
+	if waitTime > 0 {
+		time.Sleep(time.Duration(waitTime) * time.Second)
 	}
 
 	diags := d.validateAccount(ctx, data.AccountID.ValueString())
