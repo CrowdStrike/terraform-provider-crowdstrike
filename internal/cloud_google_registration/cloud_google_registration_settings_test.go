@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-func TestAccCloudGoogleRegistrationLoggingSettingsResource_Basic(t *testing.T) {
+func TestAccCloudGoogleRegistrationSettingsResource_Basic(t *testing.T) {
 	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	projectID := generateGoogleCloudProjectID()
 	infraProjectID := generateGoogleCloudProjectID()
@@ -20,7 +20,7 @@ func TestAccCloudGoogleRegistrationLoggingSettingsResource_Basic(t *testing.T) {
 	rtvdEnabled := true
 
 	projectResourceName := "crowdstrike_cloud_google_registration.test"
-	settingsResourceName := "crowdstrike_cloud_google_registration_logging_settings.test"
+	settingsResourceName := "crowdstrike_cloud_google_registration_settings.test"
 
 	registrationConfig := cloudGoogleRegistrationConfig(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, rtvdEnabled)
 
@@ -31,13 +31,15 @@ func TestAccCloudGoogleRegistrationLoggingSettingsResource_Basic(t *testing.T) {
 			{
 				Config: acctest.ConfigCompose(
 					registrationConfig,
-					testAccCloudGoogleRegistrationLoggingSettingsConfig_basic(),
+					testAccCloudGoogleRegistrationSettingsConfig_basic(),
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrPair(settingsResourceName, "registration_id", projectResourceName, "id"),
 					resource.TestCheckResourceAttr(settingsResourceName, "log_ingestion_sink_name", "test-sink"),
 					resource.TestCheckResourceAttr(settingsResourceName, "log_ingestion_topic_id", "test-topic"),
 					resource.TestCheckResourceAttr(settingsResourceName, "log_ingestion_subscription_name", "test-subscription"),
+					resource.TestCheckResourceAttr(settingsResourceName, "wif_pool_name", "test-pool"),
+					resource.TestCheckResourceAttr(settingsResourceName, "wif_provider_name", "test-provider"),
 				),
 			},
 			{
@@ -56,32 +58,36 @@ func TestAccCloudGoogleRegistrationLoggingSettingsResource_Basic(t *testing.T) {
 			{
 				Config: acctest.ConfigCompose(
 					registrationConfig,
-					testAccCloudGoogleRegistrationLoggingSettingsConfig_withoutLoggingParams(),
+					testAccCloudGoogleRegistrationSettingsConfig_withoutSettings(),
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrPair(settingsResourceName, "registration_id", projectResourceName, "id"),
 					resource.TestCheckNoResourceAttr(settingsResourceName, "log_ingestion_sink_name"),
 					resource.TestCheckNoResourceAttr(settingsResourceName, "log_ingestion_topic_id"),
 					resource.TestCheckNoResourceAttr(settingsResourceName, "log_ingestion_subscription_name"),
+					resource.TestCheckNoResourceAttr(settingsResourceName, "wif_pool_name"),
+					resource.TestCheckNoResourceAttr(settingsResourceName, "wif_provider_name"),
 				),
 			},
 			{
 				Config: acctest.ConfigCompose(
 					registrationConfig,
-					testAccCloudGoogleRegistrationLoggingSettingsConfig_updated(),
+					testAccCloudGoogleRegistrationSettingsConfig_updated(),
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrPair(settingsResourceName, "registration_id", projectResourceName, "id"),
 					resource.TestCheckResourceAttr(settingsResourceName, "log_ingestion_sink_name", "test-sink-updated"),
 					resource.TestCheckResourceAttr(settingsResourceName, "log_ingestion_topic_id", "test-topic-updated"),
 					resource.TestCheckResourceAttr(settingsResourceName, "log_ingestion_subscription_name", "test-subscription-updated"),
+					resource.TestCheckResourceAttr(settingsResourceName, "wif_pool_name", "test-pool-updated"),
+					resource.TestCheckResourceAttr(settingsResourceName, "wif_provider_name", "test-provider-updated"),
 				),
 			},
 		},
 	})
 }
 
-func TestAccCloudGoogleRegistrationLoggingSettingsResource_IOANotEnabled(t *testing.T) {
+func TestAccCloudGoogleRegistrationSettingsResource_IOANotEnabled(t *testing.T) {
 	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	projectID := generateGoogleCloudProjectID()
 	infraProjectID := generateGoogleCloudProjectID()
@@ -89,7 +95,7 @@ func TestAccCloudGoogleRegistrationLoggingSettingsResource_IOANotEnabled(t *test
 	wifProjectNumber := generateGoogleCloudProjectNumber()
 	rtvdEnabled := false
 
-	settingsResourceName := "crowdstrike_cloud_google_registration_logging_settings.test"
+	settingsResourceName := "crowdstrike_cloud_google_registration_settings.test"
 	projectResourceName := "crowdstrike_cloud_google_registration.test"
 
 	registrationConfig := cloudGoogleRegistrationConfig(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, rtvdEnabled)
@@ -101,14 +107,14 @@ func TestAccCloudGoogleRegistrationLoggingSettingsResource_IOANotEnabled(t *test
 			{
 				Config: acctest.ConfigCompose(
 					registrationConfig,
-					testAccCloudGoogleRegistrationLoggingSettingsConfig_basic(),
+					testAccCloudGoogleRegistrationSettingsConfig_basic(),
 				),
 				ExpectError: regexp.MustCompile(`realtime_visibility with IOA`),
 			},
 			{
 				Config: acctest.ConfigCompose(
 					registrationConfig,
-					testAccCloudGoogleRegistrationLoggingSettingsConfig_withoutLoggingParams(),
+					testAccCloudGoogleRegistrationSettingsConfig_withoutSettings(),
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrPair(settingsResourceName, "registration_id", projectResourceName, "id"),
@@ -144,22 +150,24 @@ resource "crowdstrike_cloud_google_registration" "test" {
 `, rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, rtvdEnabled)
 }
 
-func testAccCloudGoogleRegistrationLoggingSettingsConfig_basic() string {
+func testAccCloudGoogleRegistrationSettingsConfig_basic() string {
 	return `
-resource "crowdstrike_cloud_google_registration_logging_settings" "test" {
+resource "crowdstrike_cloud_google_registration_settings" "test" {
   registration_id                 = crowdstrike_cloud_google_registration.test.id
   log_ingestion_sink_name         = "test-sink"
   log_ingestion_topic_id          = "test-topic"
   log_ingestion_subscription_name = "test-subscription"
+  wif_pool_name                   = "test-pool"
+  wif_provider_name               = "test-provider"
 
   depends_on = [crowdstrike_cloud_google_registration.test]
 }
 `
 }
 
-func testAccCloudGoogleRegistrationLoggingSettingsConfig_withoutLoggingParams() string {
+func testAccCloudGoogleRegistrationSettingsConfig_withoutSettings() string {
 	return `
-resource "crowdstrike_cloud_google_registration_logging_settings" "test" {
+resource "crowdstrike_cloud_google_registration_settings" "test" {
   registration_id = crowdstrike_cloud_google_registration.test.id
 
   depends_on = [crowdstrike_cloud_google_registration.test]
@@ -167,13 +175,15 @@ resource "crowdstrike_cloud_google_registration_logging_settings" "test" {
 `
 }
 
-func testAccCloudGoogleRegistrationLoggingSettingsConfig_updated() string {
+func testAccCloudGoogleRegistrationSettingsConfig_updated() string {
 	return `
-resource "crowdstrike_cloud_google_registration_logging_settings" "test" {
+resource "crowdstrike_cloud_google_registration_settings" "test" {
   registration_id                 = crowdstrike_cloud_google_registration.test.id
   log_ingestion_sink_name         = "test-sink-updated"
   log_ingestion_topic_id          = "test-topic-updated"
   log_ingestion_subscription_name = "test-subscription-updated"
+  wif_pool_name                   = "test-pool-updated"
+  wif_provider_name               = "test-provider-updated"
 
   depends_on = [crowdstrike_cloud_google_registration.test]
 }
