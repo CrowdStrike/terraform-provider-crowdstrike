@@ -3,6 +3,7 @@ package fcs
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
@@ -189,12 +190,8 @@ func (r *cloudAzureTenantEventhubSettingsResource) Create(
 		return
 	}
 
-	vdiags := r.validateRegistration(ctx, data.TenantId.ValueString())
-	resp.Diagnostics.Append(vdiags...)
-	if !vdiags.HasError() && vdiags.WarningsCount() == 0 {
-		hcDiags := r.triggerHealthCheck(ctx, data.TenantId.ValueString())
-		resp.Diagnostics.Append(hcDiags...)
-	}
+	diags = r.validateRegistrationAndTriggerHealthCheck(ctx, data.TenantId.ValueString())
+	resp.Diagnostics.Append(diags...)
 
 	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -252,12 +249,8 @@ func (r *cloudAzureTenantEventhubSettingsResource) Update(
 		return
 	}
 
-	vdiags := r.validateRegistration(ctx, data.TenantId.ValueString())
-	resp.Diagnostics.Append(vdiags...)
-	if !vdiags.HasError() && vdiags.WarningsCount() == 0 {
-		hcDiags := r.triggerHealthCheck(ctx, data.TenantId.ValueString())
-		resp.Diagnostics.Append(hcDiags...)
-	}
+	diags := r.validateRegistrationAndTriggerHealthCheck(ctx, data.TenantId.ValueString())
+	resp.Diagnostics.Append(diags...)
 
 	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -469,4 +462,18 @@ func (r *cloudAzureTenantEventhubSettingsResource) validateRegistration(
 	}
 
 	return diags
+}
+
+func (r *cloudAzureTenantEventhubSettingsResource) validateRegistrationAndTriggerHealthCheck(
+	ctx context.Context,
+	tenantID string,
+) diag.Diagnostics {
+	time.Sleep(30 * time.Second)
+	diags := r.validateRegistration(ctx, tenantID)
+	if diags.HasError() || diags.WarningsCount() > 0 {
+		return diags
+	}
+
+	hcDiags := r.triggerHealthCheck(ctx, tenantID)
+	return hcDiags
 }
