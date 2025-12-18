@@ -47,8 +47,8 @@ func TestAccCloudGoogleRegistrationResource_Complete(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "wif_project", wifProjectID),
 					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
 					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.0", "^test-.*"),
-					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.1", ".*-sandbox$"),
+					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.0", "sys-test-.*"),
+					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.1", "sys-.*-sandbox$"),
 					resource.TestCheckResourceAttr(resourceName, "resource_name_prefix", "cs-"),
 					resource.TestCheckResourceAttr(resourceName, "resource_name_suffix", "-prod"),
 					resource.TestCheckResourceAttr(resourceName, "labels.%", "2"),
@@ -79,7 +79,7 @@ func TestAccCloudGoogleRegistrationResource_Complete(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "infra_project", infraProjectID),
 					resource.TestCheckResourceAttr(resourceName, "wif_project", wifProjectID),
 					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.0", "^dev-.*"),
+					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.0", "sys-dev-.*"),
 					resource.TestCheckResourceAttr(resourceName, "resource_name_prefix", "cs-"),
 					resource.TestCheckResourceAttr(resourceName, "resource_name_suffix", "-stg"),
 					resource.TestCheckResourceAttr(resourceName, "labels.%", "3"),
@@ -488,8 +488,8 @@ resource "crowdstrike_cloud_google_registration" "test" {
   deployment_method = "terraform-native"
 
   excluded_project_patterns = [
-    "^test-.*",
-    ".*-sandbox$"
+    "sys-test-.*",
+    "sys-.*-sandbox$"
   ]
 
   resource_name_prefix = "cs-"
@@ -523,7 +523,7 @@ resource "crowdstrike_cloud_google_registration" "test" {
   deployment_method = "infrastructure-manager"
 
   excluded_project_patterns = [
-    "^dev-.*"
+    "sys-dev-.*"
   ]
 
   resource_name_prefix = "cs-"

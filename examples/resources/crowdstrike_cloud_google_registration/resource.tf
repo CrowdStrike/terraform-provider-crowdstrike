@@ -32,8 +32,8 @@ resource "crowdstrike_cloud_google_registration" "example_advanced" {
 
 
   excluded_project_patterns = [
-    "^test-.*",
-    ".*-sandbox$"
+    "sys-test-.*",
+    "sys-.*-sandbox$"
   ]
 
 
@@ -64,7 +64,7 @@ resource "crowdstrike_cloud_google_registration" "example_folder" {
   wif_project       = "my-wif-project"
   deployment_method = "terraform-native"
 
-  excluded_project_patterns = [".*-dev$"]
+  excluded_project_patterns = ["sys-.*-dev$"]
 }
 
 resource "crowdstrike_cloud_google_registration" "example_organization" {
@@ -75,8 +75,8 @@ resource "crowdstrike_cloud_google_registration" "example_organization" {
   deployment_method = "terraform-native"
 
   excluded_project_patterns = [
-    ".*-dev$",
-    ".*-test$"
+    "sys-.*-dev$",
+    "sys-.*-test$"
   ]
 }
 
