@@ -12,11 +12,12 @@ provider "crowdstrike" {
 
 
 resource "crowdstrike_cloud_google_registration" "example_project" {
-  name              = "my-google-cloud-project-registrationchange"
-  projects          = ["my-google-cloud-project-id", "project-two"]
-  infra_project     = "my-infra-project-id2"
-  wif_project       = "my-wif-project-id2"
-  deployment_method = "terraform-native"
+  name               = "my-google-cloud-project-registrationchange"
+  projects           = ["my-google-cloud-project-id", "project-two"]
+  infra_project      = "my-infra-project-id2"
+  wif_project        = "my-wif-project-id2"
+  wif_project_number = "123456789012"
+  deployment_method  = "terraform-native"
 
   realtime_visibility = {
     enabled = true
@@ -24,11 +25,12 @@ resource "crowdstrike_cloud_google_registration" "example_project" {
 }
 
 resource "crowdstrike_cloud_google_registration" "example_advanced" {
-  name              = "my-advanced-google-cloud-registration"
-  projects          = ["project-1", "project-2", "project-3"]
-  infra_project     = "my-infra-project"
-  wif_project       = "my-wif-project"
-  deployment_method = "terraform-native"
+  name               = "my-advanced-google-cloud-registration"
+  projects           = ["project-1", "project-2", "project-3"]
+  infra_project      = "my-infra-project"
+  wif_project        = "my-wif-project"
+  wif_project_number = "123456789012"
+  deployment_method  = "terraform-native"
 
 
   excluded_project_patterns = [
@@ -58,21 +60,23 @@ resource "crowdstrike_cloud_google_registration" "example_advanced" {
 }
 
 resource "crowdstrike_cloud_google_registration" "example_folder" {
-  name              = "my-folder-registration"
-  folders           = ["123456789012"]
-  infra_project     = "my-infra-project"
-  wif_project       = "my-wif-project"
-  deployment_method = "terraform-native"
+  name               = "my-folder-registration"
+  folders            = ["123456789012"]
+  infra_project      = "my-infra-project"
+  wif_project        = "my-wif-project"
+  wif_project_number = "123456789012"
+  deployment_method  = "terraform-native"
 
   excluded_project_patterns = ["sys-.*-dev$"]
 }
 
 resource "crowdstrike_cloud_google_registration" "example_organization" {
-  name              = "my-org-registration"
-  organization      = "987654321098"
-  infra_project     = "my-infra-project"
-  wif_project       = "my-wif-project"
-  deployment_method = "terraform-native"
+  name               = "my-org-registration"
+  organization       = "987654321098"
+  infra_project      = "my-infra-project"
+  wif_project        = "my-wif-project"
+  wif_project_number = "123456789012"
+  deployment_method  = "terraform-native"
 
   excluded_project_patterns = [
     "sys-.*-dev$",
