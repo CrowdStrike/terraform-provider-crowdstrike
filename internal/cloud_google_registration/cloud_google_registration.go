@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_google_cloud_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
@@ -56,7 +57,8 @@ func NewCloudGoogleRegistrationResource() resource.Resource {
 }
 
 type cloudGoogleRegistrationResource struct {
-	client *client.CrowdStrikeAPISpecification
+	client   *client.CrowdStrikeAPISpecification
+	clientId string
 }
 
 type realtimeVisibilityModel struct {
@@ -254,13 +256,13 @@ func (r *cloudGoogleRegistrationResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
@@ -268,7 +270,8 @@ func (r *cloudGoogleRegistrationResource) Configure(
 		return
 	}
 
-	r.client = client
+	r.client = config.Client
+	r.clientId = config.ClientId
 }
 
 func (r *cloudGoogleRegistrationResource) Metadata(
@@ -388,12 +391,30 @@ func (r *cloudGoogleRegistrationResource) Schema(
 					),
 				},
 			},
+			"wif_project_number": schema.StringAttribute{
+				Required:    true,
+				Description: "Google Cloud project number for Workload Identity Federation",
+				Validators: []validator.String{
+					validators.StringNotWhitespace(),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^[0-9]+$`),
+						"must be numeric",
+					),
+				},
+			},
+
 			"excluded_project_patterns": schema.ListAttribute{
 				Optional:    true,
-				Description: "Regex patterns to exclude specific projects from registration",
+				Description: "Regex patterns to exclude specific projects from registration. Each pattern must start with 'sys-' (case insensitive)",
 				ElementType: types.StringType,
 				Validators: []validator.List{
-					listvalidator.ValueStringsAre(validators.StringNotWhitespace()),
+					listvalidator.ValueStringsAre(
+						validators.StringNotWhitespace(),
+						stringvalidator.RegexMatches(
+							regexp.MustCompile(`^(?i)sys-`),
+							"must start with 'sys-' (case insensitive)",
+						),
+					),
 				},
 			},
 			"resource_name_prefix": schema.StringAttribute{
@@ -452,10 +473,6 @@ func (r *cloudGoogleRegistrationResource) Schema(
 			"wif_pool_name": schema.StringAttribute{
 				Computed:    true,
 				Description: "Workload Identity Federation pool name",
-			},
-			"wif_project_number": schema.StringAttribute{
-				Computed:    true,
-				Description: "Google Cloud project number for Workload Identity Federation",
 			},
 			"wif_provider_id": schema.StringAttribute{
 				Computed:    true,
@@ -621,16 +638,48 @@ func (r *cloudGoogleRegistrationResource) Create(
 	}
 
 	registration := res.Payload.Resources[0]
-	state := plan
-	state.ID = types.StringValue(registration.RegistrationID)
+	plan.ID = types.StringValue(registration.RegistrationID)
+	resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)
 
-	resp.Diagnostics.Append(state.wrap(ctx, registration)...)
+	if !plan.WifProjectNumber.IsNull() {
+		updateReq := &models.DtoUpdateGCPRegistrationRequest{
+			WifProjectNumber:  plan.WifProjectNumber.ValueString(),
+			FalconClientKeyID: r.clientId,
+		}
+
+		patchParams := &cloud_google_cloud_registration.CloudRegistrationGcpUpdateRegistrationParams{
+			Context: ctx,
+			Ids:     registration.RegistrationID,
+			Body: &models.DtoGCPRegistrationUpdateRequestExtV1{
+				Resources: []*models.DtoUpdateGCPRegistrationRequest{updateReq},
+			},
+		}
+
+		patchRes, err := r.client.CloudGoogleCloudRegistration.CloudRegistrationGcpUpdateRegistration(patchParams)
+		if err != nil {
+			if _, ok := err.(*cloud_google_cloud_registration.CloudRegistrationGcpUpdateRegistrationForbidden); ok {
+				resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Create, gcpRegistrationScopes))
+				return
+			}
+			resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Create, err))
+			return
+		}
+
+		if patchRes == nil || patchRes.Payload == nil || len(patchRes.Payload.Resources) == 0 || patchRes.Payload.Resources[0] == nil {
+			resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
+			return
+		}
+
+		registration = patchRes.Payload.Resources[0]
+	}
+
+	resp.Diagnostics.Append(plan.wrap(ctx, registration)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	tflog.Info(ctx, "Google Cloud registration created", map[string]interface{}{"registration_id": registration.RegistrationID})
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *cloudGoogleRegistrationResource) Read(
@@ -700,6 +749,8 @@ func (r *cloudGoogleRegistrationResource) Update(
 		RegistrationName:  plan.Name.ValueString(),
 		InfraProjectID:    plan.InfraProjectID.ValueString(),
 		WifProjectID:      plan.WifProjectID.ValueString(),
+		WifProjectNumber:  plan.WifProjectNumber.ValueString(),
+		FalconClientKeyID: r.clientId,
 	}
 
 	updateReq.ResourceNameSuffix = flex.FrameworkToStringPointer(plan.ResourceNameSuffix)

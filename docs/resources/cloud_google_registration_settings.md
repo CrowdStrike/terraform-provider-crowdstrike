@@ -1,16 +1,16 @@
 ---
-page_title: "crowdstrike_cloud_google_registration_logging_settings Resource - crowdstrike"
+page_title: "crowdstrike_cloud_google_registration_settings Resource - crowdstrike"
 subcategory: "Falcon Cloud Security"
 description: |-
-  This resource manages the log ingestion settings for a Google Cloud registration in Falcon Cloud Security.
+  This resource manages settings for a Google Cloud registration in Falcon Cloud Security that may not be known until after the registration has been created, such as log ingestion and Workload Identity Federation (WIF) configuration.
   API Scopes
   The following API scopes are required:
   Cloud Security Google Cloud Registration | Read & Write
 ---
 
-# crowdstrike_cloud_google_registration_logging_settings (Resource)
+# crowdstrike_cloud_google_registration_settings (Resource)
 
-This resource manages the log ingestion settings for a Google Cloud registration in Falcon Cloud Security.
+This resource manages settings for a Google Cloud registration in Falcon Cloud Security that may not be known until after the registration has been created, such as log ingestion and Workload Identity Federation (WIF) configuration.
 
 ## API Scopes
 
@@ -45,19 +45,19 @@ resource "crowdstrike_cloud_google_registration" "registration" {
   }
 }
 
-resource "crowdstrike_cloud_google_registration_logging_settings" "example" {
+resource "crowdstrike_cloud_google_registration_settings" "example" {
   registration_id                 = crowdstrike_cloud_google_registration.registration.id
   log_ingestion_sink_name         = "crowdstrike-log-sink"
   log_ingestion_topic_id          = "crowdstrike-log-topic"
   log_ingestion_subscription_name = "crowdstrike-log-subscription"
-  wif_project                     = "my-wif-project-id"
-  wif_project_number              = "123456789012"
+  wif_pool_name                   = "crowdstrike-wif-pool"
+  wif_provider_name               = "crowdstrike-wif-provider"
 
   depends_on = [crowdstrike_cloud_google_registration.registration]
 }
 
 output "log_ingestion_settings" {
-  value = crowdstrike_cloud_google_registration_logging_settings.example
+  value = crowdstrike_cloud_google_registration_settings.example
 }
 ```
 
@@ -66,15 +66,15 @@ output "log_ingestion_settings" {
 
 ### Required
 
-- `registration_id` (String) The Google Cloud registration ID to configure log ingestion settings for.
-- `wif_project` (String) The Google Cloud project ID for Workload Identity Federation.
-- `wif_project_number` (String) The Google Cloud project number for Workload Identity Federation.
+- `registration_id` (String) The Google Cloud registration ID to configure settings for.
 
 ### Optional
 
 - `log_ingestion_sink_name` (String) The name of the log sink for ingestion.
 - `log_ingestion_subscription_name` (String) The Pub/Sub subscription name for log ingestion.
 - `log_ingestion_topic_id` (String) The Pub/Sub topic ID for log ingestion.
+- `wif_pool_name` (String) The Workload Identity Federation (WIF) pool name.
+- `wif_provider_name` (String) The Workload Identity Federation (WIF) provider name.
 
 ## Import
 
@@ -82,5 +82,5 @@ Import is supported using the following syntax:
 
 ```shell
 # The log ingestion settings for a previously registered Google Cloud project can be imported by registration ID.
-terraform import crowdstrike_cloud_google_registration_logging_settings.example <registration-id>
+terraform import crowdstrike_cloud_google_registration_settings.example <registration-id>
 ```

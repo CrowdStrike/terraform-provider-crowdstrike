@@ -56,8 +56,8 @@ resource "crowdstrike_cloud_google_registration" "example_advanced" {
 
 
   excluded_project_patterns = [
-    "^test-.*",
-    ".*-sandbox$"
+    "sys-test-.*",
+    "sys-.*-sandbox$"
   ]
 
 
@@ -88,7 +88,7 @@ resource "crowdstrike_cloud_google_registration" "example_folder" {
   wif_project       = "my-wif-project"
   deployment_method = "terraform-native"
 
-  excluded_project_patterns = [".*-dev$"]
+  excluded_project_patterns = ["sys-.*-dev$"]
 }
 
 resource "crowdstrike_cloud_google_registration" "example_organization" {
@@ -99,8 +99,8 @@ resource "crowdstrike_cloud_google_registration" "example_organization" {
   deployment_method = "terraform-native"
 
   excluded_project_patterns = [
-    ".*-dev$",
-    ".*-test$"
+    "sys-.*-dev$",
+    "sys-.*-test$"
   ]
 }
 
@@ -122,11 +122,12 @@ output "example_registration" {
 - `infra_project` (String) The Google Cloud project ID where CrowdStrike infrastructure resources will be created
 - `name` (String) The name of the registration
 - `wif_project` (String) The Google Cloud project ID for Workload Identity Federation
+- `wif_project_number` (String) Google Cloud project number for Workload Identity Federation
 
 ### Optional
 
 - `deployment_method` (String) The deployment method for the registration. Can be either terraform-native or infrastructure-manager. Defaults to terraform-native
-- `excluded_project_patterns` (List of String) Regex patterns to exclude specific projects from registration
+- `excluded_project_patterns` (List of String) Regex patterns to exclude specific projects from registration. Each pattern must start with 'sys-' (case insensitive)
 - `folders` (Set of String) Google Cloud folder IDs to register. Each must be numeric. Mutually exclusive with `organization` and `projects`
 - `labels` (Map of String) Google Cloud labels to apply to created resources
 - `organization` (String) Google Cloud organization ID to register. Must be numeric. Mutually exclusive with `folders` and `projects`
@@ -143,7 +144,6 @@ output "example_registration" {
 - `status` (String) The current status of the registration. Possible values: `partial` (registration is in setup incomplete status), `complete` (registration was setup successfully and validation succeeded), `validation_failed` (registration was setup successfully, but validation failed)
 - `wif_pool_id` (String) Workload Identity Federation pool ID
 - `wif_pool_name` (String) Workload Identity Federation pool name
-- `wif_project_number` (String) Google Cloud project number for Workload Identity Federation
 - `wif_provider_id` (String) Workload Identity Federation provider ID
 - `wif_provider_name` (String) Workload Identity Federation provider name
 
