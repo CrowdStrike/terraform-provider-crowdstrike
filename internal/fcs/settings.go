@@ -19,6 +19,12 @@ type settingsConfig struct {
 	LogIngestionSnsTopicArn    types.String
 	LogIngestionS3BucketPrefix types.String
 	LogIngestionKmsKeyArn      types.String
+
+	// DSPM and Vulnerability Scanning role settings
+	DSPMRole                           types.String
+	DSPMHostAccountID                  types.String
+	VulnerabilityScanningRole          types.String
+	VulnerabilityScanningHostAccountID types.String
 }
 
 func parseRegionString(ctx context.Context, regionStr string, diags *diag.Diagnostics) types.List {
@@ -55,6 +61,12 @@ func newSettingsConfig(ctx context.Context, settings interface{}, diags *diag.Di
 		LogIngestionSnsTopicArn:    types.StringNull(),
 		LogIngestionS3BucketPrefix: types.StringNull(),
 		LogIngestionKmsKeyArn:      types.StringNull(),
+
+		// Initialize DSPM and Vulnerability Scanning settings
+		DSPMRole:                           types.StringNull(),
+		DSPMHostAccountID:                  types.StringNull(),
+		VulnerabilityScanningRole:          types.StringNull(),
+		VulnerabilityScanningHostAccountID: types.StringNull(),
 	}
 
 	if settings == nil {
@@ -63,12 +75,16 @@ func newSettingsConfig(ctx context.Context, settings interface{}, diags *diag.Di
 
 	// Temporary struct for decoding raw values from settings map using mapstructure tags
 	var raw struct {
-		RTVDRegions                string `mapstructure:"rtvd.regions"`
-		LogIngestionMethod         string `mapstructure:"log.ingestion.method"`
-		LogIngestionS3BucketName   string `mapstructure:"s3.log.ingestion.bucket.name"`
-		LogIngestionSnsTopicArn    string `mapstructure:"s3.log.ingestion.sns.topic.arn"`
-		LogIngestionS3BucketPrefix string `mapstructure:"s3.log.ingestion.bucket.prefix"`
-		LogIngestionKmsKeyArn      string `mapstructure:"s3.log.ingestion.kms.key.arn"`
+		RTVDRegions                        string `mapstructure:"rtvd.regions"`
+		LogIngestionMethod                 string `mapstructure:"log.ingestion.method"`
+		LogIngestionS3BucketName           string `mapstructure:"s3.log.ingestion.bucket.name"`
+		LogIngestionSnsTopicArn            string `mapstructure:"s3.log.ingestion.sns.topic.arn"`
+		LogIngestionS3BucketPrefix         string `mapstructure:"s3.log.ingestion.bucket.prefix"`
+		LogIngestionKmsKeyArn              string `mapstructure:"s3.log.ingestion.kms.key.arn"`
+		DSPMRole                           string `mapstructure:"dspm.role"`
+		DSPMHostAccountID                  string `mapstructure:"dspm.host.account"`
+		VulnerabilityScanningRole          string `mapstructure:"vulnerability_scanning.role"`
+		VulnerabilityScanningHostAccountID string `mapstructure:"vulnerability_scanning.host.account"`
 	}
 
 	if err := mapstructure.Decode(settings, &raw); err != nil {
@@ -86,6 +102,12 @@ func newSettingsConfig(ctx context.Context, settings interface{}, diags *diag.Di
 	config.LogIngestionSnsTopicArn = flex.StringValueToFramework(raw.LogIngestionSnsTopicArn)
 	config.LogIngestionS3BucketPrefix = flex.StringValueToFramework(raw.LogIngestionS3BucketPrefix)
 	config.LogIngestionKmsKeyArn = flex.StringValueToFramework(raw.LogIngestionKmsKeyArn)
+
+	// Assign DSPM and Vulnerability Scanning settings
+	config.DSPMRole = flex.StringValueToFramework(raw.DSPMRole)
+	config.DSPMHostAccountID = flex.StringValueToFramework(raw.DSPMHostAccountID)
+	config.VulnerabilityScanningRole = flex.StringValueToFramework(raw.VulnerabilityScanningRole)
+	config.VulnerabilityScanningHostAccountID = flex.StringValueToFramework(raw.VulnerabilityScanningHostAccountID)
 
 	return config
 }

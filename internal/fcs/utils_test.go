@@ -44,6 +44,11 @@ func TestGetRoleNameFromArn(t *testing.T) {
 			arn:    fmt.Sprintf("arn:aws:iam::%s:role/path/to/role-name", testAccountID),
 			output: "",
 		},
+		{
+			name:   "Plain role name (not ARN) - should return the role name itself",
+			arn:    "MyDSPMRole",
+			output: "MyDSPMRole",
+		},
 	}
 
 	for _, tt := range tests {
