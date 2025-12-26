@@ -19,6 +19,8 @@ require (
 	golang.org/x/text v0.22.0
 )
 
+replace github.com/crowdstrike/gofalcon => /Users/jchoi/code/gofalcon
+
 require (
 	github.com/BurntSushi/toml v1.2.1 // indirect
 	github.com/Kunde21/markdownfmt/v3 v3.1.0 // indirect
