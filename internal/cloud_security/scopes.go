@@ -9,3 +9,11 @@ var cloudSecurityRuleScopes = []scopes.Scope{
 		Write: true,
 	},
 }
+
+var cloudSecurityKacPolicyScopes = []scopes.Scope{
+	{
+		Name:  "Kubernetes Admission Control Policy",
+		Read:  true,
+		Write: true,
+	},
+}
