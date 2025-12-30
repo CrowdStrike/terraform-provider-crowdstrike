@@ -3,17 +3,21 @@ package cloudsecurity
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/admission_control_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -55,7 +59,7 @@ func (m *cloudSecurityKacPolicyResourceModel) wrap(
 	if policy.Name != nil {
 		m.Name = types.StringValue(*policy.Name)
 	}
-	if policy.Description != nil {
+	if policy.Description != nil && strings.TrimSpace(*policy.Description) != "" {
 		m.Description = types.StringValue(*policy.Description)
 	}
 	if policy.IsEnabled != nil {
@@ -115,10 +119,16 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 			"name": schema.StringAttribute{
 				Required:    true,
 				Description: "Name of the Kubernetes Admission Control policy.",
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
+				},
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
 				Description: "Description of the Kubernetes Admission Control policy.",
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
+				},
 			},
 			"is_enabled": schema.BoolAttribute{
 				Optional:    true,
