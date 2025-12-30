@@ -12,6 +12,11 @@ var cloudSecurityRuleScopes = []scopes.Scope{
 
 var cloudSecurityKacPolicyScopes = []scopes.Scope{
 	{
+		Name:  "Falcon Container Image",
+		Read:  true,
+		Write: true,
+	},
+	{
 		Name:  "Kubernetes Admission Control Policy",
 		Read:  true,
 		Write: true,

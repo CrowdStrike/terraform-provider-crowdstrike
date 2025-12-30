@@ -124,7 +124,7 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 				Optional:    true,
 				Computed:    true,
 				Default:     booldefault.StaticBool(false),
-				Description: "Whether the policy is enabled.",
+				Description: "Whether the policy is enabled. Must be set to false before the policy can be deleted.",
 			},
 		},
 	}
@@ -287,6 +287,15 @@ func (r *cloudSecurityKacPolicyResource) Delete(
 	var state cloudSecurityKacPolicyResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Verify policy is disabled before deletion
+	if !state.IsEnabled.IsNull() && !state.IsEnabled.IsUnknown() && state.IsEnabled.ValueBool() {
+		resp.Diagnostics.AddError(
+			"Cannot delete enabled KAC policy",
+			"The KAC policy must be disabled before it can be deleted.",
+		)
 		return
 	}
 
