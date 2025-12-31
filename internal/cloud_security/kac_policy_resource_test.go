@@ -15,6 +15,7 @@ type kacPolicyConfig struct {
 	name        string
 	description *string
 	isEnabled   *bool
+	precedence  *int32
 }
 
 func (c kacPolicyConfig) String() string {
@@ -32,6 +33,11 @@ resource "crowdstrike_cloud_security_kac_policy" "test" {
   is_enabled = %t`, *c.isEnabled)
 	}
 
+	if c.precedence != nil {
+		config += fmt.Sprintf(`
+  precedence = %d`, *c.precedence)
+	}
+
 	config += `
 }
 `
@@ -40,6 +46,7 @@ resource "crowdstrike_cloud_security_kac_policy" "test" {
 
 func boolPtr(b bool) *bool       { return &b }
 func stringPtr(s string) *string { return &s }
+func int32Ptr(i int32) *int32    { return &i }
 
 // TestCloudSecurityKacPolicyResource_Minimal tests creating a KAC policy with minimal configuration.
 func TestCloudSecurityKacPolicyResource_Minimal(t *testing.T) {
@@ -185,6 +192,50 @@ func TestCloudSecurityKacPolicyResource_EnabledToggle(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+				),
+			},
+		},
+	})
+}
+
+// TestCloudSecurityKacPolicyResource_Precedence tests creating and updating KAC policy precedence.
+func TestCloudSecurityKacPolicyResource_Precedence(t *testing.T) {
+	randomSuffix := sdkacctest.RandString(8)
+	resourceName := "crowdstrike_cloud_security_kac_policy.test"
+	policyName := fmt.Sprintf("tfacc-kac-policy-precedence-%s", randomSuffix)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: kacPolicyConfig{
+					name:        policyName,
+					description: stringPtr("Test KAC policy with precedence"),
+					isEnabled:   boolPtr(false),
+					precedence:  int32Ptr(5),
+				}.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", policyName),
+					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with precedence"),
+					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "precedence", "5"),
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+				),
+			},
+			{
+				Config: kacPolicyConfig{
+					name:        policyName,
+					description: stringPtr("Test KAC policy with updated precedence"),
+					isEnabled:   boolPtr(false),
+					precedence:  int32Ptr(10),
+				}.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", policyName),
+					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with updated precedence"),
+					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "precedence", "10"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},

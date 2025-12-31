@@ -47,6 +47,7 @@ type cloudSecurityKacPolicyResourceModel struct {
 	Name        types.String `tfsdk:"name"`
 	Description types.String `tfsdk:"description"`
 	IsEnabled   types.Bool   `tfsdk:"is_enabled"`
+	Precedence  types.Int32  `tfsdk:"precedence"`
 }
 
 func (m *cloudSecurityKacPolicyResourceModel) wrap(
@@ -62,9 +63,9 @@ func (m *cloudSecurityKacPolicyResourceModel) wrap(
 	if policy.Description != nil && strings.TrimSpace(*policy.Description) != "" {
 		m.Description = types.StringValue(*policy.Description)
 	}
-	if policy.IsEnabled != nil {
-		m.IsEnabled = types.BoolValue(*policy.IsEnabled)
-	}
+
+	m.IsEnabled = types.BoolValue(*policy.IsEnabled)
+	m.Precedence = types.Int32PointerValue(policy.Precedence)
 }
 
 func (r *cloudSecurityKacPolicyResource) Configure(
@@ -136,6 +137,11 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 				Default:     booldefault.StaticBool(false),
 				Description: "Whether the policy is enabled. Must be set to false before the policy can be deleted.",
 			},
+			"precedence": schema.Int32Attribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "The order of priority when evaluating KAC policies, 1 being the highest priority.",
+			},
 		},
 	}
 }
@@ -198,6 +204,31 @@ func (r *cloudSecurityKacPolicyResource) Create(
 				fmt.Sprintf("Could not update KAC policy enabled status: %s", err.Error()),
 			)
 			return
+		}
+	}
+
+	// Handle precedence update if needed
+	if !plan.Precedence.IsNull() && !plan.Precedence.IsUnknown() {
+		precedenceRequest := &models.APIUpdatePolicyPrecedenceRequest{
+			ID:         plan.ID.ValueStringPointer(),
+			Precedence: plan.Precedence.ValueInt32(),
+		}
+
+		precedenceParams := admission_control_policies.NewAdmissionControlUpdatePolicyPrecedenceParamsWithContext(ctx)
+		precedenceParams.SetBody(precedenceRequest)
+
+		precedenceResponse, err := r.client.AdmissionControlPolicies.AdmissionControlUpdatePolicyPrecedence(precedenceParams)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error updating KAC policy precedence",
+				fmt.Sprintf("Could not update KAC policy precedence: %s", err.Error()),
+			)
+			return
+		}
+
+		// Use the response from precedence update if available
+		if len(precedenceResponse.Payload.Resources) > 0 {
+			policy = precedenceResponse.Payload.Resources[0]
 		}
 	}
 
@@ -285,6 +316,32 @@ func (r *cloudSecurityKacPolicyResource) Update(
 	}
 
 	policy := updateResponse.Payload.Resources[0]
+
+	// Handle precedence update separately if needed
+	if !plan.Precedence.IsNull() && !plan.Precedence.IsUnknown() {
+		precedenceRequest := &models.APIUpdatePolicyPrecedenceRequest{
+			ID:         plan.ID.ValueStringPointer(),
+			Precedence: plan.Precedence.ValueInt32(),
+		}
+
+		precedenceParams := admission_control_policies.NewAdmissionControlUpdatePolicyPrecedenceParamsWithContext(ctx)
+		precedenceParams.SetBody(precedenceRequest)
+
+		precedenceResponse, err := r.client.AdmissionControlPolicies.AdmissionControlUpdatePolicyPrecedence(precedenceParams)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error updating KAC policy precedence",
+				fmt.Sprintf("Could not update KAC policy precedence: %s", err.Error()),
+			)
+			return
+		}
+
+		// Use the response from precedence update if available
+		if len(precedenceResponse.Payload.Resources) > 0 {
+			policy = precedenceResponse.Payload.Resources[0]
+		}
+	}
+
 	plan.wrap(ctx, policy)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
