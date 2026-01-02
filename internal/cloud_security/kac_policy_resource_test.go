@@ -16,6 +16,7 @@ type kacPolicyConfig struct {
 	description *string
 	isEnabled   *bool
 	precedence  *int32
+	hostGroups  []string
 }
 
 func (c kacPolicyConfig) String() string {
@@ -36,6 +37,18 @@ resource "crowdstrike_cloud_security_kac_policy" "test" {
 	if c.precedence != nil {
 		config += fmt.Sprintf(`
   precedence = %d`, *c.precedence)
+	}
+
+	if len(c.hostGroups) > 0 {
+		config += `
+  host_groups = [`
+		for i, hg := range c.hostGroups {
+			if i > 0 {
+				config += `, `
+			}
+			config += fmt.Sprintf(`%q`, hg)
+		}
+		config += `]`
 	}
 
 	config += `
@@ -236,6 +249,75 @@ func TestCloudSecurityKacPolicyResource_Precedence(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with updated precedence"),
 					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
 					resource.TestCheckResourceAttr(resourceName, "precedence", "10"),
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+				),
+			},
+		},
+	})
+}
+
+// TestCloudSecurityKacPolicyResource_HostGroups tests creating and updating KAC policy host groups.
+func TestCloudSecurityKacPolicyResource_HostGroups(t *testing.T) {
+	randomSuffix := sdkacctest.RandString(8)
+	resourceName := "crowdstrike_cloud_security_kac_policy.test"
+	policyName := fmt.Sprintf("tfacc-kac-policy-hostgroups-%s", randomSuffix)
+
+	// Host group IDs for testing
+	// TODO: Replace with host group data source once implemented
+	hostGroup1 := "36d2638f17534c11828eff6453c9756b"
+	hostGroup2 := "a2b5ab34baee4410817f74430dbb8eaf"
+	hostGroup3 := "1aa4e7fdc0c24dfaabbd6a7aa77f0fbd"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: kacPolicyConfig{
+					name:        policyName,
+					description: stringPtr("Test KAC policy with host groups"),
+					isEnabled:   boolPtr(false),
+					hostGroups:  []string{hostGroup1, hostGroup2},
+				}.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", policyName),
+					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with host groups"),
+					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "2"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "host_groups.*", hostGroup1),
+					resource.TestCheckTypeSetElemAttr(resourceName, "host_groups.*", hostGroup2),
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+				),
+			},
+			{
+				Config: kacPolicyConfig{
+					name:        policyName,
+					description: stringPtr("Test KAC policy with updated host groups"),
+					isEnabled:   boolPtr(false),
+					hostGroups:  []string{hostGroup2, hostGroup3}, // Remove hostGroup1, add hostGroup3
+				}.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", policyName),
+					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with updated host groups"),
+					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "2"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "host_groups.*", hostGroup2),
+					resource.TestCheckTypeSetElemAttr(resourceName, "host_groups.*", hostGroup3),
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+				),
+			},
+			{
+				Config: kacPolicyConfig{
+					name:        policyName,
+					description: stringPtr("Test KAC policy with no host groups"),
+					isEnabled:   boolPtr(false),
+					hostGroups:  []string{}, // Remove all host groups
+				}.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", policyName),
+					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with no host groups"),
+					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "0"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
