@@ -94,6 +94,7 @@ output "cloud_security_kac_policy" {
 ### Optional
 
 - `description` (String) Description of the Kubernetes Admission Control policy.
+- `host_groups` (Set of String) Host Group ids to attach to the KAC policy.
 - `is_enabled` (Boolean) Whether the policy is enabled. Must be set to false before the policy can be deleted.
 - `precedence` (Number) The order of priority when evaluating KAC policies, 1 being the highest priority.
 
