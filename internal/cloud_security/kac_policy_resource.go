@@ -3,6 +3,7 @@ package cloudsecurity
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
@@ -10,12 +11,17 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -30,7 +36,7 @@ var (
 
 var (
 	kacPolicyDocumentationSection        = "Falcon Cloud Security"
-	kacPolicyResourceMarkdownDescription = "This resource manages an admission control (KAC) policy, which provides instructions to the Falcon Kubernetes Admission Controller (KAC) about what actions to take on objects at runtime."
+	kacPolicyResourceMarkdownDescription = "This resource manages an Admission Control policy, which provides instructions to the Falcon Kubernetes Admission Controller (KAC) about what actions to take on objects at runtime."
 	kacPolicyRequiredScopes              = cloudSecurityKacPolicyScopes
 )
 
@@ -49,6 +55,30 @@ type cloudSecurityKacPolicyResourceModel struct {
 	IsEnabled   types.Bool   `tfsdk:"is_enabled"`
 	Precedence  types.Int32  `tfsdk:"precedence"`
 	HostGroups  types.Set    `tfsdk:"host_groups"`
+	RuleGroups  types.List   `tfsdk:"rule_groups"`
+}
+
+type ruleGroupTFModel struct {
+	ID                   types.String `tfsdk:"id"`
+	Name                 types.String `tfsdk:"name"`
+	Description          types.String `tfsdk:"description"`
+	DenyOnError          types.Bool   `tfsdk:"deny_on_error"`
+	ImageAssessment      types.Object `tfsdk:"image_assessment"`
+	Namespaces           types.Set    `tfsdk:"namespaces"`
+	Labels               types.Set    `tfsdk:"labels"`
+	DefaultRules         types.Set    `tfsdk:"default_rules"`
+	DefaultRuleOverrides types.Set    `tfsdk:"default_rule_overrides"`
+}
+
+type imageAssessmentTFModel struct {
+	Enabled            types.Bool   `tfsdk:"enabled"`
+	UnassessedHandling types.String `tfsdk:"unassessed_handling"`
+}
+
+type labelTFModel struct {
+	Key      types.String `tfsdk:"key"`
+	Value    types.String `tfsdk:"value"`
+	Operator types.String `tfsdk:"operator"`
 }
 
 func (m *cloudSecurityKacPolicyResourceModel) wrap(
@@ -143,6 +173,9 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 				Computed:    true,
 				Default:     booldefault.StaticBool(false),
 				Description: "Whether the policy is enabled. Must be set to false before the policy can be deleted.",
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"precedence": schema.Int32Attribute{
 				Optional:    true,
@@ -154,6 +187,135 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 				ElementType: types.StringType,
 				Description: "Host Group ids to attach to the KAC policy.",
 			},
+			"rule_groups": schema.ListNestedAttribute{
+				Optional:    true,
+				Description: "A list of KAC policy rule groups in order of highest to lowest priority. Reordering the list will change rule group precedence.",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"id": schema.StringAttribute{
+							Computed:    true,
+							Description: "Identifier for the KAC policy rule group.",
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
+						},
+						"name": schema.StringAttribute{
+							Required:    true,
+							Description: "Name of the KAC policy rule group.",
+							Validators: []validator.String{
+								fwvalidators.StringNotWhitespace(),
+							},
+						},
+						"description": schema.StringAttribute{
+							Optional:    true,
+							Description: "Description of the KAC policy rule group.",
+							Validators: []validator.String{
+								fwvalidators.StringNotWhitespace(),
+							},
+						},
+						"deny_on_error": schema.BoolAttribute{
+							Optional:    true,
+							Computed:    true,
+							Default:     booldefault.StaticBool(false),
+							Description: "Defines how KAC will handle an unrecognized error or timeout when processing an admission request. If set to \"false\", the pod or workload will be allowed to run.",
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
+						},
+						"image_assessment": schema.SingleNestedAttribute{
+							Optional:    true,
+							Computed:    true,
+							Description: "When enabled, KAC applies image assessment policies to pods or workloads that are being created or updated on the Kubernetes cluster.",
+							PlanModifiers: []planmodifier.Object{
+								objectplanmodifier.UseStateForUnknown(),
+							},
+							Attributes: map[string]schema.Attribute{
+								"enabled": schema.BoolAttribute{
+									Required:    true,
+									Description: "Enable Image Assessment in KAC.",
+								},
+								"unassessed_handling": schema.StringAttribute{
+									Required:            true,
+									MarkdownDescription: "The action KAC should take when image is unassessed (i.e. unknown). Must be one of: [\"Alert\", \"Prevent\", \"Allow Without Alert\"].",
+									Validators: []validator.String{
+										stringvalidator.OneOf("Alert", "Prevent", "Allow Without Alert"),
+									},
+								},
+							},
+						},
+						"namespaces": schema.SetAttribute{
+							Optional:    true,
+							Computed:    true,
+							Description: "Namespace selectors. Namespace must only include lowercased alphanumeric characters, dashes, and asterisk (for wildcard).",
+							ElementType: types.StringType,
+							PlanModifiers: []planmodifier.Set{
+								setplanmodifier.UseStateForUnknown(),
+							},
+							Validators: []validator.Set{
+								setvalidator.ValueStringsAre(
+									stringvalidator.LengthAtMost(63),
+									stringvalidator.RegexMatches(
+										regexp.MustCompile(`^[a-z0-9*-]+$`),
+										"namespace cannot be empty and must only include lowercased alphanumeric characters, dashes, and asterisk (for wildcard)",
+									),
+								),
+							},
+						},
+						"labels": schema.SetNestedAttribute{
+							Optional:    true,
+							Computed:    true,
+							Description: "Pod or Service label selectors.",
+							PlanModifiers: []planmodifier.Set{
+								setplanmodifier.UseStateForUnknown(),
+							},
+							NestedObject: schema.NestedAttributeObject{
+								Attributes: map[string]schema.Attribute{
+									"key": schema.StringAttribute{
+										Required:            true,
+										MarkdownDescription: "Label key. Key must only include alphanumeric characters and `.-_*/`, and cannot be longer than 253 characters.",
+										Validators: []validator.String{
+											stringvalidator.LengthAtMost(253),
+											stringvalidator.RegexMatches(
+												regexp.MustCompile(`^[a-zA-Z0-9._/*-]+$`),
+												"label key cannot be empty, and must only include alphanumeric characters and [ . - _ * / ]",
+											),
+										},
+									},
+									"value": schema.StringAttribute{
+										Required:            true,
+										MarkdownDescription: "Label value. Label must only include alphanumeric characters and `.-_*`, and cannot be longer than 63 characters.",
+										Validators: []validator.String{
+											stringvalidator.LengthAtMost(63),
+											stringvalidator.RegexMatches(
+												regexp.MustCompile(`^[a-zA-Z0-9._*-]+$`),
+												"label value cannot be empty, and must only include alphanumeric characters and [ . - _ * ]",
+											),
+										},
+									},
+									"operator": schema.StringAttribute{
+										Required:    true,
+										Description: "Label operator. Must be one of \"eq\" (equals) or \"neq\" (not equals)",
+										Validators: []validator.String{
+											stringvalidator.OneOf("eq", "neq"),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			//"default_rule_group": schema.SingleNestedAttribute{
+			//	Optional:    true,
+			//	Computed:    true,
+			//	Description: "The default rule group for the KAC policy. The default rule group is a special rule group that always has the lowest precedence, and only the actions for the default rules can be updated.",
+			//	PlanModifiers: []planmodifier.Object{
+			//		objectplanmodifier.UseStateForUnknown(),
+			//	},
+			//	Attributes: map[string]schema.Attribute{
+			//
+			//	},
+			//},
 		},
 	}
 }
