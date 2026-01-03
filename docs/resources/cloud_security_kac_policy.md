@@ -2,7 +2,7 @@
 page_title: "crowdstrike_cloud_security_kac_policy Resource - crowdstrike"
 subcategory: "Falcon Cloud Security"
 description: |-
-  This resource manages an admission control (KAC) policy, which provides instructions to the Falcon Kubernetes Admission Controller (KAC) about what actions to take on objects at runtime.
+  This resource manages an Admission Control policy, which provides instructions to the Falcon Kubernetes Admission Controller (KAC) about what actions to take on objects at runtime.
   API Scopes
   The following API scopes are required:
   Falcon Container Image | Read & WriteKubernetes Admission Control Policy | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_cloud_security_kac_policy (Resource)
 
-This resource manages an admission control (KAC) policy, which provides instructions to the Falcon Kubernetes Admission Controller (KAC) about what actions to take on objects at runtime.
+This resource manages an Admission Control policy, which provides instructions to the Falcon Kubernetes Admission Controller (KAC) about what actions to take on objects at runtime.
 
 ## API Scopes
 
@@ -97,10 +97,48 @@ output "cloud_security_kac_policy" {
 - `host_groups` (Set of String) Host Group ids to attach to the KAC policy.
 - `is_enabled` (Boolean) Whether the policy is enabled. Must be set to false before the policy can be deleted.
 - `precedence` (Number) The order of priority when evaluating KAC policies, 1 being the highest priority.
+- `rule_groups` (Attributes List) A list of KAC policy rule groups in order of highest to lowest priority. Reordering the list will change rule group precedence. (see [below for nested schema](#nestedatt--rule_groups))
 
 ### Read-Only
 
 - `id` (String) Identifier for the Cloud Security Kac Policy.
+
+<a id="nestedatt--rule_groups"></a>
+### Nested Schema for `rule_groups`
+
+Required:
+
+- `name` (String) Name of the KAC policy rule group.
+
+Optional:
+
+- `deny_on_error` (Boolean) Defines how KAC will handle an unrecognized error or timeout when processing an admission request. If set to "false", the pod or workload will be allowed to run.
+- `description` (String) Description of the KAC policy rule group.
+- `image_assessment` (Attributes) When enabled, KAC applies image assessment policies to pods or workloads that are being created or updated on the Kubernetes cluster. (see [below for nested schema](#nestedatt--rule_groups--image_assessment))
+- `labels` (Attributes Set) Pod or Service label selectors. (see [below for nested schema](#nestedatt--rule_groups--labels))
+- `namespaces` (Set of String) Namespace selectors. Namespace must only include lowercased alphanumeric characters, dashes, and asterisk (for wildcard).
+
+Read-Only:
+
+- `id` (String) Identifier for the KAC policy rule group.
+
+<a id="nestedatt--rule_groups--image_assessment"></a>
+### Nested Schema for `rule_groups.image_assessment`
+
+Required:
+
+- `enabled` (Boolean) Enable Image Assessment in KAC.
+- `unassessed_handling` (String) The action KAC should take when image is unassessed (i.e. unknown). Must be one of: ["Alert", "Prevent", "Allow Without Alert"].
+
+
+<a id="nestedatt--rule_groups--labels"></a>
+### Nested Schema for `rule_groups.labels`
+
+Required:
+
+- `key` (String) Label key. Key must only include alphanumeric characters and `.-_*/`, and cannot be longer than 253 characters.
+- `operator` (String) Label operator. Must be one of "eq" (equals) or "neq" (not equals)
+- `value` (String) Label value. Label must only include alphanumeric characters and `.-_*`, and cannot be longer than 63 characters.
 
 ## Import
 
