@@ -743,7 +743,7 @@ func (r *cloudGoogleRegistrationResource) Update(
 	}
 
 	updateReq := &models.DtoUpdateGCPRegistrationRequest{
-		DeploymentMethod:  plan.DeploymentMethod.ValueStringPointer(),
+		DeploymentMethod:  plan.DeploymentMethod.ValueString(),
 		EntityID:          entityIDs,
 		RegistrationScope: plan.getRegistrationScope(),
 		RegistrationName:  plan.Name.ValueString(),
