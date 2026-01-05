@@ -66,8 +66,8 @@ type ruleGroupTFModel struct {
 	ImageAssessment      types.Object `tfsdk:"image_assessment"`
 	Namespaces           types.Set    `tfsdk:"namespaces"`
 	Labels               types.Set    `tfsdk:"labels"`
-	DefaultRules         types.Set    `tfsdk:"default_rules"`
 	DefaultRuleOverrides types.Set    `tfsdk:"default_rule_overrides"`
+	// DefaultRuleGroup     types.Bool   `tfsdk:"default_rule_group"`
 }
 
 type imageAssessmentTFModel struct {
@@ -302,6 +302,44 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 								},
 							},
 						},
+						//"default_rules": schema.SetNestedAttribute{
+						//	Computed:    true,
+						//	Description: "",
+						//	NestedObject: schema.NestedAttributeObject{
+						//		Attributes: map[string]schema.Attribute{
+						//			"code": schema.StringAttribute{
+						//				Computed:    true,
+						//				Description: "",
+						//			},
+						//			"action": schema.StringAttribute{
+						//				Computed:    true,
+						//				Description: "",
+						//				Validators: []validator.String{
+						//					stringvalidator.OneOf("Alert", "Prevent", "Disabled"),
+						//				},
+						//			},
+						//		},
+						//	},
+						//},
+						"default_rule_overrides": schema.SetNestedAttribute{
+							Optional:    true,
+							Description: "",
+							NestedObject: schema.NestedAttributeObject{
+								Attributes: map[string]schema.Attribute{
+									"code": schema.StringAttribute{
+										Required:    true,
+										Description: "",
+									},
+									"action": schema.StringAttribute{
+										Required:    true,
+										Description: "",
+										Validators: []validator.String{
+											stringvalidator.OneOf("Alert", "Prevent", "Disabled"),
+										},
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -313,7 +351,116 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 			//		objectplanmodifier.UseStateForUnknown(),
 			//	},
 			//	Attributes: map[string]schema.Attribute{
-			//
+			//		"id": schema.StringAttribute{
+			//			Computed:    true,
+			//			Description: "Identifier for the default KAC policy rule group.",
+			//			PlanModifiers: []planmodifier.String{
+			//				stringplanmodifier.UseStateForUnknown(),
+			//			},
+			//		},
+			//		"name": schema.StringAttribute{
+			//			Computed:    true,
+			//			Description: "Name of the default KAC policy rule group.",
+			//			PlanModifiers: []planmodifier.String{
+			//				stringplanmodifier.UseStateForUnknown(),
+			//			},
+			//		},
+			//		"description": schema.StringAttribute{
+			//			Computed:    true,
+			//			Description: "Description of the default KAC policy rule group.",
+			//			PlanModifiers: []planmodifier.String{
+			//				stringplanmodifier.UseStateForUnknown(),
+			//			},
+			//		},
+			//		"deny_on_error": schema.BoolAttribute{
+			//			Optional:    true,
+			//			Computed:    true,
+			//			Default:     booldefault.StaticBool(false),
+			//			Description: "Defines how KAC will handle an unrecognized error or timeout when processing an admission request. If set to \"false\", the pod or workload will be allowed to run.",
+			//			PlanModifiers: []planmodifier.Bool{
+			//				boolplanmodifier.UseStateForUnknown(),
+			//			},
+			//		},
+			//		"image_assessment": schema.SingleNestedAttribute{
+			//			Optional:    true,
+			//			Computed:    true,
+			//			Description: "When enabled, KAC applies image assessment policies to pods or workloads that are being created or updated on the Kubernetes cluster.",
+			//			PlanModifiers: []planmodifier.Object{
+			//				objectplanmodifier.UseStateForUnknown(),
+			//			},
+			//			Attributes: map[string]schema.Attribute{
+			//				"enabled": schema.BoolAttribute{
+			//					Required:    true,
+			//					Description: "Enable Image Assessment in KAC.",
+			//				},
+			//				"unassessed_handling": schema.StringAttribute{
+			//					Required:            true,
+			//					MarkdownDescription: "The action KAC should take when image is unassessed (i.e. unknown). Must be one of: [\"Alert\", \"Prevent\", \"Allow Without Alert\"].",
+			//					Validators: []validator.String{
+			//						stringvalidator.OneOf("Alert", "Prevent", "Allow Without Alert"),
+			//					},
+			//				},
+			//			},
+			//		},
+			//		"namespaces": schema.SetAttribute{
+			//			Computed:    true,
+			//			Description: "Namespace selectors.",
+			//			ElementType: types.StringType,
+			//			PlanModifiers: []planmodifier.Set{
+			//				setplanmodifier.UseStateForUnknown(),
+			//			},
+			//		},
+			//		"labels": schema.SetNestedAttribute{
+			//			Computed:    true,
+			//			Description: "Pod or Service label selectors.",
+			//			PlanModifiers: []planmodifier.Set{
+			//				setplanmodifier.UseStateForUnknown(),
+			//			},
+			//			NestedObject: schema.NestedAttributeObject{
+			//				Attributes: map[string]schema.Attribute{
+			//					"key": schema.StringAttribute{
+			//						Computed:    true,
+			//						Description: "Label key.",
+			//						PlanModifiers: []planmodifier.String{
+			//							stringplanmodifier.UseStateForUnknown(),
+			//						},
+			//					},
+			//					"value": schema.StringAttribute{
+			//						Computed:    true,
+			//						Description: "Label value.",
+			//						PlanModifiers: []planmodifier.String{
+			//							stringplanmodifier.UseStateForUnknown(),
+			//						},
+			//					},
+			//					"operator": schema.StringAttribute{
+			//						Computed:    true,
+			//						Description: "Label operator.",
+			//						PlanModifiers: []planmodifier.String{
+			//							stringplanmodifier.UseStateForUnknown(),
+			//						},
+			//					},
+			//				},
+			//			},
+			//		},
+			//		"default_rule_overrides": schema.SetNestedAttribute{
+			//			Optional:    true,
+			//			Description: "",
+			//			NestedObject: schema.NestedAttributeObject{
+			//				Attributes: map[string]schema.Attribute{
+			//					"code": schema.StringAttribute{
+			//						Required:    true,
+			//						Description: "",
+			//					},
+			//					"action": schema.StringAttribute{
+			//						Required:    true,
+			//						Description: "",
+			//						Validators: []validator.String{
+			//							stringvalidator.OneOf("Alert", "Prevent", "Disabled"),
+			//						},
+			//					},
+			//				},
+			//			},
+			//		},
 			//	},
 			//},
 		},
