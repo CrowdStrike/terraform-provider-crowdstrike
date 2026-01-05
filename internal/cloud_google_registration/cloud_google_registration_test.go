@@ -2,6 +2,7 @@ package cloudgoogleregistration_test
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -76,6 +77,7 @@ func TestAccCloudGoogleRegistrationResource_Complete(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "registration_scope", "project"),
 					resource.TestCheckResourceAttr(resourceName, "projects.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "deployment_method", "infrastructure-manager"),
+					resource.TestCheckResourceAttr(resourceName, "infrastructure_manager_region", "us-central1"),
 					resource.TestCheckResourceAttr(resourceName, "infra_project", infraProjectID),
 					resource.TestCheckResourceAttr(resourceName, "wif_project", wifProjectID),
 					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.#", "1"),
@@ -432,6 +434,25 @@ func TestAccCloudGoogleRegistrationResource_RemoveResourceNamePrefixAndSuffix(t 
 	})
 }
 
+func TestAccCloudGoogleRegistrationResource_InfrastructureManagerMissingRegion(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	projectID := generateGoogleCloudProjectID()
+	infraProjectID := generateGoogleCloudProjectID()
+	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccCloudGoogleRegistrationConfig_infrastructureManagerMissingRegion(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber),
+				ExpectError: regexp.MustCompile("infrastructure_manager_region is required "),
+			},
+		},
+	})
+}
+
 func testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber string, projectIDs ...string) string {
 	projectsList := make([]string, len(projectIDs))
 	for i, pid := range projectIDs {
@@ -515,12 +536,13 @@ resource "crowdstrike_cloud_google_registration" "test" {
 func testAccCloudGoogleRegistrationConfig_completeUpdated(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_cloud_google_registration" "test" {
-  name              = %[1]q
-  projects          = [%[2]q]
-  infra_project     = %[3]q
-  wif_project       = %[4]q
-  wif_project_number = %[5]q
-  deployment_method = "infrastructure-manager"
+  name                        = %[1]q
+  projects                    = [%[2]q]
+  infra_project               = %[3]q
+  wif_project                 = %[4]q
+  wif_project_number          = %[5]q
+  deployment_method           = "infrastructure-manager"
+  infrastructure_manager_region = "us-central1"
 
   excluded_project_patterns = [
     "sys-dev-.*"
@@ -592,4 +614,17 @@ resource "crowdstrike_cloud_google_registration" "test" {
   wif_project_number = %[5]q
 }
 `, rName, folderID, infraProjectID, wifProjectID, wifProjectNumber)
+}
+
+func testAccCloudGoogleRegistrationConfig_infrastructureManagerMissingRegion(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_cloud_google_registration" "test" {
+  name              = %[1]q
+  projects          = [%[2]q]
+  infra_project     = %[3]q
+  wif_project       = %[4]q
+  wif_project_number = %[5]q
+  deployment_method = "infrastructure-manager"
+}
+`, rName, projectID, infraProjectID, wifProjectID, wifProjectNumber)
 }
