@@ -37,7 +37,7 @@ resource "crowdstrike_cloud_security_kac_policy" "example" {
         }
       ]
       namespaces = ["abc*"]
-      default_rules = [
+      default_rule_overrides = [
         {
           code   = "201000"
           action = "Prevent"
@@ -50,7 +50,16 @@ resource "crowdstrike_cloud_security_kac_policy" "example" {
     }
   ]
   default_rule_group = {
-
+    deny_on_error = false
+    image_assessment = {
+      enabled = false
+    }
+    default_rule_overrides = [
+      {
+        code   = "201002"
+        action = "Disable"
+      }
+    ]
   }
 }
 
