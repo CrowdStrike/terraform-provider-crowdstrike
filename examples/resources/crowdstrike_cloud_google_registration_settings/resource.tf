@@ -11,10 +11,11 @@ provider "crowdstrike" {
 }
 
 resource "crowdstrike_cloud_google_registration" "registration" {
-  name          = "my-google-cloud-project-registration"
-  projects      = ["my-google-cloud-project-id"]
-  infra_project = "my-infra-project-id"
-  wif_project   = "my-wif-project-id"
+  name               = "my-google-cloud-project-registration"
+  projects           = ["my-google-cloud-project-id"]
+  infra_project      = "my-infra-project-id"
+  wif_project        = "my-wif-project-id"
+  wif_project_number = "123456789012"
 
   realtime_visibility = {
     enabled = true

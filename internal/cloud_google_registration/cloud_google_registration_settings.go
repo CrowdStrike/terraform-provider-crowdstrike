@@ -434,9 +434,7 @@ func (r *cloudGoogleRegistrationSettingsResource) updateRegistration(
 ) (*models.DtoGCPRegistration, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	deploymentMethod := "terraform-native"
 	updateReq := &models.DtoUpdateGCPRegistrationRequest{
-		DeploymentMethod:             &deploymentMethod,
 		LogIngestionSinkName:         flex.FrameworkToStringPointer(data.LogIngestionSinkName),
 		LogIngestionTopicID:          flex.FrameworkToStringPointer(data.LogIngestionTopicID),
 		LogIngestionSubscriptionName: flex.FrameworkToStringPointer(data.LogIngestionSubscriptionName),
