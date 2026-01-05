@@ -62,7 +62,7 @@ resource "crowdstrike_cloud_security_kac_policy" "example" {
         }
       ]
       namespaces = ["abc*"]
-      default_rules = [
+      default_rule_overrides = [
         {
           code   = "201000"
           action = "Prevent"
@@ -75,7 +75,16 @@ resource "crowdstrike_cloud_security_kac_policy" "example" {
     }
   ]
   default_rule_group = {
-
+    deny_on_error = false
+    image_assessment = {
+      enabled = false
+    }
+    default_rule_overrides = [
+      {
+        code   = "201002"
+        action = "Disable"
+      }
+    ]
   }
 }
 
@@ -112,6 +121,7 @@ Required:
 
 Optional:
 
+- `default_rule_overrides` (Attributes Set) (see [below for nested schema](#nestedatt--rule_groups--default_rule_overrides))
 - `deny_on_error` (Boolean) Defines how KAC will handle an unrecognized error or timeout when processing an admission request. If set to "false", the pod or workload will be allowed to run.
 - `description` (String) Description of the KAC policy rule group.
 - `image_assessment` (Attributes) When enabled, KAC applies image assessment policies to pods or workloads that are being created or updated on the Kubernetes cluster. (see [below for nested schema](#nestedatt--rule_groups--image_assessment))
@@ -121,6 +131,15 @@ Optional:
 Read-Only:
 
 - `id` (String) Identifier for the KAC policy rule group.
+
+<a id="nestedatt--rule_groups--default_rule_overrides"></a>
+### Nested Schema for `rule_groups.default_rule_overrides`
+
+Required:
+
+- `action` (String)
+- `code` (String)
+
 
 <a id="nestedatt--rule_groups--image_assessment"></a>
 ### Nested Schema for `rule_groups.image_assessment`
