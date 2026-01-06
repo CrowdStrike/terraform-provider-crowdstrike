@@ -2,6 +2,7 @@ package fcs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -435,6 +437,11 @@ func (r *cloudAzureTenantEventhubSettingsResource) triggerHealthCheck(
 
 	_, err := r.client.CloudAzureRegistration.CloudRegistrationAzureTriggerHealthCheck(&params)
 	if err != nil {
+		var hcErr *cloud_azure_registration.CloudRegistrationAzureTriggerHealthCheckForbidden
+		if errors.As(err, &hcErr) {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Read, azureRegistrationScopes))
+			return diags
+		}
 		diags.AddWarning(
 			"Failed to trigger health check scan. Please go to the Falcon console and trigger health check scan manually to reflect the latest state.",
 			fmt.Sprintf("Failed to trigger health check scan for Azure tenant registration: %s", falcon.ErrorExplain(err)),
@@ -456,6 +463,11 @@ func (r *cloudAzureTenantEventhubSettingsResource) validateRegistration(
 
 	_, err := r.client.CloudAzureRegistration.CloudRegistrationAzureValidateRegistration(&params)
 	if err != nil {
+		var validateErr *cloud_azure_registration.CloudRegistrationAzureValidateRegistrationForbidden
+		if errors.As(err, &validateErr) {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Read, azureRegistrationScopes))
+			return diags
+		}
 		diags.AddWarning(
 			"Failed to validate registration. Please go to the Falcon console and trigger health check scan manually to reflect the latest state.",
 			fmt.Sprintf("Failed to validate Azure tenant registration: %s", falcon.ErrorExplain(err)),
