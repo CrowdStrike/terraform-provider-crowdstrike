@@ -1,9 +1,10 @@
-package flex
+package flex_test
 
 import (
 	"context"
 	"testing"
 
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -64,7 +65,7 @@ func TestExpandListAs_Strings(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			diags := &diag.Diagnostics{}
-			result := ExpandListAs[string](ctx, tc.input, diags)
+			result := flex.ExpandListAs[string](ctx, tc.input, diags)
 
 			assert.Equal(t, tc.expected, result)
 
@@ -111,7 +112,7 @@ func TestExpandListAs_Int64(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			diags := &diag.Diagnostics{}
-			result := ExpandListAs[int64](ctx, tc.input, diags)
+			result := flex.ExpandListAs[int64](ctx, tc.input, diags)
 
 			assert.Equal(t, tc.expected, result)
 
@@ -185,7 +186,7 @@ func TestExpandListAs_Objects(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			diags := &diag.Diagnostics{}
-			result := ExpandListAs[testObject](ctx, tc.input, diags)
+			result := flex.ExpandListAs[testObject](ctx, tc.input, diags)
 
 			assert.Equal(t, tc.expected, result)
 
