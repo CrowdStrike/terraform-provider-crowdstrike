@@ -6,7 +6,6 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_aws_registration"
-	"github.com/crowdstrike/gofalcon/falcon/client/cspm_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
@@ -217,53 +216,6 @@ func (d *cloudAwsAccountsDataSource) Schema(
 	}
 }
 
-func (d *cloudAwsAccountsDataSource) getCSPMAccounts(
-	ctx context.Context,
-	accountID string,
-	organizationID string,
-) ([]*models.DomainAWSAccountV2, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	tflog.Info(
-		ctx,
-		"[datasource] Getting CSPM AWS Accounts ",
-		map[string]interface{}{"accountID": accountID, "organizationID": organizationID},
-	)
-	params := &cspm_registration.GetCSPMAwsAccountParams{
-		Context: ctx,
-	}
-	if len(accountID) > 0 {
-		params.Ids = []string{accountID}
-	}
-	if len(organizationID) > 0 {
-		params.OrganizationIds = []string{organizationID}
-	}
-	res, status, err := d.client.CspmRegistration.GetCSPMAwsAccount(params)
-	if err != nil {
-		if _, ok := err.(*cspm_registration.GetCSPMAwsAccountForbidden); ok {
-			diags.AddError(
-				"Failed to read CSPM AWS account: 403 Forbidden",
-				scopes.GenerateScopeDescription(cloudSecurityScopes),
-			)
-			return nil, diags
-		}
-		diags.AddError(
-			"Failed to read CSPM AWS accounts",
-			fmt.Sprintf("Failed to get CSPM AWS accounts: %s", err.Error()),
-		)
-		return nil, diags
-	}
-	if status != nil {
-		for _, error := range status.Payload.Errors {
-			diags.AddError(
-				"Failed to read CSPM AWS accounts",
-				fmt.Sprintf("Failed to get CSPM AWS accounts: %s", *error.Message),
-			)
-		}
-		return status.Payload.Resources, diags
-	}
-	return res.Payload.Resources, diags
-}
-
 func (d *cloudAwsAccountsDataSource) getCloudAccounts(
 	ctx context.Context,
 	accounts []string,
@@ -295,10 +247,10 @@ func (d *cloudAwsAccountsDataSource) getCloudAccounts(
 		return nil, diags
 	}
 	if status != nil {
-		for _, error := range status.Payload.Errors {
+		for _, err := range status.Payload.Errors {
 			diags.AddError(
 				"Failed to read Cloud Registration AWS accounts",
-				fmt.Sprintf("Failed to get Cloud AWS accounts: %s", *error.Message),
+				fmt.Sprintf("Failed to get Cloud AWS accounts: %s", *err.Message),
 			)
 		}
 		return nil, diags
@@ -317,111 +269,72 @@ func (d *cloudAwsAccountsDataSource) Read(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	cspmAccounts, diags := d.getCSPMAccounts(
-		ctx,
-		data.AccountID.ValueString(),
-		data.OrganizationID.ValueString(),
-	)
+	// Get all cloud accounts without filtering first
+	cloudAccounts, diags := d.getCloudAccounts(ctx, []string{})
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	data.Accounts = make([]*cloudAWSAccountDataModel, 0, len(cspmAccounts))
-	ids := make([]string, 0, len(cspmAccounts))
-	idToModel := make(map[string]*cloudAWSAccountDataModel, len(cspmAccounts))
+	// Filter accounts based on the request filters
+	accountFilter := data.AccountID.ValueString()
+	orgFilter := data.OrganizationID.ValueString()
 
-	managementAccts := make(map[string]*models.DomainAWSAccountV2)
-	for _, a := range cspmAccounts {
-		if a.IsMaster {
-			managementAccts[a.OrganizationID] = a
-		}
-	}
-
-	for _, a := range cspmAccounts {
+	data.Accounts = make([]*cloudAWSAccountDataModel, 0)
+	for _, a := range cloudAccounts {
 		if a == nil {
 			continue
 		}
-		targetOus := make([]attr.Value, 0, len(a.TargetOus))
-		for _, ou := range a.TargetOus {
-			targetOus = append(targetOus, types.StringValue(ou))
+
+		// Apply filters
+		if accountFilter != "" && a.AccountID != accountFilter {
+			continue
 		}
+		if orgFilter != "" && a.OrganizationID != orgFilter {
+			continue
+		}
+		// Get fields from the shared helper
+		fields := extractCloudAccountFields(ctx, a)
+
+		// Handle target OUs
+		targetOUs := types.ListNull(types.StringType)
+		if len(fields.TargetOUs) > 0 {
+			ouValues := make([]attr.Value, 0, len(fields.TargetOUs))
+			for _, ou := range fields.TargetOUs {
+				ouValues = append(ouValues, types.StringValue(ou))
+			}
+			targetOUs = types.ListValueMust(types.StringType, ouValues)
+		}
+
 		m := &cloudAWSAccountDataModel{
-			AccountID:                     types.StringValue(a.AccountID),
-			OrganizationID:                types.StringValue(a.OrganizationID),
-			TargetOUs:                     types.ListValueMust(types.StringType, targetOus),
-			IsOrgManagementAccount:        types.BoolValue(a.IsMaster),
-			AccountType:                   types.StringValue(a.AccountType),
-			ExternalID:                    types.StringValue(a.ExternalID),
-			IntermediateRoleArn:           types.StringValue(a.IntermediateRoleArn),
-			IamRoleArn:                    types.StringValue(a.IamRoleArn),
-			IamRoleName:                   types.StringValue(getRoleNameFromArn(a.IamRoleArn)),
-			EventbusName:                  types.StringValue(a.EventbusName),
-			EventbusArn:                   types.StringValue(a.AwsEventbusArn),
-			CloudTrailBucketName:          types.StringValue(a.AwsCloudtrailBucketName),
-			CloudTrailRegion:              types.StringValue(a.AwsCloudtrailRegion),
-			DspmRoleArn:                   types.StringValue(a.DspmRoleArn),
-			DspmRoleName:                  types.StringValue(getRoleNameFromArn(a.DspmRoleArn)),
-			VulnerabilityScanningRoleArn:  types.StringValue(a.VulnerabilityScanningRoleArn),
-			VulnerabilityScanningRoleName: types.StringValue(getRoleNameFromArn(a.VulnerabilityScanningRoleArn)),
-			AssetInventoryEnabled:         types.BoolValue(true), // this feature is always enabled
-			RealtimeVisibilityEnabled:     types.BoolValue(a.BehaviorAssessmentEnabled),
-			IDPEnabled:                    types.BoolValue(false),
-			SensorManagementEnabled: types.BoolValue(
-				a.SensorManagementEnabled != nil && *a.SensorManagementEnabled,
-			),
-			DSPMEnabled:                  types.BoolValue(a.DspmEnabled),
-			VulnerabilityScanningEnabled: types.BoolValue(a.VulnerabilityScanningEnabled),
+			AccountID:                     types.StringValue(fields.AccountID),
+			OrganizationID:                types.StringValue(fields.OrganizationID),
+			TargetOUs:                     targetOUs,
+			IsOrgManagementAccount:        types.BoolValue(fields.IsOrgManagementAccount),
+			AccountType:                   types.StringValue(fields.AccountType),
+			ExternalID:                    types.StringValue(fields.ExternalID),
+			IntermediateRoleArn:           types.StringValue(fields.IntermediateRoleArn),
+			IamRoleArn:                    types.StringValue(fields.IamRoleArn),
+			IamRoleName:                   types.StringValue(getRoleNameFromArn(fields.IamRoleArn)),
+			EventbusName:                  types.StringValue(fields.EventbusName),
+			EventbusArn:                   types.StringValue(fields.EventbusArn),
+			CloudTrailBucketName:          types.StringValue(fields.CloudTrailBucketName),
+			CloudTrailRegion:              types.StringValue(fields.CloudTrailRegion),
+			DspmRoleArn:                   types.StringValue(fields.DspmRoleArn),
+			DspmRoleName:                  types.StringValue(fields.DspmRoleName),
+			VulnerabilityScanningRoleArn:  types.StringValue(fields.VulnerabilityScanningRoleArn),
+			VulnerabilityScanningRoleName: types.StringValue(fields.VulnerabilityScanningRoleName),
+			AgentlessScanningRoleName:     types.StringValue(fields.AgentlessScanningRoleName),
+			AssetInventoryEnabled:         types.BoolValue(fields.AssetInventoryEnabled),
+			RealtimeVisibilityEnabled:     types.BoolValue(fields.RealtimeVisibilityEnabled),
+			IDPEnabled:                    types.BoolValue(fields.IDPEnabled),
+			SensorManagementEnabled:       types.BoolValue(fields.SensorManagementEnabled),
+			DSPMEnabled:                   types.BoolValue(fields.DSPMEnabled),
+			VulnerabilityScanningEnabled:  types.BoolValue(fields.VulnerabilityScanningEnabled),
+			ResourceNamePrefix:            types.StringValue(fields.ResourceNamePrefix),
+			ResourceNameSuffix:            types.StringValue(fields.ResourceNameSuffix),
 		}
 
-		agentlessRoleName := resolveAgentlessScanningRoleName(a)
-
-		m.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
-
-		// For org child accounts, the feature values are not always set.
-		// The management account should be the source of truth in this case.
-		if !a.IsMaster && a.OrganizationID != "" {
-			managementAcct, ok := managementAccts[a.OrganizationID]
-			if ok {
-				m.RealtimeVisibilityEnabled = types.BoolValue(
-					managementAcct.BehaviorAssessmentEnabled,
-				)
-				m.IDPEnabled = types.BoolValue(false)
-				m.SensorManagementEnabled = types.BoolValue(
-					managementAcct.SensorManagementEnabled != nil &&
-						*managementAcct.SensorManagementEnabled,
-				)
-				m.DSPMEnabled = types.BoolValue(managementAcct.DspmEnabled)
-				m.VulnerabilityScanningEnabled = types.BoolValue(managementAcct.VulnerabilityScanningEnabled)
-			} else {
-				tflog.Warn(ctx, "Got a child account from a different organization.", map[string]interface{}{"account_id": a.AccountID, "organization_id": a.OrganizationID})
-			}
-		}
-		ids = append(ids, a.AccountID)
-		idToModel[a.AccountID] = m
 		data.Accounts = append(data.Accounts, m)
-	}
-	// Set state
-	diags = resp.State.Set(ctx, &data)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Now we need to read and update the IDP status from Cloud Registration
-	cloudAccounts, diags := d.getCloudAccounts(ctx, ids)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	for _, a := range cloudAccounts {
-		for _, p := range a.Products {
-			if *p.Product == "idp" {
-				if m, ok := idToModel[a.AccountID]; ok {
-					m.IDPEnabled = types.BoolValue(true)
-				}
-				break
-			}
-		}
 	}
 
 	// Set state
@@ -442,7 +355,7 @@ func (d *cloudAwsAccountsDataSource) Configure(
 		return
 	}
 
-	config, ok := req.ProviderData.(config.ProviderConfig)
+	cfg, ok := req.ProviderData.(config.ProviderConfig)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
@@ -454,5 +367,5 @@ func (d *cloudAwsAccountsDataSource) Configure(
 		return
 	}
 
-	d.client = config.Client
+	d.client = cfg.Client
 }

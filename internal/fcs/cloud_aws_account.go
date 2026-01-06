@@ -9,10 +9,8 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_aws_registration"
-	"github.com/crowdstrike/gofalcon/falcon/client/cspm_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	privatestate "github.com/crowdstrike/terraform-provider-crowdstrike/internal/private_state"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
@@ -417,9 +415,6 @@ func (r *cloudAWSAccountResource) Schema(
 					"status": schema.StringAttribute{
 						Computed:    true,
 						Description: "Current status of the Identity Protection integration",
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
 					},
 				},
 				Default: objectdefault.StaticValue(
@@ -633,6 +628,45 @@ func (r *cloudAWSAccountResource) Schema(
 	}
 }
 
+// buildProductsFromModel converts Terraform model to CloudAwsRegistration Products array.
+func (r *cloudAWSAccountResource) buildProductsFromModel(model cloudAWSAccountModel) []*models.RestAccountProductRequestExtV1 {
+	var products []*models.RestAccountProductRequestExtV1
+
+	// Build CSPM product with features
+	// "iom" (Identity Operations Management / Asset Inventory) is always enabled
+	cspmFeatures := []string{"iom"}
+
+	if model.RealtimeVisibility != nil && model.RealtimeVisibility.Enabled.ValueBool() {
+		cspmFeatures = append(cspmFeatures, "ioa")
+	}
+	if model.SensorManagement != nil && model.SensorManagement.Enabled.ValueBool() {
+		cspmFeatures = append(cspmFeatures, "sensormgmt")
+	}
+	if model.DSPM != nil && model.DSPM.Enabled.ValueBool() {
+		cspmFeatures = append(cspmFeatures, "dspm")
+	}
+	if model.VulnerabilityScanning != nil && model.VulnerabilityScanning.Enabled.ValueBool() {
+		cspmFeatures = append(cspmFeatures, "vulnerability_scanning")
+	}
+
+	cspmProduct := "cspm"
+	products = append(products, &models.RestAccountProductRequestExtV1{
+		Product:  &cspmProduct,
+		Features: cspmFeatures,
+	})
+
+	// Add IDP product if enabled
+	if model.IDP != nil && model.IDP.Enabled.ValueBool() {
+		idpProduct := "idp"
+		products = append(products, &models.RestAccountProductRequestExtV1{
+			Product:  &idpProduct,
+			Features: []string{"default"},
+		})
+	}
+
+	return products
+}
+
 // Create creates the resource and sets the initial Terraform state.
 func (r *cloudAWSAccountResource) Create(
 	ctx context.Context,
@@ -647,53 +681,23 @@ func (r *cloudAWSAccountResource) Create(
 		return
 	}
 
-	cspmAccount, diags := r.createCSPMAccount(ctx, plan)
+	// create Cloud Registration account (replacing both CSPM and Cloud calls)
+	cloudAccount, diags := r.createCloudAccount(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	tflog.Info(ctx, "cspm account created", map[string]interface{}{"account": cspmAccount})
-	plan.AccountID = types.StringValue(cspmAccount.AccountID)
-	plan.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
-	plan.AccountType = types.StringValue(cspmAccount.AccountType)
-	if cspmAccount.IsMaster && len(cspmAccount.TargetOus) > 0 {
-		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, cspmAccount.TargetOus)
-		if diags.HasError() {
-			resp.Diagnostics.Append(diags...)
-		}
-		plan.TargetOUs = targetOUs
+	tflog.Info(ctx, "cloud account created", map[string]interface{}{"account": cloudAccount})
+
+	// Ensure AssetInventory is always populated (it's always enabled)
+	if plan.AssetInventory == nil {
+		plan.AssetInventory = &assetInventoryOptions{}
 	}
-	plan.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
-	plan.ExternalID = types.StringValue(cspmAccount.ExternalID)
-	plan.IntermediateRoleArn = types.StringValue(cspmAccount.IntermediateRoleArn)
-	plan.IamRoleArn = types.StringValue(cspmAccount.IamRoleArn)
-	plan.IamRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.IamRoleArn))
-	plan.EventbusName = types.StringValue(cspmAccount.EventbusName)
-	plan.EventbusArn = types.StringValue(cspmAccount.AwsEventbusArn)
-	plan.CloudTrailBucketName = types.StringValue(cspmAccount.AwsCloudtrailBucketName)
-	plan.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
-	plan.DspmRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.DspmRoleArn))
-	plan.VulnerabilityScanningRoleArn = types.StringValue(cspmAccount.VulnerabilityScanningRoleArn)
-	plan.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.VulnerabilityScanningRoleArn))
+	plan.AssetInventory.Enabled = types.BoolValue(true) // AssetInventory is always enabled
 
-	agentlessRoleName := resolveAgentlessScanningRoleName(cspmAccount)
-
-	plan.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
-
-	// for each feature options
-	// update with data from backend
-
-	plan.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
-	plan.RealtimeVisibility.CloudTrailRegion = flex.StringValueToFramework(cspmAccount.AwsCloudtrailRegion)
-
-	plan.SensorManagement.Enabled = types.BoolPointerValue(cspmAccount.SensorManagementEnabled)
-
-	plan.DSPM.Enabled = types.BoolValue(cspmAccount.DspmEnabled)
-	plan.VulnerabilityScanning.Enabled = types.BoolValue(cspmAccount.VulnerabilityScanningEnabled)
-
-	// create Cloud Registration account
-	cloudAccount, diags := r.createCloudAccount(ctx, plan)
+	// Populate plan from cloudAccount response
+	diags = r.populateModelFromCloudAccount(ctx, &plan, cloudAccount)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -704,17 +708,6 @@ func (r *cloudAWSAccountResource) Create(
 		return
 	}
 
-	plan.IDP = &idpOptions{
-		Enabled: types.BoolValue(false),
-		Status:  types.StringValue("configured"),
-	}
-	for _, p := range cloudAccount.Products {
-		if *p.Product == "idp" {
-			plan.IDP.Enabled = types.BoolValue(true)
-			break
-		}
-	}
-
 	// Set refreshed state
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -723,27 +716,211 @@ func (r *cloudAWSAccountResource) Create(
 	}
 }
 
-// createCSPMAccount creates a new CSPM AWS account from the resource model.
-func (r *cloudAWSAccountResource) createCSPMAccount(
-	ctx context.Context,
-	model cloudAWSAccountModel,
-) (*models.DomainAWSAccountV2, diag.Diagnostics) {
+// populateModelFromCloudAccount populates the Terraform model from CloudAwsRegistration response.
+func (r *cloudAWSAccountResource) populateModelFromCloudAccount(ctx context.Context, model *cloudAWSAccountModel, cloudAccount *models.DomainCloudAWSAccountV1) diag.Diagnostics {
 	var diags diag.Diagnostics
 
+	// Set basic account information
+	model.AccountID = types.StringValue(cloudAccount.AccountID)
+	model.AccountType = types.StringValue(cloudAccount.AccountType)
+	if model.DeploymentMethod.IsNull() {
+		model.DeploymentMethod = types.StringValue("terraform-native")
+	}
+
+	// Handle organization information
+	if cloudAccount.OrganizationID != "" {
+		model.OrganizationID = types.StringValue(cloudAccount.OrganizationID)
+		model.IsOrgManagementAccount = types.BoolValue(cloudAccount.IsMaster)
+
+		if cloudAccount.IsMaster && len(cloudAccount.TargetOus) > 0 {
+			targetOUs, diagsLocal := types.ListValueFrom(ctx, types.StringType, cloudAccount.TargetOus)
+			if diagsLocal.HasError() {
+				diags.Append(diagsLocal...)
+				return diags
+			}
+			model.TargetOUs = targetOUs
+		}
+	} else {
+		// For non-organizational accounts, this should always be false
+		model.IsOrgManagementAccount = types.BoolValue(false)
+	}
+
+	// Set computed values from cloudAccount
+	model.ExternalID = types.StringValue(cloudAccount.ResourceMetadata.ExternalID)
+	model.IntermediateRoleArn = types.StringValue(cloudAccount.ResourceMetadata.IntermediateRoleArn)
+	model.IamRoleArn = types.StringValue(cloudAccount.ResourceMetadata.IamRoleArn)
+	model.IamRoleName = types.StringValue(getRoleNameFromArn(cloudAccount.ResourceMetadata.IamRoleArn))
+	model.EventbusName = types.StringValue(cloudAccount.ResourceMetadata.EventbusName)
+	model.EventbusArn = types.StringValue(cloudAccount.ResourceMetadata.AwsEventbusArn)
+	model.CloudTrailBucketName = types.StringValue(cloudAccount.ResourceMetadata.AwsCloudtrailBucketName)
+
+	// Extract DSPM and vulnerability scanning information from settings
+	dspmRoleArn := ""
+	dspmRoleName := ""
+	vulnScanningRoleArn := ""
+	vulnScanningRoleName := ""
+	dspmHostAccountID := ""
+	vulnScanningHostAccountID := ""
+
+	if cloudAccount.Settings != nil {
+		settings := newSettingsConfig(ctx, cloudAccount.Settings, &diags)
+		if !diags.HasError() {
+			// Extract role names from settings
+			if !settings.DSPMRole.IsNull() {
+				dspmRoleName = settings.DSPMRole.ValueString()
+			}
+			if !settings.VulnerabilityScanningRole.IsNull() {
+				vulnScanningRoleName = settings.VulnerabilityScanningRole.ValueString()
+			}
+			if !settings.DSPMHostAccountID.IsNull() {
+				dspmHostAccountID = settings.DSPMHostAccountID.ValueString()
+			}
+			if !settings.VulnerabilityScanningHostAccountID.IsNull() {
+				vulnScanningHostAccountID = settings.VulnerabilityScanningHostAccountID.ValueString()
+			}
+
+			// Construct ARNs if we have role names and host account IDs
+			partition := "aws"
+			if cloudAccount.AccountType == "gov" {
+				partition = "aws-us-gov"
+			}
+
+			if dspmRoleName != "" && dspmHostAccountID != "" {
+				dspmRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partition, dspmHostAccountID, dspmRoleName)
+			}
+			if vulnScanningRoleName != "" && vulnScanningHostAccountID != "" {
+				vulnScanningRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partition, vulnScanningHostAccountID, vulnScanningRoleName)
+			}
+		}
+	}
+
+	model.DspmRoleArn = types.StringValue(dspmRoleArn)
+	model.DspmRoleName = types.StringValue(dspmRoleName)
+	model.VulnerabilityScanningRoleArn = types.StringValue(vulnScanningRoleArn)
+	model.VulnerabilityScanningRoleName = types.StringValue(vulnScanningRoleName)
+
+	agentlessRoleName := resolveAgentlessScanningRoleNameV1(ctx, cloudAccount)
+	model.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
+
+	// Ensure AssetInventory is always populated (it's always enabled)
+	if model.AssetInventory == nil {
+		model.AssetInventory = &assetInventoryOptions{}
+	}
+	model.AssetInventory.Enabled = types.BoolValue(true) // AssetInventory is always enabled
+
+	// Update feature states from Products array
+	r.updateFeatureStatesFromProducts(ctx, model, cloudAccount.Products, cloudAccount)
+
+	return diags
+}
+
+// updateFeatureStatesFromProducts updates model feature states from CloudAwsRegistration Products.
+func (r *cloudAWSAccountResource) updateFeatureStatesFromProducts(_ context.Context, model *cloudAWSAccountModel, products []*models.DomainProductFeatures, cloudAccount *models.DomainCloudAWSAccountV1) {
+	// Initialize feature states
+	hasIDP := false
+	cspmFeatures := make(map[string]bool)
+
+	// Parse products and features
+	for _, product := range products {
+		if product.Product == nil {
+			continue
+		}
+
+		switch *product.Product {
+		case "cspm":
+			for _, feature := range product.Features {
+				cspmFeatures[feature] = true
+			}
+		case "idp":
+			hasIDP = true
+		}
+	}
+
+	// Update RealtimeVisibility (IOA feature)
+	if model.RealtimeVisibility != nil {
+		model.RealtimeVisibility.Enabled = types.BoolValue(cspmFeatures["ioa"])
+		if cloudAccount.ResourceMetadata != nil && cloudAccount.ResourceMetadata.AwsCloudtrailRegion != "" {
+			model.RealtimeVisibility.CloudTrailRegion = types.StringValue(cloudAccount.ResourceMetadata.AwsCloudtrailRegion)
+		}
+	}
+
+	// Update SensorManagement (sensormgmt feature)
+	if model.SensorManagement != nil {
+		model.SensorManagement.Enabled = types.BoolValue(cspmFeatures["sensormgmt"])
+	}
+
+	// Update DSPM (dspm feature)
+	if model.DSPM != nil {
+		model.DSPM.Enabled = types.BoolValue(cspmFeatures["dspm"])
+	}
+
+	// Update VulnerabilityScanning (vulnerability_scanning feature)
+	if model.VulnerabilityScanning != nil {
+		model.VulnerabilityScanning.Enabled = types.BoolValue(cspmFeatures["vulnerability_scanning"])
+	}
+
+	// Update IDP
+	if model.IDP == nil {
+		model.IDP = &idpOptions{}
+	}
+	model.IDP.Enabled = types.BoolValue(hasIDP)
+	if hasIDP {
+		model.IDP.Status = types.StringValue("configured")
+	} else {
+		model.IDP.Status = types.StringNull()
+	}
+}
+
+// resolveAgentlessScanningRoleNameV1 resolves agentless scanning role name from cloud account V1.
+// DSPM role takes precedence over vulnerability scanning role, extracted from settings.
+func resolveAgentlessScanningRoleNameV1(ctx context.Context, cloudAccount *models.DomainCloudAWSAccountV1) string {
+	if cloudAccount == nil || cloudAccount.Settings == nil {
+		return ""
+	}
+
+	// Use newSettingsConfig to decode the settings and extract role names
+	var diags diag.Diagnostics
+	settings := newSettingsConfig(ctx, cloudAccount.Settings, &diags)
+	if diags.HasError() {
+		return ""
+	}
+
+	// DSPM role takes precedence over vulnerability scanning role
+	if !settings.DSPMRole.IsNull() && settings.DSPMRole.ValueString() != "" {
+		return getRoleNameFromArn(settings.DSPMRole.ValueString())
+	}
+
+	// Fallback to vulnerability scanning role
+	if !settings.VulnerabilityScanningRole.IsNull() && settings.VulnerabilityScanningRole.ValueString() != "" {
+		return getRoleNameFromArn(settings.VulnerabilityScanningRole.ValueString())
+	}
+
+	return ""
+}
+
+// createCloudAccount creates a new Cloud AWS account from the resource model.
+func (r *cloudAWSAccountResource) createCloudAccount(
+	ctx context.Context,
+	model cloudAWSAccountModel,
+) (*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
+	var diags diag.Diagnostics
 	var targetOUs []string
 	if model.OrganizationID.ValueString() != "" {
 		diags.Append(model.TargetOUs.ElementsAs(ctx, &targetOUs, false)...)
 	}
 
-	createAccount := models.RegistrationAWSAccountExtV2{
-		AccountID:        model.AccountID.ValueStringPointer(),
-		OrganizationID:   model.OrganizationID.ValueStringPointer(),
-		TargetOus:        targetOUs,
-		IsMaster:         model.OrganizationID.ValueString() != "",
-		AccountType:      model.AccountType.ValueString(),
-		DeploymentMethod: model.DeploymentMethod.ValueString(),
+	createAccount := models.RestCloudAWSAccountCreateExtV1{
+		AccountID:          model.AccountID.ValueString(),
+		OrganizationID:     model.OrganizationID.ValueString(),
+		TargetOus:          targetOUs,
+		IsMaster:           model.OrganizationID.ValueString() != "",
+		AccountType:        model.AccountType.ValueString(),
+		DeploymentMethod:   model.DeploymentMethod.ValueString(),
+		ResourceNamePrefix: model.ResourceNamePrefix.ValueString(),
+		ResourceNameSuffix: model.ResourceNameSuffix.ValueString(),
 	}
 
+	// Set IAM role ARN if asset inventory custom role is provided
 	if model.AssetInventory != nil && model.AssetInventory.RoleName.ValueString() != "" {
 		partition := "aws"
 		if model.AccountType.ValueString() == "gov" {
@@ -755,90 +932,14 @@ func (r *cloudAWSAccountResource) createCSPMAccount(
 			model.AccountID.ValueString(),
 			model.AssetInventory.RoleName.ValueString(),
 		)
-		createAccount.IamRoleArn = &roleArn
+		createAccount.IamRoleArn = roleArn
 	}
 
+	// Add realtime visibility configuration
 	if model.RealtimeVisibility != nil {
-		createAccount.BehaviorAssessmentEnabled = model.RealtimeVisibility.Enabled.ValueBool()
-		createAccount.CloudtrailRegion = model.RealtimeVisibility.CloudTrailRegion.ValueStringPointer()
-		createAccount.UseExistingCloudtrail = model.RealtimeVisibility.UseExistingCloudTrail.ValueBool()
-	}
-
-	if model.SensorManagement != nil {
-		createAccount.SensorManagementEnabled = model.SensorManagement.Enabled.ValueBool()
-	}
-
-	if model.DSPM != nil {
-		createAccount.DspmEnabled = model.DSPM.Enabled.ValueBool()
-		createAccount.DspmRole = model.DSPM.RoleName.ValueString()
-	}
-
-	if model.VulnerabilityScanning != nil {
-		createAccount.VulnerabilityScanningEnabled = model.VulnerabilityScanning.Enabled.ValueBool()
-		createAccount.VulnerabilityScanningRole = model.VulnerabilityScanning.RoleName.ValueString()
-	}
-
-	tflog.Info(ctx, "creating CSPM account")
-	res, status, err := r.client.CspmRegistration.CreateCSPMAwsAccount(
-		&cspm_registration.CreateCSPMAwsAccountParams{
-			Context: ctx,
-			Body: &models.RegistrationAWSAccountCreateRequestExtV2{
-				Resources: []*models.RegistrationAWSAccountExtV2{
-					&createAccount,
-				},
-			},
-		},
-	)
-	if err != nil {
-		if _, ok := err.(*cspm_registration.CreateCSPMAwsAccountForbidden); ok {
-			diags.AddError(
-				"Failed to create CSPM AWS account: 403 Forbidden",
-				scopes.GenerateScopeDescription(cloudSecurityScopes),
-			)
-			return nil, diags
-		}
-		diags.AddError(
-			"Failed to create CSPM AWS account",
-			fmt.Sprintf("Failed to create CSPM AWS account: %s", err.Error()),
-		)
-		return nil, diags
-	}
-	if status != nil {
-		diags.AddError(
-			"Failed to create CSPM AWS account",
-			fmt.Sprintf("Failed to create CSPM AWS account: %s", status.Error()),
-		)
-		return nil, diags
-	}
-
-	if res.Payload == nil || len(res.Payload.Resources) == 0 {
-		diags.AddError(
-			"Failed to create CSPM AWS account",
-			"No error returned from api but CSPM account was not created. Please report this issue to the provider developers.",
-		)
-
-		return nil, diags
-	}
-
-	return res.Payload.Resources[0], diags
-}
-
-// createAccount creates a new Cloud AWS account from the resource model.
-func (r *cloudAWSAccountResource) createCloudAccount(
-	ctx context.Context,
-	model cloudAWSAccountModel,
-) (*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	createAccount := models.RestCloudAWSAccountCreateExtV1{
-		AccountID:          model.AccountID.ValueString(),
-		OrganizationID:     model.OrganizationID.ValueString(),
-		IsMaster:           model.OrganizationID.ValueString() != "",
-		AccountType:        model.AccountType.ValueString(),
-		ResourceNamePrefix: model.ResourceNamePrefix.ValueString(),
-		ResourceNameSuffix: model.ResourceNameSuffix.ValueString(),
-	}
-	// Add S3 log ingestion fields if realtime visibility is configured
-	if model.RealtimeVisibility != nil {
+		createAccount.CloudtrailRegion = model.RealtimeVisibility.CloudTrailRegion.ValueString()
+		useExistingCloudtrail := model.RealtimeVisibility.UseExistingCloudTrail.ValueBool()
+		createAccount.UseExistingCloudtrail = &useExistingCloudtrail
 		createAccount.LogIngestionMethod = model.RealtimeVisibility.LogIngestionMethod.ValueString()
 
 		if !model.RealtimeVisibility.LogIngestionS3BucketName.IsNull() {
@@ -855,6 +956,7 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 		}
 	}
 
+	// Add RTVD regions
 	rtvdRegions := []string{}
 	if model.RealtimeVisibility != nil && utils.IsKnown(model.RealtimeVisibility.Regions) {
 		diags.Append(model.RealtimeVisibility.Regions.ElementsAs(ctx, &rtvdRegions, false)...)
@@ -864,18 +966,13 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 	}
 	createAccount.IoaRegions = rtvdRegions
 
-	if model.RealtimeVisibility != nil && model.RealtimeVisibility.Enabled.ValueBool() {
+	// Build products array with features (V1 model uses Products, not individual boolean flags)
+	createAccount.Products = r.buildProductsFromModel(model)
+
+	// Set CspEvents if RealtimeVisibility or IDP is enabled (NOT for AssetInventory)
+	if (model.RealtimeVisibility != nil && model.RealtimeVisibility.Enabled.ValueBool()) ||
+		(model.IDP != nil && model.IDP.Enabled.ValueBool()) {
 		createAccount.CspEvents = true
-	}
-	if model.IDP != nil && model.IDP.Enabled.ValueBool() {
-		createAccount.CspEvents = true
-		productString := "idp"
-		createAccount.Products = []*models.RestAccountProductRequestExtV1{
-			{
-				Product:  &productString,
-				Features: []string{"default"},
-			},
-		}
 	}
 
 	res, status, err := r.client.CloudAwsRegistration.CloudRegistrationAwsCreateAccount(
@@ -951,16 +1048,13 @@ func (r *cloudAWSAccountResource) Read(
 		return
 	}
 
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	cspmAccount, diags := r.getCSPMAccount(ctx, state.AccountID.ValueString())
+	// Use CloudAwsRegistration only (replacing dual API calls)
+	cloudAccount, found, diags := r.getCloudAccount(ctx, state.AccountID.ValueString())
 	for _, diagErr := range diags.Errors() {
 		if strings.Contains(diagErr.Detail(), "404 Not Found") {
 			tflog.Warn(
 				ctx,
-				fmt.Sprintf("cspm account %s not found, removing from state", state.AccountID),
+				fmt.Sprintf("cloud account %s not found, removing from state", state.AccountID),
 				map[string]interface{}{"resp": diagErr.Detail()},
 			)
 			resp.State.RemoveResource(ctx)
@@ -973,87 +1067,29 @@ func (r *cloudAWSAccountResource) Read(
 		return
 	}
 
-	state.AccountID = types.StringValue(cspmAccount.AccountID)
+	if !found {
+		tflog.Warn(
+			ctx,
+			fmt.Sprintf("cloud account %s not found, removing from state", state.AccountID),
+		)
+		resp.State.RemoveResource(ctx)
+		return
+	}
 
 	// imports should use the org id from the API since state will be nil.
 	if isImport {
-		state.OrganizationID = types.StringValue(cspmAccount.OrganizationID)
+		state.OrganizationID = types.StringValue(cloudAccount.OrganizationID)
 	}
 
-	state.AccountType = types.StringValue(cspmAccount.AccountType)
-	if state.DeploymentMethod.IsNull() {
-		state.DeploymentMethod = types.StringValue("terraform-native")
-	}
-
-	ous := []string{}
-	if cspmAccount.IsMaster && len(cspmAccount.TargetOus) != 0 {
-		ous = cspmAccount.TargetOus
-	}
-
-	targetOUs, diags := types.ListValueFrom(ctx, types.StringType, ous)
-	if diags.HasError() {
-		resp.Diagnostics.Append(diags...)
-	}
-	state.TargetOUs = targetOUs
-
-	state.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
-	state.ExternalID = types.StringValue(cspmAccount.ExternalID)
-	state.IntermediateRoleArn = types.StringValue(cspmAccount.IntermediateRoleArn)
-	state.IamRoleArn = types.StringValue(cspmAccount.IamRoleArn)
-	state.IamRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.IamRoleArn))
-	state.EventbusName = types.StringValue(cspmAccount.EventbusName)
-	state.EventbusArn = types.StringValue(cspmAccount.AwsEventbusArn)
-	state.CloudTrailBucketName = types.StringValue(cspmAccount.AwsCloudtrailBucketName)
-	state.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
-	state.DspmRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.DspmRoleArn))
-	state.VulnerabilityScanningRoleArn = types.StringValue(cspmAccount.VulnerabilityScanningRoleArn)
-	state.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.VulnerabilityScanningRoleArn))
-
-	agentlessRoleName := resolveAgentlessScanningRoleName(cspmAccount)
-
-	state.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
-
-	if state.RealtimeVisibility == nil {
-		state.RealtimeVisibility = &realtimeVisibilityOptions{
-			UseExistingCloudTrail: types.BoolValue(true),
-		}
-	}
-	state.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
-	state.RealtimeVisibility.CloudTrailRegion = flex.StringValueToFramework(cspmAccount.AwsCloudtrailRegion)
-
-	if state.SensorManagement == nil {
-		state.SensorManagement = &sensorManagementOptions{}
-	}
-	state.SensorManagement.Enabled = types.BoolPointerValue(cspmAccount.SensorManagementEnabled)
-
-	if state.DSPM == nil {
-		state.DSPM = &dspmOptions{}
-	}
-	state.DSPM.Enabled = types.BoolValue(cspmAccount.DspmEnabled)
-
-	if state.VulnerabilityScanning == nil {
-		state.VulnerabilityScanning = &vulnerabilityScanningOptions{}
-	}
-	state.VulnerabilityScanning.Enabled = types.BoolValue(cspmAccount.VulnerabilityScanningEnabled)
-
-	cloudAccount, _, diags := r.getCloudAccount(ctx, state.AccountID.ValueString())
-
-	for _, diagErr := range diags.Errors() {
-		if strings.Contains(diagErr.Detail(), "404 Not Found") {
-			tflog.Warn(
-				ctx,
-				fmt.Sprintf("cloud account %s not found", state.AccountID),
-				map[string]interface{}{"resp": diagErr.Detail()},
-			)
-
-			cloudAccState.Created = false
-		} else {
-			resp.Diagnostics.Append(diagErr)
-		}
-	}
-
+	// Populate state from cloudAccount response
+	diags = r.populateModelFromCloudAccount(ctx, &state, cloudAccount)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	if state.DeploymentMethod.IsNull() {
+		state.DeploymentMethod = types.StringValue("terraform-native")
 	}
 
 	resp.Diagnostics.Append(state.wrap(ctx, cloudAccount)...)
@@ -1061,26 +1097,8 @@ func (r *cloudAWSAccountResource) Read(
 		return
 	}
 
-	if state.IDP == nil {
-		state.IDP = &idpOptions{}
-	}
-
-	if cloudAccState.Created {
-		tflog.Info(
-			ctx,
-			"found cloud registration account",
-			map[string]interface{}{"account_id": cloudAccount.AccountID},
-		)
-		for _, p := range cloudAccount.Products {
-			if *p.Product == "idp" {
-				state.IDP.Enabled = types.BoolValue(true)
-				state.IDP.Status = types.StringValue("configured")
-				break
-			}
-		}
-		state.ResourceNamePrefix = types.StringValue(cloudAccount.ResourceNamePrefix)
-		state.ResourceNameSuffix = types.StringValue(cloudAccount.ResourceNameSuffix)
-	}
+	state.ResourceNamePrefix = types.StringValue(cloudAccount.ResourceNamePrefix)
+	state.ResourceNameSuffix = types.StringValue(cloudAccount.ResourceNameSuffix)
 
 	cloudAccPrivateState, err := json.Marshal(cloudAccState)
 	if err != nil {
@@ -1091,54 +1109,6 @@ func (r *cloudAWSAccountResource) Read(
 
 	// Set refreshed state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-}
-
-func (r *cloudAWSAccountResource) getCSPMAccount(
-	ctx context.Context,
-	accountID string,
-) (*models.DomainAWSAccountV2, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	res, status, err := r.client.CspmRegistration.GetCSPMAwsAccount(
-		&cspm_registration.GetCSPMAwsAccountParams{
-			Context: ctx,
-			Ids:     []string{accountID},
-		},
-	)
-	if err != nil {
-		if forbidden, ok := err.(*cspm_registration.GetCSPMAwsAccountForbidden); ok {
-			tflog.Info(ctx, "forbidden", map[string]interface{}{"resp": forbidden})
-			diags.AddError(
-				"Failed to read CSPM AWS account: 403 Forbidden",
-				scopes.GenerateScopeDescription(cloudSecurityScopes),
-			)
-			return nil, diags
-		}
-		diags.AddError(
-			"Failed to read CSPM AWS account",
-			fmt.Sprintf("Failed to get CSPM AWS account: %s", err.Error()),
-		)
-		return nil, diags
-	}
-
-	// todo: the backend needs to be updated to properly return 404
-	if status != nil {
-		diags.AddError(
-			"Failed to read CSPM AWS account",
-			fmt.Sprintf("Failed to get CSPM AWS account: 404 Not Found %s", status.Error()),
-		)
-		return nil, diags
-	}
-
-	if len(res.Payload.Resources) == 0 {
-		diags.AddError(
-			"Failed to get CSPM AWS account",
-			"No error returned from api but CSPM account was not returned. Please report this issue to the provider developers.",
-		)
-
-		return nil, diags
-	}
-
-	return res.Payload.Resources[0], diags
 }
 
 func (r *cloudAWSAccountResource) getCloudAccount(
@@ -1226,17 +1196,6 @@ func (r *cloudAWSAccountResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	accPrivateState, diags := req.Private.GetKey(ctx, cloudStateKey)
-	resp.Diagnostics.Append(diags...)
-	var cloudAccState cloudAccState
-	err := json.Unmarshal(accPrivateState, &cloudAccState)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Internal provider error",
-			"Failed to unmarshal private account state: "+err.Error(),
-		)
-	}
-
 	// Retrieve values from plan
 	var plan cloudAWSAccountModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -1244,78 +1203,15 @@ func (r *cloudAWSAccountResource) Update(
 		return
 	}
 
-	// Retrieve values from state
-	var state cloudAWSAccountModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	cspmAccount, diags := r.updateCSPMAccount(ctx, plan)
-
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	plan.AccountID = types.StringValue(cspmAccount.AccountID)
-	plan.OrganizationID = state.OrganizationID
-	plan.AccountType = types.StringValue(cspmAccount.AccountType)
-	plan.DeploymentMethod = state.DeploymentMethod
-	if state.DeploymentMethod.IsNull() {
-		plan.DeploymentMethod = types.StringValue("terraform-native")
-	}
-	plan.TargetOUs = state.TargetOUs
-	if cspmAccount.IsMaster && len(cspmAccount.TargetOus) != 0 {
-		targetOUs, diags := types.ListValueFrom(ctx, types.StringType, cspmAccount.TargetOus)
-		if diags.HasError() {
-			resp.Diagnostics.Append(diags...)
-		}
-		plan.TargetOUs = targetOUs
-	}
-	plan.IsOrgManagementAccount = types.BoolValue(cspmAccount.IsMaster)
-	plan.ExternalID = types.StringValue(cspmAccount.ExternalID)
-	plan.IntermediateRoleArn = types.StringValue(cspmAccount.IntermediateRoleArn)
-	plan.IamRoleArn = types.StringValue(cspmAccount.IamRoleArn)
-	plan.IamRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.IamRoleArn))
-	plan.EventbusName = types.StringValue(cspmAccount.EventbusName)
-	plan.EventbusArn = types.StringValue(cspmAccount.AwsEventbusArn)
-	plan.CloudTrailBucketName = types.StringValue(cspmAccount.AwsCloudtrailBucketName)
-	plan.DspmRoleArn = types.StringValue(cspmAccount.DspmRoleArn)
-	plan.DspmRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.DspmRoleArn))
-	plan.VulnerabilityScanningRoleArn = types.StringValue(cspmAccount.VulnerabilityScanningRoleArn)
-	plan.VulnerabilityScanningRoleName = types.StringValue(getRoleNameFromArn(cspmAccount.VulnerabilityScanningRoleArn))
-
-	agentlessRoleName := resolveAgentlessScanningRoleName(cspmAccount)
-
-	plan.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
-
-	plan.RealtimeVisibility.Enabled = types.BoolValue(cspmAccount.BehaviorAssessmentEnabled)
-	if cspmAccount.AwsCloudtrailRegion != "" {
-		plan.RealtimeVisibility.CloudTrailRegion = types.StringValue(
-			cspmAccount.AwsCloudtrailRegion,
-		)
-	}
-
-	plan.SensorManagement.Enabled = types.BoolPointerValue(cspmAccount.SensorManagementEnabled)
-
-	plan.DSPM.Enabled = types.BoolValue(cspmAccount.DspmEnabled)
-
-	plan.VulnerabilityScanning.Enabled = types.BoolValue(cspmAccount.VulnerabilityScanningEnabled)
-
-	// save current state
-	diags = resp.State.Set(ctx, plan)
+	// Update Cloud Registration account (replacing both CSPM and Cloud calls)
+	cloudAccount, diags := r.updateCloudAccount(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	var cloudAccount *models.DomainCloudAWSAccountV1
-	if cloudAccState.Created {
-		cloudAccount, diags = r.updateCloudAccount(ctx, plan)
-	} else {
-		cloudAccount, diags = r.createCloudAccount(ctx, plan)
-	}
-
+	// Populate plan from cloudAccount response
+	diags = r.populateModelFromCloudAccount(ctx, &plan, cloudAccount)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -1326,17 +1222,6 @@ func (r *cloudAWSAccountResource) Update(
 		return
 	}
 
-	plan.IDP = &idpOptions{
-		Enabled: types.BoolValue(false),
-		Status:  types.StringValue("configured"),
-	}
-	for _, p := range cloudAccount.Products {
-		if *p.Product == "idp" {
-			plan.IDP.Enabled = types.BoolValue(true)
-			break
-		}
-	}
-
 	// Set refreshed state
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -1345,88 +1230,23 @@ func (r *cloudAWSAccountResource) Update(
 	}
 }
 
-func (r *cloudAWSAccountResource) updateCSPMAccount(
-	ctx context.Context,
-	model cloudAWSAccountModel,
-) (*models.DomainAWSAccountV2, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	var targetOUs []string
-
-	diags.Append(model.TargetOUs.ElementsAs(ctx, &targetOUs, false)...)
-	patchAccount := models.RegistrationAWSAccountPatch{
-		AccountID: model.AccountID.ValueStringPointer(),
-		TargetOus: targetOUs,
-	}
-	if model.RealtimeVisibility != nil {
-		patchAccount.BehaviorAssessmentEnabled = model.RealtimeVisibility.Enabled.ValueBoolPointer()
-		patchAccount.CloudtrailRegion = model.RealtimeVisibility.CloudTrailRegion.ValueString()
-	}
-	if model.SensorManagement != nil {
-		patchAccount.SensorManagementEnabled = model.SensorManagement.Enabled.ValueBoolPointer()
-	}
-	if model.DSPM != nil {
-		patchAccount.DspmEnabled = model.DSPM.Enabled.ValueBoolPointer()
-		patchAccount.DspmRole = model.DSPM.RoleName.ValueString()
-	}
-	if model.VulnerabilityScanning != nil {
-		patchAccount.VulnerabilityScanningEnabled = model.VulnerabilityScanning.Enabled.ValueBoolPointer()
-		patchAccount.VulnerabilityScanningRole = model.VulnerabilityScanning.RoleName.ValueString()
-	}
-
-	res, status, err := r.client.CspmRegistration.PatchCSPMAwsAccount(
-		&cspm_registration.PatchCSPMAwsAccountParams{
-			Context: ctx,
-			Body: &models.RegistrationAWSAccountPatchRequest{
-				Resources: []*models.RegistrationAWSAccountPatch{
-					&patchAccount,
-				},
-			},
-		},
-	)
-	if err != nil {
-		if _, ok := err.(*cspm_registration.PatchCSPMAwsAccountForbidden); ok {
-			diags.AddError(
-				"Failed to update CSPM AWS account: 403 Forbidden",
-				scopes.GenerateScopeDescription(cloudSecurityScopes),
-			)
-			return nil, diags
-		}
-		diags.AddError(
-			"Failed to update CSPM AWS account",
-			fmt.Sprintf("Failed to update CSPM AWS account: %s", err.Error()),
-		)
-		return nil, diags
-	}
-	if status != nil {
-		diags.AddError(
-			"Failed to update CSPM AWS account",
-			fmt.Sprintf("Failed to update CSPM AWS account: %s", status.Error()),
-		)
-		return nil, diags
-	}
-
-	if res.Payload == nil || len(res.Payload.Resources) == 0 {
-		diags.AddError(
-			"Failed to update CSPM AWS account",
-			"No error returned from api but CSPM account was not returned. Please report this issue to the provider developers.",
-		)
-		return nil, diags
-	}
-	return res.Payload.Resources[0], diags
-}
-
 func (r *cloudAWSAccountResource) updateCloudAccount(
 	ctx context.Context,
 	model cloudAWSAccountModel,
 ) (*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
+	var targetOUs []string
+	if model.OrganizationID.ValueString() != "" {
+		diags.Append(model.TargetOUs.ElementsAs(ctx, &targetOUs, false)...)
+	}
+
 	patchAccount := models.RestAWSAccountPatchExtV1{
 		AccountID:          model.AccountID.ValueStringPointer(),
 		ResourceNamePrefix: model.ResourceNamePrefix.ValueString(),
 		ResourceNameSuffix: model.ResourceNameSuffix.ValueString(),
 	}
 
-	// Add S3 log ingestion fields if realtime visibility is configured
+	// Add realtime visibility configuration (limited fields for patch)
 	if model.RealtimeVisibility != nil {
 		if !model.RealtimeVisibility.LogIngestionMethod.IsNull() {
 			patchAccount.LogIngestionMethod = model.RealtimeVisibility.LogIngestionMethod.ValueString()
@@ -1445,6 +1265,7 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 		}
 	}
 
+	// Add RTVD regions
 	rtvdRegions := []string{}
 	if model.RealtimeVisibility != nil && utils.IsKnown(model.RealtimeVisibility.Regions) {
 		diags.Append(model.RealtimeVisibility.Regions.ElementsAs(ctx, &rtvdRegions, false)...)
@@ -1454,20 +1275,24 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 	}
 	patchAccount.IoaRegions = rtvdRegions
 
-	if model.AssetInventory != nil && model.AssetInventory.Enabled.ValueBool() {
+	// Get current state to determine what to enable vs disable
+	currentAccount, found, stateDiags := r.getCloudAccount(ctx, model.AccountID.ValueString())
+	diags.Append(stateDiags...)
+	if diags.HasError() || !found {
+		return nil, diags
+	}
+
+	// Build products and disable products arrays based on state changes
+	enabledProducts, disabledProducts := r.buildProductsDelta(model, currentAccount)
+	patchAccount.Products = enabledProducts
+	patchAccount.DisableProducts = disabledProducts
+
+	// Set CspEvents if RealtimeVisibility or IDP is enabled (NOT for AssetInventory)
+	if (model.RealtimeVisibility != nil && model.RealtimeVisibility.Enabled.ValueBool()) ||
+		(model.IDP != nil && model.IDP.Enabled.ValueBool()) {
 		patchAccount.CspEvents = true
 	}
-	productString := "idp"
-	patchAccount.Products = []*models.RestAccountProductRequestExtV1{
-		{
-			Product:  &productString,
-			Features: []string{},
-		},
-	}
-	if model.IDP != nil && model.IDP.Enabled.ValueBool() {
-		patchAccount.CspEvents = true
-		patchAccount.Products[0].Features = append(patchAccount.Products[0].Features, "default")
-	}
+
 	res, status, err := r.client.CloudAwsRegistration.CloudRegistrationAwsUpdateAccount(
 		&cloud_aws_registration.CloudRegistrationAwsUpdateAccountParams{
 			Context: ctx,
@@ -1510,6 +1335,77 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 	return res.Payload.Resources[0], diags
 }
 
+// buildProductsDelta compares desired state vs current state to determine enabled/disabled products.
+func (r *cloudAWSAccountResource) buildProductsDelta(model cloudAWSAccountModel, currentAccount *models.DomainCloudAWSAccountV1) ([]*models.RestAccountProductRequestExtV1, []*models.RestAccountProductRequestExtV1) {
+	// Get current feature states from the existing account
+	currentFeatures := make(map[string]map[string]bool)
+	for _, product := range currentAccount.Products {
+		if product.Product != nil {
+			currentFeatures[*product.Product] = make(map[string]bool)
+			for _, feature := range product.Features {
+				currentFeatures[*product.Product][feature] = true
+			}
+		}
+	}
+
+	// Build desired feature states from model
+	desiredProducts := r.buildProductsFromModel(model)
+	desiredFeatures := make(map[string]map[string]bool)
+	for _, product := range desiredProducts {
+		if product.Product != nil {
+			desiredFeatures[*product.Product] = make(map[string]bool)
+			for _, feature := range product.Features {
+				desiredFeatures[*product.Product][feature] = true
+			}
+		}
+	}
+
+	var enabledProducts []*models.RestAccountProductRequestExtV1
+	var disabledProducts []*models.RestAccountProductRequestExtV1
+
+	// Check for products/features to enable (present in desired but not in current)
+	for productName, desiredProductFeatures := range desiredFeatures {
+		var featuresToEnable []string
+		currentProductFeatures, productExists := currentFeatures[productName]
+
+		for feature := range desiredProductFeatures {
+			if !productExists || !currentProductFeatures[feature] {
+				featuresToEnable = append(featuresToEnable, feature)
+			}
+		}
+
+		if len(featuresToEnable) > 0 {
+			productNameCopy := productName
+			enabledProducts = append(enabledProducts, &models.RestAccountProductRequestExtV1{
+				Product:  &productNameCopy,
+				Features: featuresToEnable,
+			})
+		}
+	}
+
+	// Check for products/features to disable (present in current but not in desired)
+	for productName, currentProductFeatures := range currentFeatures {
+		var featuresToDisable []string
+		desiredProductFeatures, productWanted := desiredFeatures[productName]
+
+		for feature := range currentProductFeatures {
+			if !productWanted || !desiredProductFeatures[feature] {
+				featuresToDisable = append(featuresToDisable, feature)
+			}
+		}
+
+		if len(featuresToDisable) > 0 {
+			productNameCopy := productName
+			disabledProducts = append(disabledProducts, &models.RestAccountProductRequestExtV1{
+				Product:  &productNameCopy,
+				Features: featuresToDisable,
+			})
+		}
+	}
+
+	return enabledProducts, disabledProducts
+}
+
 // Delete deletes the resource and removes the Terraform state on success.
 func (r *cloudAWSAccountResource) Delete(
 	ctx context.Context,
@@ -1523,62 +1419,10 @@ func (r *cloudAWSAccountResource) Delete(
 		return
 	}
 
-	if state.IDP.Status.ValueString() != "" {
-		diags = append(diags, r.deleteCloudAccount(ctx, state)...)
-	}
-	diags = append(diags, r.deleteCSPMAccount(ctx, state)...)
+	// Use CloudAwsRegistration only (replacing both CSPM and Cloud calls)
+	diags = append(diags, r.deleteCloudAccount(ctx, state)...)
 
 	resp.Diagnostics.Append(diags...)
-}
-
-func (r *cloudAWSAccountResource) deleteCSPMAccount(
-	ctx context.Context,
-	model cloudAWSAccountModel,
-) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	// deleting a resource that does not exist.
-	if model.AccountID.ValueString() == "" && model.OrganizationID.ValueString() == "" {
-		return diags
-	}
-	params := &cspm_registration.DeleteCSPMAwsAccountParams{
-		Context: ctx,
-	}
-	tflog.Info(ctx, "deleting CSPM account", map[string]interface{}{
-		"account_id":                model.AccountID.ValueString(),
-		"organization_id":           model.OrganizationID.ValueString(),
-		"is_org_management_account": model.IsOrgManagementAccount.ValueBool(),
-	})
-	if model.IsOrgManagementAccount.ValueBool() {
-		params.OrganizationIds = []string{model.OrganizationID.ValueString()}
-	} else {
-		params.Ids = []string{model.AccountID.ValueString()}
-	}
-
-	_, status, err := r.client.CspmRegistration.DeleteCSPMAwsAccount(params)
-	if err != nil {
-		if _, ok := err.(*cspm_registration.DeleteCSPMAwsAccountForbidden); ok {
-			diags.AddError(
-				"Failed to delete CSPM AWS account: 403 Forbidden",
-				scopes.GenerateScopeDescription(cloudSecurityScopes),
-			)
-			return diags
-		}
-		diags.AddError(
-			"Failed to delete CSPM AWS account",
-			fmt.Sprintf("Failed to delete CSPM AWS account: %s", err.Error()),
-		)
-		return diags
-	}
-	if status != nil {
-		// treating this as a 404 not found which is not an error when deleting
-		// diags.AddError(
-		// 	"Failed to delete CSPM AWS account",
-		// 	fmt.Sprintf("Failed to delete CSPM AWS account: %s", status.Error()),
-		// )
-		return diags
-	}
-	return diags
 }
 
 func (r *cloudAWSAccountResource) deleteCloudAccount(
@@ -1723,4 +1567,123 @@ func (r *cloudAWSAccountResource) ValidateConfig(
 			)
 		}
 	}
+}
+
+// CloudAccountFields represents common fields extracted from DomainCloudAWSAccountV1.
+type CloudAccountFields struct {
+	AccountID                     string
+	OrganizationID                string
+	TargetOUs                     []string
+	IsOrgManagementAccount        bool
+	AccountType                   string
+	ExternalID                    string
+	IntermediateRoleArn           string
+	IamRoleArn                    string
+	EventbusName                  string
+	EventbusArn                   string
+	CloudTrailBucketName          string
+	CloudTrailRegion              string
+	DspmRoleArn                   string
+	DspmRoleName                  string
+	VulnerabilityScanningRoleArn  string
+	VulnerabilityScanningRoleName string
+	AgentlessScanningRoleName     string
+	ResourceNamePrefix            string
+	ResourceNameSuffix            string
+	// Feature flags.
+	AssetInventoryEnabled        bool
+	RealtimeVisibilityEnabled    bool
+	IDPEnabled                   bool
+	SensorManagementEnabled      bool
+	DSPMEnabled                  bool
+	VulnerabilityScanningEnabled bool
+}
+
+// extractCloudAccountFields extracts common fields from DomainCloudAWSAccountV1.
+func extractCloudAccountFields(ctx context.Context, cloudAccount *models.DomainCloudAWSAccountV1) *CloudAccountFields {
+	fields := &CloudAccountFields{
+		AccountID:              cloudAccount.AccountID,
+		OrganizationID:         cloudAccount.OrganizationID,
+		TargetOUs:              cloudAccount.TargetOus,
+		IsOrgManagementAccount: cloudAccount.IsMaster,
+		AccountType:            cloudAccount.AccountType,
+		ResourceNamePrefix:     cloudAccount.ResourceNamePrefix,
+		ResourceNameSuffix:     cloudAccount.ResourceNameSuffix,
+		AssetInventoryEnabled:  true, // Always enabled
+	}
+
+	// Extract ResourceMetadata fields
+	if cloudAccount.ResourceMetadata != nil {
+		fields.ExternalID = cloudAccount.ResourceMetadata.ExternalID
+		fields.IntermediateRoleArn = cloudAccount.ResourceMetadata.IntermediateRoleArn
+		fields.IamRoleArn = cloudAccount.ResourceMetadata.IamRoleArn
+		fields.EventbusName = cloudAccount.ResourceMetadata.EventbusName
+		fields.EventbusArn = cloudAccount.ResourceMetadata.AwsEventbusArn
+		fields.CloudTrailBucketName = cloudAccount.ResourceMetadata.AwsCloudtrailBucketName
+		fields.CloudTrailRegion = cloudAccount.ResourceMetadata.AwsCloudtrailRegion
+	}
+
+	// Parse settings for DSPM and vulnerability scanning roles (if available)
+	if cloudAccount.Settings != nil {
+		var diags diag.Diagnostics
+		settings := newSettingsConfig(ctx, cloudAccount.Settings, &diags)
+		if !diags.HasError() {
+			// Extract role names from settings
+			if !settings.DSPMRole.IsNull() {
+				fields.DspmRoleName = settings.DSPMRole.ValueString()
+			}
+			if !settings.VulnerabilityScanningRole.IsNull() {
+				fields.VulnerabilityScanningRoleName = settings.VulnerabilityScanningRole.ValueString()
+			}
+
+			// Construct ARNs if we have role names and host account IDs
+			partition := "aws"
+			if cloudAccount.AccountType == "gov" {
+				partition = "aws-us-gov"
+			}
+
+			dspmHostAccountID := ""
+			vulnScanningHostAccountID := ""
+			if !settings.DSPMHostAccountID.IsNull() {
+				dspmHostAccountID = settings.DSPMHostAccountID.ValueString()
+			}
+			if !settings.VulnerabilityScanningHostAccountID.IsNull() {
+				vulnScanningHostAccountID = settings.VulnerabilityScanningHostAccountID.ValueString()
+			}
+
+			if fields.DspmRoleName != "" && dspmHostAccountID != "" {
+				fields.DspmRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partition, dspmHostAccountID, fields.DspmRoleName)
+			}
+			if fields.VulnerabilityScanningRoleName != "" && vulnScanningHostAccountID != "" {
+				fields.VulnerabilityScanningRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partition, vulnScanningHostAccountID, fields.VulnerabilityScanningRoleName)
+			}
+		}
+	}
+
+	// Extract agentless scanning role name
+	fields.AgentlessScanningRoleName = resolveAgentlessScanningRoleNameV1(ctx, cloudAccount)
+
+	// Parse products to determine feature states
+	cspmFeatures := make(map[string]bool)
+	for _, product := range cloudAccount.Products {
+		if product.Product == nil {
+			continue
+		}
+		switch *product.Product {
+		case "cspm":
+			for _, feature := range product.Features {
+				cspmFeatures[feature] = true
+			}
+		case "idp":
+			fields.IDPEnabled = true
+		}
+	}
+
+	// Set feature flags from CSPM features
+	fields.RealtimeVisibilityEnabled = cspmFeatures["ioa"]
+	fields.SensorManagementEnabled = cspmFeatures["sensormgmt"]
+	fields.DSPMEnabled = cspmFeatures["dspm"]
+	fields.VulnerabilityScanningEnabled = cspmFeatures["vulnerability_scanning"]
+
+	return fields
 }
