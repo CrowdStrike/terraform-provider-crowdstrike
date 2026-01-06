@@ -60,10 +60,9 @@ func TestAccCloudAwsAccountValidationDataSource(t *testing.T) {
 				Config: testAccCloudAwsAccountValidationDataSource_organization(testOrgAccountID, testOrgID, 0),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Check resource was created
-					resource.TestCheckResourceAttr(
+					resource.TestCheckNoResourceAttr(
 						"crowdstrike_cloud_aws_account.org",
 						"account_id",
-						testOrgAccountID,
 					),
 					resource.TestCheckResourceAttr(
 						"crowdstrike_cloud_aws_account.org",
@@ -121,12 +120,11 @@ resource "crowdstrike_cloud_aws_account" "org" {
 }
 
 data "crowdstrike_cloud_aws_account_validation" "org" {
-  account_id      = "%s"
   organization_id = "%s"
   wait_time       = %d
   depends_on = [
     crowdstrike_cloud_aws_account.org
   ]
 }
-`, accountID, organizationID, accountID, organizationID, waitTime)
+`, accountID, organizationID, organizationID, waitTime)
 }

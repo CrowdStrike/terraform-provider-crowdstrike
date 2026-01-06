@@ -17,6 +17,5 @@ data "crowdstrike_cloud_aws_account_validation" "account" {
 
 # validate the integrated AWS organization management account
 data "crowdstrike_cloud_aws_account_validation" "org_account" {
-  account_id      = "123456789012"
   organization_id = "o-1122aabbcc"
 }

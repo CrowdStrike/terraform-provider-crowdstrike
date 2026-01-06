@@ -2,6 +2,7 @@ package fcs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -11,10 +12,12 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_aws_registration"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -65,13 +68,14 @@ func (d *cloudAwsAccountValidationDataSource) Schema(
 		),
 		Attributes: map[string]schema.Attribute{
 			"account_id": schema.StringAttribute{
-				Required:    true,
+				Optional:    true,
 				Description: "AWS account to be validated",
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(
 						regexp.MustCompile(`^\d{12}$`),
 						"must be in AWS account ID format",
 					),
+					stringvalidator.ConflictsWith(path.MatchRoot("organization_id")),
 				},
 			},
 			"organization_id": schema.StringAttribute{
@@ -82,6 +86,7 @@ func (d *cloudAwsAccountValidationDataSource) Schema(
 						regexp.MustCompile(`^o-[0-9a-z]{10,32}$`),
 						"must be in AWS organization ID format",
 					),
+					stringvalidator.ConflictsWith(path.MatchRoot("account_id")),
 				},
 			},
 			"wait_time": schema.Int32Attribute{
@@ -96,21 +101,26 @@ func (d *cloudAwsAccountValidationDataSource) Schema(
 	}
 }
 
-func (d *cloudAwsAccountValidationDataSource) triggerHealthCheck(ctx context.Context, accountID, orgID string) diag.Diagnostics {
+func (d *cloudAwsAccountValidationDataSource) triggerHealthCheck(ctx context.Context, accountID, orgID types.String) diag.Diagnostics {
 	var diags diag.Diagnostics
 	tflog.Info(ctx, "[datasource] Trigger Health Check Scan",
-		map[string]interface{}{"accountID": accountID, "organizationID": orgID})
+		map[string]interface{}{"accountID": accountID.ValueString(), "organizationID": orgID.ValueString()})
 
 	params := &cloud_aws_registration.CloudRegistrationAwsTriggerHealthCheckParams{
 		Context: ctx,
 	}
-	if len(orgID) > 0 {
-		params.OrganizationIds = []string{orgID}
+	if !orgID.IsNull() {
+		params.OrganizationIds = []string{orgID.ValueString()}
 	} else {
-		params.AccountIds = []string{accountID}
+		params.AccountIds = []string{accountID.ValueString()}
 	}
 	_, err := d.client.CloudAwsRegistration.CloudRegistrationAwsTriggerHealthCheck(params)
 	if err != nil {
+		var hcErr *cloud_aws_registration.CloudRegistrationAwsTriggerHealthCheckForbidden
+		if errors.As(err, &hcErr) {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Read, cloudSecurityScopes))
+			return diags
+		}
 		diags.AddWarning(
 			"Failed to trigger health check scan. Please go to the Falcon console and trigger health check scan manually to reflect the latest state.",
 			fmt.Sprintf("Failed to trigger health check: %s", falcon.ErrorExplain(err)),
@@ -119,18 +129,28 @@ func (d *cloudAwsAccountValidationDataSource) triggerHealthCheck(ctx context.Con
 	return diags
 }
 
-func (d *cloudAwsAccountValidationDataSource) validateAccount(ctx context.Context, accountID string) diag.Diagnostics {
+func (d *cloudAwsAccountValidationDataSource) validateAccount(ctx context.Context, accountID, orgID types.String) diag.Diagnostics {
 	var diags diag.Diagnostics
 	tflog.Info(ctx, "[datasource] Validate Cloud AWS Account",
-		map[string]interface{}{"accountID": accountID})
+		map[string]interface{}{"accountID": accountID.ValueString(), "organizationID": orgID.ValueString()})
 
-	_, err := d.client.CloudAwsRegistration.CloudRegistrationAwsValidateAccounts(
-		&cloud_aws_registration.CloudRegistrationAwsValidateAccountsParams{
-			Context:   ctx,
-			AccountID: &accountID,
-		},
-	)
+	params := &cloud_aws_registration.CloudRegistrationAwsValidateAccountsParams{
+		Context: ctx,
+	}
+
+	if !orgID.IsNull() {
+		params.OrganizationID = orgID.ValueStringPointer()
+	} else {
+		params.AccountID = accountID.ValueStringPointer()
+	}
+
+	_, err := d.client.CloudAwsRegistration.CloudRegistrationAwsValidateAccounts(params)
 	if err != nil {
+		var validateErr *cloud_aws_registration.CloudRegistrationAwsTriggerHealthCheckForbidden
+		if errors.As(err, &validateErr) {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Read, cloudSecurityScopes))
+			return diags
+		}
 		diags.AddWarning(
 			"Failed to validate AWS account. Please go to the Falcon console and trigger health check scan manually to reflect the latest state.",
 			fmt.Sprintf("Failed to validate AWS account: %s", falcon.ErrorExplain(err)),
@@ -160,12 +180,12 @@ func (d *cloudAwsAccountValidationDataSource) Read(
 		time.Sleep(time.Duration(waitTime) * time.Second)
 	}
 
-	diags := d.validateAccount(ctx, data.AccountID.ValueString())
+	diags := d.validateAccount(ctx, data.AccountID, data.OrganizationID)
 	resp.Diagnostics.Append(diags...)
 	data.Validated = types.BoolValue(!diags.HasError() && diags.WarningsCount() == 0)
 
 	if data.Validated.ValueBool() {
-		diags = d.triggerHealthCheck(ctx, data.OrganizationID.ValueString(), data.OrganizationID.ValueString())
+		diags = d.triggerHealthCheck(ctx, data.AccountID, data.OrganizationID)
 		resp.Diagnostics.Append(diags...)
 	}
 
