@@ -146,7 +146,7 @@ func (d *cloudAwsAccountValidationDataSource) validateAccount(ctx context.Contex
 
 	_, err := d.client.CloudAwsRegistration.CloudRegistrationAwsValidateAccounts(params)
 	if err != nil {
-		var validateErr *cloud_aws_registration.CloudRegistrationAwsTriggerHealthCheckForbidden
+		var validateErr *cloud_aws_registration.CloudRegistrationAwsValidateAccountsForbidden
 		if errors.As(err, &validateErr) {
 			diags.Append(tferrors.NewForbiddenError(tferrors.Read, cloudSecurityScopes))
 			return diags
