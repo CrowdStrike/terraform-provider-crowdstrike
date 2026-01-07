@@ -5,7 +5,7 @@ description: |-
   This resource manages an Admission Control policy, which provides instructions to the Falcon Kubernetes Admission Controller (KAC) about what actions to take on objects at runtime.
   API Scopes
   The following API scopes are required:
-  Falcon Container Image | Read & WriteKubernetes Admission Control Policy | Read & Write
+  Falcon Container Image | Read & Write
 ---
 
 # crowdstrike_cloud_security_kac_policy (Resource)
@@ -17,7 +17,6 @@ This resource manages an Admission Control policy, which provides instructions t
 The following API scopes are required:
 
 - Falcon Container Image | Read & Write
-- Kubernetes Admission Control Policy | Read & Write
 
 
 ## Example Usage
@@ -40,7 +39,6 @@ resource "crowdstrike_cloud_security_kac_policy" "example" {
   name        = "example-kac-policy"
   description = "An example KAC policy created with Terraform"
   is_enabled  = true
-  precedence  = 1
   host_groups = [
     "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
     "f47ac10b58cc4372a5670e4cn521b862",
@@ -56,22 +54,20 @@ resource "crowdstrike_cloud_security_kac_policy" "example" {
       }
       labels = [
         {
-          "key"      = "pd*",
-          "value"    = "abc*",
-          "operator" = "neq"
+          key      = "pd*",
+          value    = "abc*",
+          operator = "neq"
         }
       ]
       namespaces = ["abc*"]
-      default_rule_overrides = [
-        {
-          code   = "201000"
+      default_rules = {
+        privileged_container = {
           action = "Prevent"
-        },
-        {
-          code   = "201001"
-          action = "Disable"
         }
-      ]
+        sensitive_data_in_environment = {
+          action = "Disabled"
+        }
+      }
     }
   ]
   default_rule_group = {
@@ -79,12 +75,11 @@ resource "crowdstrike_cloud_security_kac_policy" "example" {
     image_assessment = {
       enabled = false
     }
-    default_rule_overrides = [
-      {
-        code   = "201002"
-        action = "Disable"
+    default_rule_overrides = {
+      container_run_as_root = {
+        action = "Prevent"
       }
-    ]
+    }
   }
 }
 
@@ -102,15 +97,439 @@ output "cloud_security_kac_policy" {
 
 ### Optional
 
+- `default_rule_group` (Attributes) The default rule group always has the lowest precedence. Only deny_on_error, image_assessment, and default_rules are configurable for the default rule group. (see [below for nested schema](#nestedatt--default_rule_group))
 - `description` (String) Description of the Kubernetes Admission Control policy.
 - `host_groups` (Set of String) Host Group ids to attach to the KAC policy.
 - `is_enabled` (Boolean) Whether the policy is enabled. Must be set to false before the policy can be deleted.
-- `precedence` (Number) The order of priority when evaluating KAC policies, 1 being the highest priority.
 - `rule_groups` (Attributes List) A list of KAC policy rule groups in order of highest to lowest priority. Reordering the list will change rule group precedence. (see [below for nested schema](#nestedatt--rule_groups))
 
 ### Read-Only
 
-- `id` (String) Identifier for the Cloud Security Kac Policy.
+- `id` (String) Identifier for the Cloud Security KAC Policy.
+
+<a id="nestedatt--default_rule_group"></a>
+### Nested Schema for `default_rule_group`
+
+Optional:
+
+- `default_rules` (Attributes) Set the action Falcon KAC should take when assessing default rules. All default rules are set to "Alert" by default. Action must be one of:
+ - "Disabled": Do nothing
+ - "Alert": Send an alert
+ - "Prevent": Prevent the object from running (see [below for nested schema](#nestedatt--default_rule_group--default_rules))
+- `deny_on_error` (Boolean) Defines how KAC will handle an unrecognized error or timeout when processing an admission request. If set to "false", the pod or workload will be allowed to run.
+- `image_assessment` (Attributes) When enabled, KAC applies image assessment policies to pods or workloads that are being created or updated on the Kubernetes cluster. (see [below for nested schema](#nestedatt--default_rule_group--image_assessment))
+
+Read-Only:
+
+- `description` (String) Description of the default KAC policy rule group.
+- `id` (String) Identifier for the default KAC policy rule group.
+- `labels` (Attributes Set) The default rule group applies to all labels, and is not configurable. (see [below for nested schema](#nestedatt--default_rule_group--labels))
+- `name` (String) Name of the default KAC policy rule group.
+- `namespaces` (Set of String) The default rule group namespace is `"*"`, which applies to all namespaces, and is not configurable.
+
+<a id="nestedatt--default_rule_group--default_rules"></a>
+### Nested Schema for `default_rule_group.default_rules`
+
+Optional:
+
+- `container_in_host_ipc_namespace` (Attributes) Workload is exposed through a shared host ipc. Sharing host IPC allows container to communicate with host processes through IPC mechanism and access shared memory. It can potentially leak information or DoS the host process. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--container_in_host_ipc_namespace))
+- `container_in_host_pid_namespace` (Attributes) Workload is exposed through a shared host pid. Sharing host PID allows visibility of process on host, potentially leaking host and container processes, environment variables, configurations etc. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--container_in_host_pid_namespace))
+- `container_run_as_root` (Attributes) The container is configured to run as root. Containers running as root allow applications to modify the container filesystem, memory and system packages at runtime. Additionally, root users can create raw sockets and bind on ports under 1024. These workloads should be avoided as it increases the attack surface. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--container_run_as_root))
+- `container_using_unsafe_sysctls` (Attributes) Sysctl allows users to modify the kernel settings at run time. Some sysctl configs can exhaust resources for other containers. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--container_using_unsafe_sysctls))
+- `container_with_many_capabilities` (Attributes) This means that container has got more than expected number of capabilities. Limiting the admission of containers with capabilities ensures that only a small number of containers have extended capabilities outside the default range. This helps ensure that if a container is compromised, it is unable to provide a productive path for an attacker to move laterally to other containers in the pod. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--container_with_many_capabilities))
+- `container_with_network_capabilities` (Attributes) CAP_NET_RAW is a powerful Linux capability. Processes with this capability can forge any kind of packet or bind to any address. This allows a container to open raw sockets and inject malicious packets into the Kubernetes container network. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--container_with_network_capabilities))
+- `container_with_sysadmin_capability` (Attributes) One of the containers found with CAP_SYS_ADMIN capability. CAP_SYS_ADMIN capability is equivalent to root user. It can help an attacker to escape the container. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--container_with_sysadmin_capability))
+- `container_with_unsafe_proc_mount` (Attributes) Container has access to the host's /proc filesystem. By default, container runtime masks certain parts of the /proc filesystem from within a container in order to prevent potential security issues. There are only two valid options for this entry: Default, which maintains the standard container runtime behavior, or Unmasked, which removes all masking for the /proc filesystem. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--container_with_unsafe_proc_mount))
+- `container_without_resource_limits` (Attributes) The container needs to have enough resources allocated on host to run. Without any resource constraints on container, a large application can drain all host resources, causing DoS attack (Denial of Service). (see [below for nested schema](#nestedatt--default_rule_group--default_rules--container_without_resource_limits))
+- `container_without_run_as_non_root` (Attributes) The container is allowed to run as root. Containers running as root allow applications to modify the container filesystem, memory and system packages at runtime. Additionally, root users can create raw sockets and bind on ports under 1024. These workloads should be avoided as it increases the attack surface. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--container_without_run_as_non_root))
+- `entrypoint_contains_chroot_command` (Attributes) Adversaries may attempt to gain root access to host by running chroot on the /mnt directory in the pod command. The pod command configures how the container will run when initiated. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--entrypoint_contains_chroot_command))
+- `entrypoint_contains_network_scanning_command` (Attributes) Presence of network scanning tool in the Pod command. The pod command configures how the container will run when initiated. Adversaries may attempt to get a listing of services running on remote hosts, including those that may be vulnerable to remote exploitation. Methods to acquire this information include port scans and vulnerability scans using tools that are brought onto a system. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--entrypoint_contains_network_scanning_command))
+- `host_network_attached_to_container` (Attributes) Workload is exposed through a shared host network. Sharing host network allows container to sniff traffic on the host, access localhost services on node and potentially bypass network policy to attack the host network. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--host_network_attached_to_container))
+- `host_port_attached_to_container` (Attributes) This container setting binds the container listening port to the IP address of the host. This exposes the pod to adjacent networks and/or to the Internet. Binding a pod to a hostPort, limits the number of places the pod can be scheduled, because each [hostIP, hostPort, protocol] combination must be unique. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--host_port_attached_to_container))
+- `malformed_sysctl_value` (Attributes) Sysctl allows users to modify the kernel settings at run time. A sysctl value was detected that attempts to set multiple kernel settings. This is an indication of malicious attempt to tamper with worker nodes in Kubernetes cluster. This is related to the vulnerability (CVE-2022-0811) that allows the attacker to pass malicious kernel settings via sysctl value and gain root access. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--malformed_sysctl_value))
+- `privilege_escalation_allowed` (Attributes) AllowPrivilegeEscalation controls whether a process can gain more privileges than its parent process. It can be a security risk as it may help child process gain more privileges. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--privilege_escalation_allowed))
+- `privileged_container` (Attributes) Privileged workload running in kubernetes. A privileged workload allows access to host resources and kernel capabilities which increases the attack surface significantly. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--privileged_container))
+- `runtime_socket_in_container` (Attributes) The container runtime socket such as /var/run/docker.sock is the UNIX socket that the Container Runtime is listening to. This is the primary entry point for the Container Runtime API. Providing access to runtime's socket is equivalent to giving unrestricted root access to your host. It leads to container escape and privilege escalation to host. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--runtime_socket_in_container))
+- `sensitive_data_in_environment` (Attributes) Environment variables expose sensitive data. Secrets found in environment variables. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--sensitive_data_in_environment))
+- `sensitive_data_in_secret_key_ref` (Attributes) Environment variables expose sensitive data. Secrets found in SecretKeyRef of spec. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--sensitive_data_in_secret_key_ref))
+- `sensitive_host_directories` (Attributes) Containers can mount sensitive folders from the hosts, giving them potentially dangerous access to critical host configurations and binaries. Sharing sensitive folders and files, such as / (root), /var/run/, docker.sock, etc. can allow a container to reconfigure the Kubernetes clusters, run new container images, etc. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--sensitive_host_directories))
+- `service_account_token_automounted` (Attributes) Service account secret token is mounted within the pod. Kubernetes mounts the service account token within a pod by default. If an application within the pod is compromised, an attacker can further compromise the cluster with the service account token. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--service_account_token_automounted))
+- `service_attached_to_load_balancer` (Attributes) The service is accessible from local network or the internet. A load balancer is exposing the workload, making it accessible from local network or the Internet. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--service_attached_to_load_balancer))
+- `service_attached_to_node_port` (Attributes) Workload is exposed through a node port. A node port can expose the workload on host network making it accessible from local network or the internet. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--service_attached_to_node_port))
+- `workload_in_default_namespace` (Attributes) Workload running in default namespace. Each workload or micro-service should run in a dedicated namespace with namespace specific security policies. A default namespace can be used by an attacker to bypass these specific security policies. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--workload_in_default_namespace))
+- `workload_with_unconfined_seccomp_profile` (Attributes) Workload should not have Unconfined seccomp profile attached. A seccomp policy specifies which system calls are allowed by the container. It is a sandboxing technique to limit system calls. An unconfined profile removes any system call limitations which allows an attacker to use any dangerous system call to break out of the container. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--workload_with_unconfined_seccomp_profile))
+- `workload_without_recommended_seccomp_profile` (Attributes) Workload should have seccomp profile attached. A seccomp policy specifies which system calls can be called by an application. It is a sandboxing technique that reduces the chance that a kernel vulnerability will be successfully exploited. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--workload_without_recommended_seccomp_profile))
+- `workload_without_security_context` (Attributes) Workload should have appropriate security context present. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--workload_without_security_context))
+- `workload_without_selinux_or_apparmor` (Attributes) Workload should have SELinux or AppArmor profile attached. SELinux (RedHat-based distributions) and AppArmor (Debian-based distributions) provides Mandatory Access Control (MAC). It is a kernel level security module which restricts the access to a resource, based on a policy rather than a user role. A process initiated by the root user inside a container can not access host resources even if they are available, which limits an attacker escaping a container. (see [below for nested schema](#nestedatt--default_rule_group--default_rules--workload_without_selinux_or_apparmor))
+
+<a id="nestedatt--default_rule_group--default_rules--container_in_host_ipc_namespace"></a>
+### Nested Schema for `default_rule_group.default_rules.container_in_host_ipc_namespace`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--container_in_host_pid_namespace"></a>
+### Nested Schema for `default_rule_group.default_rules.container_in_host_pid_namespace`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--container_run_as_root"></a>
+### Nested Schema for `default_rule_group.default_rules.container_run_as_root`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--container_using_unsafe_sysctls"></a>
+### Nested Schema for `default_rule_group.default_rules.container_using_unsafe_sysctls`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--container_with_many_capabilities"></a>
+### Nested Schema for `default_rule_group.default_rules.container_with_many_capabilities`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--container_with_network_capabilities"></a>
+### Nested Schema for `default_rule_group.default_rules.container_with_network_capabilities`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--container_with_sysadmin_capability"></a>
+### Nested Schema for `default_rule_group.default_rules.container_with_sysadmin_capability`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--container_with_unsafe_proc_mount"></a>
+### Nested Schema for `default_rule_group.default_rules.container_with_unsafe_proc_mount`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--container_without_resource_limits"></a>
+### Nested Schema for `default_rule_group.default_rules.container_without_resource_limits`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--container_without_run_as_non_root"></a>
+### Nested Schema for `default_rule_group.default_rules.container_without_run_as_non_root`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--entrypoint_contains_chroot_command"></a>
+### Nested Schema for `default_rule_group.default_rules.entrypoint_contains_chroot_command`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--entrypoint_contains_network_scanning_command"></a>
+### Nested Schema for `default_rule_group.default_rules.entrypoint_contains_network_scanning_command`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--host_network_attached_to_container"></a>
+### Nested Schema for `default_rule_group.default_rules.host_network_attached_to_container`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--host_port_attached_to_container"></a>
+### Nested Schema for `default_rule_group.default_rules.host_port_attached_to_container`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--malformed_sysctl_value"></a>
+### Nested Schema for `default_rule_group.default_rules.malformed_sysctl_value`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--privilege_escalation_allowed"></a>
+### Nested Schema for `default_rule_group.default_rules.privilege_escalation_allowed`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--privileged_container"></a>
+### Nested Schema for `default_rule_group.default_rules.privileged_container`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--runtime_socket_in_container"></a>
+### Nested Schema for `default_rule_group.default_rules.runtime_socket_in_container`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--sensitive_data_in_environment"></a>
+### Nested Schema for `default_rule_group.default_rules.sensitive_data_in_environment`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--sensitive_data_in_secret_key_ref"></a>
+### Nested Schema for `default_rule_group.default_rules.sensitive_data_in_secret_key_ref`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--sensitive_host_directories"></a>
+### Nested Schema for `default_rule_group.default_rules.sensitive_host_directories`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--service_account_token_automounted"></a>
+### Nested Schema for `default_rule_group.default_rules.service_account_token_automounted`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--service_attached_to_load_balancer"></a>
+### Nested Schema for `default_rule_group.default_rules.service_attached_to_load_balancer`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--service_attached_to_node_port"></a>
+### Nested Schema for `default_rule_group.default_rules.service_attached_to_node_port`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--workload_in_default_namespace"></a>
+### Nested Schema for `default_rule_group.default_rules.workload_in_default_namespace`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--workload_with_unconfined_seccomp_profile"></a>
+### Nested Schema for `default_rule_group.default_rules.workload_with_unconfined_seccomp_profile`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--workload_without_recommended_seccomp_profile"></a>
+### Nested Schema for `default_rule_group.default_rules.workload_without_recommended_seccomp_profile`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--workload_without_security_context"></a>
+### Nested Schema for `default_rule_group.default_rules.workload_without_security_context`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--default_rule_group--default_rules--workload_without_selinux_or_apparmor"></a>
+### Nested Schema for `default_rule_group.default_rules.workload_without_selinux_or_apparmor`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+
+<a id="nestedatt--default_rule_group--image_assessment"></a>
+### Nested Schema for `default_rule_group.image_assessment`
+
+Required:
+
+- `enabled` (Boolean) Enable Image Assessment in KAC.
+- `unassessed_handling` (String) The action KAC should take when image is unassessed (i.e. unknown). Must be one of: ["Alert", "Prevent", "Allow Without Alert"].
+
+
+<a id="nestedatt--default_rule_group--labels"></a>
+### Nested Schema for `default_rule_group.labels`
+
+Read-Only:
+
+- `key` (String) The default rule group label key is `"*"`.
+- `operator` (String) The default rule group label operator is `"eq" (equals)`.
+- `value` (String) The default rule group label value is `"*"`.
+
+
 
 <a id="nestedatt--rule_groups"></a>
 ### Nested Schema for `rule_groups`
@@ -121,7 +540,10 @@ Required:
 
 Optional:
 
-- `default_rule_overrides` (Attributes Set) (see [below for nested schema](#nestedatt--rule_groups--default_rule_overrides))
+- `default_rules` (Attributes) Set the action Falcon KAC should take when assessing default rules. All default rules are set to "Alert" by default. Action must be one of:
+ - "Disabled": Do nothing
+ - "Alert": Send an alert
+ - "Prevent": Prevent the object from running (see [below for nested schema](#nestedatt--rule_groups--default_rules))
 - `deny_on_error` (Boolean) Defines how KAC will handle an unrecognized error or timeout when processing an admission request. If set to "false", the pod or workload will be allowed to run.
 - `description` (String) Description of the KAC policy rule group.
 - `image_assessment` (Attributes) When enabled, KAC applies image assessment policies to pods or workloads that are being created or updated on the Kubernetes cluster. (see [below for nested schema](#nestedatt--rule_groups--image_assessment))
@@ -132,13 +554,388 @@ Read-Only:
 
 - `id` (String) Identifier for the KAC policy rule group.
 
-<a id="nestedatt--rule_groups--default_rule_overrides"></a>
-### Nested Schema for `rule_groups.default_rule_overrides`
+<a id="nestedatt--rule_groups--default_rules"></a>
+### Nested Schema for `rule_groups.default_rules`
 
-Required:
+Optional:
 
-- `action` (String)
-- `code` (String)
+- `container_in_host_ipc_namespace` (Attributes) Workload is exposed through a shared host ipc. Sharing host IPC allows container to communicate with host processes through IPC mechanism and access shared memory. It can potentially leak information or DoS the host process. (see [below for nested schema](#nestedatt--rule_groups--default_rules--container_in_host_ipc_namespace))
+- `container_in_host_pid_namespace` (Attributes) Workload is exposed through a shared host pid. Sharing host PID allows visibility of process on host, potentially leaking host and container processes, environment variables, configurations etc. (see [below for nested schema](#nestedatt--rule_groups--default_rules--container_in_host_pid_namespace))
+- `container_run_as_root` (Attributes) The container is configured to run as root. Containers running as root allow applications to modify the container filesystem, memory and system packages at runtime. Additionally, root users can create raw sockets and bind on ports under 1024. These workloads should be avoided as it increases the attack surface. (see [below for nested schema](#nestedatt--rule_groups--default_rules--container_run_as_root))
+- `container_using_unsafe_sysctls` (Attributes) Sysctl allows users to modify the kernel settings at run time. Some sysctl configs can exhaust resources for other containers. (see [below for nested schema](#nestedatt--rule_groups--default_rules--container_using_unsafe_sysctls))
+- `container_with_many_capabilities` (Attributes) This means that container has got more than expected number of capabilities. Limiting the admission of containers with capabilities ensures that only a small number of containers have extended capabilities outside the default range. This helps ensure that if a container is compromised, it is unable to provide a productive path for an attacker to move laterally to other containers in the pod. (see [below for nested schema](#nestedatt--rule_groups--default_rules--container_with_many_capabilities))
+- `container_with_network_capabilities` (Attributes) CAP_NET_RAW is a powerful Linux capability. Processes with this capability can forge any kind of packet or bind to any address. This allows a container to open raw sockets and inject malicious packets into the Kubernetes container network. (see [below for nested schema](#nestedatt--rule_groups--default_rules--container_with_network_capabilities))
+- `container_with_sysadmin_capability` (Attributes) One of the containers found with CAP_SYS_ADMIN capability. CAP_SYS_ADMIN capability is equivalent to root user. It can help an attacker to escape the container. (see [below for nested schema](#nestedatt--rule_groups--default_rules--container_with_sysadmin_capability))
+- `container_with_unsafe_proc_mount` (Attributes) Container has access to the host's /proc filesystem. By default, container runtime masks certain parts of the /proc filesystem from within a container in order to prevent potential security issues. There are only two valid options for this entry: Default, which maintains the standard container runtime behavior, or Unmasked, which removes all masking for the /proc filesystem. (see [below for nested schema](#nestedatt--rule_groups--default_rules--container_with_unsafe_proc_mount))
+- `container_without_resource_limits` (Attributes) The container needs to have enough resources allocated on host to run. Without any resource constraints on container, a large application can drain all host resources, causing DoS attack (Denial of Service). (see [below for nested schema](#nestedatt--rule_groups--default_rules--container_without_resource_limits))
+- `container_without_run_as_non_root` (Attributes) The container is allowed to run as root. Containers running as root allow applications to modify the container filesystem, memory and system packages at runtime. Additionally, root users can create raw sockets and bind on ports under 1024. These workloads should be avoided as it increases the attack surface. (see [below for nested schema](#nestedatt--rule_groups--default_rules--container_without_run_as_non_root))
+- `entrypoint_contains_chroot_command` (Attributes) Adversaries may attempt to gain root access to host by running chroot on the /mnt directory in the pod command. The pod command configures how the container will run when initiated. (see [below for nested schema](#nestedatt--rule_groups--default_rules--entrypoint_contains_chroot_command))
+- `entrypoint_contains_network_scanning_command` (Attributes) Presence of network scanning tool in the Pod command. The pod command configures how the container will run when initiated. Adversaries may attempt to get a listing of services running on remote hosts, including those that may be vulnerable to remote exploitation. Methods to acquire this information include port scans and vulnerability scans using tools that are brought onto a system. (see [below for nested schema](#nestedatt--rule_groups--default_rules--entrypoint_contains_network_scanning_command))
+- `host_network_attached_to_container` (Attributes) Workload is exposed through a shared host network. Sharing host network allows container to sniff traffic on the host, access localhost services on node and potentially bypass network policy to attack the host network. (see [below for nested schema](#nestedatt--rule_groups--default_rules--host_network_attached_to_container))
+- `host_port_attached_to_container` (Attributes) This container setting binds the container listening port to the IP address of the host. This exposes the pod to adjacent networks and/or to the Internet. Binding a pod to a hostPort, limits the number of places the pod can be scheduled, because each [hostIP, hostPort, protocol] combination must be unique. (see [below for nested schema](#nestedatt--rule_groups--default_rules--host_port_attached_to_container))
+- `malformed_sysctl_value` (Attributes) Sysctl allows users to modify the kernel settings at run time. A sysctl value was detected that attempts to set multiple kernel settings. This is an indication of malicious attempt to tamper with worker nodes in Kubernetes cluster. This is related to the vulnerability (CVE-2022-0811) that allows the attacker to pass malicious kernel settings via sysctl value and gain root access. (see [below for nested schema](#nestedatt--rule_groups--default_rules--malformed_sysctl_value))
+- `privilege_escalation_allowed` (Attributes) AllowPrivilegeEscalation controls whether a process can gain more privileges than its parent process. It can be a security risk as it may help child process gain more privileges. (see [below for nested schema](#nestedatt--rule_groups--default_rules--privilege_escalation_allowed))
+- `privileged_container` (Attributes) Privileged workload running in kubernetes. A privileged workload allows access to host resources and kernel capabilities which increases the attack surface significantly. (see [below for nested schema](#nestedatt--rule_groups--default_rules--privileged_container))
+- `runtime_socket_in_container` (Attributes) The container runtime socket such as /var/run/docker.sock is the UNIX socket that the Container Runtime is listening to. This is the primary entry point for the Container Runtime API. Providing access to runtime's socket is equivalent to giving unrestricted root access to your host. It leads to container escape and privilege escalation to host. (see [below for nested schema](#nestedatt--rule_groups--default_rules--runtime_socket_in_container))
+- `sensitive_data_in_environment` (Attributes) Environment variables expose sensitive data. Secrets found in environment variables. (see [below for nested schema](#nestedatt--rule_groups--default_rules--sensitive_data_in_environment))
+- `sensitive_data_in_secret_key_ref` (Attributes) Environment variables expose sensitive data. Secrets found in SecretKeyRef of spec. (see [below for nested schema](#nestedatt--rule_groups--default_rules--sensitive_data_in_secret_key_ref))
+- `sensitive_host_directories` (Attributes) Containers can mount sensitive folders from the hosts, giving them potentially dangerous access to critical host configurations and binaries. Sharing sensitive folders and files, such as / (root), /var/run/, docker.sock, etc. can allow a container to reconfigure the Kubernetes clusters, run new container images, etc. (see [below for nested schema](#nestedatt--rule_groups--default_rules--sensitive_host_directories))
+- `service_account_token_automounted` (Attributes) Service account secret token is mounted within the pod. Kubernetes mounts the service account token within a pod by default. If an application within the pod is compromised, an attacker can further compromise the cluster with the service account token. (see [below for nested schema](#nestedatt--rule_groups--default_rules--service_account_token_automounted))
+- `service_attached_to_load_balancer` (Attributes) The service is accessible from local network or the internet. A load balancer is exposing the workload, making it accessible from local network or the Internet. (see [below for nested schema](#nestedatt--rule_groups--default_rules--service_attached_to_load_balancer))
+- `service_attached_to_node_port` (Attributes) Workload is exposed through a node port. A node port can expose the workload on host network making it accessible from local network or the internet. (see [below for nested schema](#nestedatt--rule_groups--default_rules--service_attached_to_node_port))
+- `workload_in_default_namespace` (Attributes) Workload running in default namespace. Each workload or micro-service should run in a dedicated namespace with namespace specific security policies. A default namespace can be used by an attacker to bypass these specific security policies. (see [below for nested schema](#nestedatt--rule_groups--default_rules--workload_in_default_namespace))
+- `workload_with_unconfined_seccomp_profile` (Attributes) Workload should not have Unconfined seccomp profile attached. A seccomp policy specifies which system calls are allowed by the container. It is a sandboxing technique to limit system calls. An unconfined profile removes any system call limitations which allows an attacker to use any dangerous system call to break out of the container. (see [below for nested schema](#nestedatt--rule_groups--default_rules--workload_with_unconfined_seccomp_profile))
+- `workload_without_recommended_seccomp_profile` (Attributes) Workload should have seccomp profile attached. A seccomp policy specifies which system calls can be called by an application. It is a sandboxing technique that reduces the chance that a kernel vulnerability will be successfully exploited. (see [below for nested schema](#nestedatt--rule_groups--default_rules--workload_without_recommended_seccomp_profile))
+- `workload_without_security_context` (Attributes) Workload should have appropriate security context present. (see [below for nested schema](#nestedatt--rule_groups--default_rules--workload_without_security_context))
+- `workload_without_selinux_or_apparmor` (Attributes) Workload should have SELinux or AppArmor profile attached. SELinux (RedHat-based distributions) and AppArmor (Debian-based distributions) provides Mandatory Access Control (MAC). It is a kernel level security module which restricts the access to a resource, based on a policy rather than a user role. A process initiated by the root user inside a container can not access host resources even if they are available, which limits an attacker escaping a container. (see [below for nested schema](#nestedatt--rule_groups--default_rules--workload_without_selinux_or_apparmor))
+
+<a id="nestedatt--rule_groups--default_rules--container_in_host_ipc_namespace"></a>
+### Nested Schema for `rule_groups.default_rules.container_in_host_ipc_namespace`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--container_in_host_pid_namespace"></a>
+### Nested Schema for `rule_groups.default_rules.container_in_host_pid_namespace`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--container_run_as_root"></a>
+### Nested Schema for `rule_groups.default_rules.container_run_as_root`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--container_using_unsafe_sysctls"></a>
+### Nested Schema for `rule_groups.default_rules.container_using_unsafe_sysctls`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--container_with_many_capabilities"></a>
+### Nested Schema for `rule_groups.default_rules.container_with_many_capabilities`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--container_with_network_capabilities"></a>
+### Nested Schema for `rule_groups.default_rules.container_with_network_capabilities`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--container_with_sysadmin_capability"></a>
+### Nested Schema for `rule_groups.default_rules.container_with_sysadmin_capability`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--container_with_unsafe_proc_mount"></a>
+### Nested Schema for `rule_groups.default_rules.container_with_unsafe_proc_mount`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--container_without_resource_limits"></a>
+### Nested Schema for `rule_groups.default_rules.container_without_resource_limits`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--container_without_run_as_non_root"></a>
+### Nested Schema for `rule_groups.default_rules.container_without_run_as_non_root`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--entrypoint_contains_chroot_command"></a>
+### Nested Schema for `rule_groups.default_rules.entrypoint_contains_chroot_command`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--entrypoint_contains_network_scanning_command"></a>
+### Nested Schema for `rule_groups.default_rules.entrypoint_contains_network_scanning_command`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--host_network_attached_to_container"></a>
+### Nested Schema for `rule_groups.default_rules.host_network_attached_to_container`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--host_port_attached_to_container"></a>
+### Nested Schema for `rule_groups.default_rules.host_port_attached_to_container`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--malformed_sysctl_value"></a>
+### Nested Schema for `rule_groups.default_rules.malformed_sysctl_value`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--privilege_escalation_allowed"></a>
+### Nested Schema for `rule_groups.default_rules.privilege_escalation_allowed`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--privileged_container"></a>
+### Nested Schema for `rule_groups.default_rules.privileged_container`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--runtime_socket_in_container"></a>
+### Nested Schema for `rule_groups.default_rules.runtime_socket_in_container`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--sensitive_data_in_environment"></a>
+### Nested Schema for `rule_groups.default_rules.sensitive_data_in_environment`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--sensitive_data_in_secret_key_ref"></a>
+### Nested Schema for `rule_groups.default_rules.sensitive_data_in_secret_key_ref`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--sensitive_host_directories"></a>
+### Nested Schema for `rule_groups.default_rules.sensitive_host_directories`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--service_account_token_automounted"></a>
+### Nested Schema for `rule_groups.default_rules.service_account_token_automounted`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--service_attached_to_load_balancer"></a>
+### Nested Schema for `rule_groups.default_rules.service_attached_to_load_balancer`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--service_attached_to_node_port"></a>
+### Nested Schema for `rule_groups.default_rules.service_attached_to_node_port`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--workload_in_default_namespace"></a>
+### Nested Schema for `rule_groups.default_rules.workload_in_default_namespace`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--workload_with_unconfined_seccomp_profile"></a>
+### Nested Schema for `rule_groups.default_rules.workload_with_unconfined_seccomp_profile`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--workload_without_recommended_seccomp_profile"></a>
+### Nested Schema for `rule_groups.default_rules.workload_without_recommended_seccomp_profile`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--workload_without_security_context"></a>
+### Nested Schema for `rule_groups.default_rules.workload_without_security_context`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
+
+<a id="nestedatt--rule_groups--default_rules--workload_without_selinux_or_apparmor"></a>
+### Nested Schema for `rule_groups.default_rules.workload_without_selinux_or_apparmor`
+
+Optional:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the default rule.
+
+Read-Only:
+
+- `code` (String) Identifier, as a 6 digit code, for the KAC policy default rule.
+
 
 
 <a id="nestedatt--rule_groups--image_assessment"></a>
@@ -147,7 +944,7 @@ Required:
 Required:
 
 - `enabled` (Boolean) Enable Image Assessment in KAC.
-- `unassessed_handling` (String) The action KAC should take when image is unassessed (i.e. unknown). Must be one of: ["Alert", "Prevent", "Allow Without Alert"].
+- `unassessed_handling` (String) The action Falcon KAC should take when image is unassessed (i.e. unknown). Must be one of: ["Alert", "Prevent", "Allow Without Alert"].
 
 
 <a id="nestedatt--rule_groups--labels"></a>
