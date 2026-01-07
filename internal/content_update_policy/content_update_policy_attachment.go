@@ -6,6 +6,7 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
@@ -115,13 +116,13 @@ func (r *contentUpdatePolicyAttachmentResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
@@ -129,7 +130,7 @@ func (r *contentUpdatePolicyAttachmentResource) Configure(
 		return
 	}
 
-	r.client = client
+	r.client = config.Client
 }
 
 func (r *contentUpdatePolicyAttachmentResource) Metadata(
