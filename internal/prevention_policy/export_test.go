@@ -8,6 +8,4 @@ type (
 var (
 	FilterPoliciesByIDs        = filterPoliciesByIDs
 	FilterPoliciesByAttributes = filterPoliciesByAttributes
-	FindGroupsToRemove         = findGroupsToRemove
-	MergeSetItems              = mergeSetItems
 )

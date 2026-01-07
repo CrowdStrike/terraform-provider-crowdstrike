@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_google_cloud_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
@@ -24,21 +25,21 @@ import (
 )
 
 var (
-	_ resource.Resource                   = &cloudGoogleRegistrationLoggingSettingsResource{}
-	_ resource.ResourceWithConfigure      = &cloudGoogleRegistrationLoggingSettingsResource{}
-	_ resource.ResourceWithImportState    = &cloudGoogleRegistrationLoggingSettingsResource{}
-	_ resource.ResourceWithValidateConfig = &cloudGoogleRegistrationLoggingSettingsResource{}
+	_ resource.Resource                   = &cloudGoogleRegistrationSettingsResource{}
+	_ resource.ResourceWithConfigure      = &cloudGoogleRegistrationSettingsResource{}
+	_ resource.ResourceWithImportState    = &cloudGoogleRegistrationSettingsResource{}
+	_ resource.ResourceWithValidateConfig = &cloudGoogleRegistrationSettingsResource{}
 )
 
-func NewCloudGoogleRegistrationLoggingSettingsResource() resource.Resource {
-	return &cloudGoogleRegistrationLoggingSettingsResource{}
+func NewCloudGoogleRegistrationSettingsResource() resource.Resource {
+	return &cloudGoogleRegistrationSettingsResource{}
 }
 
-type cloudGoogleRegistrationLoggingSettingsResource struct {
+type cloudGoogleRegistrationSettingsResource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-func (r *cloudGoogleRegistrationLoggingSettingsResource) Configure(
+func (r *cloudGoogleRegistrationSettingsResource) Configure(
 	ctx context.Context,
 	req resource.ConfigureRequest,
 	resp *resource.ConfigureResponse,
@@ -47,13 +48,13 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
@@ -61,27 +62,27 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Configure(
 		return
 	}
 
-	r.client = client
+	r.client = config.Client
 }
 
-func (r *cloudGoogleRegistrationLoggingSettingsResource) Metadata(
+func (r *cloudGoogleRegistrationSettingsResource) Metadata(
 	ctx context.Context,
 	req resource.MetadataRequest,
 	resp *resource.MetadataResponse,
 ) {
-	resp.TypeName = req.ProviderTypeName + "_cloud_google_registration_logging_settings"
+	resp.TypeName = req.ProviderTypeName + "_cloud_google_registration_settings"
 }
 
-type cloudGoogleRegistrationLoggingSettingsModel struct {
+type cloudGoogleRegistrationSettingsModel struct {
 	RegistrationID               types.String `tfsdk:"registration_id"`
 	LogIngestionSinkName         types.String `tfsdk:"log_ingestion_sink_name"`
 	LogIngestionTopicID          types.String `tfsdk:"log_ingestion_topic_id"`
 	LogIngestionSubscriptionName types.String `tfsdk:"log_ingestion_subscription_name"`
-	WifProjectID                 types.String `tfsdk:"wif_project"`
-	WifProjectNumber             types.String `tfsdk:"wif_project_number"`
+	WifPoolName                  types.String `tfsdk:"wif_pool_name"`
+	WifProviderName              types.String `tfsdk:"wif_provider_name"`
 }
 
-func (r *cloudGoogleRegistrationLoggingSettingsResource) Schema(
+func (r *cloudGoogleRegistrationSettingsResource) Schema(
 	ctx context.Context,
 	req resource.SchemaRequest,
 	resp *resource.SchemaResponse,
@@ -89,13 +90,13 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
 			"Falcon Cloud Security",
-			"This resource manages the log ingestion settings for a Google Cloud registration in Falcon Cloud Security.",
+			"This resource manages settings for a Google Cloud registration in Falcon Cloud Security that may not be known until after the registration has been created, such as log ingestion and Workload Identity Federation (WIF) configuration.",
 			gcpRegistrationScopes,
 		),
 		Attributes: map[string]schema.Attribute{
 			"registration_id": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "The Google Cloud registration ID to configure log ingestion settings for.",
+				MarkdownDescription: "The Google Cloud registration ID to configure settings for.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -124,16 +125,16 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Schema(
 					validators.StringNotWhitespace(),
 				},
 			},
-			"wif_project": schema.StringAttribute{
-				Required:    true,
-				Description: "The Google Cloud project ID for Workload Identity Federation.",
+			"wif_pool_name": schema.StringAttribute{
+				Optional:    true,
+				Description: "The Workload Identity Federation (WIF) pool name.",
 				Validators: []validator.String{
 					validators.StringNotWhitespace(),
 				},
 			},
-			"wif_project_number": schema.StringAttribute{
-				Required:    true,
-				Description: "The Google Cloud project number for Workload Identity Federation.",
+			"wif_provider_name": schema.StringAttribute{
+				Optional:    true,
+				Description: "The Workload Identity Federation (WIF) provider name.",
 				Validators: []validator.String{
 					validators.StringNotWhitespace(),
 				},
@@ -142,7 +143,7 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Schema(
 	}
 }
 
-func (m *cloudGoogleRegistrationLoggingSettingsModel) wrap(
+func (m *cloudGoogleRegistrationSettingsModel) wrap(
 	registration *models.DtoGCPRegistration,
 ) {
 	m.RegistrationID = types.StringValue(registration.RegistrationID)
@@ -157,21 +158,21 @@ func (m *cloudGoogleRegistrationLoggingSettingsModel) wrap(
 	m.LogIngestionTopicID = flex.StringValueToFramework(topicID)
 	m.LogIngestionSubscriptionName = flex.StringValueToFramework(subscriptionID)
 
-	var wifProjectID, wifProjectNumber string
+	var wifPoolName, wifProviderName string
 	if registration.WifProperties != nil {
-		wifProjectID = registration.WifProperties.ProjectID
-		wifProjectNumber = registration.WifProperties.ProjectNumber
+		wifPoolName = registration.WifProperties.PoolName
+		wifProviderName = registration.WifProperties.ProviderName
 	}
-	m.WifProjectID = types.StringValue(wifProjectID)
-	m.WifProjectNumber = types.StringValue(wifProjectNumber)
+	m.WifPoolName = flex.StringValueToFramework(wifPoolName)
+	m.WifProviderName = flex.StringValueToFramework(wifProviderName)
 }
 
-func (r *cloudGoogleRegistrationLoggingSettingsResource) Create(
+func (r *cloudGoogleRegistrationSettingsResource) Create(
 	ctx context.Context,
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-	var data cloudGoogleRegistrationLoggingSettingsModel
+	var data cloudGoogleRegistrationSettingsModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -184,7 +185,11 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Create(
 		return
 	}
 
-	if !r.isIOAEnabled(registration) {
+	hasLogSettings := !data.LogIngestionSinkName.IsNull() ||
+		!data.LogIngestionTopicID.IsNull() ||
+		!data.LogIngestionSubscriptionName.IsNull()
+
+	if hasLogSettings && !r.isIOAEnabled(registration) {
 		resp.Diagnostics.AddError(
 			"IOA Not Enabled",
 			fmt.Sprintf(
@@ -202,12 +207,12 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Create(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *cloudGoogleRegistrationLoggingSettingsResource) Read(
+func (r *cloudGoogleRegistrationSettingsResource) Read(
 	ctx context.Context,
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-	var data cloudGoogleRegistrationLoggingSettingsModel
+	var data cloudGoogleRegistrationSettingsModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -235,12 +240,12 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Read(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *cloudGoogleRegistrationLoggingSettingsResource) Update(
+func (r *cloudGoogleRegistrationSettingsResource) Update(
 	ctx context.Context,
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	var data cloudGoogleRegistrationLoggingSettingsModel
+	var data cloudGoogleRegistrationSettingsModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -252,7 +257,11 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Update(
 		return
 	}
 
-	if !r.isIOAEnabled(registration) {
+	hasLogSettings := !data.LogIngestionSinkName.IsNull() ||
+		!data.LogIngestionTopicID.IsNull() ||
+		!data.LogIngestionSubscriptionName.IsNull()
+
+	if hasLogSettings && !r.isIOAEnabled(registration) {
 		resp.Diagnostics.AddError(
 			"IOA Not Enabled",
 			fmt.Sprintf(
@@ -270,12 +279,12 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Update(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-func (r *cloudGoogleRegistrationLoggingSettingsResource) Delete(
+func (r *cloudGoogleRegistrationSettingsResource) Delete(
 	ctx context.Context,
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-	var data cloudGoogleRegistrationLoggingSettingsModel
+	var data cloudGoogleRegistrationSettingsModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -284,8 +293,8 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Delete(
 	data.LogIngestionSinkName = types.StringValue("")
 	data.LogIngestionTopicID = types.StringValue("")
 	data.LogIngestionSubscriptionName = types.StringValue("")
-	data.WifProjectID = types.StringValue("")
-	data.WifProjectNumber = types.StringValue("")
+	data.WifPoolName = types.StringValue("")
+	data.WifProviderName = types.StringValue("")
 
 	registration, err := r.updateRegistration(ctx, &data)
 	resp.Diagnostics.Append(err...)
@@ -300,18 +309,49 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) Delete(
 
 	data.wrap(registration)
 
-	if registration.LogIngestionProperties != nil && (registration.LogIngestionProperties.SinkName != "" ||
-		registration.LogIngestionProperties.TopicID != "" ||
-		registration.LogIngestionProperties.SubscriptionID != "") {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("log_ingestion_sink_name"),
-			"Delete failed.",
-			"Log ingestion settings were returned after the attempt to remove them. This is a bug in the provider. Please report this issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues"+registration.LogIngestionProperties.SinkName+registration.LogIngestionProperties.TopicID+registration.LogIngestionProperties.SubscriptionID,
-		)
+	if registration.LogIngestionProperties != nil {
+		if registration.LogIngestionProperties.SinkName != "" {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("log_ingestion_sink_name"),
+				"Delete failed.",
+				"Log ingestion sink name was returned after the attempt to remove it. This is a bug in the provider. Please report this issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
+			)
+		}
+		if registration.LogIngestionProperties.TopicID != "" {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("log_ingestion_topic_id"),
+				"Delete failed.",
+				"Log ingestion topic ID was returned after the attempt to remove it. This is a bug in the provider. Please report this issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
+			)
+		}
+		if registration.LogIngestionProperties.SubscriptionID != "" {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("log_ingestion_subscription_name"),
+				"Delete failed.",
+				"Log ingestion subscription name was returned after the attempt to remove it. This is a bug in the provider. Please report this issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
+			)
+		}
+	}
+
+	if registration.WifProperties != nil {
+		if registration.WifProperties.PoolName != "" {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("wif_pool_name"),
+				"Delete failed.",
+				"WIF pool name was returned after the attempt to remove it. This is a bug in the provider. Please report this issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
+			)
+		}
+		if registration.WifProperties.ProviderName != "" {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("wif_provider_name"),
+				"Delete failed.",
+				"WIF provider name was returned after the attempt to remove it. This is a bug in the provider. Please report this issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
+			)
+		}
 	}
 }
 
-func (r *cloudGoogleRegistrationLoggingSettingsResource) ImportState(
+func (r *cloudGoogleRegistrationSettingsResource) ImportState(
 	ctx context.Context,
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
@@ -319,19 +359,19 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("registration_id"), req, resp)
 }
 
-func (r *cloudGoogleRegistrationLoggingSettingsResource) ValidateConfig(
+func (r *cloudGoogleRegistrationSettingsResource) ValidateConfig(
 	ctx context.Context,
 	req resource.ValidateConfigRequest,
 	resp *resource.ValidateConfigResponse,
 ) {
-	var config cloudGoogleRegistrationLoggingSettingsModel
+	var config cloudGoogleRegistrationSettingsModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 }
 
-func (r *cloudGoogleRegistrationLoggingSettingsResource) isIOAEnabled(
+func (r *cloudGoogleRegistrationSettingsResource) isIOAEnabled(
 	registration *models.DtoGCPRegistration,
 ) bool {
 	if registration == nil {
@@ -351,7 +391,7 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) isIOAEnabled(
 	return false
 }
 
-func (r *cloudGoogleRegistrationLoggingSettingsResource) getRegistration(
+func (r *cloudGoogleRegistrationSettingsResource) getRegistration(
 	ctx context.Context,
 	registrationID string,
 ) (*models.DtoGCPRegistration, diag.Diagnostics) {
@@ -388,20 +428,18 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) getRegistration(
 	return res.Payload.Resources[0], diags
 }
 
-func (r *cloudGoogleRegistrationLoggingSettingsResource) updateRegistration(
+func (r *cloudGoogleRegistrationSettingsResource) updateRegistration(
 	ctx context.Context,
-	data *cloudGoogleRegistrationLoggingSettingsModel,
+	data *cloudGoogleRegistrationSettingsModel,
 ) (*models.DtoGCPRegistration, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	deploymentMethod := "terraform-native"
 	updateReq := &models.DtoUpdateGCPRegistrationRequest{
-		DeploymentMethod:             &deploymentMethod,
 		LogIngestionSinkName:         flex.FrameworkToStringPointer(data.LogIngestionSinkName),
 		LogIngestionTopicID:          flex.FrameworkToStringPointer(data.LogIngestionTopicID),
 		LogIngestionSubscriptionName: flex.FrameworkToStringPointer(data.LogIngestionSubscriptionName),
-		WifProjectID:                 data.WifProjectID.ValueString(),
-		WifProjectNumber:             data.WifProjectNumber.ValueString(),
+		WifPoolName:                  flex.FrameworkToStringPointer(data.WifPoolName),
+		WifProviderName:              flex.FrameworkToStringPointer(data.WifProviderName),
 	}
 
 	params := &cloud_google_cloud_registration.CloudRegistrationGcpUpdateRegistrationParams{
@@ -442,7 +480,7 @@ func (r *cloudGoogleRegistrationLoggingSettingsResource) updateRegistration(
 	return res.Payload.Resources[0], diags
 }
 
-func (r *cloudGoogleRegistrationLoggingSettingsResource) triggerHealthCheck(
+func (r *cloudGoogleRegistrationSettingsResource) triggerHealthCheck(
 	ctx context.Context,
 	registrationID string,
 ) diag.Diagnostics {

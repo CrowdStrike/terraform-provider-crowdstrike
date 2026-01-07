@@ -2,7 +2,7 @@
 page_title: "crowdstrike_sensor_update_policy_host_group_attachment Resource - crowdstrike"
 subcategory: "Sensor Update Policy"
 description: |-
-  This resource allows managing the host groups attached to a sensor update policy. This resource takes exclusive ownership over the host groups assigned to a sensor update policy. If you want to fully create or manage a sensor update policy please use the crowdstrike_sensor_update_policy resource.
+  This resource allows managing the host groups attached to a sensor update policy. By default (when exclusive is true), this resource takes exclusive ownership over the host groups assigned to a sensor update policy. When exclusive is false, this resource only manages the specific host groups defined in the configuration. If you want to fully create or manage a sensor update policy please use the crowdstrike_sensor_update_policy resource.
   API Scopes
   The following API scopes are required:
   Sensor update policies | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_sensor_update_policy_host_group_attachment (Resource)
 
-This resource allows managing the host groups attached to a sensor update policy. This resource takes exclusive ownership over the host groups assigned to a sensor update policy. If you want to fully create or manage a sensor update policy please use the `crowdstrike_sensor_update_policy` resource.
+This resource allows managing the host groups attached to a sensor update policy. By default (when `exclusive` is true), this resource takes exclusive ownership over the host groups assigned to a sensor update policy. When `exclusive` is false, this resource only manages the specific host groups defined in the configuration. If you want to fully create or manage a sensor update policy please use the `crowdstrike_sensor_update_policy` resource.
 
 ## API Scopes
 
@@ -40,6 +40,13 @@ resource "crowdstrike_sensor_update_policy_host_group_attachment" "example" {
   host_groups = ["ff1ca3nfr7899j1abf61c0448db28be5"]
 }
 
+# exclusive = false can be used to only manage a subset of host groups
+resource "crowdstrike_sensor_update_policy_host_group_attachment" "partial" {
+  id          = "34ef8e65eb1b4642861e389da3f7e82f"
+  exclusive   = false
+  host_groups = ["ff1ca3nfr7899j1abf61c0448db28be5"]
+}
+
 output "sensor_update_policy_host_group_attachment" {
   value = crowdstrike_sensor_update_policy_host_group_attachment.example
 }
@@ -54,6 +61,7 @@ output "sensor_update_policy_host_group_attachment" {
 
 ### Optional
 
+- `exclusive` (Boolean) When true (default), this resource takes exclusive ownership of all host groups attached to the sensor update policy. When false, this resource only manages the specific host groups defined in the configuration, leaving other groups untouched.
 - `host_groups` (Set of String) Host Group ids to attach to the sensor update policy.
 
 ### Read-Only
