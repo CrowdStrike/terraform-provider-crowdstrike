@@ -1,9 +1,11 @@
-package flex
+package flex_test
 
 import (
 	"context"
 	"testing"
 
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -59,7 +61,7 @@ func TestExpandSetAs_Strings(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			diags := &diag.Diagnostics{}
-			result := ExpandSetAs[string](ctx, tc.input, diags)
+			result := flex.ExpandSetAs[string](ctx, tc.input, diags)
 
 			assert.Equal(t, tc.expected, result)
 
@@ -106,7 +108,7 @@ func TestExpandSetAs_Int64(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			diags := &diag.Diagnostics{}
-			result := ExpandSetAs[int64](ctx, tc.input, diags)
+			result := flex.ExpandSetAs[int64](ctx, tc.input, diags)
 
 			assert.Equal(t, tc.expected, result)
 
@@ -180,7 +182,7 @@ func TestExpandSetAs_Objects(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			diags := &diag.Diagnostics{}
-			result := ExpandSetAs[testObject](ctx, tc.input, diags)
+			result := flex.ExpandSetAs[testObject](ctx, tc.input, diags)
 
 			assert.Equal(t, tc.expected, result)
 
@@ -191,4 +193,126 @@ func TestExpandSetAs_Objects(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMergeSet(t *testing.T) {
+	t.Parallel()
+
+	testcases := []struct {
+		name     string
+		a        types.Set
+		b        types.Set
+		expected []string
+	}{
+		{
+			name:     "both null",
+			a:        types.SetNull(types.StringType),
+			b:        types.SetNull(types.StringType),
+			expected: []string{},
+		},
+		{
+			name:     "a null",
+			a:        types.SetNull(types.StringType),
+			b:        acctest.StringSetOrNull("group1", "group2"),
+			expected: []string{"group1", "group2"},
+		},
+		{
+			name:     "b null",
+			a:        acctest.StringSetOrNull("group1", "group2"),
+			b:        types.SetNull(types.StringType),
+			expected: []string{"group1", "group2"},
+		},
+		{
+			name:     "no overlap",
+			a:        acctest.StringSetOrNull("group1", "group2"),
+			b:        acctest.StringSetOrNull("group3", "group4"),
+			expected: []string{"group1", "group2", "group3", "group4"},
+		},
+		{
+			name:     "duplicates",
+			a:        acctest.StringSetOrNull("group1", "group1", "group2"),
+			b:        acctest.StringSetOrNull("group2", "group2", "group3"),
+			expected: []string{"group1", "group2", "group3"},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			var diags diag.Diagnostics
+			result := flex.MergeStringSet(t.Context(), tc.a, tc.b, &diags)
+
+			assert.False(t, diags.HasError(), "unexpected diagnostics errors: %v", diags.Errors())
+
+			expected := acctest.StringSetOrNull(tc.expected...)
+			assert.True(t, result.Equal(expected), "expected %v, got %v", expected, result)
+		})
+	}
+}
+
+func TestDiffSet(t *testing.T) {
+	t.Parallel()
+
+	testcases := []struct {
+		name     string
+		a        types.Set
+		b        types.Set
+		expected []string
+	}{
+		{
+			name:     "a null",
+			a:        types.SetNull(types.StringType),
+			b:        acctest.StringSetOrNull("group1"),
+			expected: nil,
+		},
+		{
+			name:     "b null",
+			a:        acctest.StringSetOrNull("group1", "group2"),
+			b:        types.SetNull(types.StringType),
+			expected: []string{"group1", "group2"},
+		},
+		{
+			name:     "no changes",
+			a:        acctest.StringSetOrNull("group1", "group2"),
+			b:        acctest.StringSetOrNull("group1", "group2"),
+			expected: nil,
+		},
+		{
+			name:     "remove multiple",
+			a:        acctest.StringSetOrNull("group1", "group2", "group3"),
+			b:        acctest.StringSetOrNull("group1"),
+			expected: []string{"group2", "group3"},
+		},
+		{
+			name:     "b adds new",
+			a:        acctest.StringSetOrNull("group1"),
+			b:        acctest.StringSetOrNull("group1", "group2"),
+			expected: nil,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			var diags diag.Diagnostics
+			result := flex.DiffStringSet(t.Context(), tc.a, tc.b, &diags)
+
+			assert.False(t, diags.HasError(), "unexpected diagnostics errors: %v", diags.Errors())
+
+			if tc.expected == nil {
+				assert.Nil(t, result)
+				return
+			}
+
+			resultSet := acctest.StringSetOrNull(convertToStrings(result)...)
+			expectedSet := acctest.StringSetOrNull(tc.expected...)
+			assert.True(t, resultSet.Equal(expectedSet), "expected %v, got %v", expectedSet, resultSet)
+		})
+	}
+}
+
+func convertToStrings(items []types.String) []string {
+	result := make([]string, len(items))
+	for i, item := range items {
+		result[i] = item.ValueString()
+	}
+	return result
 }
