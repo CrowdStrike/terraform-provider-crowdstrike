@@ -16,9 +16,4 @@ var cloudSecurityKacPolicyScopes = []scopes.Scope{
 		Read:  true,
 		Write: true,
 	},
-	{
-		Name:  "Kubernetes Admission Control Policy",
-		Read:  true,
-		Write: true,
-	},
 }

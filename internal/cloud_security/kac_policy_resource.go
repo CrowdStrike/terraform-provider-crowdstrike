@@ -4,15 +4,17 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/admission_control_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -25,6 +27,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 var (
@@ -49,25 +52,24 @@ type cloudSecurityKacPolicyResource struct {
 }
 
 type cloudSecurityKacPolicyResourceModel struct {
-	ID          types.String `tfsdk:"id"`
-	Name        types.String `tfsdk:"name"`
-	Description types.String `tfsdk:"description"`
-	IsEnabled   types.Bool   `tfsdk:"is_enabled"`
-	Precedence  types.Int32  `tfsdk:"precedence"`
-	HostGroups  types.Set    `tfsdk:"host_groups"`
-	RuleGroups  types.List   `tfsdk:"rule_groups"`
+	ID               types.String `tfsdk:"id"`
+	Name             types.String `tfsdk:"name"`
+	Description      types.String `tfsdk:"description"`
+	IsEnabled        types.Bool   `tfsdk:"is_enabled"`
+	HostGroups       types.Set    `tfsdk:"host_groups"`
+	RuleGroups       types.List   `tfsdk:"rule_groups"`
+	DefaultRuleGroup types.Object `tfsdk:"default_rule_group"`
 }
 
 type ruleGroupTFModel struct {
-	ID                   types.String `tfsdk:"id"`
-	Name                 types.String `tfsdk:"name"`
-	Description          types.String `tfsdk:"description"`
-	DenyOnError          types.Bool   `tfsdk:"deny_on_error"`
-	ImageAssessment      types.Object `tfsdk:"image_assessment"`
-	Namespaces           types.Set    `tfsdk:"namespaces"`
-	Labels               types.Set    `tfsdk:"labels"`
-	DefaultRuleOverrides types.Set    `tfsdk:"default_rule_overrides"`
-	// DefaultRuleGroup     types.Bool   `tfsdk:"default_rule_group"`
+	ID              types.String `tfsdk:"id"`
+	Name            types.String `tfsdk:"name"`
+	Description     types.String `tfsdk:"description"`
+	DenyOnError     types.Bool   `tfsdk:"deny_on_error"`
+	ImageAssessment types.Object `tfsdk:"image_assessment"`
+	Namespaces      types.Set    `tfsdk:"namespaces"`
+	Labels          types.Set    `tfsdk:"labels"`
+	DefaultRules    types.Object `tfsdk:"default_rules"`
 }
 
 type imageAssessmentTFModel struct {
@@ -84,25 +86,56 @@ type labelTFModel struct {
 func (m *cloudSecurityKacPolicyResourceModel) wrap(
 	ctx context.Context,
 	policy *models.PolicyhandlerKACPolicy,
-) {
-	if policy.ID != nil {
-		m.ID = types.StringValue(*policy.ID)
-	}
-	if policy.Name != nil {
-		m.Name = types.StringValue(*policy.Name)
-	}
-	if policy.Description != nil && strings.TrimSpace(*policy.Description) != "" {
-		m.Description = types.StringValue(*policy.Description)
-	}
+) diag.Diagnostics {
+	var diags diag.Diagnostics
 
+	m.ID = types.StringPointerValue(policy.ID)
+	m.Name = types.StringPointerValue(policy.Name)
+	m.Description = flex.StringPointerToFramework(policy.Description)
 	m.IsEnabled = types.BoolValue(*policy.IsEnabled)
-	m.Precedence = types.Int32PointerValue(policy.Precedence)
 
-	hostGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, policy.HostGroups)
-	if diags.HasError() {
-		return
+	if policy.HostGroups != nil {
+		hostGroupIDs, setValueDiags := types.SetValueFrom(ctx, types.StringType, policy.HostGroups)
+		diags.Append(setValueDiags...)
+		if diags.HasError() {
+			return diags
+		}
+		m.HostGroups = hostGroupIDs
+	} else if !m.HostGroups.IsNull() {
+		m.HostGroups = types.SetValueMust(types.StringType, []attr.Value{})
 	}
-	m.HostGroups = hostGroupIDs
+
+	// size of rule groups excludes the default rule group
+	ruleGroups := make([]ruleGroupTFModel, 0, len(policy.RuleGroups)-1)
+	for _, rg := range policy.RuleGroups {
+		tfRuleGroup := ruleGroupTFModel{}
+		diags.Append(tfRuleGroup.wrapRuleGroup(ctx, rg)...)
+
+		// The default rule group is handled differently
+		if rg.IsDefault != nil && *rg.IsDefault {
+			defaultRuleGroup, objectDiags := types.ObjectValueFrom(ctx, ruleGroupAttributeMap, tfRuleGroup)
+			diags.Append(objectDiags...)
+
+			m.DefaultRuleGroup = defaultRuleGroup
+			continue
+		}
+
+		ruleGroups = append(ruleGroups, tfRuleGroup)
+	}
+
+	if len(ruleGroups) > 0 {
+		ruleGroupsList, listValueDiags := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: ruleGroupAttributeMap}, ruleGroups)
+		diags.Append(listValueDiags...)
+		if diags.HasError() {
+			return diags
+		}
+
+		m.RuleGroups = ruleGroupsList
+	} else if !m.RuleGroups.IsNull() {
+		m.RuleGroups = types.ListValueMust(types.ObjectType{AttrTypes: ruleGroupAttributeMap}, []attr.Value{})
+	}
+
+	return diags
 }
 
 func (r *cloudSecurityKacPolicyResource) Configure(
@@ -114,13 +147,13 @@ func (r *cloudSecurityKacPolicyResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
@@ -128,7 +161,7 @@ func (r *cloudSecurityKacPolicyResource) Configure(
 		return
 	}
 
-	r.client = client
+	r.client = config.Client
 }
 
 func (r *cloudSecurityKacPolicyResource) Metadata(
@@ -149,7 +182,7 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
-				Description: "Identifier for the Cloud Security Kac Policy.",
+				Description: "Identifier for the Cloud Security KAC Policy.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -176,11 +209,6 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
 				},
-			},
-			"precedence": schema.Int32Attribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "The order of priority when evaluating KAC policies, 1 being the highest priority.",
 			},
 			"host_groups": schema.SetAttribute{
 				Optional:    true,
@@ -236,7 +264,7 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 								},
 								"unassessed_handling": schema.StringAttribute{
 									Required:            true,
-									MarkdownDescription: "The action KAC should take when image is unassessed (i.e. unknown). Must be one of: [\"Alert\", \"Prevent\", \"Allow Without Alert\"].",
+									MarkdownDescription: "The action Falcon KAC should take when image is unassessed (i.e. unknown). Must be one of: [\"Alert\", \"Prevent\", \"Allow Without Alert\"].",
 									Validators: []validator.String{
 										stringvalidator.OneOf("Alert", "Prevent", "Allow Without Alert"),
 									},
@@ -302,167 +330,119 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 								},
 							},
 						},
-						//"default_rules": schema.SetNestedAttribute{
-						//	Computed:    true,
-						//	Description: "",
-						//	NestedObject: schema.NestedAttributeObject{
-						//		Attributes: map[string]schema.Attribute{
-						//			"code": schema.StringAttribute{
-						//				Computed:    true,
-						//				Description: "",
-						//			},
-						//			"action": schema.StringAttribute{
-						//				Computed:    true,
-						//				Description: "",
-						//				Validators: []validator.String{
-						//					stringvalidator.OneOf("Alert", "Prevent", "Disabled"),
-						//				},
-						//			},
-						//		},
-						//	},
-						//},
-						"default_rule_overrides": schema.SetNestedAttribute{
+						"default_rules": schema.SingleNestedAttribute{
 							Optional:    true,
-							Description: "",
-							NestedObject: schema.NestedAttributeObject{
-								Attributes: map[string]schema.Attribute{
-									"code": schema.StringAttribute{
-										Required:    true,
-										Description: "",
-									},
-									"action": schema.StringAttribute{
-										Required:    true,
-										Description: "",
-										Validators: []validator.String{
-											stringvalidator.OneOf("Alert", "Prevent", "Disabled"),
-										},
-									},
-								},
+							Computed:    true,
+							Description: "Set the action Falcon KAC should take when assessing default rules. All default rules are set to \"Alert\" by default. Action must be one of:\n - \"Disabled\": Do nothing\n - \"Alert\": Send an alert\n - \"Prevent\": Prevent the object from running",
+							Attributes:  defaultRulesSchema,
+							PlanModifiers: []planmodifier.Object{
+								objectplanmodifier.UseStateForUnknown(),
 							},
 						},
 					},
 				},
 			},
-			//"default_rule_group": schema.SingleNestedAttribute{
-			//	Optional:    true,
-			//	Computed:    true,
-			//	Description: "The default rule group for the KAC policy. The default rule group is a special rule group that always has the lowest precedence, and only the actions for the default rules can be updated.",
-			//	PlanModifiers: []planmodifier.Object{
-			//		objectplanmodifier.UseStateForUnknown(),
-			//	},
-			//	Attributes: map[string]schema.Attribute{
-			//		"id": schema.StringAttribute{
-			//			Computed:    true,
-			//			Description: "Identifier for the default KAC policy rule group.",
-			//			PlanModifiers: []planmodifier.String{
-			//				stringplanmodifier.UseStateForUnknown(),
-			//			},
-			//		},
-			//		"name": schema.StringAttribute{
-			//			Computed:    true,
-			//			Description: "Name of the default KAC policy rule group.",
-			//			PlanModifiers: []planmodifier.String{
-			//				stringplanmodifier.UseStateForUnknown(),
-			//			},
-			//		},
-			//		"description": schema.StringAttribute{
-			//			Computed:    true,
-			//			Description: "Description of the default KAC policy rule group.",
-			//			PlanModifiers: []planmodifier.String{
-			//				stringplanmodifier.UseStateForUnknown(),
-			//			},
-			//		},
-			//		"deny_on_error": schema.BoolAttribute{
-			//			Optional:    true,
-			//			Computed:    true,
-			//			Default:     booldefault.StaticBool(false),
-			//			Description: "Defines how KAC will handle an unrecognized error or timeout when processing an admission request. If set to \"false\", the pod or workload will be allowed to run.",
-			//			PlanModifiers: []planmodifier.Bool{
-			//				boolplanmodifier.UseStateForUnknown(),
-			//			},
-			//		},
-			//		"image_assessment": schema.SingleNestedAttribute{
-			//			Optional:    true,
-			//			Computed:    true,
-			//			Description: "When enabled, KAC applies image assessment policies to pods or workloads that are being created or updated on the Kubernetes cluster.",
-			//			PlanModifiers: []planmodifier.Object{
-			//				objectplanmodifier.UseStateForUnknown(),
-			//			},
-			//			Attributes: map[string]schema.Attribute{
-			//				"enabled": schema.BoolAttribute{
-			//					Required:    true,
-			//					Description: "Enable Image Assessment in KAC.",
-			//				},
-			//				"unassessed_handling": schema.StringAttribute{
-			//					Required:            true,
-			//					MarkdownDescription: "The action KAC should take when image is unassessed (i.e. unknown). Must be one of: [\"Alert\", \"Prevent\", \"Allow Without Alert\"].",
-			//					Validators: []validator.String{
-			//						stringvalidator.OneOf("Alert", "Prevent", "Allow Without Alert"),
-			//					},
-			//				},
-			//			},
-			//		},
-			//		"namespaces": schema.SetAttribute{
-			//			Computed:    true,
-			//			Description: "Namespace selectors.",
-			//			ElementType: types.StringType,
-			//			PlanModifiers: []planmodifier.Set{
-			//				setplanmodifier.UseStateForUnknown(),
-			//			},
-			//		},
-			//		"labels": schema.SetNestedAttribute{
-			//			Computed:    true,
-			//			Description: "Pod or Service label selectors.",
-			//			PlanModifiers: []planmodifier.Set{
-			//				setplanmodifier.UseStateForUnknown(),
-			//			},
-			//			NestedObject: schema.NestedAttributeObject{
-			//				Attributes: map[string]schema.Attribute{
-			//					"key": schema.StringAttribute{
-			//						Computed:    true,
-			//						Description: "Label key.",
-			//						PlanModifiers: []planmodifier.String{
-			//							stringplanmodifier.UseStateForUnknown(),
-			//						},
-			//					},
-			//					"value": schema.StringAttribute{
-			//						Computed:    true,
-			//						Description: "Label value.",
-			//						PlanModifiers: []planmodifier.String{
-			//							stringplanmodifier.UseStateForUnknown(),
-			//						},
-			//					},
-			//					"operator": schema.StringAttribute{
-			//						Computed:    true,
-			//						Description: "Label operator.",
-			//						PlanModifiers: []planmodifier.String{
-			//							stringplanmodifier.UseStateForUnknown(),
-			//						},
-			//					},
-			//				},
-			//			},
-			//		},
-			//		"default_rule_overrides": schema.SetNestedAttribute{
-			//			Optional:    true,
-			//			Description: "",
-			//			NestedObject: schema.NestedAttributeObject{
-			//				Attributes: map[string]schema.Attribute{
-			//					"code": schema.StringAttribute{
-			//						Required:    true,
-			//						Description: "",
-			//					},
-			//					"action": schema.StringAttribute{
-			//						Required:    true,
-			//						Description: "",
-			//						Validators: []validator.String{
-			//							stringvalidator.OneOf("Alert", "Prevent", "Disabled"),
-			//						},
-			//					},
-			//				},
-			//			},
-			//		},
-			//	},
-			//},
+			"default_rule_group": schema.SingleNestedAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "The default rule group always has the lowest precedence. Only deny_on_error, image_assessment, and default_rules are configurable for the default rule group.",
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.UseStateForUnknown(),
+				},
+				Attributes: map[string]schema.Attribute{
+					"id": schema.StringAttribute{
+						Computed:    true,
+						Description: "Identifier for the default KAC policy rule group.",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"name": schema.StringAttribute{
+						Computed:    true,
+						Description: "Name of the default KAC policy rule group.",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"description": schema.StringAttribute{
+						Computed:    true,
+						Description: "Description of the default KAC policy rule group.",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"deny_on_error": schema.BoolAttribute{
+						Optional:    true,
+						Computed:    true,
+						Default:     booldefault.StaticBool(false),
+						Description: "Defines how KAC will handle an unrecognized error or timeout when processing an admission request. If set to \"false\", the pod or workload will be allowed to run.",
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"image_assessment": schema.SingleNestedAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "When enabled, KAC applies image assessment policies to pods or workloads that are being created or updated on the Kubernetes cluster.",
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
+						Attributes: map[string]schema.Attribute{
+							"enabled": schema.BoolAttribute{
+								Required:    true,
+								Description: "Enable Image Assessment in KAC.",
+							},
+							"unassessed_handling": schema.StringAttribute{
+								Required:            true,
+								MarkdownDescription: "The action KAC should take when image is unassessed (i.e. unknown). Must be one of: [\"Alert\", \"Prevent\", \"Allow Without Alert\"].",
+								Validators: []validator.String{
+									stringvalidator.OneOf("Alert", "Prevent", "Allow Without Alert"),
+								},
+							},
+						},
+					},
+					"namespaces": schema.SetAttribute{
+						Computed:    true,
+						Description: "The default rule group namespace is `\"*\"`, which applies to all namespaces, and is not configurable.",
+						ElementType: types.StringType,
+						PlanModifiers: []planmodifier.Set{
+							setplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"labels": schema.SetNestedAttribute{
+						Computed:    true,
+						Description: "The default rule group applies to all labels, and is not configurable.",
+						PlanModifiers: []planmodifier.Set{
+							setplanmodifier.UseStateForUnknown(),
+						},
+						NestedObject: schema.NestedAttributeObject{
+							Attributes: map[string]schema.Attribute{
+								"key": schema.StringAttribute{
+									Computed:    true,
+									Description: "The default rule group label key is `\"*\"`.",
+								},
+								"value": schema.StringAttribute{
+									Computed:    true,
+									Description: "The default rule group label value is `\"*\"`.",
+								},
+								"operator": schema.StringAttribute{
+									Computed:    true,
+									Description: "The default rule group label operator is `\"eq\" (equals)`.",
+								},
+							},
+						},
+					},
+					"default_rules": schema.SingleNestedAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "Set the action Falcon KAC should take when assessing default rules. All default rules are set to \"Alert\" by default. Action must be one of:\n - \"Disabled\": Do nothing\n - \"Alert\": Send an alert\n - \"Prevent\": Prevent the object from running",
+						PlanModifiers: []planmodifier.Object{
+							objectplanmodifier.UseStateForUnknown(),
+						},
+						Attributes: defaultRulesSchema,
+					},
+				},
+			},
 		},
 	}
 }
@@ -486,9 +466,8 @@ func (r *cloudSecurityKacPolicyResource) Create(
 		createRequest.Description = plan.Description.ValueString()
 	}
 
-	params := admission_control_policies.NewAdmissionControlCreatePolicyParamsWithContext(ctx)
-	params.SetBody(createRequest)
-
+	params := admission_control_policies.NewAdmissionControlCreatePolicyParamsWithContext(ctx).
+		WithBody(createRequest)
 	createResponse, err := r.client.AdmissionControlPolicies.AdmissionControlCreatePolicy(params)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -514,15 +493,15 @@ func (r *cloudSecurityKacPolicyResource) Create(
 			IsEnabled: plan.IsEnabled.ValueBool(),
 		}
 
-		updateParams := admission_control_policies.NewAdmissionControlUpdatePolicyParamsWithContext(ctx)
-		updateParams.SetBody(updateRequest)
-		updateParams.SetIds(plan.ID.ValueString())
+		updateParams := admission_control_policies.NewAdmissionControlUpdatePolicyParamsWithContext(ctx).
+			WithBody(updateRequest).
+			WithIds(plan.ID.ValueString())
 
-		updateResponse, err := r.client.AdmissionControlPolicies.AdmissionControlUpdatePolicy(updateParams)
-		if err != nil {
+		updateResponse, updateErr := r.client.AdmissionControlPolicies.AdmissionControlUpdatePolicy(updateParams)
+		if updateErr != nil {
 			resp.Diagnostics.AddError(
-				"Error updating KAC policy enabled status",
-				fmt.Sprintf("Could not update KAC policy enabled status: %s", err.Error()),
+				"Error updating KAC policy",
+				fmt.Sprintf("Could not update KAC policy: %s", updateErr.Error()),
 			)
 			return
 		}
@@ -532,65 +511,31 @@ func (r *cloudSecurityKacPolicyResource) Create(
 		}
 	}
 
-	// Handle precedence update if needed
-	if !plan.Precedence.IsNull() && !plan.Precedence.IsUnknown() {
-		precedenceRequest := &models.APIUpdatePolicyPrecedenceRequest{
-			ID:         plan.ID.ValueStringPointer(),
-			Precedence: plan.Precedence.ValueInt32(),
-		}
-
-		precedenceParams := admission_control_policies.NewAdmissionControlUpdatePolicyPrecedenceParamsWithContext(ctx)
-		precedenceParams.SetBody(precedenceRequest)
-
-		precedenceResponse, err := r.client.AdmissionControlPolicies.AdmissionControlUpdatePolicyPrecedence(precedenceParams)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating KAC policy precedence",
-				fmt.Sprintf("Could not update KAC policy precedence: %s", err.Error()),
-			)
-			return
-		}
-
-		// Use the response from precedence update if available
-		if len(precedenceResponse.Payload.Resources) > 0 {
-			policy = precedenceResponse.Payload.Resources[0]
-		}
-	}
-
 	// Handle host groups if specified
 	if !plan.HostGroups.IsNull() && !plan.HostGroups.IsUnknown() {
-		var hostGroupIDs []string
-		resp.Diagnostics.Append(plan.HostGroups.ElementsAs(ctx, &hostGroupIDs, false)...)
+		updatedPolicy, hostGroupDiags := r.updateHostGroups(ctx, plan.ID.ValueString(), plan.HostGroups, basetypes.SetValue{})
+		resp.Diagnostics.Append(hostGroupDiags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 
-		if len(hostGroupIDs) > 0 {
-			addHostGroupRequest := &models.APIAddHostGroupRequest{
-				ID:         plan.ID.ValueStringPointer(),
-				HostGroups: hostGroupIDs,
-			}
-
-			addParams := admission_control_policies.NewAdmissionControlAddHostGroupsParamsWithContext(ctx)
-			addParams.SetBody(addHostGroupRequest)
-
-			addResponse, err := r.client.AdmissionControlPolicies.AdmissionControlAddHostGroups(addParams)
-			if err != nil {
-				resp.Diagnostics.AddError(
-					"Error adding host groups to KAC policy",
-					fmt.Sprintf("Could not add host groups to KAC policy: %s", err.Error()),
-				)
-				return
-			}
-
-			// Use the updated policy from add response (this will be the most recent)
-			if len(addResponse.Payload.Resources) > 0 {
-				policy = addResponse.Payload.Resources[0]
-			}
+		if updatedPolicy != nil {
+			policy = updatedPolicy
 		}
 	}
 
-	plan.wrap(ctx, policy)
+	// Handle rule groups
+	policyWithRuleGroups, updateRuleGroupDiags := r.reconcileRuleGroupUpdates(ctx, plan, policy)
+	resp.Diagnostics.Append(updateRuleGroupDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if policyWithRuleGroups != nil {
+		policy = policyWithRuleGroups
+	}
+
+	resp.Diagnostics.Append(plan.wrap(ctx, policy)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -605,8 +550,8 @@ func (r *cloudSecurityKacPolicyResource) Read(
 		return
 	}
 
-	params := admission_control_policies.NewAdmissionControlGetPoliciesParamsWithContext(ctx)
-	params.SetIds([]string{state.ID.ValueString()})
+	params := admission_control_policies.NewAdmissionControlGetPoliciesParamsWithContext(ctx).
+		WithIds([]string{state.ID.ValueString()})
 
 	getResponse, err := r.client.AdmissionControlPolicies.AdmissionControlGetPolicies(params)
 	if err != nil {
@@ -623,7 +568,7 @@ func (r *cloudSecurityKacPolicyResource) Read(
 	}
 
 	policy := getResponse.Payload.Resources[0]
-	state.wrap(ctx, policy)
+	resp.Diagnostics.Append(state.wrap(ctx, policy)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -632,82 +577,50 @@ func (r *cloudSecurityKacPolicyResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
+	var policy *models.PolicyhandlerKACPolicy
 	var plan cloudSecurityKacPolicyResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	updateRequest := &models.APIUpdatePolicyRequest{}
-
-	if !plan.Name.IsNull() && !plan.Name.IsUnknown() {
-		updateRequest.Name = plan.Name.ValueString()
-	}
-
-	if !plan.Description.IsNull() && !plan.Description.IsUnknown() {
-		updateRequest.Description = plan.Description.ValueString()
-	}
-
-	if !plan.IsEnabled.IsNull() && !plan.IsEnabled.IsUnknown() {
-		updateRequest.IsEnabled = plan.IsEnabled.ValueBool()
-	}
-
-	params := admission_control_policies.NewAdmissionControlUpdatePolicyParamsWithContext(ctx)
-	params.SetBody(updateRequest)
-	params.SetIds(plan.ID.ValueString())
-
-	updateResponse, err := r.client.AdmissionControlPolicies.AdmissionControlUpdatePolicy(params)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error updating KAC policy",
-			fmt.Sprintf("Could not update KAC policy: %s", err.Error()),
-		)
-		return
-	}
-
-	if len(updateResponse.Payload.Resources) == 0 {
-		resp.Diagnostics.AddError(
-			"Error updating KAC policy",
-			"No policy returned in update response",
-		)
-		return
-	}
-
-	policy := updateResponse.Payload.Resources[0]
-
-	// Handle precedence update separately if needed
-	if !plan.Precedence.IsNull() && !plan.Precedence.IsUnknown() {
-		precedenceRequest := &models.APIUpdatePolicyPrecedenceRequest{
-			ID:         plan.ID.ValueStringPointer(),
-			Precedence: plan.Precedence.ValueInt32(),
-		}
-
-		precedenceParams := admission_control_policies.NewAdmissionControlUpdatePolicyPrecedenceParamsWithContext(ctx)
-		precedenceParams.SetBody(precedenceRequest)
-
-		precedenceResponse, err := r.client.AdmissionControlPolicies.AdmissionControlUpdatePolicyPrecedence(precedenceParams)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating KAC policy precedence",
-				fmt.Sprintf("Could not update KAC policy precedence: %s", err.Error()),
-			)
-			return
-		}
-
-		// Use the response from precedence update if available
-		if len(precedenceResponse.Payload.Resources) > 0 {
-			policy = precedenceResponse.Payload.Resources[0]
-		}
-	}
-
-	// Handle host groups changes - also process when plan.HostGroups is null to remove all host groups
 	var state cloudSecurityKacPolicyResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Only skip host group updates if plan.HostGroups is unknown (not configured)
+	if !plan.Name.Equal(state.Name) || !plan.Description.Equal(state.Description) || !plan.IsEnabled.Equal(state.IsEnabled) {
+		updateRequest := &models.APIUpdatePolicyRequest{}
+		updateRequest.Name = plan.Name.ValueString()
+		updateRequest.Description = plan.Description.ValueString()
+		updateRequest.IsEnabled = plan.IsEnabled.ValueBool()
+
+		params := admission_control_policies.NewAdmissionControlUpdatePolicyParamsWithContext(ctx).
+			WithBody(updateRequest).
+			WithIds(plan.ID.ValueString())
+
+		updateResponse, err := r.client.AdmissionControlPolicies.AdmissionControlUpdatePolicy(params)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error updating KAC policy",
+				fmt.Sprintf("Could not update KAC policy: %s", err.Error()),
+			)
+			return
+		}
+
+		if len(updateResponse.Payload.Resources) == 0 {
+			resp.Diagnostics.AddError(
+				"Error updating KAC policy",
+				"No policy returned in update response",
+			)
+			return
+		}
+
+		policy = updateResponse.Payload.Resources[0]
+	}
+
+	// Handle host groups updates - removes all host groups if plan.HostGroups is null
 	if !plan.HostGroups.IsUnknown() {
 		updatedPolicy, hostGroupDiags := r.updateHostGroups(ctx, plan.ID.ValueString(), plan.HostGroups, state.HostGroups)
 		resp.Diagnostics.Append(hostGroupDiags...)
@@ -720,7 +633,31 @@ func (r *cloudSecurityKacPolicyResource) Update(
 		}
 	}
 
-	plan.wrap(ctx, policy)
+	// Handle rule groups changes - removes all rule groups if plan.RuleGroups is null
+	if !plan.RuleGroups.IsUnknown() && !plan.RuleGroups.Equal(state.RuleGroups) {
+		// Delete rule groups by comparing the plan against the state
+		policyWithDeletedRuleGroups, deleteRuleGroupDiags := r.deleteRemovedRuleGroups(ctx, plan.ID.ValueString(), plan, state)
+		resp.Diagnostics.Append(deleteRuleGroupDiags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		if policyWithDeletedRuleGroups != nil {
+			policy = policyWithDeletedRuleGroups
+		}
+
+		policyWithUpdatedRuleGroups, updateRuleGroupDiags := r.reconcileRuleGroupUpdates(ctx, plan, policy)
+		resp.Diagnostics.Append(updateRuleGroupDiags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		if policyWithUpdatedRuleGroups != nil {
+			policy = policyWithUpdatedRuleGroups
+		}
+	}
+
+	resp.Diagnostics.Append(plan.wrap(ctx, policy)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
@@ -744,8 +681,8 @@ func (r *cloudSecurityKacPolicyResource) Delete(
 		return
 	}
 
-	params := admission_control_policies.NewAdmissionControlDeletePoliciesParamsWithContext(ctx)
-	params.SetIds([]string{state.ID.ValueString()})
+	params := admission_control_policies.NewAdmissionControlDeletePoliciesParamsWithContext(ctx).
+		WithIds([]string{state.ID.ValueString()})
 
 	_, err := r.client.AdmissionControlPolicies.AdmissionControlDeletePolicies(params)
 	if err != nil {
@@ -780,55 +717,15 @@ func (r *cloudSecurityKacPolicyResource) updateHostGroups(
 	planHostGroups types.Set,
 	stateHostGroups types.Set,
 ) (*models.PolicyhandlerKACPolicy, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	var planHGIDs []string
-	var stateHGIDs []string
 	var updatedPolicy *models.PolicyhandlerKACPolicy
 
-	// Get planned host groups
-	if !planHostGroups.IsUnknown() && !planHostGroups.IsNull() {
-		diags.Append(planHostGroups.ElementsAs(ctx, &planHGIDs, false)...)
-		if diags.HasError() {
-			return nil, diags
-		}
-	}
-
-	// Get current state host groups
-	if !stateHostGroups.IsNull() {
-		diags.Append(stateHostGroups.ElementsAs(ctx, &stateHGIDs, false)...)
-		if diags.HasError() {
-			return nil, diags
-		}
-	}
-
-	// Calculate host groups to add and remove
-	hostGroupsToAdd := make([]string, 0)
-	hostGroupsToRemove := make([]string, 0)
-
-	planSet := make(map[string]bool, len(planHGIDs))
-	for _, planHG := range planHGIDs {
-		planSet[planHG] = true
-	}
-
-	stateSet := make(map[string]bool, len(stateHGIDs))
-	for _, stateHG := range stateHGIDs {
-		stateSet[stateHG] = true
-		if !planSet[stateHG] {
-			hostGroupsToRemove = append(hostGroupsToRemove, stateHG)
-		}
-	}
-
-	for _, planHG := range planHGIDs {
-		if !stateSet[planHG] {
-			hostGroupsToAdd = append(hostGroupsToAdd, planHG)
-		}
-	}
+	hostGroupsToAdd, hostGroupsToRemove, diags := utils.SetIDsToModify(ctx, planHostGroups, stateHostGroups)
 
 	// Remove host groups that are no longer needed
 	if len(hostGroupsToRemove) > 0 {
-		removeParams := admission_control_policies.NewAdmissionControlRemoveHostGroupsParamsWithContext(ctx)
-		removeParams.SetPolicyID(policyID)
-		removeParams.SetHostGroupIds(hostGroupsToRemove)
+		removeParams := admission_control_policies.NewAdmissionControlRemoveHostGroupsParamsWithContext(ctx).
+			WithPolicyID(policyID).
+			WithHostGroupIds(hostGroupsToRemove)
 
 		removeResponse, err := r.client.AdmissionControlPolicies.AdmissionControlRemoveHostGroups(removeParams)
 		if err != nil {
@@ -852,8 +749,8 @@ func (r *cloudSecurityKacPolicyResource) updateHostGroups(
 			HostGroups: hostGroupsToAdd,
 		}
 
-		addParams := admission_control_policies.NewAdmissionControlAddHostGroupsParamsWithContext(ctx)
-		addParams.SetBody(addHostGroupRequest)
+		addParams := admission_control_policies.NewAdmissionControlAddHostGroupsParamsWithContext(ctx).
+			WithBody(addHostGroupRequest)
 
 		addResponse, err := r.client.AdmissionControlPolicies.AdmissionControlAddHostGroups(addParams)
 		if err != nil {
@@ -871,4 +768,367 @@ func (r *cloudSecurityKacPolicyResource) updateHostGroups(
 	}
 
 	return updatedPolicy, diags
+}
+
+func (r *cloudSecurityKacPolicyResource) deleteRemovedRuleGroups(
+	ctx context.Context,
+	policyID string,
+	plan, state cloudSecurityKacPolicyResourceModel,
+) (*models.PolicyhandlerKACPolicy, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	// Get state rule group IDs for comparison
+	stateRuleGroupIds, stateIdsDiags := state.getRuleGroupIds(ctx)
+	diags.Append(stateIdsDiags...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	// Get plan rule group IDs for comparison
+	planRuleGroupIds, planIdsDiags := plan.getRuleGroupIds(ctx)
+	diags.Append(planIdsDiags...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	// Delete rule groups that are no longer in the plan
+	ruleGroupsToDelete := findRuleGroupsToDelete(stateRuleGroupIds, planRuleGroupIds)
+
+	if len(ruleGroupsToDelete) == 0 {
+		return nil, diags
+	}
+
+	deleteParams := admission_control_policies.NewAdmissionControlDeleteRuleGroupsParamsWithContext(ctx).
+		WithPolicyID(policyID).
+		WithRuleGroupIds(ruleGroupsToDelete)
+
+	deleteResponse, err := r.client.AdmissionControlPolicies.AdmissionControlDeleteRuleGroups(deleteParams)
+	if err != nil {
+		diags.AddError(
+			"Error deleting rule groups from KAC policy",
+			fmt.Sprintf("Could not delete rule groups from KAC policy: %s", err.Error()),
+		)
+		return nil, diags
+	}
+
+	if len(deleteResponse.Payload.Resources) == 0 {
+		diags.AddError(
+			"Error deleting rule groups from KAC policy",
+			"No policy returned in delete rule groups response",
+		)
+		return nil, diags
+	}
+
+	return deleteResponse.Payload.Resources[0], diags
+}
+
+// reconcileRuleGroupUpdates takes the plan and compares it to the current state of the API policy response
+// and reconciles the differences by creating new rule groups, updating attributes and rules, and replacing selectors.
+func (r *cloudSecurityKacPolicyResource) reconcileRuleGroupUpdates(
+	ctx context.Context,
+	plan cloudSecurityKacPolicyResourceModel,
+	apiKacPolicy *models.PolicyhandlerKACPolicy,
+) (*models.PolicyhandlerKACPolicy, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	// On Update operations, the API policy may not have been populated yet.
+	if apiKacPolicy == nil {
+		params := admission_control_policies.NewAdmissionControlGetPoliciesParamsWithContext(ctx).
+			WithIds([]string{plan.ID.ValueString()})
+		getResponse, err := r.client.AdmissionControlPolicies.AdmissionControlGetPolicies(params)
+		if err != nil {
+			diags.AddError(
+				"Error getting KAC policy",
+				fmt.Sprintf("Could not get KAC policy: %s", err.Error()),
+			)
+			return nil, diags
+		}
+
+		if len(getResponse.Payload.Resources) == 0 {
+			diags.AddError(
+				"Error getting KAC policy",
+				"No policy returned in get policy response",
+			)
+			return nil, diags
+		}
+
+		apiKacPolicy = getResponse.Payload.Resources[0]
+	}
+
+	// The default rule group should always be last in the list of rule groups
+	apiDefaultRuleGroup := apiKacPolicy.RuleGroups[len(apiKacPolicy.RuleGroups)-1]
+	if !*apiDefaultRuleGroup.IsDefault {
+		diags.AddError(
+			"Error updating rule groups",
+			"API returned default rule group in incorrect position.",
+		)
+		return nil, diags
+	}
+
+	// If plan default rule group is null or unknown,
+	// use the api default rule group to simulate there hasn't been any changes
+	var defaultRuleGroup ruleGroupTFModel
+	if plan.DefaultRuleGroup.IsNull() || plan.DefaultRuleGroup.IsUnknown() {
+		diags.Append(defaultRuleGroup.wrapRuleGroup(ctx, apiDefaultRuleGroup)...)
+		if diags.HasError() {
+			return nil, diags
+		}
+	} else {
+		diags.Append(plan.DefaultRuleGroup.As(ctx, &defaultRuleGroup, basetypes.ObjectAsOptions{})...)
+		if diags.HasError() {
+			return nil, diags
+		}
+
+		// Populate ID and name for mapping
+		if defaultRuleGroup.ID.IsUnknown() {
+			defaultRuleGroup.ID = types.StringValue(*apiDefaultRuleGroup.ID)
+			defaultRuleGroup.Name = types.StringValue(*apiDefaultRuleGroup.Name)
+		}
+	}
+
+	planTFRuleGroups := flex.ExpandListAs[ruleGroupTFModel](ctx, plan.RuleGroups, &diags)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	planTFRuleGroups = append(planTFRuleGroups, defaultRuleGroup)
+
+	updatedApiKacPolicy := r.createNewRuleGroups(ctx, &diags, plan.ID.ValueString(), planTFRuleGroups)
+	if updatedApiKacPolicy != nil {
+		apiKacPolicy = updatedApiKacPolicy
+	}
+
+	nameToIdMap := make(map[string]string)
+	idToApiRuleGroupPointerMap := make(map[string]*models.PolicyhandlerKACPolicyRuleGroup)
+	for _, apiRG := range apiKacPolicy.RuleGroups {
+		nameToIdMap[*apiRG.Name] = *apiRG.ID
+		idToApiRuleGroupPointerMap[*apiRG.ID] = apiRG
+	}
+
+	// Merge IDs into plan rule groups that do not have IDs
+	for i, planRG := range planTFRuleGroups {
+		if planRG.ID.IsNull() || planRG.ID.IsUnknown() {
+			planTFRuleGroups[i].ID = types.StringValue(nameToIdMap[planRG.Name.ValueString()])
+		}
+	}
+
+	updatedApiKacPolicy = r.updateRuleGroupPrecedence(ctx, &diags, plan.ID.ValueString(), planTFRuleGroups)
+	if updatedApiKacPolicy != nil {
+		apiKacPolicy = updatedApiKacPolicy
+	}
+
+	// Convert plan rule groups to api models
+	var planApiRuleGroups []models.PolicyhandlerKACPolicyRuleGroup
+	for _, tfRG := range planTFRuleGroups {
+		apiRG, convertDiags := tfRG.toApiModel(ctx)
+		diags.Append(convertDiags...)
+		if diags.HasError() {
+			return nil, diags
+		}
+		planApiRuleGroups = append(planApiRuleGroups, apiRG)
+	}
+
+	// Reconcile plan against actual state of API response to find what needs updating
+	var updateParams []*models.APIUpdateRuleGroup
+	var replaceSelectorParams []*models.APIReplaceRuleGroupSelectors
+	for _, planRG := range planApiRuleGroups {
+		// Check if this rule group exists in state
+		stateRG := idToApiRuleGroupPointerMap[*planRG.ID]
+		rgUpdates := buildRuleGroupUpdates(&planRG, stateRG)
+
+		if rgUpdates.updateRuleGroupParams != nil {
+			updateParams = append(updateParams, rgUpdates.updateRuleGroupParams)
+		}
+
+		if rgUpdates.replaceRuleGroupSelectorParams != nil {
+			replaceSelectorParams = append(replaceSelectorParams, rgUpdates.replaceRuleGroupSelectorParams)
+		}
+	}
+
+	updatedApiKacPolicy = r.updateRuleGroupAttributesAndRules(ctx, &diags, plan.ID.ValueString(), updateParams)
+	if updatedApiKacPolicy != nil {
+		apiKacPolicy = updatedApiKacPolicy
+	}
+
+	updatedApiKacPolicy = r.replaceRuleGroupSelectors(ctx, &diags, plan.ID.ValueString(), replaceSelectorParams)
+	if updatedApiKacPolicy != nil {
+		apiKacPolicy = updatedApiKacPolicy
+	}
+
+	return apiKacPolicy, diags
+}
+
+func (r *cloudSecurityKacPolicyResource) createNewRuleGroups(
+	ctx context.Context,
+	diags *diag.Diagnostics,
+	policyID string,
+	ruleGroups []ruleGroupTFModel,
+) *models.PolicyhandlerKACPolicy {
+	// Convert TF models to API create requests
+	var newRuleGroups []*models.APICreateRuleGroup
+	for _, tfRG := range ruleGroups {
+		// The default rule group is always created when creating a new KAC policy
+		// Do not create a new rule group if ID already exists
+		if tfRG.Name.ValueString() == defaultRuleGroupName || (!tfRG.ID.IsNull() && !tfRG.ID.IsUnknown()) {
+			continue
+		}
+
+		apiRuleGroup := &models.APICreateRuleGroup{
+			Name:        tfRG.Name.ValueStringPointer(),
+			Description: tfRG.Description.ValueStringPointer(),
+		}
+		newRuleGroups = append(newRuleGroups, apiRuleGroup)
+	}
+
+	// Skip create if there aren't any new rule groups
+	if len(newRuleGroups) == 0 {
+		return nil
+	}
+
+	createRequest := &models.APICreatePolicyRuleGroupRequest{
+		ID:         &policyID,
+		RuleGroups: newRuleGroups,
+	}
+
+	params := admission_control_policies.NewAdmissionControlCreateRuleGroupsParamsWithContext(ctx).
+		WithBody(createRequest)
+
+	createResponse, err := r.client.AdmissionControlPolicies.AdmissionControlCreateRuleGroups(params)
+	if err != nil {
+		diags.AddError(
+			"Error creating rule groups",
+			fmt.Sprintf("Could not create rule groups for KAC policy: %s", err.Error()),
+		)
+		return nil
+	}
+
+	if len(createResponse.Payload.Resources) == 0 {
+		diags.AddError(
+			"Error creating rule groups",
+			"No policy returned in create rule groups response",
+		)
+		return nil
+	}
+
+	return createResponse.Payload.Resources[0]
+}
+
+func (r *cloudSecurityKacPolicyResource) updateRuleGroupPrecedence(
+	ctx context.Context,
+	diags *diag.Diagnostics,
+	policyID string,
+	ruleGroups []ruleGroupTFModel,
+) *models.PolicyhandlerKACPolicy {
+	ruleGroupPrecedence := make([]*models.APIChangeRuleGroupPrecedence, 0, len(ruleGroups))
+	for _, tfRG := range ruleGroups {
+		ruleGroupPrecedence = append(ruleGroupPrecedence, &models.APIChangeRuleGroupPrecedence{ID: tfRG.ID.ValueStringPointer()})
+	}
+
+	// If there are 2 or less rule groups, updating precedence is unnecessary.
+	if len(ruleGroupPrecedence) <= 2 {
+		return nil
+	}
+
+	changePrecedenceRequest := &models.APIChangePolicyRuleGroupPrecedenceRequest{
+		ID:         &policyID,
+		RuleGroups: ruleGroupPrecedence,
+	}
+
+	params := admission_control_policies.NewAdmissionControlSetRuleGroupPrecedenceParamsWithContext(ctx).
+		WithBody(changePrecedenceRequest)
+
+	changePrecedenceResponse, err := r.client.AdmissionControlPolicies.AdmissionControlSetRuleGroupPrecedence(params)
+	if err != nil {
+		diags.AddError(
+			"Error updating precedence of rule groups",
+			fmt.Sprintf("Could not update precedence of rule groups: %s", err.Error()),
+		)
+		return nil
+	}
+
+	if len(changePrecedenceResponse.Payload.Resources) == 0 {
+		diags.AddError(
+			"Error updating precedence of rule groups",
+			"No policy returned in set rule group precedence response",
+		)
+		return nil
+	}
+
+	return changePrecedenceResponse.Payload.Resources[0]
+}
+
+func (r *cloudSecurityKacPolicyResource) updateRuleGroupAttributesAndRules(
+	ctx context.Context,
+	diags *diag.Diagnostics,
+	policyID string,
+	apiUpdateRuleGroups []*models.APIUpdateRuleGroup,
+) *models.PolicyhandlerKACPolicy {
+	if len(apiUpdateRuleGroups) == 0 {
+		return nil
+	}
+
+	updateRequest := &models.APIUpdatePolicyRuleGroupRequest{
+		ID:         &policyID,
+		RuleGroups: apiUpdateRuleGroups,
+	}
+
+	params := admission_control_policies.NewAdmissionControlUpdateRuleGroupsParamsWithContext(ctx).
+		WithBody(updateRequest)
+
+	updateResponse, err := r.client.AdmissionControlPolicies.AdmissionControlUpdateRuleGroups(params)
+	if err != nil {
+		diags.AddError(
+			"Error updating rule groups",
+			fmt.Sprintf("Could not update rule groups for KAC policy: %s", err.Error()),
+		)
+		return nil
+	}
+
+	if len(updateResponse.Payload.Resources) == 0 {
+		diags.AddError(
+			"Error updating rule groups",
+			"No policy returned in update rule groups response",
+		)
+		return nil
+	}
+
+	return updateResponse.Payload.Resources[0]
+}
+
+func (r *cloudSecurityKacPolicyResource) replaceRuleGroupSelectors(
+	ctx context.Context,
+	diags *diag.Diagnostics,
+	policyID string,
+	apiReplaceRuleGroupSelectors []*models.APIReplaceRuleGroupSelectors,
+) *models.PolicyhandlerKACPolicy {
+	if len(apiReplaceRuleGroupSelectors) == 0 {
+		return nil
+	}
+
+	replaceSelectorRequest := &models.APIReplacePolicyRuleGroupSelectorsRequest{
+		ID:         &policyID,
+		RuleGroups: apiReplaceRuleGroupSelectors,
+	}
+
+	params := admission_control_policies.NewAdmissionControlReplaceRuleGroupSelectorsParamsWithContext(ctx).
+		WithBody(replaceSelectorRequest)
+
+	replaceSelectorsResponse, err := r.client.AdmissionControlPolicies.AdmissionControlReplaceRuleGroupSelectors(params)
+	if err != nil {
+		diags.AddError(
+			"Error replacing selectors for rule groups",
+			fmt.Sprintf("Could not replace selectors for rule groups: %s", err.Error()),
+		)
+		return nil
+	}
+
+	if len(replaceSelectorsResponse.Payload.Resources) == 0 {
+		diags.AddError(
+			"Error replacing selectors for rule groups",
+			"No policy returned in replace rule group selectors response",
+		)
+		return nil
+	}
+
+	return replaceSelectorsResponse.Payload.Resources[0]
 }
