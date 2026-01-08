@@ -7,6 +7,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_visibility_exclusions"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
@@ -108,72 +109,6 @@ func (m *sensorVisibilityExclusionAttachmentResourceModel) wrap(
 	return diags
 }
 
-func MergeSetItems(
-	ctx context.Context,
-	existingSet types.Set,
-	planSet types.Set,
-	diags *diag.Diagnostics,
-) types.Set {
-	existingItems := flex.ExpandSetAs[types.String](ctx, existingSet, diags)
-	if diags.HasError() {
-		return types.SetNull(types.StringType)
-	}
-
-	planItems := flex.ExpandSetAs[types.String](ctx, planSet, diags)
-	if diags.HasError() {
-		return types.SetNull(types.StringType)
-	}
-
-	allItems := make([]types.String, 0, len(existingItems)+len(planItems))
-	allItems = append(allItems, existingItems...)
-	allItems = append(allItems, planItems...)
-	uniqueItems := flex.Unique(allItems)
-
-	mergedSet, mergeDiags := types.SetValueFrom(ctx, types.StringType, uniqueItems)
-	diags.Append(mergeDiags...)
-
-	return mergedSet
-}
-
-func FindGroupsToRemove(
-	ctx context.Context,
-	stateSet types.Set,
-	planSet types.Set,
-	diags *diag.Diagnostics,
-) []types.String {
-	if stateSet.IsNull() {
-		return nil
-	}
-
-	stateItems := flex.ExpandSetAs[types.String](ctx, stateSet, diags)
-	if diags.HasError() {
-		return nil
-	}
-
-	if planSet.IsNull() {
-		return stateItems
-	}
-
-	planItems := flex.ExpandSetAs[types.String](ctx, planSet, diags)
-	if diags.HasError() {
-		return nil
-	}
-
-	planMap := make(map[string]bool)
-	for _, item := range planItems {
-		planMap[item.ValueString()] = true
-	}
-
-	var toRemove []types.String
-	for _, item := range stateItems {
-		if !planMap[item.ValueString()] {
-			toRemove = append(toRemove, item)
-		}
-	}
-
-	return toRemove
-}
-
 func (r *sensorVisibilityExclusionAttachmentResource) Configure(
 	ctx context.Context,
 	req resource.ConfigureRequest,
@@ -183,13 +118,13 @@ func (r *sensorVisibilityExclusionAttachmentResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
@@ -197,7 +132,7 @@ func (r *sensorVisibilityExclusionAttachmentResource) Configure(
 		return
 	}
 
-	r.client = client
+	r.client = config.Client
 }
 
 func (r *sensorVisibilityExclusionAttachmentResource) Metadata(
@@ -278,7 +213,7 @@ func (r *sensorVisibilityExclusionAttachmentResource) Create(
 	planHostGroups := plan.HostGroups
 
 	if !plan.Exclusive.ValueBool() {
-		planHostGroups = MergeSetItems(ctx, existingHostGroups, plan.HostGroups, &resp.Diagnostics)
+		planHostGroups = flex.MergeStringSet(ctx, existingHostGroups, plan.HostGroups, &resp.Diagnostics)
 		if resp.Diagnostics.HasError() {
 			return
 		}
@@ -354,7 +289,7 @@ func (r *sensorVisibilityExclusionAttachmentResource) Update(
 	planHostGroups := plan.HostGroups
 
 	if !plan.Exclusive.ValueBool() {
-		hostGroupsToRemove := FindGroupsToRemove(ctx, state.HostGroups, plan.HostGroups, &resp.Diagnostics)
+		hostGroupsToRemove := flex.DiffStringSet(ctx, state.HostGroups, plan.HostGroups, &resp.Diagnostics)
 		if resp.Diagnostics.HasError() {
 			return
 		}
@@ -383,7 +318,7 @@ func (r *sensorVisibilityExclusionAttachmentResource) Update(
 			return
 		}
 
-		planHostGroups = MergeSetItems(ctx, existingHostGroupSet, plan.HostGroups, &resp.Diagnostics)
+		planHostGroups = flex.MergeStringSet(ctx, existingHostGroupSet, plan.HostGroups, &resp.Diagnostics)
 		if resp.Diagnostics.HasError() {
 			return
 		}
@@ -554,10 +489,10 @@ func (r *sensorVisibilityExclusionAttachmentResource) syncHostGroups(
 		params.SetBody(updateReq)
 
 		tflog.Debug(ctx, "Updating sensor visibility exclusion host groups", map[string]any{
-			"exclusion_id": id,
-			"groups_to_add": groupsToAdd,
+			"exclusion_id":     id,
+			"groups_to_add":    groupsToAdd,
 			"groups_to_remove": groupsToRemove,
-			"updated_groups": updatedGroups,
+			"updated_groups":   updatedGroups,
 		})
 
 		_, err := r.client.SensorVisibilityExclusions.UpdateSensorVisibilityExclusionsV1(params)
