@@ -120,6 +120,7 @@ var (
 	_ resource.ResourceWithConfigure      = &cloudAWSAccountResource{}
 	_ resource.ResourceWithImportState    = &cloudAWSAccountResource{}
 	_ resource.ResourceWithValidateConfig = &cloudAWSAccountResource{}
+	_ resource.ResourceWithModifyPlan     = &cloudAzureTenantResource{}
 )
 
 // NewCloudAWSAccountResource a helper function to simplify the provider implementation.
@@ -1723,4 +1724,30 @@ func (r *cloudAWSAccountResource) ValidateConfig(
 			)
 		}
 	}
+}
+
+func (r cloudAWSAccountResource) ModifyPlan(
+	ctx context.Context,
+	req resource.ModifyPlanRequest,
+	resp *resource.ModifyPlanResponse,
+) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var state, plan cloudAWSAccountModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if !state.AssetInventory.RoleName.Equal(plan.AssetInventory.RoleName) ||
+		(state.AssetInventory.RoleName.IsNull() && (!state.ResourceNamePrefix.Equal(plan.ResourceNamePrefix) || !state.ResourceNameSuffix.Equal(plan.ResourceNameSuffix))) {
+		plan.IamRoleArn = types.StringUnknown()
+		plan.IamRoleName = types.StringUnknown()
+	}
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }
