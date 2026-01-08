@@ -78,15 +78,6 @@ func TestAccSensorVisibilityExclusionAttachmentResource_exclusiveFalse(t *testin
 					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
 				),
 			},
-			{
-				Config: testAccSensorVisibilityExclusionAttachmentConfig_exclusiveFalseRemoveAll(rName),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttr(resourceName, "exclusive", "false"),
-					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "0"),
-					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
-				),
-			},
 		},
 	})
 }
@@ -97,6 +88,10 @@ resource "crowdstrike_sensor_visibility_exclusion" "test" {
   value                         = "/test/path/%[1]s"
   apply_to_descendant_processes = false
   apply_globally                = true
+
+  lifecycle {
+    ignore_changes = [host_groups, apply_globally]
+  }
 }
 
 resource "crowdstrike_host_group" "test" {
@@ -131,6 +126,10 @@ resource "crowdstrike_sensor_visibility_exclusion" "test" {
   value                         = "/test/path/%[1]s"
   apply_to_descendant_processes = false
   host_groups                   = [crowdstrike_host_group.existing.id]
+
+  lifecycle {
+    ignore_changes = [host_groups]
+  }
 }
 
 resource "crowdstrike_host_group" "test" {
@@ -161,6 +160,10 @@ resource "crowdstrike_sensor_visibility_exclusion" "test" {
   value                         = "/test/path/%[1]s"
   apply_to_descendant_processes = false
   host_groups                   = [crowdstrike_host_group.existing.id]
+
+  lifecycle {
+    ignore_changes = [host_groups]
+  }
 }
 
 resource "crowdstrike_host_group" "test" {
@@ -181,42 +184,6 @@ resource "crowdstrike_sensor_visibility_exclusion_attachment" "test" {
   id          = crowdstrike_sensor_visibility_exclusion.test.id
   exclusive   = false
   host_groups = [crowdstrike_host_group.test.id, crowdstrike_host_group.test2.id]
-}
-`, rName)
-}
-
-func testAccSensorVisibilityExclusionAttachmentConfig_exclusiveFalseRemoveAll(rName string) string {
-	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_host_group" "existing" {
-  name        = "%[1]s-existing"
-  description = "existing host group attached to exclusion"
-  type        = "staticByID"
-  host_ids    = []
-}
-
-resource "crowdstrike_sensor_visibility_exclusion" "test" {
-  value                         = "/test/path/%[1]s"
-  apply_to_descendant_processes = false
-  host_groups                   = [crowdstrike_host_group.existing.id]
-}
-
-resource "crowdstrike_host_group" "test" {
-  name        = %[1]q
-  description = "test host group for attachment tests"
-  type        = "staticByID"
-  host_ids    = []
-}
-
-resource "crowdstrike_host_group" "test2" {
-  name        = "%[1]s-2"
-  description = "second test host group for attachment tests"
-  type        = "staticByID"
-  host_ids    = []
-}
-
-resource "crowdstrike_sensor_visibility_exclusion_attachment" "test" {
-  id        = crowdstrike_sensor_visibility_exclusion.test.id
-  exclusive = false
 }
 `, rName)
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -28,10 +29,9 @@ import (
 )
 
 var (
-	_ resource.Resource                   = &sensorVisibilityExclusionAttachmentResource{}
-	_ resource.ResourceWithConfigure      = &sensorVisibilityExclusionAttachmentResource{}
-	_ resource.ResourceWithImportState    = &sensorVisibilityExclusionAttachmentResource{}
-	_ resource.ResourceWithValidateConfig = &sensorVisibilityExclusionAttachmentResource{}
+	_ resource.Resource                = &sensorVisibilityExclusionAttachmentResource{}
+	_ resource.ResourceWithConfigure   = &sensorVisibilityExclusionAttachmentResource{}
+	_ resource.ResourceWithImportState = &sensorVisibilityExclusionAttachmentResource{}
 )
 
 var (
@@ -75,34 +75,31 @@ func (m *sensorVisibilityExclusionAttachmentResourceModel) wrap(
 		if len(hostGroupSet.Elements()) != 0 {
 			hostGroups = hostGroupSet
 		}
-	} else {
+	} else if !m.HostGroups.IsNull() {
 		existingHostGroups := make(map[string]bool)
 		for _, hg := range exclusion.Groups {
 			if hg != nil && hg.ID != nil {
 				existingHostGroups[*hg.ID] = true
 			}
 		}
-
-		if !m.HostGroups.IsNull() {
-			planHostGroups := flex.ExpandSetAs[types.String](ctx, m.HostGroups, &diags)
-			if diags.HasError() {
-				return diags
-			}
-
-			var currentHostGroups []types.String
-			for _, hg := range planHostGroups {
-				if existingHostGroups[hg.ValueString()] {
-					currentHostGroups = append(currentHostGroups, hg)
-				}
-			}
-
-			hgSet, diag := types.SetValueFrom(ctx, types.StringType, currentHostGroups)
-			diags.Append(diag...)
-			if diags.HasError() {
-				return diags
-			}
-			hostGroups = hgSet
+		planHostGroups := flex.ExpandSetAs[types.String](ctx, m.HostGroups, &diags)
+		if diags.HasError() {
+			return diags
 		}
+
+		var currentHostGroups []types.String
+		for _, hg := range planHostGroups {
+			if existingHostGroups[hg.ValueString()] {
+				currentHostGroups = append(currentHostGroups, hg)
+			}
+		}
+
+		hgSet, diag := types.SetValueFrom(ctx, types.StringType, currentHostGroups)
+		diags.Append(diag...)
+		if diags.HasError() {
+			return diags
+		}
+		hostGroups = hgSet
 	}
 	m.HostGroups = hostGroups
 
@@ -173,7 +170,7 @@ func (r *sensorVisibilityExclusionAttachmentResource) Schema(
 				Description: "When true (default), this resource takes exclusive ownership of all host groups attached to the sensor visibility exclusion policy. When false, this resource only manages the specific host groups defined in the configuration, leaving other groups untouched.",
 			},
 			"host_groups": schema.SetAttribute{
-				Optional:    true,
+				Required:    true,
 				ElementType: types.StringType,
 				Description: "Host Group IDs to attach to the sensor visibility exclusion policy.",
 				Validators: []validator.Set{
@@ -198,7 +195,7 @@ func (r *sensorVisibilityExclusionAttachmentResource) Create(
 		return
 	}
 
-	exclusion, diags := r.getSensorVisibilityExclusionForAttachment(ctx, plan.ID.ValueString())
+	exclusion, diags := getSensorVisibilityExclusion(ctx, r.client, plan.ID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -225,7 +222,7 @@ func (r *sensorVisibilityExclusionAttachmentResource) Create(
 		return
 	}
 
-	exclusion, diags = r.getSensorVisibilityExclusionForAttachment(ctx, plan.ID.ValueString())
+	exclusion, diags = getSensorVisibilityExclusion(ctx, r.client, plan.ID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -247,19 +244,15 @@ func (r *sensorVisibilityExclusionAttachmentResource) Read(
 		return
 	}
 
-	exclusion, diags := r.getSensorVisibilityExclusionForAttachment(ctx, state.ID.ValueString())
-	if diags.HasError() {
-		for _, diag := range diags.Errors() {
-			if diag.Summary() == "Sensor Visibility Exclusion Not Found" {
-				tflog.Warn(
-					ctx,
-					fmt.Sprintf("sensor visibility exclusion %s not found, removing from state", state.ID),
-				)
+	exclusion, diags := getSensorVisibilityExclusion(ctx, r.client, state.ID.ValueString())
+	if tferrors.HasNotFoundError(diags) {
+		tflog.Warn(
+			ctx,
+			fmt.Sprintf("sensor visibility exclusion %s not found, removing from state", state.ID),
+		)
 
-				resp.State.RemoveResource(ctx)
-				return
-			}
-		}
+		resp.State.RemoveResource(ctx)
+		return
 	}
 
 	resp.Diagnostics.Append(diags...)
@@ -288,14 +281,14 @@ func (r *sensorVisibilityExclusionAttachmentResource) Update(
 
 	planHostGroups := plan.HostGroups
 
+	exclusion, diags := getSensorVisibilityExclusion(ctx, r.client, plan.ID.ValueString())
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	if !plan.Exclusive.ValueBool() {
 		hostGroupsToRemove := flex.DiffStringSet(ctx, state.HostGroups, plan.HostGroups, &resp.Diagnostics)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		exclusion, diags := r.getSensorVisibilityExclusionForAttachment(ctx, plan.ID.ValueString())
-		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
@@ -324,19 +317,13 @@ func (r *sensorVisibilityExclusionAttachmentResource) Update(
 		}
 	}
 
-	exclusion, diags := r.getSensorVisibilityExclusionForAttachment(ctx, plan.ID.ValueString())
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	resp.Diagnostics.Append(
 		r.syncHostGroups(ctx, planHostGroups, state.HostGroups, plan.ID.ValueString(), exclusion)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	exclusion, diags = r.getSensorVisibilityExclusionForAttachment(ctx, plan.ID.ValueString())
+	exclusion, diags = getSensorVisibilityExclusion(ctx, r.client, plan.ID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -358,7 +345,10 @@ func (r *sensorVisibilityExclusionAttachmentResource) Delete(
 		return
 	}
 
-	exclusion, diags := r.getSensorVisibilityExclusionForAttachment(ctx, state.ID.ValueString())
+	exclusion, diags := getSensorVisibilityExclusion(ctx, r.client, state.ID.ValueString())
+	if tferrors.HasNotFoundError(diags) {
+		return
+	}
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -381,51 +371,6 @@ func (r *sensorVisibilityExclusionAttachmentResource) ImportState(
 	}
 
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
-}
-
-func (r *sensorVisibilityExclusionAttachmentResource) ValidateConfig(
-	ctx context.Context,
-	req resource.ValidateConfigRequest,
-	resp *resource.ValidateConfigResponse,
-) {
-	var config sensorVisibilityExclusionAttachmentResourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-
-	resp.Diagnostics.Append(utils.ValidateEmptyIDs(ctx, config.HostGroups, "host_groups")...)
-}
-
-func (r *sensorVisibilityExclusionAttachmentResource) getSensorVisibilityExclusionForAttachment(
-	ctx context.Context,
-	exclusionID string,
-) (*models.SvExclusionsSVExclusionV1, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	params := sensor_visibility_exclusions.NewGetSensorVisibilityExclusionsV1ParamsWithContext(ctx)
-	params.SetIds([]string{exclusionID})
-
-	tflog.Debug(ctx, "Calling CrowdStrike API to get sensor visibility exclusion", map[string]any{
-		"exclusion_id": exclusionID,
-	})
-
-	getResp, err := r.client.SensorVisibilityExclusions.GetSensorVisibilityExclusionsV1(params)
-	if err != nil {
-		diags.AddError(
-			"Unable to Read Sensor Visibility Exclusion",
-			"An error occurred while reading the sensor visibility exclusion. "+
-				"Original Error: "+err.Error(),
-		)
-		return nil, diags
-	}
-
-	if getResp == nil || getResp.Payload == nil || len(getResp.Payload.Resources) == 0 {
-		diags.AddError(
-			"Sensor Visibility Exclusion Not Found",
-			"The sensor visibility exclusion was not found or the API returned no resources.",
-		)
-		return nil, diags
-	}
-
-	return getResp.Payload.Resources[0], diags
 }
 
 func (r *sensorVisibilityExclusionAttachmentResource) syncHostGroups(
@@ -497,11 +442,7 @@ func (r *sensorVisibilityExclusionAttachmentResource) syncHostGroups(
 
 		_, err := r.client.SensorVisibilityExclusions.UpdateSensorVisibilityExclusionsV1(params)
 		if err != nil {
-			diags.AddError(
-				"Unable to Update Sensor Visibility Exclusion Host Groups",
-				"An error occurred while updating the sensor visibility exclusion host groups. "+
-					"Original Error: "+err.Error(),
-			)
+			diags.Append(tferrors.NewOperationError(tferrors.Update, err))
 			return diags
 		}
 	}
