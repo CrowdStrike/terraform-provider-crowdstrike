@@ -5,4 +5,8 @@ type (
 	FilevantagePoliciesDataSourceModel = filevantagePoliciesDataSourceModel
 )
 
-var FilterPoliciesByAttributes = filterPoliciesByAttributes
+var (
+	FilterPoliciesByAttributes        = filterPoliciesByAttributes
+	FindAttachmentGroupsToRemove      = findAttachmentGroupsToRemove
+	MergeAttachmentSetItems           = mergeAttachmentSetItems
+)
