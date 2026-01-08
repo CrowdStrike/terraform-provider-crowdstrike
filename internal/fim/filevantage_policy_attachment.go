@@ -7,6 +7,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/filevantage"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
@@ -147,71 +148,6 @@ func (m *filevantagePolicyAttachmentResourceModel) wrap(
 	return diags
 }
 
-func mergeAttachmentSetItems(
-	ctx context.Context,
-	existingSet types.Set,
-	planSet types.Set,
-	diags *diag.Diagnostics,
-) types.Set {
-	existingItems := flex.ExpandSetAs[types.String](ctx, existingSet, diags)
-	if diags.HasError() {
-		return types.SetNull(types.StringType)
-	}
-
-	planItems := flex.ExpandSetAs[types.String](ctx, planSet, diags)
-	if diags.HasError() {
-		return types.SetNull(types.StringType)
-	}
-
-	allItems := make([]types.String, 0, len(existingItems)+len(planItems))
-	allItems = append(allItems, existingItems...)
-	allItems = append(allItems, planItems...)
-	uniqueItems := flex.Unique(allItems)
-
-	mergedSet, mergeDiags := types.SetValueFrom(ctx, types.StringType, uniqueItems)
-	diags.Append(mergeDiags...)
-
-	return mergedSet
-}
-
-func findAttachmentGroupsToRemove(
-	ctx context.Context,
-	stateSet types.Set,
-	planSet types.Set,
-	diags *diag.Diagnostics,
-) []types.String {
-	if stateSet.IsNull() {
-		return nil
-	}
-
-	stateItems := flex.ExpandSetAs[types.String](ctx, stateSet, diags)
-	if diags.HasError() {
-		return nil
-	}
-
-	if planSet.IsNull() {
-		return stateItems
-	}
-
-	planItems := flex.ExpandSetAs[types.String](ctx, planSet, diags)
-	if diags.HasError() {
-		return nil
-	}
-
-	planMap := make(map[string]bool)
-	for _, item := range planItems {
-		planMap[item.ValueString()] = true
-	}
-
-	var toRemove []types.String
-	for _, item := range stateItems {
-		if !planMap[item.ValueString()] {
-			toRemove = append(toRemove, item)
-		}
-	}
-
-	return toRemove
-}
 
 func (r *filevantagePolicyAttachmentResource) Configure(
 	ctx context.Context,
@@ -222,13 +158,13 @@ func (r *filevantagePolicyAttachmentResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
@@ -236,7 +172,7 @@ func (r *filevantagePolicyAttachmentResource) Configure(
 		return
 	}
 
-	r.client = client
+	r.client = config.Client
 }
 
 func (r *filevantagePolicyAttachmentResource) Metadata(
@@ -335,12 +271,12 @@ func (r *filevantagePolicyAttachmentResource) Create(
 	planRuleGroups := plan.RuleGroups
 
 	if !plan.Exclusive.ValueBool() {
-		planHostGroups = mergeAttachmentSetItems(ctx, existingHostGroups, plan.HostGroups, &resp.Diagnostics)
+		planHostGroups = flex.MergeStringSet(ctx, existingHostGroups, plan.HostGroups, &resp.Diagnostics)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 
-		planRuleGroups = mergeAttachmentSetItems(ctx, existingRuleGroups, plan.RuleGroups, &resp.Diagnostics)
+		planRuleGroups = flex.MergeStringSet(ctx, existingRuleGroups, plan.RuleGroups, &resp.Diagnostics)
 		if resp.Diagnostics.HasError() {
 			return
 		}
@@ -421,12 +357,12 @@ func (r *filevantagePolicyAttachmentResource) Update(
 	planRuleGroups := plan.RuleGroups
 
 	if !plan.Exclusive.ValueBool() {
-		hostGroupsToRemove := findAttachmentGroupsToRemove(ctx, state.HostGroups, plan.HostGroups, &resp.Diagnostics)
+		hostGroupsToRemove := flex.DiffStringSet(ctx, state.HostGroups, plan.HostGroups, &resp.Diagnostics)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 
-		ruleGroupsToRemove := findAttachmentGroupsToRemove(ctx, state.RuleGroups, plan.RuleGroups, &resp.Diagnostics)
+		ruleGroupsToRemove := flex.DiffStringSet(ctx, state.RuleGroups, plan.RuleGroups, &resp.Diagnostics)
 		if resp.Diagnostics.HasError() {
 			return
 		}
@@ -473,12 +409,12 @@ func (r *filevantagePolicyAttachmentResource) Update(
 			return
 		}
 
-		planHostGroups = mergeAttachmentSetItems(ctx, existingHostGroupSet, plan.HostGroups, &resp.Diagnostics)
+		planHostGroups = flex.MergeStringSet(ctx, existingHostGroupSet, plan.HostGroups, &resp.Diagnostics)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 
-		planRuleGroups = mergeAttachmentSetItems(ctx, existingRuleGroupSet, plan.RuleGroups, &resp.Diagnostics)
+		planRuleGroups = flex.MergeStringSet(ctx, existingRuleGroupSet, plan.RuleGroups, &resp.Diagnostics)
 		if resp.Diagnostics.HasError() {
 			return
 		}

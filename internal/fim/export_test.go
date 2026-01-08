@@ -6,7 +6,5 @@ type (
 )
 
 var (
-	FilterPoliciesByAttributes        = filterPoliciesByAttributes
-	FindAttachmentGroupsToRemove      = findAttachmentGroupsToRemove
-	MergeAttachmentSetItems           = mergeAttachmentSetItems
+	FilterPoliciesByAttributes = filterPoliciesByAttributes
 )
