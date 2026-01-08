@@ -148,7 +148,6 @@ func (m *filevantagePolicyAttachmentResourceModel) wrap(
 	return diags
 }
 
-
 func (r *filevantagePolicyAttachmentResource) Configure(
 	ctx context.Context,
 	req resource.ConfigureRequest,

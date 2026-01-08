@@ -5,6 +5,4 @@ type (
 	FilevantagePoliciesDataSourceModel = filevantagePoliciesDataSourceModel
 )
 
-var (
-	FilterPoliciesByAttributes = filterPoliciesByAttributes
-)
+var FilterPoliciesByAttributes = filterPoliciesByAttributes
