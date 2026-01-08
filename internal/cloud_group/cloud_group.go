@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_security"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	fwtypes "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/types"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
@@ -725,19 +726,19 @@ func (r *cloudGroupResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
 		return
 	}
 
-	r.client = client
+	r.client = config.Client
 }
 
 // Create creates the resource and sets the initial Terraform state.

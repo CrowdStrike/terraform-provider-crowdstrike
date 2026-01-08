@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_google_cloud_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
@@ -56,7 +57,8 @@ func NewCloudGoogleRegistrationResource() resource.Resource {
 }
 
 type cloudGoogleRegistrationResource struct {
-	client *client.CrowdStrikeAPISpecification
+	client   *client.CrowdStrikeAPISpecification
+	clientId string
 }
 
 type realtimeVisibilityModel struct {
@@ -78,27 +80,28 @@ func (r *realtimeVisibilityModel) FromObject(ctx context.Context, obj types.Obje
 }
 
 type cloudGoogleRegistrationResourceModel struct {
-	ID                      types.String `tfsdk:"id"`
-	Name                    types.String `tfsdk:"name"`
-	RegistrationScope       types.String `tfsdk:"registration_scope"`
-	Organization            types.String `tfsdk:"organization"`
-	Folders                 types.Set    `tfsdk:"folders"`
-	Projects                types.Set    `tfsdk:"projects"`
-	DeploymentMethod        types.String `tfsdk:"deployment_method"`
-	InfraProjectID          types.String `tfsdk:"infra_project"`
-	WifProjectID            types.String `tfsdk:"wif_project"`
-	ExcludedProjectPatterns types.List   `tfsdk:"excluded_project_patterns"`
-	ResourceNamePrefix      types.String `tfsdk:"resource_name_prefix"`
-	ResourceNameSuffix      types.String `tfsdk:"resource_name_suffix"`
-	Labels                  types.Map    `tfsdk:"labels"`
-	Tags                    types.Map    `tfsdk:"tags"`
-	RealtimeVisibility      types.Object `tfsdk:"realtime_visibility"`
-	Status                  types.String `tfsdk:"status"`
-	WifPoolID               types.String `tfsdk:"wif_pool_id"`
-	WifPoolName             types.String `tfsdk:"wif_pool_name"`
-	WifProjectNumber        types.String `tfsdk:"wif_project_number"`
-	WifProviderID           types.String `tfsdk:"wif_provider_id"`
-	WifProviderName         types.String `tfsdk:"wif_provider_name"`
+	ID                          types.String `tfsdk:"id"`
+	Name                        types.String `tfsdk:"name"`
+	RegistrationScope           types.String `tfsdk:"registration_scope"`
+	Organization                types.String `tfsdk:"organization"`
+	Folders                     types.Set    `tfsdk:"folders"`
+	Projects                    types.Set    `tfsdk:"projects"`
+	DeploymentMethod            types.String `tfsdk:"deployment_method"`
+	InfrastructureManagerRegion types.String `tfsdk:"infrastructure_manager_region"`
+	InfraProjectID              types.String `tfsdk:"infra_project"`
+	WifProjectID                types.String `tfsdk:"wif_project"`
+	ExcludedProjectPatterns     types.List   `tfsdk:"excluded_project_patterns"`
+	ResourceNamePrefix          types.String `tfsdk:"resource_name_prefix"`
+	ResourceNameSuffix          types.String `tfsdk:"resource_name_suffix"`
+	Labels                      types.Map    `tfsdk:"labels"`
+	Tags                        types.Map    `tfsdk:"tags"`
+	RealtimeVisibility          types.Object `tfsdk:"realtime_visibility"`
+	Status                      types.String `tfsdk:"status"`
+	WifPoolID                   types.String `tfsdk:"wif_pool_id"`
+	WifPoolName                 types.String `tfsdk:"wif_pool_name"`
+	WifProjectNumber            types.String `tfsdk:"wif_project_number"`
+	WifProviderID               types.String `tfsdk:"wif_provider_id"`
+	WifProviderName             types.String `tfsdk:"wif_provider_name"`
 }
 
 func (m *cloudGoogleRegistrationResourceModel) getEntityIDs(ctx context.Context) ([]string, diag.Diagnostics) {
@@ -141,6 +144,12 @@ func (m *cloudGoogleRegistrationResourceModel) wrap(
 	m.DeploymentMethod = types.StringValue(registration.DeploymentMethod)
 	m.InfraProjectID = types.StringValue(registration.InfraProjectID)
 	m.Status = types.StringValue(registration.Status)
+
+	var infraManagerRegion string
+	if registration.InfraManagerProperties != nil {
+		infraManagerRegion = registration.InfraManagerProperties.Region
+	}
+	m.InfrastructureManagerRegion = flex.StringValueToFramework(infraManagerRegion)
 
 	switch registration.RegistrationScope {
 	case "organization":
@@ -254,13 +263,13 @@ func (r *cloudGoogleRegistrationResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
@@ -268,7 +277,8 @@ func (r *cloudGoogleRegistrationResource) Configure(
 		return
 	}
 
-	r.client = client
+	r.client = config.Client
+	r.clientId = config.ClientId
 }
 
 func (r *cloudGoogleRegistrationResource) Metadata(
@@ -364,6 +374,13 @@ func (r *cloudGoogleRegistrationResource) Schema(
 					stringvalidator.OneOf("terraform-native", "infrastructure-manager"),
 				},
 			},
+			"infrastructure_manager_region": schema.StringAttribute{
+				Optional:    true,
+				Description: "The Google Cloud region for Infrastructure Manager. Required when deployment_method is infrastructure-manager",
+				Validators: []validator.String{
+					validators.StringNotWhitespace(),
+				},
+			},
 			"infra_project": schema.StringAttribute{
 				Required:    true,
 				Description: "The Google Cloud project ID where CrowdStrike infrastructure resources will be created",
@@ -388,12 +405,30 @@ func (r *cloudGoogleRegistrationResource) Schema(
 					),
 				},
 			},
+			"wif_project_number": schema.StringAttribute{
+				Required:    true,
+				Description: "Google Cloud project number for Workload Identity Federation",
+				Validators: []validator.String{
+					validators.StringNotWhitespace(),
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^[0-9]+$`),
+						"must be numeric",
+					),
+				},
+			},
+
 			"excluded_project_patterns": schema.ListAttribute{
 				Optional:    true,
-				Description: "Regex patterns to exclude specific projects from registration",
+				Description: "Regex patterns to exclude specific projects from registration. Each pattern must start with 'sys-' (case insensitive)",
 				ElementType: types.StringType,
 				Validators: []validator.List{
-					listvalidator.ValueStringsAre(validators.StringNotWhitespace()),
+					listvalidator.ValueStringsAre(
+						validators.StringNotWhitespace(),
+						stringvalidator.RegexMatches(
+							regexp.MustCompile(`^(?i)sys-`),
+							"must start with 'sys-' (case insensitive)",
+						),
+					),
 				},
 			},
 			"resource_name_prefix": schema.StringAttribute{
@@ -453,10 +488,6 @@ func (r *cloudGoogleRegistrationResource) Schema(
 				Computed:    true,
 				Description: "Workload Identity Federation pool name",
 			},
-			"wif_project_number": schema.StringAttribute{
-				Computed:    true,
-				Description: "Google Cloud project number for Workload Identity Federation",
-			},
 			"wif_provider_id": schema.StringAttribute{
 				Computed:    true,
 				Description: "Workload Identity Federation provider ID",
@@ -493,25 +524,33 @@ func (r *cloudGoogleRegistrationResource) ValidateConfig(
 		return
 	}
 
-	if !utils.IsKnown(config.ResourceNamePrefix) || !utils.IsKnown(config.ResourceNameSuffix) {
-		return
+	if utils.IsKnown(config.ResourceNamePrefix) && utils.IsKnown(config.ResourceNameSuffix) {
+		prefixLen := len(config.ResourceNamePrefix.ValueString())
+		suffixLen := len(config.ResourceNameSuffix.ValueString())
+		totalLen := prefixLen + suffixLen
+
+		if totalLen > maxResourceNameCombinedLength {
+			resp.Diagnostics.AddError(
+				"Invalid resource name prefix and suffix combination",
+				fmt.Sprintf(
+					"The combined length of resource_name_prefix (%d characters) and resource_name_suffix (%d characters) should not exceed %d characters, currently %d characters",
+					prefixLen,
+					suffixLen,
+					maxResourceNameCombinedLength,
+					totalLen,
+				),
+			)
+		}
 	}
 
-	prefixLen := len(config.ResourceNamePrefix.ValueString())
-	suffixLen := len(config.ResourceNameSuffix.ValueString())
-	totalLen := prefixLen + suffixLen
-
-	if totalLen > maxResourceNameCombinedLength {
-		resp.Diagnostics.AddError(
-			"Invalid resource name prefix and suffix combination",
-			fmt.Sprintf(
-				"The combined length of resource_name_prefix (%d characters) and resource_name_suffix (%d characters) should not exceed %d characters, currently %d characters",
-				prefixLen,
-				suffixLen,
-				maxResourceNameCombinedLength,
-				totalLen,
-			),
-		)
+	if utils.IsKnown(config.DeploymentMethod) {
+		if config.DeploymentMethod.ValueString() == "infrastructure-manager" && config.InfrastructureManagerRegion.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("infrastructure_manager_region"),
+				"Missing Required Attribute",
+				"infrastructure_manager_region is required when deployment_method is 'infrastructure-manager'",
+			)
+		}
 	}
 }
 
@@ -545,6 +584,10 @@ func (r *cloudGoogleRegistrationResource) Create(
 		RegistrationName:  &registrationName,
 		RegistrationScope: &registrationScope,
 		WifProjectID:      &wifProjectID,
+	}
+
+	if !plan.InfrastructureManagerRegion.IsNull() {
+		createReq.InfraManagerRegion = plan.InfrastructureManagerRegion.ValueString()
 	}
 
 	createReq.ResourceNameSuffix = flex.FrameworkToStringPointer(plan.ResourceNameSuffix)
@@ -621,16 +664,48 @@ func (r *cloudGoogleRegistrationResource) Create(
 	}
 
 	registration := res.Payload.Resources[0]
-	state := plan
-	state.ID = types.StringValue(registration.RegistrationID)
+	plan.ID = types.StringValue(registration.RegistrationID)
+	resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)
 
-	resp.Diagnostics.Append(state.wrap(ctx, registration)...)
+	if !plan.WifProjectNumber.IsNull() {
+		updateReq := &models.DtoUpdateGCPRegistrationRequest{
+			WifProjectNumber:  plan.WifProjectNumber.ValueString(),
+			FalconClientKeyID: r.clientId,
+		}
+
+		patchParams := &cloud_google_cloud_registration.CloudRegistrationGcpUpdateRegistrationParams{
+			Context: ctx,
+			Ids:     registration.RegistrationID,
+			Body: &models.DtoGCPRegistrationUpdateRequestExtV1{
+				Resources: []*models.DtoUpdateGCPRegistrationRequest{updateReq},
+			},
+		}
+
+		patchRes, err := r.client.CloudGoogleCloudRegistration.CloudRegistrationGcpUpdateRegistration(patchParams)
+		if err != nil {
+			if _, ok := err.(*cloud_google_cloud_registration.CloudRegistrationGcpUpdateRegistrationForbidden); ok {
+				resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Create, gcpRegistrationScopes))
+				return
+			}
+			resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Create, err))
+			return
+		}
+
+		if patchRes == nil || patchRes.Payload == nil || len(patchRes.Payload.Resources) == 0 || patchRes.Payload.Resources[0] == nil {
+			resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
+			return
+		}
+
+		registration = patchRes.Payload.Resources[0]
+	}
+
+	resp.Diagnostics.Append(plan.wrap(ctx, registration)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	tflog.Info(ctx, "Google Cloud registration created", map[string]interface{}{"registration_id": registration.RegistrationID})
-	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *cloudGoogleRegistrationResource) Read(
@@ -694,12 +769,18 @@ func (r *cloudGoogleRegistrationResource) Update(
 	}
 
 	updateReq := &models.DtoUpdateGCPRegistrationRequest{
-		DeploymentMethod:  plan.DeploymentMethod.ValueStringPointer(),
+		DeploymentMethod:  plan.DeploymentMethod.ValueString(),
 		EntityID:          entityIDs,
 		RegistrationScope: plan.getRegistrationScope(),
 		RegistrationName:  plan.Name.ValueString(),
 		InfraProjectID:    plan.InfraProjectID.ValueString(),
 		WifProjectID:      plan.WifProjectID.ValueString(),
+		WifProjectNumber:  plan.WifProjectNumber.ValueString(),
+		FalconClientKeyID: r.clientId,
+	}
+
+	if !plan.InfrastructureManagerRegion.IsNull() {
+		updateReq.InfraManagerRegion = plan.InfrastructureManagerRegion.ValueString()
 	}
 
 	updateReq.ResourceNameSuffix = flex.FrameworkToStringPointer(plan.ResourceNameSuffix)
