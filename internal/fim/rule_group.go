@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/filevantage"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -154,13 +155,13 @@ func (r *filevantageRuleGroupResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
@@ -168,7 +169,7 @@ func (r *filevantageRuleGroupResource) Configure(
 		return
 	}
 
-	r.client = client
+	r.client = config.Client
 }
 
 // Metadata returns the resource type name.

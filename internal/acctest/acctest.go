@@ -2,6 +2,7 @@ package acctest
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/provider"
@@ -23,6 +24,17 @@ const (
 	RequireHostGroupID    OptionalEnvVar = "HOST_GROUP_ID"
 	RequireIOARuleGroupID OptionalEnvVar = "IOA_RULE_GROUP_ID"
 )
+
+// ConfigCompose can be called to concatenate multiple strings to build test configurations.
+func ConfigCompose(config ...string) string {
+	var str strings.Builder
+
+	for _, conf := range config {
+		str.WriteString(conf)
+	}
+
+	return str.String()
+}
 
 // ProtoV6ProviderFactories are used to instantiate a provider during
 // acceptance testing. The factory function will be invoked for every Terraform

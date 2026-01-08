@@ -6,6 +6,8 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
@@ -13,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -27,7 +30,7 @@ var (
 
 var (
 	documentationSection        string         = "Sensor Update Policy"
-	resourceMarkdownDescription string         = "This resource allows managing the host groups attached to a sensor update policy. This resource takes exclusive ownership over the host groups assigned to a sensor update policy. If you want to fully create or manage a sensor update policy please use the `crowdstrike_sensor_update_policy` resource."
+	resourceMarkdownDescription string         = "This resource allows managing the host groups attached to a sensor update policy. By default (when `exclusive` is true), this resource takes exclusive ownership over the host groups assigned to a sensor update policy. When `exclusive` is false, this resource only manages the specific host groups defined in the configuration. If you want to fully create or manage a sensor update policy please use the `crowdstrike_sensor_update_policy` resource."
 	requiredScopes              []scopes.Scope = []scopes.Scope{
 		{
 			Name:  "Sensor update policies",
@@ -49,6 +52,7 @@ type sensorUpdatePolicyHostGroupAttachmentResourceModel struct {
 	ID          types.String `tfsdk:"id"`
 	LastUpdated types.String `tfsdk:"last_updated"`
 	HostGroups  types.Set    `tfsdk:"host_groups"`
+	Exclusive   types.Bool   `tfsdk:"exclusive"`
 }
 
 // wrap transforms Go values to their terraform wrapped values.
@@ -60,16 +64,48 @@ func (d *sensorUpdatePolicyHostGroupAttachmentResourceModel) wrap(
 
 	d.ID = types.StringValue(*policy.ID)
 
-	hostGroupSet, diag := hostgroups.ConvertHostGroupsToSet(ctx, policy.Groups)
-	diags.Append(diag...)
-	if diags.HasError() {
-		return diags
-	}
+	hostGroups := types.SetNull(types.StringType)
 
-	// allow host_groups to stay null instead of defaulting to an empty set when there are no host groups
-	if !d.HostGroups.IsNull() || len(hostGroupSet.Elements()) != 0 {
-		d.HostGroups = hostGroupSet
+	if d.Exclusive.ValueBool() {
+		hostGroupSet, diag := hostgroups.ConvertHostGroupsToSet(ctx, policy.Groups)
+		diags.Append(diag...)
+		if diags.HasError() {
+			return diags
+		}
+
+		if len(hostGroupSet.Elements()) != 0 {
+			hostGroups = hostGroupSet
+		}
+	} else {
+		existingHostGroups := make(map[string]bool)
+		for _, hg := range policy.Groups {
+			if hg != nil && hg.ID != nil {
+				existingHostGroups[*hg.ID] = true
+			}
+		}
+
+		if !d.HostGroups.IsNull() {
+			planHostGroups := flex.ExpandSetAs[types.String](ctx, d.HostGroups, &diags)
+			if diags.HasError() {
+				return diags
+			}
+
+			var currentHostGroups []types.String
+			for _, hg := range planHostGroups {
+				if existingHostGroups[hg.ValueString()] {
+					currentHostGroups = append(currentHostGroups, hg)
+				}
+			}
+
+			hgSet, diag := types.SetValueFrom(ctx, types.StringType, currentHostGroups)
+			diags.Append(diag...)
+			if diags.HasError() {
+				return diags
+			}
+			hostGroups = hgSet
+		}
 	}
+	d.HostGroups = hostGroups
 
 	return diags
 }
@@ -83,13 +119,13 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
@@ -97,7 +133,7 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Configure(
 		return
 	}
 
-	r.client = client
+	r.client = config.Client
 }
 
 func (r *sensorUpdatePolicyHostGroupAttachmentResource) Metadata(
@@ -128,6 +164,12 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Schema(
 				Computed:    true,
 				Description: "Timestamp of the last Terraform update of the resource.",
 			},
+			"exclusive": schema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Default:     booldefault.StaticBool(true),
+				Description: "When true (default), this resource takes exclusive ownership of all host groups attached to the sensor update policy. When false, this resource only manages the specific host groups defined in the configuration, leaving other groups untouched.",
+			},
 			"host_groups": schema.SetAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
@@ -154,26 +196,23 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Create(
 		return
 	}
 
-	hgs := policy.Groups
-	hgSet := types.SetNull(types.StringType)
+	existingHostGroups, diag := hostgroups.ConvertHostGroupsToSet(ctx, policy.Groups)
+	resp.Diagnostics.Append(diag...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	if len(hgs) > 0 {
-		hgIDs := make([]types.String, 0, len(hgs))
-		for _, hg := range hgs {
-			hgIDs = append(hgIDs, types.StringValue(*hg.ID))
-		}
+	planHostGroups := plan.HostGroups
 
-		hostGroupSet, diags := types.SetValueFrom(ctx, types.StringType, hgIDs)
-		hgSet = hostGroupSet
-
-		resp.Diagnostics.Append(diags...)
+	if !plan.Exclusive.ValueBool() {
+		planHostGroups = flex.MergeStringSet(ctx, existingHostGroups, plan.HostGroups, &resp.Diagnostics)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 	}
 
 	resp.Diagnostics.Append(
-		syncHostGroups(ctx, r.client, plan.HostGroups, hgSet, plan.ID.ValueString())...)
+		syncHostGroups(ctx, r.client, planHostGroups, existingHostGroups, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -232,8 +271,50 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Update(
 	var state sensorUpdatePolicyHostGroupAttachmentResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	planHostGroups := plan.HostGroups
+
+	if !plan.Exclusive.ValueBool() {
+		hostGroupsToRemove := flex.DiffStringSet(ctx, state.HostGroups, plan.HostGroups, &resp.Diagnostics)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		policy, diags := getSensorUpdatePolicy(ctx, r.client, plan.ID.ValueString())
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		removeMap := make(map[string]bool)
+		for _, id := range hostGroupsToRemove {
+			removeMap[id.ValueString()] = true
+		}
+
+		var existingHostGroups []*models.HostGroupsHostGroupV1
+		for _, hg := range policy.Groups {
+			if hg != nil && hg.ID != nil && !removeMap[*hg.ID] {
+				existingHostGroups = append(existingHostGroups, hg)
+			}
+		}
+
+		existingHostGroupSet, diag := hostgroups.ConvertHostGroupsToSet(ctx, existingHostGroups)
+		resp.Diagnostics.Append(diag...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		planHostGroups = flex.MergeStringSet(ctx, existingHostGroupSet, plan.HostGroups, &resp.Diagnostics)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
 	resp.Diagnostics.Append(
-		syncHostGroups(ctx, r.client, plan.HostGroups, state.HostGroups, plan.ID.ValueString())...)
+		syncHostGroups(ctx, r.client, planHostGroups, state.HostGroups, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -272,6 +353,11 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) ImportState(
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
 ) {
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("exclusive"), true)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
