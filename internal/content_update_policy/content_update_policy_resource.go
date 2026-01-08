@@ -503,18 +503,10 @@ func (r *contentPolicyResource) Create(
 	}
 
 	if len(plan.HostGroups.Elements()) > 0 {
-		var hostGroupIDs []string
-		resp.Diagnostics.Append(plan.HostGroups.ElementsAs(ctx, &hostGroupIDs, false)...)
+		emptySet := types.SetNull(types.StringType)
+		resp.Diagnostics.Append(
+			syncHostGroups(ctx, r.client, plan.HostGroups, emptySet, plan.ID.ValueString())...)
 		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		err = r.updateHostGroups(ctx, hostgroups.AddHostGroup, hostGroupIDs, plan.ID.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error assigning host group to policy",
-				"Could not assign host group to policy, unexpected error: "+err.Error(),
-			)
 			return
 		}
 	}
@@ -615,56 +607,10 @@ func (r *contentPolicyResource) Update(
 		return
 	}
 
-	hostGroupsToAdd, hostGroupsToRemove, diags := utils.SetIDsToModify(
-		ctx,
-		plan.HostGroups,
-		state.HostGroups,
-	)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(
+		syncHostGroups(ctx, r.client, plan.HostGroups, state.HostGroups, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
-	}
-
-	if len(hostGroupsToAdd) != 0 {
-		err := r.updateHostGroups(
-			ctx,
-			hostgroups.AddHostGroup,
-			hostGroupsToAdd,
-			plan.ID.ValueString(),
-		)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating content update policy",
-				fmt.Sprintf(
-					"Could not add host groups: (%s) to policy with id: %s \n\n %s",
-					strings.Join(hostGroupsToAdd, ", "),
-					plan.ID.ValueString(),
-					err.Error(),
-				),
-			)
-			return
-		}
-	}
-
-	if len(hostGroupsToRemove) != 0 {
-		err := r.updateHostGroups(
-			ctx,
-			hostgroups.RemoveHostGroup,
-			hostGroupsToRemove,
-			plan.ID.ValueString(),
-		)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating content update policy",
-				fmt.Sprintf(
-					"Could not remove host groups: (%s) from policy with id: %s \n\n %s",
-					strings.Join(hostGroupsToRemove, ", "),
-					plan.ID.ValueString(),
-					err.Error(),
-				),
-			)
-			return
-		}
 	}
 
 	assignments := categoryAssignments{
@@ -945,38 +891,4 @@ func (r *contentPolicyResource) ModifyPlan(
 		plan.rapidResponse,
 	)
 	resp.Diagnostics.Append(validationDiags...)
-}
-
-// updateHostGroups will remove or add a slice of host groups to a content update policy.
-func (r *contentPolicyResource) updateHostGroups(
-	ctx context.Context,
-	action hostgroups.HostGroupAction,
-	hostGroupIDs []string,
-	policyID string,
-) error {
-	var actionParams []*models.MsaspecActionParameter
-	name := "group_id"
-
-	for _, g := range hostGroupIDs {
-		gCopy := g
-		actionParam := &models.MsaspecActionParameter{
-			Name:  &name,
-			Value: &gCopy,
-		}
-
-		actionParams = append(actionParams, actionParam)
-	}
-
-	_, err := r.client.ContentUpdatePolicies.PerformContentUpdatePoliciesAction(
-		&content_update_policies.PerformContentUpdatePoliciesActionParams{
-			Context:    ctx,
-			ActionName: action.String(),
-			Body: &models.MsaEntityActionRequestV2{
-				ActionParameters: actionParams,
-				Ids:              []string{policyID},
-			},
-		},
-	)
-
-	return err
 }
