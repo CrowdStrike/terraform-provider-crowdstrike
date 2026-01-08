@@ -257,6 +257,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		fim.NewFIMPolicyResource,
 		fim.NewFilevantageRuleGroupResource,
 		fim.NewFilevantagePolicyPrecedenceResource,
+		fim.NewFilevantagePolicyAttachmentResource,
 		fcs.NewCloudAWSAccountResource,
 		fcs.NewCloudAzureTenantEventhubSettingsResource,
 		fcs.NewCloudAzureTenantResource,
