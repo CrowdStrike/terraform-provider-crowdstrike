@@ -11,6 +11,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	fwtypes "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/types"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
@@ -39,6 +40,13 @@ var (
 	_ resource.ResourceWithModifyPlan  = &cloudSecurityCustomRuleResource{}
 )
 
+// Default values for schema fields
+const (
+	DefaultDomain    = "CSPM"
+	DefaultSubdomain = "IOM"
+	DefaultSeverity  = "critical"
+)
+
 var (
 	documentationSection        string = "Falcon Cloud Security"
 	resourceMarkdownDescription string = "This resource manages custom cloud security rules. " +
@@ -50,6 +58,58 @@ var (
 
 func NewCloudSecurityCustomRuleResource() resource.Resource {
 	return &cloudSecurityCustomRuleResource{}
+}
+
+// Helper functions to get effective provider and platform values
+func (m *cloudSecurityCustomRuleResourceModel) getEffectiveProvider() string {
+	// Prefer new field over deprecated field
+	if !m.RuleProvider.IsNull() && m.RuleProvider.ValueString() != "" {
+		return m.RuleProvider.ValueString()
+	}
+	if !m.CloudProvider.IsNull() && m.CloudProvider.ValueString() != "" {
+		return m.CloudProvider.ValueString()
+	}
+	return ""
+}
+
+func (m *cloudSecurityCustomRuleResourceModel) getEffectivePlatform() string {
+	// Prefer new field over deprecated field
+	if !m.RulePlatform.IsNull() && m.RulePlatform.ValueString() != "" {
+		return m.RulePlatform.ValueString()
+	}
+	if !m.CloudPlatform.IsNull() && m.CloudPlatform.ValueString() != "" {
+		return m.CloudPlatform.ValueString()
+	}
+	return ""
+}
+
+// Helper function to set provider field - only sets the field that was originally configured
+func (m *cloudSecurityCustomRuleResourceModel) setProviderFields(provider string) {
+	// Determine which field is being used based on configuration
+	if !m.RuleProvider.IsNull() {
+		// User configured the new field, so only update the new field
+		m.RuleProvider = fwtypes.OptionalString(provider)
+	} else if !m.CloudProvider.IsNull() {
+		// User configured the deprecated field, so only update the deprecated field
+		m.CloudProvider = fwtypes.OptionalString(provider)
+	} else {
+		// Neither field is configured, default to the new field
+		m.RuleProvider = fwtypes.OptionalString(provider)
+	}
+}
+
+func (m *cloudSecurityCustomRuleResourceModel) setPlatformFields(platform string) {
+	// Determine which field is being used based on configuration
+	if !m.RulePlatform.IsNull() {
+		// User configured the new field, so only update the new field
+		m.RulePlatform = fwtypes.OptionalString(platform)
+	} else if !m.CloudPlatform.IsNull() {
+		// User configured the deprecated field, so only update the deprecated field
+		m.CloudPlatform = fwtypes.OptionalString(platform)
+	} else {
+		// Neither field is configured, default to the new field
+		m.RulePlatform = fwtypes.OptionalString(platform)
+	}
 }
 
 type cloudSecurityCustomRuleResource struct {
@@ -66,12 +126,16 @@ type cloudSecurityCustomRuleResourceModel struct {
 	Name            types.String `tfsdk:"name"`
 	AttackTypes     types.Set    `tfsdk:"attack_types"`
 	ParentRuleId    types.String `tfsdk:"parent_rule_id"`
-	CloudPlatform   types.String `tfsdk:"cloud_platform"`
-	CloudProvider   types.String `tfsdk:"cloud_provider"`
 	RemediationInfo types.List   `tfsdk:"remediation_info"`
 	ResourceType    types.String `tfsdk:"resource_type"`
 	Severity        types.String `tfsdk:"severity"`
 	Subdomain       types.String `tfsdk:"subdomain"`
+	// New preferred fields
+	RulePlatform types.String `tfsdk:"rule_platform"`
+	RuleProvider types.String `tfsdk:"rule_provider"`
+	// Deprecated fields (kept for backward compatibility)
+	CloudPlatform types.String `tfsdk:"cloud_platform"`
+	CloudProvider types.String `tfsdk:"cloud_provider"`
 }
 
 func (r *cloudSecurityCustomRuleResource) Configure(
@@ -165,9 +229,13 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 				Description: "Description of the policy rule.",
 			},
 			"domain": schema.StringAttribute{
+				Optional:    true,
 				Computed:    true,
-				Default:     stringdefault.StaticString("CSPM"),
-				Description: "CrowdStrike domain for the custom rule. Default is CSPM",
+				Default:     stringdefault.StaticString(DefaultDomain),
+				Description: "CrowdStrike domain for the custom rule. Valid values are CSPM and Runtime. Default is CSPM",
+				Validators: []validator.String{
+					stringvalidator.OneOf("CSPM", "Runtime"),
+				},
 			},
 			"attack_types": schema.SetAttribute{
 				Optional:            true,
@@ -204,24 +272,61 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"cloud_platform": schema.StringAttribute{
+			"rule_platform": schema.StringAttribute{
+				Optional:    true,
 				Computed:    true,
-				Description: "Cloud platform for the policy rule.",
+				Description: "Cloud platform for the policy rule. Required when domain is 'CSPM' and subdomain is 'IOM'. Defaults to 'Kubernetes' when domain is 'Runtime'.",
 				PlanModifiers: []planmodifier.String{
+					RequireWhenCSPMIOM(),
+					KubernetesDefaultForRuntime(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"cloud_provider": schema.StringAttribute{
-				Required:    true,
-				Description: "Cloud provider for the policy rule.",
+			"rule_provider": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Cloud provider for the policy rule. Required when domain is 'CSPM' and subdomain is 'IOM'. Defaults to 'Kubernetes' when domain is 'Runtime'.",
 				Validators: []validator.String{
 					stringvalidator.OneOf(
 						"AWS",
 						"Azure",
 						"GCP",
+						"Kubernetes",
 					),
 				},
 				PlanModifiers: []planmodifier.String{
+					RequireWhenCSPMIOM(),
+					KubernetesDefaultForRuntime(),
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"cloud_platform": schema.StringAttribute{
+				Optional:           true,
+				Computed:           true,
+				DeprecationMessage: "Use 'rule_platform' instead. This field will be removed in a future version.",
+				Description:        "Cloud platform for the policy rule. Required when domain is 'CSPM' and subdomain is 'IOM'. Defaults to 'Kubernetes' when domain is 'Runtime'. Deprecated: use 'rule_platform' instead.",
+				PlanModifiers: []planmodifier.String{
+					RequireWhenCSPMIOM(),
+					KubernetesDefaultForRuntime(),
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"cloud_provider": schema.StringAttribute{
+				Optional:           true,
+				Computed:           true,
+				DeprecationMessage: "Use 'rule_provider' instead. This field will be removed in a future version.",
+				Description:        "Cloud provider for the policy rule. Required when domain is 'CSPM' and subdomain is 'IOM'. Defaults to 'Kubernetes' when domain is 'Runtime'. Deprecated: use 'rule_provider' instead.",
+				Validators: []validator.String{
+					stringvalidator.OneOf(
+						"AWS",
+						"Azure",
+						"GCP",
+						"Kubernetes",
+					),
+				},
+				PlanModifiers: []planmodifier.String{
+					RequireWhenCSPMIOM(),
+					KubernetesDefaultForRuntime(),
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
@@ -237,8 +342,8 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 				},
 			},
 			"resource_type": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "The full resource type. Examples: `AWS::IAM::CredentialReport`, `Microsoft.Compute/virtualMachines`, `container.googleapis.com/Cluster`",
+				Optional:            true,
+				MarkdownDescription: "The full resource type. Required when domain is 'CSPM' and subdomain is 'IOM'. Examples: `AWS::IAM::CredentialReport`, `Microsoft.Compute/virtualMachines`, `container.googleapis.com/Cluster`",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -246,16 +351,17 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 			"severity": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
-				Default:             stringdefault.StaticString("critical"),
+				Default:             stringdefault.StaticString(DefaultSeverity),
 				MarkdownDescription: "Severity of the rule. Valid values are `critical`, `high`, `medium`, `informational`.",
 				Validators: []validator.String{
 					stringvalidator.OneOf("critical", "high", "medium", "informational"),
 				},
 			},
 			"subdomain": schema.StringAttribute{
+				Optional:    true,
 				Computed:    true,
 				Description: "Subdomain for the policy rule.",
-				Default:     stringdefault.StaticString("IOM"),
+				Default:     stringdefault.StaticString(DefaultSubdomain),
 			},
 		},
 	}
@@ -272,7 +378,11 @@ func (r *cloudSecurityCustomRuleResource) Create(
 		return
 	}
 
-	plan.CloudPlatform = plan.CloudProvider
+	// Set platform field using effective provider value for backward compatibility
+	effectiveProvider := plan.getEffectiveProvider()
+	if effectiveProvider != "" {
+		plan.setPlatformFields(effectiveProvider)
+	}
 
 	rule, diags := r.createCloudPolicyRule(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -330,7 +440,11 @@ func (r *cloudSecurityCustomRuleResource) Update(
 		return
 	}
 
-	plan.CloudPlatform = plan.CloudProvider
+	// Set platform field using effective provider value for backward compatibility
+	effectiveProvider := plan.getEffectiveProvider()
+	if effectiveProvider != "" {
+		plan.setPlatformFields(effectiveProvider)
+	}
 
 	rule, diags := r.updateCloudPolicyRule(ctx, &plan)
 	if diags.HasError() {
@@ -374,6 +488,19 @@ func (r cloudSecurityCustomRuleResource) ConfigValidators(ctx context.Context) [
 			path.MatchRoot("parent_rule_id"),
 			path.MatchRoot("attack_types"),
 		),
+		// Prevent setting both old and new field names
+		resourcevalidator.Conflicting(
+			path.MatchRoot("rule_provider"),
+			path.MatchRoot("cloud_provider"),
+		),
+		resourcevalidator.Conflicting(
+			path.MatchRoot("rule_platform"),
+			path.MatchRoot("cloud_platform"),
+		),
+		// Custom validator for resource_type and provider requirement when domain is CSPM
+		&resourceTypeRequiredForCSPMValidator{},
+		// Custom validator to disable fields when domain is Runtime and subdomain is IOM
+		&runtimeIOMFieldsDisabledValidator{},
 	}
 }
 
@@ -457,7 +584,10 @@ func (m *cloudSecurityCustomRuleResourceModel) wrap(
 	m.Description = types.StringPointerValue(rule.Description)
 	m.Domain = types.StringPointerValue(rule.Domain)
 	m.Subdomain = types.StringPointerValue(rule.Subdomain)
-	m.CloudProvider = types.StringPointerValue(rule.Provider)
+	// Set both new and deprecated provider fields for compatibility
+	if rule.Provider != nil && *rule.Provider != "" {
+		m.setProviderFields(*rule.Provider)
+	}
 	m.RemediationInfo = convertAlertRemediationInfoToTerraformState(rule.Remediation)
 	m.AlertInfo = convertAlertRemediationInfoToTerraformState(rule.AlertInfo)
 
@@ -509,7 +639,10 @@ func (m *cloudSecurityCustomRuleResourceModel) wrap(
 	m.Controls = controls
 
 	if len(rule.RuleLogicList) > 0 {
-		m.CloudPlatform = types.StringPointerValue(rule.RuleLogicList[0].Platform)
+		// Set both new and deprecated platform fields for compatibility
+		if rule.RuleLogicList[0].Platform != nil && *rule.RuleLogicList[0].Platform != "" {
+			m.setPlatformFields(*rule.RuleLogicList[0].Platform)
+		}
 	}
 
 	if len(rule.ResourceTypes) > 0 {
@@ -527,8 +660,8 @@ func (r *cloudSecurityCustomRuleResource) createCloudPolicyRule(ctx context.Cont
 	body := &models.CommonCreateRuleRequest{
 		Description:  plan.Description.ValueStringPointer(),
 		Name:         plan.Name.ValueStringPointer(),
-		Platform:     plan.CloudPlatform.ValueStringPointer(),
-		Provider:     plan.CloudProvider.ValueStringPointer(),
+		Platform:     types.StringValue(plan.getEffectivePlatform()).ValueStringPointer(),
+		Provider:     types.StringValue(plan.getEffectiveProvider()).ValueStringPointer(),
 		ResourceType: plan.ResourceType.ValueStringPointer(),
 		Domain:       plan.Domain.ValueStringPointer(),
 		Subdomain:    plan.Subdomain.ValueStringPointer(),
@@ -796,7 +929,7 @@ func (r *cloudSecurityCustomRuleResource) updateCloudPolicyRule(ctx context.Cont
 	body.AlertInfo = &alertInfo
 
 	ruleLogic := &models.ApimodelsRuleLogic{
-		Platform:        plan.CloudPlatform.ValueStringPointer(),
+		Platform:        types.StringValue(plan.getEffectivePlatform()).ValueStringPointer(),
 		RemediationInfo: &remediationInfo,
 	}
 
