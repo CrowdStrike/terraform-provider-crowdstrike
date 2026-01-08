@@ -11,6 +11,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -68,41 +69,6 @@ type SensorVisibilityExclusionResourceModel struct {
 	CreatedOn                  types.String `tfsdk:"created_on"`
 	CreatedBy                  types.String `tfsdk:"created_by"`
 	LastUpdated                types.String `tfsdk:"last_updated"`
-}
-
-// getSensorVisibilityExclusion retrieves a sensor visibility exclusion from the API.
-func (r *sensorVisibilityExclusionResource) getSensorVisibilityExclusion(
-	ctx context.Context,
-	exclusionID string,
-) (*models.SvExclusionsSVExclusionV1, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	params := sensor_visibility_exclusions.NewGetSensorVisibilityExclusionsV1ParamsWithContext(ctx)
-	params.SetIds([]string{exclusionID})
-
-	tflog.Debug(ctx, "Calling CrowdStrike API to get sensor visibility exclusion", map[string]any{
-		"exclusion_id": exclusionID,
-	})
-
-	getResp, err := r.client.SensorVisibilityExclusions.GetSensorVisibilityExclusionsV1(params)
-	if err != nil {
-		diags.AddError(
-			"Unable to Read Sensor Visibility Exclusion",
-			"An error occurred while reading the sensor visibility exclusion. "+
-				"Original Error: "+err.Error(),
-		)
-		return nil, diags
-	}
-
-	if getResp == nil || getResp.Payload == nil || len(getResp.Payload.Resources) == 0 {
-		diags.AddError(
-			"Sensor Visibility Exclusion Not Found",
-			"The sensor visibility exclusion was not found or the API returned no resources.",
-		)
-		return nil, diags
-	}
-
-	return getResp.Payload.Resources[0], diags
 }
 
 // wrap transforms the API response data to Terraform model values.
@@ -439,7 +405,7 @@ func (r *sensorVisibilityExclusionResource) Create(
 	})
 
 	// Get the exclusion to ensure we have the correct type for the wrap method
-	exclusion, exclusionDiags := r.getSensorVisibilityExclusion(ctx, *createdExclusion.ID)
+	exclusion, exclusionDiags := getSensorVisibilityExclusion(ctx, r.client, *createdExclusion.ID)
 	resp.Diagnostics.Append(exclusionDiags...)
 	if resp.Diagnostics.HasError() {
 		tflog.Error(ctx, "Failed to get exclusion after creation", map[string]any{
@@ -489,21 +455,19 @@ func (r *sensorVisibilityExclusionResource) Read(
 		"exclusion_id": exclusionID,
 	})
 
-	exclusion, diags := r.getSensorVisibilityExclusion(ctx, exclusionID)
-	if diags.HasError() {
-		for _, diag := range diags {
-			if strings.Contains(diag.Summary(), "not found") {
-				tflog.Warn(ctx, "Sensor visibility exclusion not found, removing from state", map[string]any{
-					"exclusion_id": exclusionID,
-				})
-				resp.State.RemoveResource(ctx)
-				return
-			}
-		}
+	exclusion, diags := getSensorVisibilityExclusion(ctx, r.client, exclusionID)
+	if tferrors.HasNotFoundError(diags) {
+		tflog.Warn(ctx, "Sensor visibility exclusion not found, removing from state", map[string]any{
+			"exclusion_id": exclusionID,
+		})
+		resp.State.RemoveResource(ctx)
+		return
+	}
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		tflog.Error(ctx, "Failed to get sensor visibility exclusion", map[string]any{
 			"exclusion_id": exclusionID,
 		})
-		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -669,7 +633,7 @@ func (r *sensorVisibilityExclusionResource) Update(
 	})
 
 	// Get the exclusion to ensure we have the correct type for the wrap method
-	exclusion, exclusionDiags := r.getSensorVisibilityExclusion(ctx, *updatedExclusion.ID)
+	exclusion, exclusionDiags := getSensorVisibilityExclusion(ctx, r.client, *updatedExclusion.ID)
 	resp.Diagnostics.Append(exclusionDiags...)
 	if resp.Diagnostics.HasError() {
 		tflog.Error(ctx, "Failed to get exclusion after update", map[string]any{

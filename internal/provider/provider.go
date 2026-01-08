@@ -268,6 +268,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		contentupdatepolicy.NewContentUpdatePolicyPrecedenceResource,
 		contentupdatepolicy.NewContentUpdatePolicyAttachmentResource,
 		sensorvisibilityexclusion.NewSensorVisibilityExclusionResource,
+		sensorvisibilityexclusion.NewSensorVisibilityExclusionAttachmentResource,
 		itautomation.NewItAutomationTaskResource,
 		itautomation.NewItAutomationTaskGroupResource,
 		itautomation.NewItAutomationPolicyResource,
