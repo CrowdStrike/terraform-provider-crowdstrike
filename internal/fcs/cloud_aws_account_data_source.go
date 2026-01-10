@@ -304,7 +304,7 @@ func (d *cloudAwsAccountsDataSource) Read(
 		}
 
 		// Use shared logic to populate the model
-		if diags := populateCloudAccountModel(ctx, tempModel, a); diags.HasError() {
+		if diags := tempModel.wrap(ctx, a); diags.HasError() {
 			resp.Diagnostics.Append(diags...)
 			continue
 		}

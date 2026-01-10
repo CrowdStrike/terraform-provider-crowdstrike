@@ -315,7 +315,7 @@ func TestUpdateFeatureStatesFromProducts(t *testing.T) {
 			updateFeatureStatesFromProducts(ctx, &tt.initialModel, tt.products, tt.cloudAccount)
 
 			// Verify Asset Inventory (updateFeatureStatesFromProducts doesn't handle AssetInventory)
-			// AssetInventory is handled separately in populateModelFromCloudAccount
+			// AssetInventory is handled separately in wrap method
 
 			// Verify Realtime Visibility
 			if tt.expectedModel.RealtimeVisibility != nil {
@@ -604,7 +604,7 @@ func TestPopulateModelFromCloudAccount(t *testing.T) {
 				DspmRoleName:                  types.StringValue(""),
 				VulnerabilityScanningRoleArn:  types.StringValue(""),
 				VulnerabilityScanningRoleName: types.StringValue(""),
-				AgentlessScanningRoleName:     types.StringValue(""),
+				AgentlessScanningRoleName:     types.StringNull(),
 				AssetInventory:                nil, // Not configured by user, so remains nil
 			},
 		},
@@ -646,6 +646,75 @@ func TestPopulateModelFromCloudAccount(t *testing.T) {
 			},
 		},
 		{
+			name:         "populate with DSPM role only (should also populate vuln scanning fields)",
+			initialModel: cloudAWSAccountModel{},
+			cloudAccount: &models.DomainCloudAWSAccountV1{
+				AccountID:   "123456789012",
+				AccountType: "commercial",
+				ResourceMetadata: &models.DomainAWSAccountResourceMetadata{
+					ExternalID: "external-123",
+				},
+				Settings: map[string]interface{}{
+					"dspm.role":         "MyDSPMRole",
+					"dspm.host.account": "555666777888",
+				},
+				Products: []*models.DomainProductFeatures{},
+			},
+			expected: cloudAWSAccountModel{
+				AccountID:                     types.StringValue("123456789012"),
+				AccountType:                   types.StringValue("commercial"),
+				DeploymentMethod:              types.StringValue("terraform-native"),
+				IsOrgManagementAccount:        types.BoolValue(false),
+				ExternalID:                    types.StringValue("external-123"),
+				IntermediateRoleArn:           types.StringValue(""),
+				IamRoleArn:                    types.StringValue(""),
+				IamRoleName:                   types.StringValue(""),
+				EventbusName:                  types.StringValue(""),
+				EventbusArn:                   types.StringValue(""),
+				CloudTrailBucketName:          types.StringValue(""),
+				DspmRoleArn:                   types.StringValue("arn:aws:iam::555666777888:role/MyDSPMRole"),
+				DspmRoleName:                  types.StringValue("MyDSPMRole"),
+				VulnerabilityScanningRoleArn:  types.StringValue("arn:aws:iam::555666777888:role/MyDSPMRole"),
+				VulnerabilityScanningRoleName: types.StringValue("MyDSPMRole"),
+				AgentlessScanningRoleName:     types.StringValue("MyDSPMRole"),
+				AssetInventory:                nil,
+			},
+		},
+		{
+			name:         "populate with DSPM ARN in settings (should extract role name)",
+			initialModel: cloudAWSAccountModel{},
+			cloudAccount: &models.DomainCloudAWSAccountV1{
+				AccountID:   "123456789012",
+				AccountType: "commercial",
+				ResourceMetadata: &models.DomainAWSAccountResourceMetadata{
+					ExternalID: "external-123",
+				},
+				Settings: map[string]interface{}{
+					"dspm.role": "arn:aws:iam::645910009231:role/CrowdStrikeAgentlessScanningIntegrationRole",
+				},
+				Products: []*models.DomainProductFeatures{},
+			},
+			expected: cloudAWSAccountModel{
+				AccountID:                     types.StringValue("123456789012"),
+				AccountType:                   types.StringValue("commercial"),
+				DeploymentMethod:              types.StringValue("terraform-native"),
+				IsOrgManagementAccount:        types.BoolValue(false),
+				ExternalID:                    types.StringValue("external-123"),
+				IntermediateRoleArn:           types.StringValue(""),
+				IamRoleArn:                    types.StringValue(""),
+				IamRoleName:                   types.StringValue(""),
+				EventbusName:                  types.StringValue(""),
+				EventbusArn:                   types.StringValue(""),
+				CloudTrailBucketName:          types.StringValue(""),
+				DspmRoleArn:                   types.StringValue("arn:aws:iam::645910009231:role/CrowdStrikeAgentlessScanningIntegrationRole"),
+				DspmRoleName:                  types.StringValue("CrowdStrikeAgentlessScanningIntegrationRole"),
+				VulnerabilityScanningRoleArn:  types.StringValue("arn:aws:iam::645910009231:role/CrowdStrikeAgentlessScanningIntegrationRole"),
+				VulnerabilityScanningRoleName: types.StringValue("CrowdStrikeAgentlessScanningIntegrationRole"),
+				AgentlessScanningRoleName:     types.StringValue("CrowdStrikeAgentlessScanningIntegrationRole"),
+				AssetInventory:                nil,
+			},
+		},
+		{
 			name: "populate with nil asset inventory",
 			initialModel: cloudAWSAccountModel{
 				AssetInventory: nil,
@@ -674,7 +743,7 @@ func TestPopulateModelFromCloudAccount(t *testing.T) {
 				DspmRoleName:                  types.StringValue(""),
 				VulnerabilityScanningRoleArn:  types.StringValue(""),
 				VulnerabilityScanningRoleName: types.StringValue(""),
-				AgentlessScanningRoleName:     types.StringValue(""),
+				AgentlessScanningRoleName:     types.StringNull(),
 				AssetInventory:                nil, // Started as nil and remains nil (consistent behavior)
 			},
 		},
@@ -712,7 +781,7 @@ func TestPopulateModelFromCloudAccount(t *testing.T) {
 				DspmRoleName:                  types.StringValue(""),
 				VulnerabilityScanningRoleArn:  types.StringValue(""),
 				VulnerabilityScanningRoleName: types.StringValue(""),
-				AgentlessScanningRoleName:     types.StringValue(""),
+				AgentlessScanningRoleName:     types.StringNull(),
 				AssetInventory: &assetInventoryOptions{
 					Enabled: types.BoolValue(true), // iom feature enabled in products
 				},
@@ -728,10 +797,9 @@ func TestPopulateModelFromCloudAccount(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &cloudAWSAccountResource{}
 			ctx := context.Background()
 
-			diags := r.populateModelFromCloudAccount(ctx, &tt.initialModel, tt.cloudAccount)
+			diags := tt.initialModel.wrap(ctx, tt.cloudAccount)
 
 			if tt.name == "handle nil cloudAccount" {
 				assert.True(t, diags.HasError(), "Expected diagnostics error for nil cloudAccount")
