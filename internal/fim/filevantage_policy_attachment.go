@@ -1,16 +1,15 @@
-package preventionpolicy
+package fim
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
+	"github.com/crowdstrike/gofalcon/falcon/client/filevantage"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
-	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
-	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
@@ -28,38 +27,37 @@ import (
 )
 
 var (
-	_ resource.Resource                   = &preventionPolicyAttachmentResource{}
-	_ resource.ResourceWithConfigure      = &preventionPolicyAttachmentResource{}
-	_ resource.ResourceWithImportState    = &preventionPolicyAttachmentResource{}
-	_ resource.ResourceWithValidateConfig = &preventionPolicyAttachmentResource{}
+	_ resource.Resource                   = &filevantagePolicyAttachmentResource{}
+	_ resource.ResourceWithConfigure      = &filevantagePolicyAttachmentResource{}
+	_ resource.ResourceWithImportState    = &filevantagePolicyAttachmentResource{}
+	_ resource.ResourceWithValidateConfig = &filevantagePolicyAttachmentResource{}
 )
 
 var (
-	documentationSection        string         = "Prevention Policy"
-	resourceMarkdownDescription string         = "This resource allows managing the host groups and ioa rule groups attached to a prevention policy. By default (when `exclusive` is true), this resource takes exclusive ownership over the host groups and ioa rule groups assigned to a prevention policy. When `exclusive` is false, this resource only manages the specific host groups and ioa rule groups defined in the configuration. If you want to fully create or manage a prevention policy please use the `prevention_policy_*` resource for the platform you want to manage."
-	requiredScopes              []scopes.Scope = apiScopes
+	attachmentDocumentationSection        string         = "FileVantage"
+	attachmentResourceMarkdownDescription string         = "This resource allows managing the host groups and rule groups attached to a FileVantage policy. By default (when `exclusive` is true), this resource takes exclusive ownership over the host groups and rule groups assigned to a FileVantage policy. When `exclusive` is false, this resource only manages the specific host groups and rule groups defined in the configuration. If you want to fully create or manage a FileVantage policy please use the `filevantage_policy` resource."
+	attachmentRequiredScopes              []scopes.Scope = apiScopesReadWrite
 )
 
-func NewPreventionPolicyAttachmentResource() resource.Resource {
-	return &preventionPolicyAttachmentResource{}
+func NewFilevantagePolicyAttachmentResource() resource.Resource {
+	return &filevantagePolicyAttachmentResource{}
 }
 
-type preventionPolicyAttachmentResource struct {
+type filevantagePolicyAttachmentResource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-type preventionPolicyAttachmentResourceModel struct {
+type filevantagePolicyAttachmentResourceModel struct {
 	ID          types.String `tfsdk:"id"`
 	LastUpdated types.String `tfsdk:"last_updated"`
 	HostGroups  types.Set    `tfsdk:"host_groups"`
-	RuleGroups  types.Set    `tfsdk:"ioa_rule_groups"`
+	RuleGroups  types.Set    `tfsdk:"rule_groups"`
 	Exclusive   types.Bool   `tfsdk:"exclusive"`
 }
 
-// wrap transforms Go values to their terraform wrapped values.
-func (m *preventionPolicyAttachmentResourceModel) wrap(
+func (m *filevantagePolicyAttachmentResourceModel) wrap(
 	ctx context.Context,
-	policy models.PreventionPolicyV1,
+	policy models.PoliciesPolicy,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -69,7 +67,7 @@ func (m *preventionPolicyAttachmentResourceModel) wrap(
 	ruleGroups := types.SetNull(types.StringType)
 
 	if m.Exclusive.ValueBool() {
-		hostGroupSet, diag := hostgroups.ConvertHostGroupsToSet(ctx, policy.Groups)
+		hostGroupSet, diag := convertHostGroupsToSet(ctx, policy.HostGroups)
 		diags.Append(diag...)
 		if diags.HasError() {
 			return diags
@@ -79,7 +77,7 @@ func (m *preventionPolicyAttachmentResourceModel) wrap(
 			hostGroups = hostGroupSet
 		}
 
-		ruleGroupSet, diag := ioarulegroup.ConvertIOARuleGroupToSet(ctx, policy.IoaRuleGroups)
+		ruleGroupSet, diag := convertRuleGroupsToSet(ctx, policy.RuleGroups)
 		diags.Append(diag...)
 		if diags.HasError() {
 			return diags
@@ -89,14 +87,14 @@ func (m *preventionPolicyAttachmentResourceModel) wrap(
 		}
 	} else {
 		existingHostGroups := make(map[string]bool)
-		for _, hg := range policy.Groups {
+		for _, hg := range policy.HostGroups {
 			if hg != nil && hg.ID != nil {
 				existingHostGroups[*hg.ID] = true
 			}
 		}
 
 		existingRuleGroups := make(map[string]bool)
-		for _, rg := range policy.IoaRuleGroups {
+		for _, rg := range policy.RuleGroups {
 			if rg != nil && rg.ID != nil {
 				existingRuleGroups[*rg.ID] = true
 			}
@@ -150,7 +148,7 @@ func (m *preventionPolicyAttachmentResourceModel) wrap(
 	return diags
 }
 
-func (r *preventionPolicyAttachmentResource) Configure(
+func (r *filevantagePolicyAttachmentResource) Configure(
 	ctx context.Context,
 	req resource.ConfigureRequest,
 	resp *resource.ConfigureResponse,
@@ -176,29 +174,29 @@ func (r *preventionPolicyAttachmentResource) Configure(
 	r.client = config.Client
 }
 
-func (r *preventionPolicyAttachmentResource) Metadata(
+func (r *filevantagePolicyAttachmentResource) Metadata(
 	_ context.Context,
 	req resource.MetadataRequest,
 	resp *resource.MetadataResponse,
 ) {
-	resp.TypeName = req.ProviderTypeName + "_prevention_policy_attachment"
+	resp.TypeName = req.ProviderTypeName + "_filevantage_policy_attachment"
 }
 
-func (r *preventionPolicyAttachmentResource) Schema(
+func (r *filevantagePolicyAttachmentResource) Schema(
 	_ context.Context,
 	_ resource.SchemaRequest,
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
-			documentationSection,
-			resourceMarkdownDescription,
-			requiredScopes,
+			attachmentDocumentationSection,
+			attachmentResourceMarkdownDescription,
+			attachmentRequiredScopes,
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:    true,
-				Description: "The prevention policy id you want to attach to.",
+				Description: "The FileVantage policy id you want to attach to.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -211,12 +209,12 @@ func (r *preventionPolicyAttachmentResource) Schema(
 				Optional:    true,
 				Computed:    true,
 				Default:     booldefault.StaticBool(true),
-				Description: "When true (default), this resource takes exclusive ownership of all host groups and ioa rule groups attached to the prevention policy. When false, this resource only manages the specific host groups and ioa rule groups defined in the configuration, leaving other groups untouched.",
+				Description: "When true (default), this resource takes exclusive ownership of all host groups and rule groups attached to the FileVantage policy. When false, this resource only manages the specific host groups and rule groups defined in the configuration, leaving other groups untouched.",
 			},
-			"ioa_rule_groups": schema.SetAttribute{
+			"rule_groups": schema.SetAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
-				Description: "IOA Rule Group IDs to attach to the prevention policy.",
+				Description: "FileVantage Rule Group IDs to attach to the FileVantage policy.",
 				Validators: []validator.Set{
 					setvalidator.SizeAtLeast(1),
 					setvalidator.ValueStringsAre(
@@ -227,7 +225,7 @@ func (r *preventionPolicyAttachmentResource) Schema(
 			"host_groups": schema.SetAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
-				Description: "Host Group IDs to attach to the prevention policy.",
+				Description: "Host Group IDs to attach to the FileVantage policy.",
 				Validators: []validator.Set{
 					setvalidator.SizeAtLeast(1),
 					setvalidator.ValueStringsAre(
@@ -239,30 +237,30 @@ func (r *preventionPolicyAttachmentResource) Schema(
 	}
 }
 
-func (r *preventionPolicyAttachmentResource) Create(
+func (r *filevantagePolicyAttachmentResource) Create(
 	ctx context.Context,
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-	var plan preventionPolicyAttachmentResourceModel
+	var plan filevantagePolicyAttachmentResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	policy, diags := getPreventionPolicy(ctx, r.client, plan.ID.ValueString())
+	policy, diags := getFilevantagePolicy(ctx, r.client, plan.ID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	existingHostGroups, diag := hostgroups.ConvertHostGroupsToSet(ctx, policy.Groups)
+	existingHostGroups, diag := convertHostGroupsToSet(ctx, policy.HostGroups)
 	resp.Diagnostics.Append(diag...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	existingRuleGroups, diag := ioarulegroup.ConvertIOARuleGroupToSet(ctx, policy.IoaRuleGroups)
+	existingRuleGroups, diag := convertRuleGroupsToSet(ctx, policy.RuleGroups)
 	resp.Diagnostics.Append(diag...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -284,18 +282,18 @@ func (r *preventionPolicyAttachmentResource) Create(
 	}
 
 	resp.Diagnostics.Append(
-		syncHostGroups(ctx, r.client, planHostGroups, existingHostGroups, plan.ID.ValueString())...)
+		syncAttachmentHostGroups(ctx, r.client, planHostGroups, existingHostGroups, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	resp.Diagnostics.Append(
-		syncRuleGroups(ctx, r.client, planRuleGroups, existingRuleGroups, plan.ID.ValueString())...)
+		syncAttachmentRuleGroups(ctx, r.client, planRuleGroups, existingRuleGroups, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	policy, diags = getPreventionPolicy(ctx, r.client, plan.ID.ValueString())
+	policy, diags = getFilevantagePolicy(ctx, r.client, plan.ID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -306,23 +304,23 @@ func (r *preventionPolicyAttachmentResource) Create(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func (r *preventionPolicyAttachmentResource) Read(
+func (r *filevantagePolicyAttachmentResource) Read(
 	ctx context.Context,
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-	var state preventionPolicyAttachmentResourceModel
+	var state filevantagePolicyAttachmentResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	policy, diags := getPreventionPolicy(ctx, r.client, state.ID.ValueString())
+	policy, diags := getFilevantagePolicy(ctx, r.client, state.ID.ValueString())
 	for _, err := range diags.Errors() {
-		if err.Summary() == notFoundErrorSummary {
+		if err.Summary() == "Failed to get FileVantage policy" {
 			tflog.Warn(
 				ctx,
-				fmt.Sprintf("prevention policy %s not found, removing from state", state.ID),
+				fmt.Sprintf("FileVantage policy %s not found, removing from state", state.ID),
 			)
 
 			resp.State.RemoveResource(ctx)
@@ -339,15 +337,15 @@ func (r *preventionPolicyAttachmentResource) Read(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (r *preventionPolicyAttachmentResource) Update(
+func (r *filevantagePolicyAttachmentResource) Update(
 	ctx context.Context,
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	var plan preventionPolicyAttachmentResourceModel
+	var plan filevantagePolicyAttachmentResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
-	var state preventionPolicyAttachmentResourceModel
+	var state filevantagePolicyAttachmentResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
 	if resp.Diagnostics.HasError() {
@@ -368,7 +366,7 @@ func (r *preventionPolicyAttachmentResource) Update(
 			return
 		}
 
-		policy, diags := getPreventionPolicy(ctx, r.client, plan.ID.ValueString())
+		policy, diags := getFilevantagePolicy(ctx, r.client, plan.ID.ValueString())
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -379,14 +377,14 @@ func (r *preventionPolicyAttachmentResource) Update(
 			removeMap[id.ValueString()] = true
 		}
 
-		var existingHostGroups []*models.HostGroupsHostGroupV1
-		for _, hg := range policy.Groups {
+		var existingHostGroups []*models.PoliciesAssignedHostGroup
+		for _, hg := range policy.HostGroups {
 			if hg != nil && hg.ID != nil && !removeMap[*hg.ID] {
 				existingHostGroups = append(existingHostGroups, hg)
 			}
 		}
 
-		existingHostGroupSet, diag := hostgroups.ConvertHostGroupsToSet(ctx, existingHostGroups)
+		existingHostGroupSet, diag := convertHostGroupsToSet(ctx, existingHostGroups)
 		resp.Diagnostics.Append(diag...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -397,14 +395,14 @@ func (r *preventionPolicyAttachmentResource) Update(
 			removeRuleGroupMap[id.ValueString()] = true
 		}
 
-		var existingRuleGroups []*models.IoaRuleGroupsRuleGroupV1
-		for _, rg := range policy.IoaRuleGroups {
+		var existingRuleGroups []*models.PoliciesAssignedRuleGroup
+		for _, rg := range policy.RuleGroups {
 			if rg != nil && rg.ID != nil && !removeRuleGroupMap[*rg.ID] {
 				existingRuleGroups = append(existingRuleGroups, rg)
 			}
 		}
 
-		existingRuleGroupSet, diag := ioarulegroup.ConvertIOARuleGroupToSet(ctx, existingRuleGroups)
+		existingRuleGroupSet, diag := convertRuleGroupsToSet(ctx, existingRuleGroups)
 		resp.Diagnostics.Append(diag...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -422,18 +420,18 @@ func (r *preventionPolicyAttachmentResource) Update(
 	}
 
 	resp.Diagnostics.Append(
-		syncHostGroups(ctx, r.client, planHostGroups, state.HostGroups, plan.ID.ValueString())...)
+		syncAttachmentHostGroups(ctx, r.client, planHostGroups, state.HostGroups, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	resp.Diagnostics.Append(
-		syncRuleGroups(ctx, r.client, planRuleGroups, state.RuleGroups, plan.ID.ValueString())...)
+		syncAttachmentRuleGroups(ctx, r.client, planRuleGroups, state.RuleGroups, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	policy, diags := getPreventionPolicy(ctx, r.client, plan.ID.ValueString())
+	policy, diags := getFilevantagePolicy(ctx, r.client, plan.ID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -444,12 +442,12 @@ func (r *preventionPolicyAttachmentResource) Update(
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
-func (r *preventionPolicyAttachmentResource) Delete(
+func (r *filevantagePolicyAttachmentResource) Delete(
 	ctx context.Context,
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-	var state preventionPolicyAttachmentResourceModel
+	var state filevantagePolicyAttachmentResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -458,12 +456,12 @@ func (r *preventionPolicyAttachmentResource) Delete(
 	emptySet := basetypes.SetValue{}
 
 	resp.Diagnostics.Append(
-		syncHostGroups(ctx, r.client, emptySet, state.HostGroups, state.ID.ValueString())...)
+		syncAttachmentHostGroups(ctx, r.client, emptySet, state.HostGroups, state.ID.ValueString())...)
 	resp.Diagnostics.Append(
-		syncRuleGroups(ctx, r.client, emptySet, state.RuleGroups, state.ID.ValueString())...)
+		syncAttachmentRuleGroups(ctx, r.client, emptySet, state.RuleGroups, state.ID.ValueString())...)
 }
 
-func (r *preventionPolicyAttachmentResource) ImportState(
+func (r *filevantagePolicyAttachmentResource) ImportState(
 	ctx context.Context,
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
@@ -476,14 +474,202 @@ func (r *preventionPolicyAttachmentResource) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r *preventionPolicyAttachmentResource) ValidateConfig(
+func (r *filevantagePolicyAttachmentResource) ValidateConfig(
 	ctx context.Context,
 	req resource.ValidateConfigRequest,
 	resp *resource.ValidateConfigResponse,
 ) {
-	var config preventionPolicyAttachmentResourceModel
+	var config filevantagePolicyAttachmentResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 
 	resp.Diagnostics.Append(utils.ValidateEmptyIDs(ctx, config.HostGroups, "host_groups")...)
-	resp.Diagnostics.Append(utils.ValidateEmptyIDs(ctx, config.RuleGroups, "ioa_rule_groups")...)
+	resp.Diagnostics.Append(utils.ValidateEmptyIDs(ctx, config.RuleGroups, "rule_groups")...)
+}
+
+func getFilevantagePolicy(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	id string,
+) (*models.PoliciesPolicy, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	res, err := client.Filevantage.GetPolicies(&filevantage.GetPoliciesParams{
+		Context: ctx,
+		Ids:     []string{id},
+	})
+	if err != nil {
+		diags.AddError(
+			"Failed to get FileVantage policy",
+			fmt.Sprintf("Failed to get FileVantage policy (%s): %s", id, err),
+		)
+
+		return nil, diags
+	}
+
+	if len(res.Payload.Resources) == 0 {
+		diags.AddError(
+			"Failed to get FileVantage policy",
+			fmt.Sprintf("FileVantage policy (%s) not found", id),
+		)
+
+		return nil, diags
+	}
+
+	return res.Payload.Resources[0], diags
+}
+
+func syncAttachmentHostGroups(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	planHostGroups types.Set,
+	stateHostGroups types.Set,
+	policyID string,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	hostGroupsToAdd, hostGroupsToRemove, diag := utils.SetIDsToModify(
+		ctx,
+		planHostGroups,
+		stateHostGroups,
+	)
+	diags.Append(diag...)
+	if diags.HasError() {
+		return diags
+	}
+
+	if len(hostGroupsToAdd) > 0 {
+		_, err := client.Filevantage.UpdatePolicyHostGroups(
+			&filevantage.UpdatePolicyHostGroupsParams{
+				Context:  ctx,
+				Action:   addHostGroup.String(),
+				Ids:      hostGroupsToAdd,
+				PolicyID: policyID,
+			},
+		)
+		if err != nil {
+			diags.AddError(
+				"Error updating FileVantage policy host groups",
+				fmt.Sprintf(
+					"Could not add host groups to FileVantage policy (%s): %s",
+					policyID,
+					err.Error(),
+				),
+			)
+		}
+	}
+
+	if len(hostGroupsToRemove) > 0 {
+		_, err := client.Filevantage.UpdatePolicyHostGroups(
+			&filevantage.UpdatePolicyHostGroupsParams{
+				Context:  ctx,
+				Action:   removeHostGroup.String(),
+				Ids:      hostGroupsToRemove,
+				PolicyID: policyID,
+			},
+		)
+		if err != nil {
+			diags.AddError(
+				"Error updating FileVantage policy host groups",
+				fmt.Sprintf(
+					"Could not remove host groups from FileVantage policy (%s): %s",
+					policyID,
+					err.Error(),
+				),
+			)
+		}
+	}
+
+	return diags
+}
+
+func syncAttachmentRuleGroups(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	planRuleGroups types.Set,
+	stateRuleGroups types.Set,
+	policyID string,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	ruleGroupsToAdd, ruleGroupsToRemove, diag := utils.SetIDsToModify(
+		ctx,
+		planRuleGroups,
+		stateRuleGroups,
+	)
+	diags.Append(diag...)
+	if diags.HasError() {
+		return diags
+	}
+
+	if len(ruleGroupsToAdd) > 0 {
+		_, err := client.Filevantage.UpdatePolicyRuleGroups(
+			&filevantage.UpdatePolicyRuleGroupsParams{
+				Context:  ctx,
+				Action:   addRuleGroup.String(),
+				Ids:      ruleGroupsToAdd,
+				PolicyID: policyID,
+			},
+		)
+		if err != nil {
+			diags.AddError(
+				"Error updating FileVantage policy rule groups",
+				fmt.Sprintf(
+					"Could not add rule groups to FileVantage policy (%s): %s",
+					policyID,
+					err.Error(),
+				),
+			)
+		}
+	}
+
+	if len(ruleGroupsToRemove) > 0 {
+		_, err := client.Filevantage.UpdatePolicyRuleGroups(
+			&filevantage.UpdatePolicyRuleGroupsParams{
+				Context:  ctx,
+				Action:   removeRuleGroup.String(),
+				Ids:      ruleGroupsToRemove,
+				PolicyID: policyID,
+			},
+		)
+		if err != nil {
+			diags.AddError(
+				"Error updating FileVantage policy rule groups",
+				fmt.Sprintf(
+					"Could not remove rule groups from FileVantage policy (%s): %s",
+					policyID,
+					err.Error(),
+				),
+			)
+		}
+	}
+
+	return diags
+}
+
+func convertHostGroupsToSet(
+	ctx context.Context,
+	groups []*models.PoliciesAssignedHostGroup,
+) (types.Set, diag.Diagnostics) {
+	var hostGroups []string
+	for _, hostGroup := range groups {
+		if hostGroup != nil && hostGroup.ID != nil {
+			hostGroups = append(hostGroups, *hostGroup.ID)
+		}
+	}
+
+	return types.SetValueFrom(ctx, types.StringType, hostGroups)
+}
+
+func convertRuleGroupsToSet(
+	ctx context.Context,
+	groups []*models.PoliciesAssignedRuleGroup,
+) (types.Set, diag.Diagnostics) {
+	var ruleGroups []string
+	for _, ruleGroup := range groups {
+		if ruleGroup != nil && ruleGroup.ID != nil {
+			ruleGroups = append(ruleGroups, *ruleGroup.ID)
+		}
+	}
+
+	return types.SetValueFrom(ctx, types.StringType, ruleGroups)
 }

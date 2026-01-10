@@ -1,8 +1,7 @@
-package preventionpolicy_test
+package contentupdatepolicy_test
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
@@ -10,29 +9,27 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-func TestAccPreventionPolicyAttachmentResource_basic(t *testing.T) {
+func TestAccContentUpdatePolicyAttachmentResource_basic(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping acceptance test")
 	}
 
 	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
-	resourceName := "crowdstrike_prevention_policy_attachment.test"
+	resourceName := "crowdstrike_content_update_policy_attachment.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck: func() {
-			acctest.PreCheck(t, acctest.RequireIOARuleGroupID)
+			acctest.PreCheck(t)
 		},
 		Steps: []resource.TestStep{
 			{
-				Config: testAccPreventionPolicyAttachmentConfig_basic(rName, os.Getenv("IOA_RULE_GROUP_ID")),
+				Config: testAccContentUpdatePolicyAttachmentConfig_basic(rName),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttr(resourceName, "exclusive", "true"),
 					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "1"),
 					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test", "id"),
-					resource.TestCheckResourceAttr(resourceName, "ioa_rule_groups.#", "1"),
-					resource.TestCheckTypeSetElemAttr(resourceName, "ioa_rule_groups.*", os.Getenv("IOA_RULE_GROUP_ID")),
 					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
 				),
 			},
@@ -46,52 +43,47 @@ func TestAccPreventionPolicyAttachmentResource_basic(t *testing.T) {
 	})
 }
 
-func TestAccPreventionPolicyAttachmentResource_exclusiveFalse(t *testing.T) {
+func TestAccContentUpdatePolicyAttachmentResource_exclusiveFalse(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping acceptance test")
 	}
 
 	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
-	resourceName := "crowdstrike_prevention_policy_attachment.test"
+	resourceName := "crowdstrike_content_update_policy_attachment.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck: func() {
-			acctest.PreCheck(t, acctest.RequireIOARuleGroupID)
+			acctest.PreCheck(t)
 		},
 		Steps: []resource.TestStep{
 			{
-				Config: testAccPreventionPolicyAttachmentConfig_exclusiveFalse(rName, os.Getenv("IOA_RULE_GROUP_ID")),
+				Config: testAccContentUpdatePolicyAttachmentConfig_exclusiveFalse(rName),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttr(resourceName, "exclusive", "false"),
 					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "1"),
 					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test", "id"),
-					resource.TestCheckResourceAttr(resourceName, "ioa_rule_groups.#", "1"),
-					resource.TestCheckTypeSetElemAttr(resourceName, "ioa_rule_groups.*", os.Getenv("IOA_RULE_GROUP_ID")),
 					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
 				),
 			},
 			{
-				Config: testAccPreventionPolicyAttachmentConfig_exclusiveFalseUpdate(rName, os.Getenv("IOA_RULE_GROUP_ID")),
+				Config: testAccContentUpdatePolicyAttachmentConfig_exclusiveFalseUpdate(rName),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttr(resourceName, "exclusive", "false"),
 					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "2"),
 					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test", "id"),
 					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test2", "id"),
-					resource.TestCheckResourceAttr(resourceName, "ioa_rule_groups.#", "1"),
-					resource.TestCheckTypeSetElemAttr(resourceName, "ioa_rule_groups.*", os.Getenv("IOA_RULE_GROUP_ID")),
 					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
 				),
 			},
 			{
-				Config: testAccPreventionPolicyAttachmentConfig_exclusiveFalseRemoveAll(rName, os.Getenv("IOA_RULE_GROUP_ID")),
+				Config: testAccContentUpdatePolicyAttachmentConfig_exclusiveFalseRemoveAll(rName),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttr(resourceName, "exclusive", "false"),
-					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "0"),
-					resource.TestCheckResourceAttr(resourceName, "ioa_rule_groups.#", "0"),
+					resource.TestCheckNoResourceAttr(resourceName, "host_groups"),
 					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
 				),
 			},
@@ -99,17 +91,32 @@ func TestAccPreventionPolicyAttachmentResource_exclusiveFalse(t *testing.T) {
 	})
 }
 
-func testAccPreventionPolicyAttachmentConfig_basic(rName, ruleGroupID string) string {
+func testAccContentUpdatePolicyAttachmentConfig_basic(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_prevention_policy_windows" "test" {
-  name            = "%s-policy"
-  enabled         = true
-  description     = "test policy for attachment tests"
-  host_groups     = []
-  ioa_rule_groups = []
+resource "crowdstrike_content_update_policy" "test" {
+  name        = "%s-policy"
+  enabled     = true
+  description = "test policy for attachment tests"
+  host_groups = []
+
+  sensor_operations = {
+    ring_assignment = "ga"
+  }
+
+  system_critical = {
+    ring_assignment = "ga"
+  }
+
+  vulnerability_management = {
+    ring_assignment = "ga"
+  }
+
+  rapid_response = {
+    ring_assignment = "ga"
+  }
 
   lifecycle {
-    ignore_changes = [host_groups, ioa_rule_groups]
+    ignore_changes = [host_groups]
   }
 }
 
@@ -120,16 +127,15 @@ resource "crowdstrike_host_group" "test" {
   host_ids    = []
 }
 
-resource "crowdstrike_prevention_policy_attachment" "test" {
-  id              = crowdstrike_prevention_policy_windows.test.id
-  exclusive       = true
-  host_groups     = [crowdstrike_host_group.test.id]
-  ioa_rule_groups = ["%s"]
+resource "crowdstrike_content_update_policy_attachment" "test" {
+  id          = crowdstrike_content_update_policy.test.id
+  exclusive   = true
+  host_groups = [crowdstrike_host_group.test.id]
 }
-`, rName, rName, ruleGroupID)
+`, rName, rName)
 }
 
-func testAccPreventionPolicyAttachmentConfig_exclusiveFalse(rName, ruleGroupID string) string {
+func testAccContentUpdatePolicyAttachmentConfig_exclusiveFalse(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_host_group" "existing" {
   name        = "%[1]s-existing"
@@ -138,15 +144,30 @@ resource "crowdstrike_host_group" "existing" {
   host_ids    = []
 }
 
-resource "crowdstrike_prevention_policy_windows" "test" {
-  name            = %[1]q
-  enabled         = true
-  description     = "test policy for attachment tests"
-  host_groups     = [crowdstrike_host_group.existing.id]
-  ioa_rule_groups = []
+resource "crowdstrike_content_update_policy" "test" {
+  name        = %[1]q
+  enabled     = true
+  description = "test policy for attachment tests"
+  host_groups = [crowdstrike_host_group.existing.id]
+
+  sensor_operations = {
+    ring_assignment = "ga"
+  }
+
+  system_critical = {
+    ring_assignment = "ga"
+  }
+
+  vulnerability_management = {
+    ring_assignment = "ga"
+  }
+
+  rapid_response = {
+    ring_assignment = "ga"
+  }
 
   lifecycle {
-    ignore_changes = [host_groups, ioa_rule_groups]
+    ignore_changes = [host_groups]
   }
 }
 
@@ -157,16 +178,15 @@ resource "crowdstrike_host_group" "test" {
   host_ids    = []
 }
 
-resource "crowdstrike_prevention_policy_attachment" "test" {
-  id              = crowdstrike_prevention_policy_windows.test.id
-  exclusive       = false
-  host_groups     = [crowdstrike_host_group.test.id]
-  ioa_rule_groups = [%[2]q]
+resource "crowdstrike_content_update_policy_attachment" "test" {
+  id          = crowdstrike_content_update_policy.test.id
+  exclusive   = false
+  host_groups = [crowdstrike_host_group.test.id]
 }
-`, rName, ruleGroupID)
+`, rName)
 }
 
-func testAccPreventionPolicyAttachmentConfig_exclusiveFalseUpdate(rName, ruleGroupID string) string {
+func testAccContentUpdatePolicyAttachmentConfig_exclusiveFalseUpdate(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_host_group" "existing" {
   name        = "%[1]s-existing"
@@ -175,59 +195,30 @@ resource "crowdstrike_host_group" "existing" {
   host_ids    = []
 }
 
-resource "crowdstrike_prevention_policy_windows" "test" {
-  name            = %[1]q
-  enabled         = true
-  description     = "test policy for attachment tests"
-  host_groups     = [crowdstrike_host_group.existing.id]
-  ioa_rule_groups = []
-
-  lifecycle {
-    ignore_changes = [host_groups, ioa_rule_groups]
-  }
-}
-
-resource "crowdstrike_host_group" "test" {
+resource "crowdstrike_content_update_policy" "test" {
   name        = %[1]q
-  description = "test host group for attachment tests"
-  type        = "staticByID"
-  host_ids    = []
-}
+  enabled     = true
+  description = "test policy for attachment tests"
+  host_groups = [crowdstrike_host_group.existing.id]
 
-resource "crowdstrike_host_group" "test2" {
-  name        = "%[1]s-2"
-  description = "second test host group for attachment tests"
-  type        = "staticByID"
-  host_ids    = []
-}
+  sensor_operations = {
+    ring_assignment = "ga"
+  }
 
-resource "crowdstrike_prevention_policy_attachment" "test" {
-  id              = crowdstrike_prevention_policy_windows.test.id
-  exclusive       = false
-  host_groups     = [crowdstrike_host_group.test.id, crowdstrike_host_group.test2.id]
-  ioa_rule_groups = [%[2]q]
-}
-`, rName, ruleGroupID)
-}
+  system_critical = {
+    ring_assignment = "ga"
+  }
 
-func testAccPreventionPolicyAttachmentConfig_exclusiveFalseRemoveAll(rName, ruleGroupID string) string {
-	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_host_group" "existing" {
-  name        = "%[1]s-existing"
-  description = "existing host group attached to policy"
-  type        = "staticByID"
-  host_ids    = []
-}
+  vulnerability_management = {
+    ring_assignment = "ga"
+  }
 
-resource "crowdstrike_prevention_policy_windows" "test" {
-  name            = %[1]q
-  enabled         = true
-  description     = "test policy for attachment tests"
-  host_groups     = [crowdstrike_host_group.existing.id]
-  ioa_rule_groups = []
+  rapid_response = {
+    ring_assignment = "ga"
+  }
 
   lifecycle {
-    ignore_changes = [host_groups, ioa_rule_groups]
+    ignore_changes = [host_groups]
   }
 }
 
@@ -239,15 +230,73 @@ resource "crowdstrike_host_group" "test" {
 }
 
 resource "crowdstrike_host_group" "test2" {
-  name        = "%[1]s-2"
+  name        = "%[1]s-hg2"
   description = "second test host group for attachment tests"
   type        = "staticByID"
   host_ids    = []
 }
 
-resource "crowdstrike_prevention_policy_attachment" "test" {
-  id              = crowdstrike_prevention_policy_windows.test.id
-  exclusive       = false
+resource "crowdstrike_content_update_policy_attachment" "test" {
+  id          = crowdstrike_content_update_policy.test.id
+  exclusive   = false
+  host_groups = [crowdstrike_host_group.test.id, crowdstrike_host_group.test2.id]
 }
-`, rName, ruleGroupID)
+`, rName)
+}
+
+func testAccContentUpdatePolicyAttachmentConfig_exclusiveFalseRemoveAll(rName string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_host_group" "existing" {
+  name        = "%[1]s-existing"
+  description = "existing host group attached to policy"
+  type        = "staticByID"
+  host_ids    = []
+}
+
+resource "crowdstrike_content_update_policy" "test" {
+  name        = %[1]q
+  enabled     = true
+  description = "test policy for attachment tests"
+  host_groups = [crowdstrike_host_group.existing.id]
+
+  sensor_operations = {
+    ring_assignment = "ga"
+  }
+
+  system_critical = {
+    ring_assignment = "ga"
+  }
+
+  vulnerability_management = {
+    ring_assignment = "ga"
+  }
+
+  rapid_response = {
+    ring_assignment = "ga"
+  }
+
+  lifecycle {
+    ignore_changes = [host_groups]
+  }
+}
+
+resource "crowdstrike_host_group" "test" {
+  name        = %[1]q
+  description = "test host group for attachment tests"
+  type        = "staticByID"
+  host_ids    = []
+}
+
+resource "crowdstrike_host_group" "test2" {
+  name        = "%[1]s-hg2"
+  description = "second test host group for attachment tests"
+  type        = "staticByID"
+  host_ids    = []
+}
+
+resource "crowdstrike_content_update_policy_attachment" "test" {
+  id        = crowdstrike_content_update_policy.test.id
+  exclusive = false
+}
+`, rName)
 }

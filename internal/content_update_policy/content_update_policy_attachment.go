@@ -1,4 +1,4 @@
-package sensorupdatepolicy
+package contentupdatepolicy
 
 import (
 	"context"
@@ -8,65 +8,62 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
-	_ resource.Resource                   = &sensorUpdatePolicyHostGroupAttachmentResource{}
-	_ resource.ResourceWithConfigure      = &sensorUpdatePolicyHostGroupAttachmentResource{}
-	_ resource.ResourceWithImportState    = &sensorUpdatePolicyHostGroupAttachmentResource{}
-	_ resource.ResourceWithValidateConfig = &sensorUpdatePolicyHostGroupAttachmentResource{}
+	_ resource.Resource                = &contentUpdatePolicyAttachmentResource{}
+	_ resource.ResourceWithConfigure   = &contentUpdatePolicyAttachmentResource{}
+	_ resource.ResourceWithImportState = &contentUpdatePolicyAttachmentResource{}
 )
 
 var (
-	documentationSection        string         = "Sensor Update Policy"
-	resourceMarkdownDescription string         = "This resource allows managing the host groups attached to a sensor update policy. By default (when `exclusive` is true), this resource takes exclusive ownership over the host groups assigned to a sensor update policy. When `exclusive` is false, this resource only manages the specific host groups defined in the configuration. If you want to fully create or manage a sensor update policy please use the `crowdstrike_sensor_update_policy` resource."
-	requiredScopes              []scopes.Scope = []scopes.Scope{
-		{
-			Name:  "Sensor update policies",
-			Read:  true,
-			Write: true,
-		},
-	}
+	attachmentDocumentationSection        string         = "Content Update Policy"
+	attachmentResourceMarkdownDescription string         = "This resource allows managing the host groups attached to a content update policy. By default (when `exclusive` is true), this resource takes exclusive ownership over the host groups assigned to a content update policy. When `exclusive` is false, this resource only manages the specific host groups defined in the configuration. If you want to fully create or manage a content update policy please use the `content_update_policy` resource."
+	attachmentRequiredScopes              []scopes.Scope = apiScopesReadWrite
 )
 
-func NewSensorUpdatePolicyHostGroupAttachmentResource() resource.Resource {
-	return &sensorUpdatePolicyHostGroupAttachmentResource{}
+func NewContentUpdatePolicyAttachmentResource() resource.Resource {
+	return &contentUpdatePolicyAttachmentResource{}
 }
 
-type sensorUpdatePolicyHostGroupAttachmentResource struct {
+type contentUpdatePolicyAttachmentResource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-type sensorUpdatePolicyHostGroupAttachmentResourceModel struct {
+type contentUpdatePolicyAttachmentResourceModel struct {
 	ID          types.String `tfsdk:"id"`
 	LastUpdated types.String `tfsdk:"last_updated"`
 	HostGroups  types.Set    `tfsdk:"host_groups"`
 	Exclusive   types.Bool   `tfsdk:"exclusive"`
 }
 
-// wrap transforms Go values to their terraform wrapped values.
-func (d *sensorUpdatePolicyHostGroupAttachmentResourceModel) wrap(
+func (m *contentUpdatePolicyAttachmentResourceModel) wrap(
 	ctx context.Context,
-	policy models.SensorUpdatePolicyV2,
+	policy models.ContentUpdatePolicyV1,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	d.ID = types.StringValue(*policy.ID)
+	m.ID = types.StringPointerValue(policy.ID)
 
 	hostGroups := types.SetNull(types.StringType)
 
-	if d.Exclusive.ValueBool() {
+	if m.Exclusive.ValueBool() {
 		hostGroupSet, diag := hostgroups.ConvertHostGroupsToSet(ctx, policy.Groups)
 		diags.Append(diag...)
 		if diags.HasError() {
@@ -84,8 +81,8 @@ func (d *sensorUpdatePolicyHostGroupAttachmentResourceModel) wrap(
 			}
 		}
 
-		if !d.HostGroups.IsNull() {
-			planHostGroups := flex.ExpandSetAs[types.String](ctx, d.HostGroups, &diags)
+		if !m.HostGroups.IsNull() {
+			planHostGroups := flex.ExpandSetAs[types.String](ctx, m.HostGroups, &diags)
 			if diags.HasError() {
 				return diags
 			}
@@ -105,12 +102,12 @@ func (d *sensorUpdatePolicyHostGroupAttachmentResourceModel) wrap(
 			hostGroups = hgSet
 		}
 	}
-	d.HostGroups = hostGroups
+	m.HostGroups = hostGroups
 
 	return diags
 }
 
-func (r *sensorUpdatePolicyHostGroupAttachmentResource) Configure(
+func (r *contentUpdatePolicyAttachmentResource) Configure(
 	ctx context.Context,
 	req resource.ConfigureRequest,
 	resp *resource.ConfigureResponse,
@@ -136,29 +133,32 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Configure(
 	r.client = config.Client
 }
 
-func (r *sensorUpdatePolicyHostGroupAttachmentResource) Metadata(
+func (r *contentUpdatePolicyAttachmentResource) Metadata(
 	_ context.Context,
 	req resource.MetadataRequest,
 	resp *resource.MetadataResponse,
 ) {
-	resp.TypeName = req.ProviderTypeName + "_sensor_update_policy_host_group_attachment"
+	resp.TypeName = req.ProviderTypeName + "_content_update_policy_attachment"
 }
 
-func (r *sensorUpdatePolicyHostGroupAttachmentResource) Schema(
+func (r *contentUpdatePolicyAttachmentResource) Schema(
 	_ context.Context,
 	_ resource.SchemaRequest,
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
-			documentationSection,
-			resourceMarkdownDescription,
-			requiredScopes,
+			attachmentDocumentationSection,
+			attachmentResourceMarkdownDescription,
+			attachmentRequiredScopes,
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Required:    true,
-				Description: "The sensor update policy id you want to attach to.",
+				Description: "The content update policy id you want to attach to.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"last_updated": schema.StringAttribute{
 				Computed:    true,
@@ -168,29 +168,35 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Schema(
 				Optional:    true,
 				Computed:    true,
 				Default:     booldefault.StaticBool(true),
-				Description: "When true (default), this resource takes exclusive ownership of all host groups attached to the sensor update policy. When false, this resource only manages the specific host groups defined in the configuration, leaving other groups untouched.",
+				Description: "When true (default), this resource takes exclusive ownership of all host groups attached to the content update policy. When false, this resource only manages the specific host groups defined in the configuration, leaving other groups untouched.",
 			},
 			"host_groups": schema.SetAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
-				Description: "Host Group ids to attach to the sensor update policy.",
+				Description: "Host Group IDs to attach to the content update policy.",
+				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
+					setvalidator.ValueStringsAre(
+						validators.StringNotWhitespace(),
+					),
+				},
 			},
 		},
 	}
 }
 
-func (r *sensorUpdatePolicyHostGroupAttachmentResource) Create(
+func (r *contentUpdatePolicyAttachmentResource) Create(
 	ctx context.Context,
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-	var plan sensorUpdatePolicyHostGroupAttachmentResourceModel
+	var plan contentUpdatePolicyAttachmentResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	policy, diags := getSensorUpdatePolicy(ctx, r.client, plan.ID.ValueString())
+	policy, diags := getContentUpdatePolicy(ctx, r.client, plan.ID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -217,7 +223,7 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Create(
 		return
 	}
 
-	policy, diags = getSensorUpdatePolicy(ctx, r.client, plan.ID.ValueString())
+	policy, diags = getContentUpdatePolicy(ctx, r.client, plan.ID.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -228,29 +234,30 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Create(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func (r *sensorUpdatePolicyHostGroupAttachmentResource) Read(
+func (r *contentUpdatePolicyAttachmentResource) Read(
 	ctx context.Context,
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-	var state sensorUpdatePolicyHostGroupAttachmentResourceModel
+	var state contentUpdatePolicyAttachmentResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	policy, diags := getSensorUpdatePolicy(ctx, r.client, state.ID.ValueString())
+	policy, diags := getContentUpdatePolicy(ctx, r.client, state.ID.ValueString())
 	for _, err := range diags.Errors() {
-		if err.Summary() == notFoundErrorSummary {
+		if err.Summary() == "Content update policy not found" {
 			tflog.Warn(
 				ctx,
-				fmt.Sprintf("sensor update policy %s not found, removing from state", state.ID),
+				fmt.Sprintf("content update policy %s not found, removing from state", state.ID),
 			)
 
 			resp.State.RemoveResource(ctx)
 			return
 		}
 	}
+
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -260,15 +267,15 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Read(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (r *sensorUpdatePolicyHostGroupAttachmentResource) Update(
+func (r *contentUpdatePolicyAttachmentResource) Update(
 	ctx context.Context,
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	var plan sensorUpdatePolicyHostGroupAttachmentResourceModel
+	var plan contentUpdatePolicyAttachmentResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
-	var state sensorUpdatePolicyHostGroupAttachmentResourceModel
+	var state contentUpdatePolicyAttachmentResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
 	if resp.Diagnostics.HasError() {
@@ -283,7 +290,7 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Update(
 			return
 		}
 
-		policy, diags := getSensorUpdatePolicy(ctx, r.client, plan.ID.ValueString())
+		policy, diags := getContentUpdatePolicy(ctx, r.client, plan.ID.ValueString())
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -319,8 +326,8 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Update(
 		return
 	}
 
-	policy, diag := getSensorUpdatePolicy(ctx, r.client, plan.ID.ValueString())
-	resp.Diagnostics.Append(diag...)
+	policy, diags := getContentUpdatePolicy(ctx, r.client, plan.ID.ValueString())
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -330,13 +337,16 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Update(
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
-func (r *sensorUpdatePolicyHostGroupAttachmentResource) Delete(
+func (r *contentUpdatePolicyAttachmentResource) Delete(
 	ctx context.Context,
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-	var state sensorUpdatePolicyHostGroupAttachmentResourceModel
+	var state contentUpdatePolicyAttachmentResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	resp.Diagnostics.Append(
 		syncHostGroups(
@@ -348,7 +358,7 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Delete(
 		)...)
 }
 
-func (r *sensorUpdatePolicyHostGroupAttachmentResource) ImportState(
+func (r *contentUpdatePolicyAttachmentResource) ImportState(
 	ctx context.Context,
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
@@ -359,15 +369,4 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) ImportState(
 	}
 
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
-}
-
-func (r *sensorUpdatePolicyHostGroupAttachmentResource) ValidateConfig(
-	ctx context.Context,
-	req resource.ValidateConfigRequest,
-	resp *resource.ValidateConfigResponse,
-) {
-	var config sensorUpdatePolicyHostGroupAttachmentResourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-
-	resp.Diagnostics.Append(utils.ValidateEmptyIDs(ctx, config.HostGroups, "host_groups")...)
 }
