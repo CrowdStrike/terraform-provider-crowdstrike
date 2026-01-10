@@ -692,8 +692,7 @@ func (r *cloudAWSAccountResource) Create(
 	tflog.Info(ctx, "cloud account created", map[string]interface{}{"account": cloudAccount})
 
 	// Populate plan from cloudAccount response
-	diags = r.populateModelFromCloudAccount(ctx, &plan, cloudAccount)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(plan.wrap(ctx, cloudAccount)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -709,100 +708,6 @@ func (r *cloudAWSAccountResource) Create(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-}
-
-// populateModelFromCloudAccount populates the Terraform model from CloudAwsRegistration response.
-func (r *cloudAWSAccountResource) populateModelFromCloudAccount(ctx context.Context, model *cloudAWSAccountModel, cloudAccount *models.DomainCloudAWSAccountV1) diag.Diagnostics {
-	return populateCloudAccountModel(ctx, model, cloudAccount)
-}
-
-// populateCloudAccountModel populates a cloud account model from API response - shared between resource and data source.
-func populateCloudAccountModel(ctx context.Context, model *cloudAWSAccountModel, cloudAccount *models.DomainCloudAWSAccountV1) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	if cloudAccount == nil {
-		diags.AddError(
-			"Invalid cloud account data",
-			"Cloud account response is nil",
-		)
-		return diags
-	}
-
-	// Set basic account information
-	model.AccountID = types.StringValue(cloudAccount.AccountID)
-	model.AccountType = types.StringValue(cloudAccount.AccountType)
-	if model.DeploymentMethod.IsNull() {
-		model.DeploymentMethod = types.StringValue("terraform-native")
-	}
-
-	// Initialize TargetOUs to empty list by default
-	model.TargetOUs = types.ListValueMust(types.StringType, []attr.Value{})
-
-	// Handle organization information
-	if cloudAccount.OrganizationID != "" {
-		model.OrganizationID = types.StringValue(cloudAccount.OrganizationID)
-		model.IsOrgManagementAccount = types.BoolValue(cloudAccount.IsMaster)
-
-		if cloudAccount.IsMaster && len(cloudAccount.TargetOus) > 0 {
-			targetOUs, diagsLocal := types.ListValueFrom(ctx, types.StringType, cloudAccount.TargetOus)
-			if diagsLocal.HasError() {
-				diags.Append(diagsLocal...)
-				return diags
-			}
-			model.TargetOUs = targetOUs
-		}
-	} else {
-		// For non-organizational accounts, this should always be false
-		model.IsOrgManagementAccount = types.BoolValue(false)
-	}
-
-	// Set computed values from cloudAccount
-	model.ExternalID = types.StringValue(cloudAccount.ResourceMetadata.ExternalID)
-	model.IntermediateRoleArn = types.StringValue(cloudAccount.ResourceMetadata.IntermediateRoleArn)
-	model.IamRoleArn = types.StringValue(cloudAccount.ResourceMetadata.IamRoleArn)
-	model.IamRoleName = types.StringValue(getRoleNameFromArn(cloudAccount.ResourceMetadata.IamRoleArn))
-	model.EventbusName = types.StringValue(cloudAccount.ResourceMetadata.EventbusName)
-	model.EventbusArn = types.StringValue(cloudAccount.ResourceMetadata.AwsEventbusArn)
-	model.CloudTrailBucketName = types.StringValue(cloudAccount.ResourceMetadata.AwsCloudtrailBucketName)
-
-	// Extract DSPM and vulnerability scanning information from settings
-	var dspmRoleArn, vulnScanningRoleArn string
-
-	settings := newSettingsConfig(ctx, cloudAccount.Settings, &diags)
-	if diags.HasError() {
-		return diags
-	}
-
-	dspmRoleName := settings.DSPMRoleName.ValueString()
-	dspmHostAccountID := settings.DSPMHostAccountID.ValueString()
-	vulnScanningRoleName := settings.VulnerabilityScanningRoleName.ValueString()
-	vulnScanningHostAccountID := settings.VulnerabilityScanningHostAccountID.ValueString()
-
-	// Construct ARNs if we have role names and host account IDs
-	partition := "aws"
-	if cloudAccount.AccountType == "gov" {
-		partition = "aws-us-gov"
-	}
-
-	if dspmRoleName != "" && dspmHostAccountID != "" {
-		dspmRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partition, dspmHostAccountID, dspmRoleName)
-	}
-	if vulnScanningRoleName != "" && vulnScanningHostAccountID != "" {
-		vulnScanningRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partition, vulnScanningHostAccountID, vulnScanningRoleName)
-	}
-
-	model.DspmRoleArn = flex.StringValueToFramework(dspmRoleArn)
-	model.DspmRoleName = flex.StringValueToFramework(dspmRoleName)
-	model.VulnerabilityScanningRoleArn = flex.StringValueToFramework(vulnScanningRoleArn)
-	model.VulnerabilityScanningRoleName = flex.StringValueToFramework(vulnScanningRoleName)
-
-	agentlessRoleName := resolveAgentlessScanningRoleNameV1(ctx, cloudAccount)
-	model.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
-
-	// Update feature states from Products array
-	updateFeatureStatesFromProducts(ctx, model, cloudAccount.Products, cloudAccount)
-
-	return diags
 }
 
 // updateFeatureStatesFromProducts updates model feature states from CloudAwsRegistration Products.
@@ -1081,8 +986,7 @@ func (r *cloudAWSAccountResource) Read(
 	}
 
 	// Populate state from cloudAccount response
-	diags = r.populateModelFromCloudAccount(ctx, &state, cloudAccount)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(state.wrap(ctx, cloudAccount)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -1161,28 +1065,107 @@ func (r *cloudAWSAccountResource) getCloudAccount(
 func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.DomainCloudAWSAccountV1) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	m.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
-	m.RealtimeVisibility.LogIngestionS3BucketName = types.StringNull()
-	m.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringNull()
-	m.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringNull()
-	m.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringNull()
-	m.RealtimeVisibility.Regions = types.ListNull(types.StringType)
-
-	if cloudAccount == nil || cloudAccount.Settings == nil {
+	if cloudAccount == nil {
+		diags.AddError(
+			"Invalid cloud account data",
+			"Cloud account response is nil",
+		)
 		return diags
 	}
 
-	settings := newSettingsConfig(ctx, cloudAccount.Settings, &diags)
-
-	m.RealtimeVisibility.Regions = settings.RTVDRegions
-
-	if !settings.LogIngestionMethod.IsNull() {
-		m.RealtimeVisibility.LogIngestionMethod = settings.LogIngestionMethod
+	// Set basic account information
+	m.AccountID = types.StringValue(cloudAccount.AccountID)
+	m.AccountType = types.StringValue(cloudAccount.AccountType)
+	if m.DeploymentMethod.IsNull() {
+		m.DeploymentMethod = types.StringValue("terraform-native")
 	}
-	m.RealtimeVisibility.LogIngestionS3BucketName = settings.LogIngestionS3BucketName
-	m.RealtimeVisibility.LogIngestionSnsTopicArn = settings.LogIngestionSnsTopicArn
-	m.RealtimeVisibility.LogIngestionS3BucketPrefix = settings.LogIngestionS3BucketPrefix
-	m.RealtimeVisibility.LogIngestionKmsKeyArn = settings.LogIngestionKmsKeyArn
+
+	// Initialize TargetOUs to empty list by default
+	m.TargetOUs = types.ListValueMust(types.StringType, []attr.Value{})
+
+	// Handle organization information
+	if cloudAccount.OrganizationID != "" {
+		m.OrganizationID = types.StringValue(cloudAccount.OrganizationID)
+		m.IsOrgManagementAccount = types.BoolValue(cloudAccount.IsMaster)
+
+		if cloudAccount.IsMaster && len(cloudAccount.TargetOus) > 0 {
+			targetOUs, diagsLocal := types.ListValueFrom(ctx, types.StringType, cloudAccount.TargetOus)
+			if diagsLocal.HasError() {
+				diags.Append(diagsLocal...)
+				return diags
+			}
+			m.TargetOUs = targetOUs
+		}
+	} else {
+		// For non-organizational accounts, this should always be false
+		m.IsOrgManagementAccount = types.BoolValue(false)
+	}
+
+	// Set computed values from cloudAccount
+	m.ExternalID = types.StringValue(cloudAccount.ResourceMetadata.ExternalID)
+	m.IntermediateRoleArn = types.StringValue(cloudAccount.ResourceMetadata.IntermediateRoleArn)
+	m.IamRoleArn = types.StringValue(cloudAccount.ResourceMetadata.IamRoleArn)
+	m.IamRoleName = types.StringValue(getRoleNameFromArn(cloudAccount.ResourceMetadata.IamRoleArn))
+	m.EventbusName = types.StringValue(cloudAccount.ResourceMetadata.EventbusName)
+	m.EventbusArn = types.StringValue(cloudAccount.ResourceMetadata.AwsEventbusArn)
+	m.CloudTrailBucketName = types.StringValue(cloudAccount.ResourceMetadata.AwsCloudtrailBucketName)
+
+	// Handle settings - both old realtime visibility settings and DSPM/Vuln scanning settings
+	var dspmRoleArn, vulnScanningRoleArn string
+
+	settings := newSettingsConfig(ctx, cloudAccount.Settings, &diags)
+	if diags.HasError() {
+		return diags
+	}
+
+	dspmRoleName := settings.DSPMRoleName.ValueString()
+	dspmHostAccountID := settings.DSPMHostAccountID.ValueString()
+	vulnScanningRoleName := settings.VulnerabilityScanningRoleName.ValueString()
+	vulnScanningHostAccountID := settings.VulnerabilityScanningHostAccountID.ValueString()
+
+	// Construct ARNs if we have role names and host account IDs
+	partition := "aws"
+	if cloudAccount.AccountType == "gov" {
+		partition = "aws-us-gov"
+	}
+
+	if dspmRoleName != "" && dspmHostAccountID != "" {
+		dspmRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partition, dspmHostAccountID, dspmRoleName)
+	}
+	if vulnScanningRoleName != "" && vulnScanningHostAccountID != "" {
+		vulnScanningRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partition, vulnScanningHostAccountID, vulnScanningRoleName)
+	}
+
+	m.DspmRoleArn = flex.StringValueToFramework(dspmRoleArn)
+	m.DspmRoleName = flex.StringValueToFramework(dspmRoleName)
+	m.VulnerabilityScanningRoleArn = flex.StringValueToFramework(vulnScanningRoleArn)
+	m.VulnerabilityScanningRoleName = flex.StringValueToFramework(vulnScanningRoleName)
+
+	agentlessRoleName := resolveAgentlessScanningRoleNameV1(ctx, cloudAccount)
+	m.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
+
+	// Update feature states from Products array
+	updateFeatureStatesFromProducts(ctx, m, cloudAccount.Products, cloudAccount)
+
+	// Set realtime visibility settings (original wrap functionality)
+	if m.RealtimeVisibility != nil {
+		m.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
+		m.RealtimeVisibility.LogIngestionS3BucketName = types.StringNull()
+		m.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringNull()
+		m.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringNull()
+		m.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringNull()
+		m.RealtimeVisibility.Regions = types.ListNull(types.StringType)
+
+		m.RealtimeVisibility.Regions = settings.RTVDRegions
+
+		if !settings.LogIngestionMethod.IsNull() {
+			m.RealtimeVisibility.LogIngestionMethod = settings.LogIngestionMethod
+		}
+		m.RealtimeVisibility.LogIngestionS3BucketName = settings.LogIngestionS3BucketName
+		m.RealtimeVisibility.LogIngestionSnsTopicArn = settings.LogIngestionSnsTopicArn
+		m.RealtimeVisibility.LogIngestionS3BucketPrefix = settings.LogIngestionS3BucketPrefix
+		m.RealtimeVisibility.LogIngestionKmsKeyArn = settings.LogIngestionKmsKeyArn
+	}
 
 	return diags
 }
@@ -1210,8 +1193,7 @@ func (r *cloudAWSAccountResource) Update(
 	}
 
 	// Populate plan from cloudAccount response
-	diags = r.populateModelFromCloudAccount(ctx, &plan, cloudAccount)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(plan.wrap(ctx, cloudAccount)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

@@ -315,7 +315,7 @@ func TestUpdateFeatureStatesFromProducts(t *testing.T) {
 			updateFeatureStatesFromProducts(ctx, &tt.initialModel, tt.products, tt.cloudAccount)
 
 			// Verify Asset Inventory (updateFeatureStatesFromProducts doesn't handle AssetInventory)
-			// AssetInventory is handled separately in populateModelFromCloudAccount
+			// AssetInventory is handled separately in wrap method
 
 			// Verify Realtime Visibility
 			if tt.expectedModel.RealtimeVisibility != nil {
@@ -728,10 +728,9 @@ func TestPopulateModelFromCloudAccount(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &cloudAWSAccountResource{}
 			ctx := context.Background()
 
-			diags := r.populateModelFromCloudAccount(ctx, &tt.initialModel, tt.cloudAccount)
+			diags := tt.initialModel.wrap(ctx, tt.cloudAccount)
 
 			if tt.name == "handle nil cloudAccount" {
 				assert.True(t, diags.HasError(), "Expected diagnostics error for nil cloudAccount")
