@@ -159,180 +159,6 @@ func TestBuildProductsFromModel(t *testing.T) {
 	}
 }
 
-func TestBuildProductsDelta(t *testing.T) {
-	tests := []struct {
-		name             string
-		model            cloudAWSAccountModel
-		currentAccount   *models.DomainCloudAWSAccountV1
-		expectedEnabled  []*models.RestAccountProductRequestExtV1
-		expectedDisabled []*models.RestAccountProductRequestExtV1
-	}{
-		{
-			name: "enable new features",
-			model: cloudAWSAccountModel{
-				AssetInventory: &assetInventoryOptions{
-					Enabled: types.BoolValue(true),
-				},
-				RealtimeVisibility: &realtimeVisibilityOptions{
-					Enabled: types.BoolValue(true),
-				},
-				DSPM: &dspmOptions{
-					Enabled: types.BoolValue(true),
-				},
-			},
-			currentAccount: &models.DomainCloudAWSAccountV1{
-				Products: []*models.DomainProductFeatures{
-					{
-						Product:  stringPtr("cspm"),
-						Features: []string{"iom"},
-					},
-				},
-			},
-			expectedEnabled: []*models.RestAccountProductRequestExtV1{
-				{
-					Product:  stringPtr("cspm"),
-					Features: []string{"ioa", "dspm"},
-				},
-			},
-			expectedDisabled: []*models.RestAccountProductRequestExtV1{},
-		},
-		{
-			name: "disable features",
-			model: cloudAWSAccountModel{
-				AssetInventory: &assetInventoryOptions{
-					Enabled: types.BoolValue(true),
-				},
-			},
-			currentAccount: &models.DomainCloudAWSAccountV1{
-				Products: []*models.DomainProductFeatures{
-					{
-						Product:  stringPtr("cspm"),
-						Features: []string{"iom", "ioa", "dspm"},
-					},
-					{
-						Product:  stringPtr("idp"),
-						Features: []string{"default"},
-					},
-				},
-			},
-			expectedEnabled: []*models.RestAccountProductRequestExtV1{},
-			expectedDisabled: []*models.RestAccountProductRequestExtV1{
-				{
-					Product:  stringPtr("cspm"),
-					Features: []string{"ioa", "dspm"},
-				},
-				{
-					Product:  stringPtr("idp"),
-					Features: []string{"default"},
-				},
-			},
-		},
-		{
-			name: "mixed enable and disable",
-			model: cloudAWSAccountModel{
-				AssetInventory: &assetInventoryOptions{
-					Enabled: types.BoolValue(true),
-				},
-				RealtimeVisibility: &realtimeVisibilityOptions{
-					Enabled: types.BoolValue(false),
-				},
-				VulnerabilityScanning: &vulnerabilityScanningOptions{
-					Enabled: types.BoolValue(true),
-				},
-				IDP: &idpOptions{
-					Enabled: types.BoolValue(true),
-				},
-			},
-			currentAccount: &models.DomainCloudAWSAccountV1{
-				Products: []*models.DomainProductFeatures{
-					{
-						Product:  stringPtr("cspm"),
-						Features: []string{"iom", "ioa", "dspm"},
-					},
-				},
-			},
-			expectedEnabled: []*models.RestAccountProductRequestExtV1{
-				{
-					Product:  stringPtr("cspm"),
-					Features: []string{"vulnerability_scanning"},
-				},
-				{
-					Product:  stringPtr("idp"),
-					Features: []string{"default"},
-				},
-			},
-			expectedDisabled: []*models.RestAccountProductRequestExtV1{
-				{
-					Product:  stringPtr("cspm"),
-					Features: []string{"ioa", "dspm"},
-				},
-			},
-		},
-		{
-			name: "no changes",
-			model: cloudAWSAccountModel{
-				AssetInventory: &assetInventoryOptions{
-					Enabled: types.BoolValue(true),
-				},
-				RealtimeVisibility: &realtimeVisibilityOptions{
-					Enabled: types.BoolValue(true),
-				},
-				IDP: &idpOptions{
-					Enabled: types.BoolValue(true),
-				},
-			},
-			currentAccount: &models.DomainCloudAWSAccountV1{
-				Products: []*models.DomainProductFeatures{
-					{
-						Product:  stringPtr("cspm"),
-						Features: []string{"iom", "ioa"},
-					},
-					{
-						Product:  stringPtr("idp"),
-						Features: []string{"default"},
-					},
-				},
-			},
-			expectedEnabled:  []*models.RestAccountProductRequestExtV1{},
-			expectedDisabled: []*models.RestAccountProductRequestExtV1{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := &cloudAWSAccountResource{}
-			enabled, disabled := r.buildProductsDelta(tt.model, tt.currentAccount)
-
-			require.Equal(t, len(tt.expectedEnabled), len(enabled))
-			require.Equal(t, len(tt.expectedDisabled), len(disabled))
-
-			// Check enabled products (order-independent)
-			expectedEnabledMap := make(map[string][]string)
-			for _, expectedProduct := range tt.expectedEnabled {
-				expectedEnabledMap[*expectedProduct.Product] = expectedProduct.Features
-			}
-
-			for _, actualProduct := range enabled {
-				expectedFeatures, exists := expectedEnabledMap[*actualProduct.Product]
-				require.True(t, exists, "Unexpected enabled product: %s", *actualProduct.Product)
-				assert.ElementsMatch(t, expectedFeatures, actualProduct.Features)
-			}
-
-			// Check disabled products (order-independent)
-			expectedDisabledMap := make(map[string][]string)
-			for _, expectedProduct := range tt.expectedDisabled {
-				expectedDisabledMap[*expectedProduct.Product] = expectedProduct.Features
-			}
-
-			for _, actualProduct := range disabled {
-				expectedFeatures, exists := expectedDisabledMap[*actualProduct.Product]
-				require.True(t, exists, "Unexpected disabled product: %s", *actualProduct.Product)
-				assert.ElementsMatch(t, expectedFeatures, actualProduct.Features)
-			}
-		})
-	}
-}
-
 func TestUpdateFeatureStatesFromProducts(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -445,7 +271,7 @@ func TestUpdateFeatureStatesFromProducts(t *testing.T) {
 		{
 			name: "handle nil IDP initialization",
 			initialModel: cloudAWSAccountModel{
-				IDP: nil,
+				IDP: nil, // User didn't configure IDP
 			},
 			products: []*models.DomainProductFeatures{
 				{
@@ -457,9 +283,26 @@ func TestUpdateFeatureStatesFromProducts(t *testing.T) {
 				ResourceMetadata: &models.DomainAWSAccountResourceMetadata{},
 			},
 			expectedModel: cloudAWSAccountModel{
+				IDP: nil, // Remains nil (consistent with other features)
+			},
+		},
+		{
+			name: "handle configured IDP with product enabled",
+			initialModel: cloudAWSAccountModel{
+				IDP: &idpOptions{}, // User configured IDP
+			},
+			products: []*models.DomainProductFeatures{
+				{
+					Product: stringPtr("idp"), // IDP product enabled
+				},
+			},
+			cloudAccount: &models.DomainCloudAWSAccountV1{
+				ResourceMetadata: &models.DomainAWSAccountResourceMetadata{},
+			},
+			expectedModel: cloudAWSAccountModel{
 				IDP: &idpOptions{
-					Enabled: types.BoolValue(false),
-					Status:  types.StringNull(),
+					Enabled: types.BoolValue(true),
+					Status:  types.StringValue("configured"),
 				},
 			},
 		},
@@ -467,10 +310,9 @@ func TestUpdateFeatureStatesFromProducts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &cloudAWSAccountResource{}
 			ctx := context.Background()
 
-			r.updateFeatureStatesFromProducts(ctx, &tt.initialModel, tt.products, tt.cloudAccount)
+			updateFeatureStatesFromProducts(ctx, &tt.initialModel, tt.products, tt.cloudAccount)
 
 			// Verify Asset Inventory (updateFeatureStatesFromProducts doesn't handle AssetInventory)
 			// AssetInventory is handled separately in populateModelFromCloudAccount
@@ -502,11 +344,14 @@ func TestUpdateFeatureStatesFromProducts(t *testing.T) {
 				assert.Equal(t, tt.expectedModel.VulnerabilityScanning.Enabled, tt.initialModel.VulnerabilityScanning.Enabled)
 			}
 
-			// Verify IDP
+			// Verify IDP (only if expected to be configured)
 			if tt.expectedModel.IDP != nil {
 				require.NotNil(t, tt.initialModel.IDP)
 				assert.Equal(t, tt.expectedModel.IDP.Enabled, tt.initialModel.IDP.Enabled)
 				assert.Equal(t, tt.expectedModel.IDP.Status, tt.initialModel.IDP.Status)
+			} else {
+				// If expected model doesn't have IDP, actual should also be nil
+				assert.Nil(t, tt.initialModel.IDP)
 			}
 		})
 	}
@@ -589,14 +434,13 @@ func TestUpdateFeatureStatesFromProducts_IDPDisableTransition(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &cloudAWSAccountResource{}
 			ctx := context.Background()
 
 			// Capture initial status for comparison
 			initialStatus := tt.initialModel.IDP.Status
 
 			// Apply the update
-			r.updateFeatureStatesFromProducts(ctx, &tt.initialModel, tt.products, tt.cloudAccount)
+			updateFeatureStatesFromProducts(ctx, &tt.initialModel, tt.products, tt.cloudAccount)
 
 			// Verify the transition behavior
 			require.NotNil(t, tt.initialModel.IDP, "IDP should not be nil after update")
@@ -761,9 +605,7 @@ func TestPopulateModelFromCloudAccount(t *testing.T) {
 				VulnerabilityScanningRoleArn:  types.StringValue(""),
 				VulnerabilityScanningRoleName: types.StringValue(""),
 				AgentlessScanningRoleName:     types.StringValue(""),
-				AssetInventory: &assetInventoryOptions{
-					Enabled: types.BoolValue(true),
-				},
+				AssetInventory:                nil, // Not configured by user, so remains nil
 			},
 		},
 		{
@@ -800,9 +642,7 @@ func TestPopulateModelFromCloudAccount(t *testing.T) {
 				VulnerabilityScanningRoleArn:  types.StringValue("arn:aws:iam::999888777666:role/MyVulnRole"),
 				VulnerabilityScanningRoleName: types.StringValue("MyVulnRole"),
 				AgentlessScanningRoleName:     types.StringValue("MyDSPMRole"),
-				AssetInventory: &assetInventoryOptions{
-					Enabled: types.BoolValue(true),
-				},
+				AssetInventory:                nil, // Not configured by user, so remains nil
 			},
 		},
 		{
@@ -835,10 +675,54 @@ func TestPopulateModelFromCloudAccount(t *testing.T) {
 				VulnerabilityScanningRoleArn:  types.StringValue(""),
 				VulnerabilityScanningRoleName: types.StringValue(""),
 				AgentlessScanningRoleName:     types.StringValue(""),
-				AssetInventory: &assetInventoryOptions{
-					Enabled: types.BoolValue(true),
+				AssetInventory:                nil, // Started as nil and remains nil (consistent behavior)
+			},
+		},
+		{
+			name: "populate with configured asset inventory",
+			initialModel: cloudAWSAccountModel{
+				AssetInventory: &assetInventoryOptions{}, // User configured this feature
+			},
+			cloudAccount: &models.DomainCloudAWSAccountV1{
+				AccountID:   "777888999000",
+				AccountType: "commercial",
+				ResourceMetadata: &models.DomainAWSAccountResourceMetadata{
+					ExternalID: "external-456",
+				},
+				Products: []*models.DomainProductFeatures{
+					{
+						Product:  stringPtr("cspm"),
+						Features: []string{"iom"}, // Asset inventory feature enabled
+					},
 				},
 			},
+			expected: cloudAWSAccountModel{
+				AccountID:                     types.StringValue("777888999000"),
+				AccountType:                   types.StringValue("commercial"),
+				DeploymentMethod:              types.StringValue("terraform-native"),
+				IsOrgManagementAccount:        types.BoolValue(false),
+				ExternalID:                    types.StringValue("external-456"),
+				IntermediateRoleArn:           types.StringValue(""),
+				IamRoleArn:                    types.StringValue(""),
+				IamRoleName:                   types.StringValue(""),
+				EventbusName:                  types.StringValue(""),
+				EventbusArn:                   types.StringValue(""),
+				CloudTrailBucketName:          types.StringValue(""),
+				DspmRoleArn:                   types.StringValue(""),
+				DspmRoleName:                  types.StringValue(""),
+				VulnerabilityScanningRoleArn:  types.StringValue(""),
+				VulnerabilityScanningRoleName: types.StringValue(""),
+				AgentlessScanningRoleName:     types.StringValue(""),
+				AssetInventory: &assetInventoryOptions{
+					Enabled: types.BoolValue(true), // iom feature enabled in products
+				},
+			},
+		},
+		{
+			name:         "handle nil cloudAccount",
+			initialModel: cloudAWSAccountModel{},
+			cloudAccount: nil,
+			expected:     cloudAWSAccountModel{}, // Should remain unchanged due to error
 		},
 	}
 
@@ -848,6 +732,12 @@ func TestPopulateModelFromCloudAccount(t *testing.T) {
 			ctx := context.Background()
 
 			diags := r.populateModelFromCloudAccount(ctx, &tt.initialModel, tt.cloudAccount)
+
+			if tt.name == "handle nil cloudAccount" {
+				assert.True(t, diags.HasError(), "Expected diagnostics error for nil cloudAccount")
+				return // Skip field validation for error case
+			}
+
 			assert.False(t, diags.HasError(), "Expected no diagnostics errors")
 
 			// Verify basic fields
@@ -868,200 +758,15 @@ func TestPopulateModelFromCloudAccount(t *testing.T) {
 			assert.Equal(t, tt.expected.EventbusArn, tt.initialModel.EventbusArn)
 			assert.Equal(t, tt.expected.CloudTrailBucketName, tt.initialModel.CloudTrailBucketName)
 
-			// Verify AssetInventory is always initialized and enabled
-			require.NotNil(t, tt.initialModel.AssetInventory)
-			assert.Equal(t, tt.expected.AssetInventory.Enabled, tt.initialModel.AssetInventory.Enabled)
-		})
-	}
-}
-
-func TestExtractCloudAccountFields(t *testing.T) {
-	tests := []struct {
-		name         string
-		cloudAccount *models.DomainCloudAWSAccountV1
-		expected     *CloudAccountFields
-	}{
-		{
-			name: "basic account with ResourceMetadata",
-			cloudAccount: &models.DomainCloudAWSAccountV1{
-				AccountID:          "123456789012",
-				OrganizationID:     "o-example12345",
-				AccountType:        "commercial",
-				IsMaster:           true,
-				TargetOus:          []string{"ou-root-123", "ou-dev-456"},
-				ResourceNamePrefix: "test-prefix",
-				ResourceNameSuffix: "test-suffix",
-				ResourceMetadata: &models.DomainAWSAccountResourceMetadata{
-					ExternalID:              "external-123",
-					IntermediateRoleArn:     "arn:aws:iam::111111111111:role/intermediate",
-					IamRoleArn:              "arn:aws:iam::123456789012:role/CrowdStrike-CSPM-Role",
-					EventbusName:            "crowdstrike-eventbus",
-					AwsEventbusArn:          "arn:aws:events:us-east-1:123456789012:event-bus/crowdstrike-eventbus",
-					AwsCloudtrailBucketName: "crowdstrike-cloudtrail-bucket",
-					AwsCloudtrailRegion:     "us-east-1",
-				},
-				Products: []*models.DomainProductFeatures{
-					{
-						Product:  stringPtr("cspm"),
-						Features: []string{"iom", "ioa", "sensormgmt", "dspm", "vulnerability_scanning"},
-					},
-					{
-						Product: stringPtr("idp"),
-					},
-				},
-			},
-			expected: &CloudAccountFields{
-				AccountID:                    "123456789012",
-				OrganizationID:               "o-example12345",
-				TargetOUs:                    []string{"ou-root-123", "ou-dev-456"},
-				IsOrgManagementAccount:       true,
-				AccountType:                  "commercial",
-				ExternalID:                   "external-123",
-				IntermediateRoleArn:          "arn:aws:iam::111111111111:role/intermediate",
-				IamRoleArn:                   "arn:aws:iam::123456789012:role/CrowdStrike-CSPM-Role",
-				EventbusName:                 "crowdstrike-eventbus",
-				EventbusArn:                  "arn:aws:events:us-east-1:123456789012:event-bus/crowdstrike-eventbus",
-				CloudTrailBucketName:         "crowdstrike-cloudtrail-bucket",
-				CloudTrailRegion:             "us-east-1",
-				ResourceNamePrefix:           "test-prefix",
-				ResourceNameSuffix:           "test-suffix",
-				AssetInventoryEnabled:        true, // Always enabled
-				RealtimeVisibilityEnabled:    true, // ioa feature
-				IDPEnabled:                   true, // idp product
-				SensorManagementEnabled:      true, // sensormgmt feature
-				DSPMEnabled:                  true, // dspm feature
-				VulnerabilityScanningEnabled: true, // vulnerability_scanning feature
-				// Note: Role ARNs and names would be empty without settings
-				DspmRoleArn:                   "",
-				DspmRoleName:                  "",
-				VulnerabilityScanningRoleArn:  "",
-				VulnerabilityScanningRoleName: "",
-				AgentlessScanningRoleName:     "", // Would be computed by resolveAgentlessScanningRoleNameV1
-			},
-		},
-		{
-			name: "minimal account without ResourceMetadata",
-			cloudAccount: &models.DomainCloudAWSAccountV1{
-				AccountID:   "987654321098",
-				AccountType: "gov",
-				IsMaster:    false,
-				Products: []*models.DomainProductFeatures{
-					{
-						Product:  stringPtr("cspm"),
-						Features: []string{"iom"}, // Only asset inventory
-					},
-				},
-			},
-			expected: &CloudAccountFields{
-				AccountID:                     "987654321098",
-				OrganizationID:                "",
-				TargetOUs:                     nil,
-				IsOrgManagementAccount:        false,
-				AccountType:                   "gov",
-				ExternalID:                    "",
-				IntermediateRoleArn:           "",
-				IamRoleArn:                    "",
-				EventbusName:                  "",
-				EventbusArn:                   "",
-				CloudTrailBucketName:          "",
-				CloudTrailRegion:              "",
-				ResourceNamePrefix:            "",
-				ResourceNameSuffix:            "",
-				AssetInventoryEnabled:         true, // Always enabled
-				RealtimeVisibilityEnabled:     false,
-				IDPEnabled:                    false,
-				SensorManagementEnabled:       false,
-				DSPMEnabled:                   false,
-				VulnerabilityScanningEnabled:  false,
-				DspmRoleArn:                   "",
-				DspmRoleName:                  "",
-				VulnerabilityScanningRoleArn:  "",
-				VulnerabilityScanningRoleName: "",
-				AgentlessScanningRoleName:     "",
-			},
-		},
-		{
-			name: "account with selective features",
-			cloudAccount: &models.DomainCloudAWSAccountV1{
-				AccountID:   "555555555555",
-				AccountType: "commercial",
-				IsMaster:    false,
-				ResourceMetadata: &models.DomainAWSAccountResourceMetadata{
-					IamRoleArn: "arn:aws:iam::555555555555:role/TestRole",
-				},
-				Products: []*models.DomainProductFeatures{
-					{
-						Product:  stringPtr("cspm"),
-						Features: []string{"iom", "ioa"}, // Asset inventory and realtime visibility only
-					},
-				},
-			},
-			expected: &CloudAccountFields{
-				AccountID:                     "555555555555",
-				OrganizationID:                "",
-				TargetOUs:                     nil,
-				IsOrgManagementAccount:        false,
-				AccountType:                   "commercial",
-				ExternalID:                    "",
-				IntermediateRoleArn:           "",
-				IamRoleArn:                    "arn:aws:iam::555555555555:role/TestRole",
-				EventbusName:                  "",
-				EventbusArn:                   "",
-				CloudTrailBucketName:          "",
-				CloudTrailRegion:              "",
-				ResourceNamePrefix:            "",
-				ResourceNameSuffix:            "",
-				AssetInventoryEnabled:         true,
-				RealtimeVisibilityEnabled:     true,  // ioa feature enabled
-				IDPEnabled:                    false, // No idp product
-				SensorManagementEnabled:       false, // sensormgmt feature not enabled
-				DSPMEnabled:                   false, // dspm feature not enabled
-				VulnerabilityScanningEnabled:  false, // vulnerability_scanning feature not enabled
-				DspmRoleArn:                   "",
-				DspmRoleName:                  "",
-				VulnerabilityScanningRoleArn:  "",
-				VulnerabilityScanningRoleName: "",
-				AgentlessScanningRoleName:     "",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-
-			result := extractCloudAccountFields(ctx, tt.cloudAccount)
-
-			// Verify all fields match expected values
-			assert.Equal(t, tt.expected.AccountID, result.AccountID)
-			assert.Equal(t, tt.expected.OrganizationID, result.OrganizationID)
-			assert.Equal(t, tt.expected.TargetOUs, result.TargetOUs)
-			assert.Equal(t, tt.expected.IsOrgManagementAccount, result.IsOrgManagementAccount)
-			assert.Equal(t, tt.expected.AccountType, result.AccountType)
-			assert.Equal(t, tt.expected.ExternalID, result.ExternalID)
-			assert.Equal(t, tt.expected.IntermediateRoleArn, result.IntermediateRoleArn)
-			assert.Equal(t, tt.expected.IamRoleArn, result.IamRoleArn)
-			assert.Equal(t, tt.expected.EventbusName, result.EventbusName)
-			assert.Equal(t, tt.expected.EventbusArn, result.EventbusArn)
-			assert.Equal(t, tt.expected.CloudTrailBucketName, result.CloudTrailBucketName)
-			assert.Equal(t, tt.expected.CloudTrailRegion, result.CloudTrailRegion)
-			assert.Equal(t, tt.expected.ResourceNamePrefix, result.ResourceNamePrefix)
-			assert.Equal(t, tt.expected.ResourceNameSuffix, result.ResourceNameSuffix)
-
-			// Verify feature flags
-			assert.Equal(t, tt.expected.AssetInventoryEnabled, result.AssetInventoryEnabled)
-			assert.Equal(t, tt.expected.RealtimeVisibilityEnabled, result.RealtimeVisibilityEnabled)
-			assert.Equal(t, tt.expected.IDPEnabled, result.IDPEnabled)
-			assert.Equal(t, tt.expected.SensorManagementEnabled, result.SensorManagementEnabled)
-			assert.Equal(t, tt.expected.DSPMEnabled, result.DSPMEnabled)
-			assert.Equal(t, tt.expected.VulnerabilityScanningEnabled, result.VulnerabilityScanningEnabled)
-
-			// Verify role fields (these would be empty without settings in these test cases)
-			assert.Equal(t, tt.expected.DspmRoleArn, result.DspmRoleArn)
-			assert.Equal(t, tt.expected.DspmRoleName, result.DspmRoleName)
-			assert.Equal(t, tt.expected.VulnerabilityScanningRoleArn, result.VulnerabilityScanningRoleArn)
-			assert.Equal(t, tt.expected.VulnerabilityScanningRoleName, result.VulnerabilityScanningRoleName)
-			assert.Equal(t, tt.expected.AgentlessScanningRoleName, result.AgentlessScanningRoleName)
+			// Verify AssetInventory behaves like other features (only set if configured)
+			if tt.initialModel.AssetInventory != nil {
+				require.NotNil(t, tt.initialModel.AssetInventory)
+				assert.Equal(t, tt.expected.AssetInventory.Enabled, tt.initialModel.AssetInventory.Enabled)
+			} else if tt.expected.AssetInventory != nil {
+				// If test expects AssetInventory but initial model doesn't have it,
+				// it means the test setup is incorrect for the new behavior
+				t.Errorf("Test expects AssetInventory but initialModel doesn't have it configured")
+			}
 		})
 	}
 }

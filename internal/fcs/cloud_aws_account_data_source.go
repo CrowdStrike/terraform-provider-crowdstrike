@@ -9,7 +9,6 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -269,14 +268,17 @@ func (d *cloudAwsAccountsDataSource) Read(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	// Get all cloud accounts without filtering first
-	cloudAccounts, diags := d.getCloudAccounts(ctx, []string{})
+	// Get cloud accounts with account ID filter if provided
+	var accountIDs []string
+	if accountFilter := data.AccountID.ValueString(); accountFilter != "" {
+		accountIDs = []string{accountFilter}
+	}
+	cloudAccounts, diags := d.getCloudAccounts(ctx, accountIDs)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	// Filter accounts based on the request filters
-	accountFilter := data.AccountID.ValueString()
+	// Filter accounts based on organization filter only (account ID is handled server-side)
 	orgFilter := data.OrganizationID.ValueString()
 
 	data.Accounts = make([]*cloudAWSAccountDataModel, 0)
@@ -285,53 +287,55 @@ func (d *cloudAwsAccountsDataSource) Read(
 			continue
 		}
 
-		// Apply filters
-		if accountFilter != "" && a.AccountID != accountFilter {
-			continue
-		}
+		// Apply organization filter if specified
 		if orgFilter != "" && a.OrganizationID != orgFilter {
 			continue
 		}
-		// Get fields from the shared helper
-		fields := extractCloudAccountFields(ctx, a)
 
-		// Handle target OUs
-		targetOUs := types.ListNull(types.StringType)
-		if len(fields.TargetOUs) > 0 {
-			ouValues := make([]attr.Value, 0, len(fields.TargetOUs))
-			for _, ou := range fields.TargetOUs {
-				ouValues = append(ouValues, types.StringValue(ou))
-			}
-			targetOUs = types.ListValueMust(types.StringType, ouValues)
+		// Create a temporary model to populate using shared logic
+		tempModel := &cloudAWSAccountModel{
+			// Initialize empty structures for optional features
+			AssetInventory:        &assetInventoryOptions{},
+			RealtimeVisibility:    &realtimeVisibilityOptions{},
+			IDP:                   &idpOptions{},
+			SensorManagement:      &sensorManagementOptions{},
+			DSPM:                  &dspmOptions{},
+			VulnerabilityScanning: &vulnerabilityScanningOptions{},
+		}
+
+		// Use shared logic to populate the model
+		if diags := populateCloudAccountModel(ctx, tempModel, a); diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			continue
 		}
 
 		m := &cloudAWSAccountDataModel{
-			AccountID:                     types.StringValue(fields.AccountID),
-			OrganizationID:                types.StringValue(fields.OrganizationID),
-			TargetOUs:                     targetOUs,
-			IsOrgManagementAccount:        types.BoolValue(fields.IsOrgManagementAccount),
-			AccountType:                   types.StringValue(fields.AccountType),
-			ExternalID:                    types.StringValue(fields.ExternalID),
-			IntermediateRoleArn:           types.StringValue(fields.IntermediateRoleArn),
-			IamRoleArn:                    types.StringValue(fields.IamRoleArn),
-			IamRoleName:                   types.StringValue(getRoleNameFromArn(fields.IamRoleArn)),
-			EventbusName:                  types.StringValue(fields.EventbusName),
-			EventbusArn:                   types.StringValue(fields.EventbusArn),
-			CloudTrailBucketName:          types.StringValue(fields.CloudTrailBucketName),
-			CloudTrailRegion:              types.StringValue(fields.CloudTrailRegion),
-			DspmRoleArn:                   types.StringValue(fields.DspmRoleArn),
-			DspmRoleName:                  types.StringValue(fields.DspmRoleName),
-			VulnerabilityScanningRoleArn:  types.StringValue(fields.VulnerabilityScanningRoleArn),
-			VulnerabilityScanningRoleName: types.StringValue(fields.VulnerabilityScanningRoleName),
-			AgentlessScanningRoleName:     types.StringValue(fields.AgentlessScanningRoleName),
-			AssetInventoryEnabled:         types.BoolValue(fields.AssetInventoryEnabled),
-			RealtimeVisibilityEnabled:     types.BoolValue(fields.RealtimeVisibilityEnabled),
-			IDPEnabled:                    types.BoolValue(fields.IDPEnabled),
-			SensorManagementEnabled:       types.BoolValue(fields.SensorManagementEnabled),
-			DSPMEnabled:                   types.BoolValue(fields.DSPMEnabled),
-			VulnerabilityScanningEnabled:  types.BoolValue(fields.VulnerabilityScanningEnabled),
-			ResourceNamePrefix:            types.StringValue(fields.ResourceNamePrefix),
-			ResourceNameSuffix:            types.StringValue(fields.ResourceNameSuffix),
+			AccountID:                     tempModel.AccountID,
+			OrganizationID:                tempModel.OrganizationID,
+			TargetOUs:                     tempModel.TargetOUs,
+			IsOrgManagementAccount:        tempModel.IsOrgManagementAccount,
+			AccountType:                   tempModel.AccountType,
+			ExternalID:                    tempModel.ExternalID,
+			IntermediateRoleArn:           tempModel.IntermediateRoleArn,
+			IamRoleArn:                    tempModel.IamRoleArn,
+			IamRoleName:                   tempModel.IamRoleName,
+			EventbusName:                  tempModel.EventbusName,
+			EventbusArn:                   tempModel.EventbusArn,
+			CloudTrailBucketName:          tempModel.CloudTrailBucketName,
+			CloudTrailRegion:              types.StringValue(""), // Not available in data source schema
+			DspmRoleArn:                   tempModel.DspmRoleArn,
+			DspmRoleName:                  tempModel.DspmRoleName,
+			VulnerabilityScanningRoleArn:  tempModel.VulnerabilityScanningRoleArn,
+			VulnerabilityScanningRoleName: tempModel.VulnerabilityScanningRoleName,
+			AgentlessScanningRoleName:     tempModel.AgentlessScanningRoleName,
+			AssetInventoryEnabled:         tempModel.AssetInventory.Enabled,
+			RealtimeVisibilityEnabled:     tempModel.RealtimeVisibility.Enabled,
+			IDPEnabled:                    tempModel.IDP.Enabled,
+			SensorManagementEnabled:       tempModel.SensorManagement.Enabled,
+			DSPMEnabled:                   tempModel.DSPM.Enabled,
+			VulnerabilityScanningEnabled:  tempModel.VulnerabilityScanning.Enabled,
+			ResourceNamePrefix:            types.StringValue(a.ResourceNamePrefix),
+			ResourceNameSuffix:            types.StringValue(a.ResourceNameSuffix),
 		}
 
 		data.Accounts = append(data.Accounts, m)

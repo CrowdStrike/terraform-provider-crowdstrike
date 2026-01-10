@@ -21,9 +21,9 @@ type settingsConfig struct {
 	LogIngestionKmsKeyArn      types.String
 
 	// DSPM and Vulnerability Scanning role settings
-	DSPMRole                           types.String
+	DSPMRoleName                       types.String
 	DSPMHostAccountID                  types.String
-	VulnerabilityScanningRole          types.String
+	VulnerabilityScanningRoleName      types.String
 	VulnerabilityScanningHostAccountID types.String
 }
 
@@ -63,9 +63,9 @@ func newSettingsConfig(ctx context.Context, settings interface{}, diags *diag.Di
 		LogIngestionKmsKeyArn:      types.StringNull(),
 
 		// Initialize DSPM and Vulnerability Scanning settings
-		DSPMRole:                           types.StringNull(),
+		DSPMRoleName:                       types.StringNull(),
 		DSPMHostAccountID:                  types.StringNull(),
-		VulnerabilityScanningRole:          types.StringNull(),
+		VulnerabilityScanningRoleName:      types.StringNull(),
 		VulnerabilityScanningHostAccountID: types.StringNull(),
 	}
 
@@ -104,9 +104,9 @@ func newSettingsConfig(ctx context.Context, settings interface{}, diags *diag.Di
 	config.LogIngestionKmsKeyArn = flex.StringValueToFramework(raw.LogIngestionKmsKeyArn)
 
 	// Assign DSPM and Vulnerability Scanning settings
-	config.DSPMRole = flex.StringValueToFramework(raw.DSPMRole)
+	config.DSPMRoleName = flex.StringValueToFramework(raw.DSPMRole)
 	config.DSPMHostAccountID = flex.StringValueToFramework(raw.DSPMHostAccountID)
-	config.VulnerabilityScanningRole = flex.StringValueToFramework(raw.VulnerabilityScanningRole)
+	config.VulnerabilityScanningRoleName = flex.StringValueToFramework(raw.VulnerabilityScanningRole)
 	config.VulnerabilityScanningHostAccountID = flex.StringValueToFramework(raw.VulnerabilityScanningHostAccountID)
 
 	return config
