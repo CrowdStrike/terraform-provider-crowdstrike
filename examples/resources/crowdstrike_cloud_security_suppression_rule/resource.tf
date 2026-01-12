@@ -1,0 +1,70 @@
+terraform {
+  required_providers {
+    crowdstrike = {
+      source = "registry.terraform.io/crowdstrike/crowdstrike"
+    }
+  }
+}
+
+provider "crowdstrike" {
+  cloud = "us-2"
+}
+
+# Example 1: Simple suppression rule with rule name filter
+resource "crowdstrike_cloud_security_suppression_rule" "example" {
+  name                = "Suppression Rule"
+  domain              = "CSPM"
+  subdomain           = "IOM"
+  suppression_reason  = "false-positive"
+  description         = "Suppress findings for IAM root user access key rule"
+  suppression_comment = "This is a known false positive in our development environment"
+
+  rule_selection_filter {
+    rule_names = ["IAM root user has an active access key"]
+  }
+
+  scope_asset_filter {
+    regions = ["us-east-2"]
+  }
+}
+
+# Example 2: More complex suppression rule with multiple filters
+resource "crowdstrike_cloud_security_suppression_rule" "multi_filter" {
+  name               = "Multi-filter Suppression Rule"
+  domain             = "CSPM"
+  subdomain          = "IOM"
+  suppression_reason = "accept-risk"
+  description        = "Suppress high and critical findings for specific cloud providers and regions"
+
+  rule_selection_filter {
+    rule_severities = ["critical", "high"]
+    rule_providers  = ["AWS", "Azure"]
+  }
+
+  scope_asset_filter {
+    cloud_providers = ["aws", "azure"]
+    regions         = ["us-west-1", "eastus"]
+    tags            = ["environment=dev", "team=security"]
+  }
+}
+
+# Example 3: Temporary suppression with expiration
+resource "crowdstrike_cloud_security_suppression_rule" "temporary" {
+  name                        = "Temporary Suppression"
+  domain                      = "CSPM"
+  subdomain                   = "IOM"
+  suppression_reason          = "compensating-control"
+  suppression_expiration_date = "2025-12-31T23:59:59Z"
+
+  rule_selection_filter {
+    rule_origins = ["Default"]
+  }
+
+  scope_asset_filter {
+    account_ids = ["123456789012"]
+  }
+}
+
+output "suppression_rule" {
+  value = crowdstrike_cloud_security_suppression_rule.example
+}

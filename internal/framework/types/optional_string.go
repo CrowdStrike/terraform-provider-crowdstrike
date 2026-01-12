@@ -24,3 +24,12 @@ func OptionalStringList(ctx context.Context, s []string) (types.List, diag.Diagn
 	}
 	return types.ListValueFrom(ctx, types.StringType, s)
 }
+
+// OptionalStringSet converts a Go string slice to a types.Set, returning SetNull
+// if the input slice is empty, otherwise returning a SetValueFrom with the input.
+func OptionalStringSet(ctx context.Context, s []string) (types.Set, diag.Diagnostics) {
+	if len(s) == 0 {
+		return types.SetNull(types.StringType), nil
+	}
+	return types.SetValueFrom(ctx, types.StringType, s)
+}
