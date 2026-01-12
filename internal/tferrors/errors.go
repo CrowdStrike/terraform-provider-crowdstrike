@@ -2,6 +2,7 @@ package tferrors
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -63,4 +64,33 @@ func NewOperationError(operation Operation, err error) diag.ErrorDiagnostic {
 		fmt.Sprintf("Failed to %s", operation),
 		err.Error(),
 	)
+}
+
+// GetPayloadErrorMessage safely extracts error messages from API error response payloads.
+func GetPayloadErrorMessage(payload interface{}) string {
+	v := reflect.ValueOf(payload)
+
+	// Handle nil or invalid values
+	if !v.IsValid() || (v.Kind() == reflect.Ptr && v.IsNil()) {
+		return "API error response payload is nil"
+	}
+
+	// Dereference pointer types
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	// Look for the Errors field in struct types
+	if v.Kind() == reflect.Struct {
+		if errorsField := v.FieldByName("Errors"); errorsField.IsValid() && !errorsField.IsNil() && errorsField.Len() > 0 {
+			if firstError := errorsField.Index(0); !firstError.IsNil() {
+				if messageField := firstError.Elem().FieldByName("Message"); messageField.IsValid() && !messageField.IsNil() {
+					return messageField.Elem().String()
+				}
+			}
+		}
+		return "API error response contains no error messages"
+	}
+
+	return "API error response format not recognized"
 }
