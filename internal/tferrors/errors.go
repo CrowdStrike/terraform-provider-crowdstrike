@@ -3,6 +3,7 @@ package tferrors
 import (
 	"fmt"
 
+	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
@@ -63,4 +64,41 @@ func NewOperationError(operation Operation, err error) diag.ErrorDiagnostic {
 		fmt.Sprintf("Failed to %s", operation),
 		err.Error(),
 	)
+}
+
+// GetErrorMessage safely extracts error messages from API error responses.
+func GetErrorMessage(payload interface{}) string {
+	if payload == nil {
+		return "API error response payload is nil"
+	}
+
+	// Check for common CrowdStrike API error payload structure
+	switch p := payload.(type) {
+	case interface {
+		GetErrors() []*models.MsaAPIError
+	}:
+		errors := p.GetErrors()
+		if len(errors) > 0 && errors[0] != nil && errors[0].Message != nil {
+			return *errors[0].Message
+		}
+		return "API error response contains no error messages"
+	case *models.MsaReplyMetaOnly:
+		if p == nil {
+			return "API error response payload is nil"
+		}
+		if p.Errors != nil && len(p.Errors) > 0 && p.Errors[0] != nil && p.Errors[0].Message != nil {
+			return *p.Errors[0].Message
+		}
+		return "API error response contains no error messages"
+	case *models.MsaspecResponseFields:
+		if p == nil {
+			return "API error response payload is nil"
+		}
+		if p.Errors != nil && len(p.Errors) > 0 && p.Errors[0] != nil && p.Errors[0].Message != nil {
+			return *p.Errors[0].Message
+		}
+		return "API error response contains no error messages"
+	}
+
+	return "API error response format not recognized"
 }

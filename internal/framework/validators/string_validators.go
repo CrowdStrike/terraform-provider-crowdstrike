@@ -102,3 +102,20 @@ func SortField(validFields []string) validator.String {
 		validFields: validFields,
 	}
 }
+
+// ValidateRFC3339 returns a validator that ensures a string attribute is either
+// empty or in RFC3339 format.
+//
+// The validator uses a regex pattern to check that the string conforms to the
+// RFC3339 date-time format. Null (unconfigured) and unknown (known after apply) values are skipped.
+//
+// Valid values: "2025-08-11T10:00:00Z", "" (empty string)
+// Invalid values: "2025-08-11", "10:00:00Z", "2025-08-11 10:00:00"
+func ValidateRFC3339() validator.String {
+	return stringvalidator.All(
+		stringvalidator.RegexMatches(
+			regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)?$`),
+			"must be in RFC3339 format (e.g., '2025-08-11T10:00:00Z') if defined",
+		),
+	)
+}
