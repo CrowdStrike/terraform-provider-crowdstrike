@@ -416,6 +416,10 @@ func (r *cloudAWSAccountResource) Schema(
 					"status": schema.StringAttribute{
 						Computed:    true,
 						Description: "Current status of the Identity Protection integration",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+						DeprecationMessage: "This attribute is deprecated and will be removed in a future version. Use the 'enabled' attribute instead, which provides the same information about the Identity Protection integration state.",
 					},
 				},
 				Default: objectdefault.StaticValue(
@@ -426,7 +430,7 @@ func (r *cloudAWSAccountResource) Schema(
 						},
 						map[string]attr.Value{
 							"enabled": types.BoolValue(false),
-							"status":  types.StringNull(),
+							"status":  types.StringValue("configured"),
 						},
 					),
 				),
@@ -702,6 +706,10 @@ func (r *cloudAWSAccountResource) Create(
 		return
 	}
 
+	// Set IDP status to "configured" for backwards compatibility.
+	// This field is deprecated and will be removed in a future version.
+	plan.IDP.Status = types.StringValue("configured")
+
 	// Set refreshed state
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -713,8 +721,8 @@ func (r *cloudAWSAccountResource) Create(
 // updateFeatureStatesFromProducts updates model feature states from CloudAwsRegistration Products.
 func updateFeatureStatesFromProducts(_ context.Context, model *cloudAWSAccountModel, products []*models.DomainProductFeatures, cloudAccount *models.DomainCloudAWSAccountV1) {
 	// Initialize feature states
-	hasIDP := false
 	cspmFeatures := make(map[string]bool)
+	model.IDP.Enabled = types.BoolValue(false)
 
 	// Parse products and features
 	for _, product := range products {
@@ -728,7 +736,7 @@ func updateFeatureStatesFromProducts(_ context.Context, model *cloudAWSAccountMo
 				cspmFeatures[feature] = true
 			}
 		case "idp":
-			hasIDP = true
+			model.IDP.Enabled = types.BoolValue(true)
 		}
 	}
 
@@ -758,16 +766,6 @@ func updateFeatureStatesFromProducts(_ context.Context, model *cloudAWSAccountMo
 	// Update VulnerabilityScanning (vulnerability_scanning feature)
 	if model.VulnerabilityScanning != nil {
 		model.VulnerabilityScanning.Enabled = types.BoolValue(cspmFeatures["vulnerability_scanning"])
-	}
-
-	// Update IDP (only if configured by user)
-	if model.IDP != nil {
-		model.IDP.Enabled = types.BoolValue(hasIDP)
-		if hasIDP {
-			model.IDP.Status = types.StringValue("configured")
-		} else {
-			model.IDP.Status = types.StringNull()
-		}
 	}
 }
 
@@ -993,12 +991,6 @@ func (r *cloudAWSAccountResource) Read(
 	// imports should use the org id from the API since state will be nil.
 	if isImport {
 		state.OrganizationID = types.StringValue(cloudAccount.OrganizationID)
-	}
-
-	// Populate state from cloudAccount response
-	resp.Diagnostics.Append(state.wrap(ctx, cloudAccount)...)
-	if resp.Diagnostics.HasError() {
-		return
 	}
 
 	if state.DeploymentMethod.IsNull() {
