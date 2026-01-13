@@ -1522,7 +1522,7 @@ result = "fail" if {
 EOF
 }
 `, randomSuffix, randomSuffix),
-		ExpectError: regexp.MustCompile(`rule_provider \(or deprecated cloud_provider\) is required when domain is 'CSPM' and subdomain is 'IOM'`),
+		ExpectError: regexp.MustCompile(`(?s)rule_provider\s+\(or\s+deprecated\s+cloud_provider\)\s+is\s+required\s+when\s+domain\s+is\s+'CSPM'\s+and\s+subdomain\s+is\s+'IOM'`),
 		PlanOnly:    true,
 	}
 
