@@ -1160,40 +1160,43 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 		vulnScanningRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partition, hostAccountID, vulnScanningRoleName)
 	}
 
-	// Set DSPM role fields - use DSPM role if available, otherwise use vuln role (matches CSPM behavior)
-	switch {
-	case dspmRoleArn != "":
-		m.DspmRoleArn = flex.StringValueToFramework(dspmRoleArn)
-		m.DspmRoleName = flex.StringValueToFramework(dspmRoleName)
-	case vulnScanningRoleArn != "":
-		// Use vulnerability scanning role for DSPM when no explicit DSPM role is set (matches CSPM behavior)
-		m.DspmRoleArn = flex.StringValueToFramework(vulnScanningRoleArn)
-		m.DspmRoleName = flex.StringValueToFramework(vulnScanningRoleName)
-	default:
-		m.DspmRoleArn = flex.StringValueToFramework("")
-		m.DspmRoleName = flex.StringValueToFramework("")
-	}
-
-	// Set vulnerability scanning role fields - use vuln role if available, otherwise use DSPM role
-	// This matches the CSPM Registration API behavior where roles can be shared
-	switch {
-	case vulnScanningRoleArn != "":
-		m.VulnerabilityScanningRoleArn = flex.StringValueToFramework(vulnScanningRoleArn)
-		m.VulnerabilityScanningRoleName = flex.StringValueToFramework(vulnScanningRoleName)
-	case dspmRoleArn != "":
-		// Use DSPM role for vulnerability scanning when no explicit vuln role is set (matches CSPM behavior)
-		m.VulnerabilityScanningRoleArn = flex.StringValueToFramework(dspmRoleArn)
-		m.VulnerabilityScanningRoleName = flex.StringValueToFramework(dspmRoleName)
-	default:
-		m.VulnerabilityScanningRoleArn = flex.StringValueToFramework("")
-		m.VulnerabilityScanningRoleName = flex.StringValueToFramework("")
-	}
-
-	agentlessRoleName := resolveAgentlessScanningRoleNameV1(ctx, cloudAccount)
-	if agentlessRoleName != "" {
-		m.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
+	//
+	if !m.DSPM.Enabled.ValueBool() && !m.VulnerabilityScanning.Enabled.ValueBool() {
+		m.VulnerabilityScanningRoleArn = types.StringNull()
+		m.VulnerabilityScanningRoleName = types.StringNull()
+		m.DspmRoleArn = types.StringNull()
+		m.DspmRoleName = types.StringNull()
 	} else {
-		m.AgentlessScanningRoleName = types.StringNull()
+		switch {
+		case dspmRoleArn != "":
+			m.DspmRoleArn = flex.StringValueToFramework(dspmRoleArn)
+			m.DspmRoleName = flex.StringValueToFramework(dspmRoleName)
+		case vulnScanningRoleArn != "":
+			m.DspmRoleArn = flex.StringValueToFramework(vulnScanningRoleArn)
+			m.DspmRoleName = flex.StringValueToFramework(vulnScanningRoleName)
+		default:
+			m.DspmRoleArn = flex.StringValueToFramework("")
+			m.DspmRoleName = flex.StringValueToFramework("")
+		}
+
+		switch {
+		case vulnScanningRoleArn != "":
+			m.VulnerabilityScanningRoleArn = flex.StringValueToFramework(vulnScanningRoleArn)
+			m.VulnerabilityScanningRoleName = flex.StringValueToFramework(vulnScanningRoleName)
+		case dspmRoleArn != "":
+			m.VulnerabilityScanningRoleArn = flex.StringValueToFramework(dspmRoleArn)
+			m.VulnerabilityScanningRoleName = flex.StringValueToFramework(dspmRoleName)
+		default:
+			m.VulnerabilityScanningRoleArn = flex.StringValueToFramework("")
+			m.VulnerabilityScanningRoleName = flex.StringValueToFramework("")
+		}
+
+		agentlessRoleName := resolveAgentlessScanningRoleNameV1(ctx, cloudAccount)
+		if agentlessRoleName != "" {
+			m.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
+		} else {
+			m.AgentlessScanningRoleName = types.StringNull()
+		}
 	}
 
 	updateFeatureStatesFromProducts(ctx, m, cloudAccount.Products, cloudAccount)

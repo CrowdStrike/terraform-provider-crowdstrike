@@ -1176,3 +1176,153 @@ func TestAccCloudAwsAccountResourceRegions(t *testing.T) {
 		},
 	})
 }
+
+func testAccCloudAwsAccountConfig_allFeaturesEnabled(account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  asset_inventory = {
+    enabled = true
+  }
+  realtime_visibility = {
+    enabled           = true
+    cloudtrail_region = "us-east-1"
+  }
+  idp = {
+    enabled = true
+  }
+  sensor_management = {
+    enabled = true
+  }
+  dspm = {
+    enabled = true
+  }
+  vulnerability_scanning = {
+    enabled = true
+  }
+}
+`, account)
+}
+
+func testAccCloudAwsAccountConfig_dspmDisabled(account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  asset_inventory = {
+    enabled = true
+  }
+  realtime_visibility = {
+    enabled           = true
+    cloudtrail_region = "us-east-1"
+  }
+  idp = {
+    enabled = true
+  }
+  sensor_management = {
+    enabled = true
+  }
+  dspm = {
+    enabled = false
+  }
+  vulnerability_scanning = {
+    enabled = true
+  }
+}
+`, account)
+}
+
+func testAccCloudAwsAccountConfig_dspmAndVulnDisabled(account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  asset_inventory = {
+    enabled = true
+  }
+  realtime_visibility = {
+    enabled           = true
+    cloudtrail_region = "us-east-1"
+  }
+  idp = {
+    enabled = true
+  }
+  sensor_management = {
+    enabled = true
+  }
+  dspm = {
+    enabled = false
+  }
+  vulnerability_scanning = {
+    enabled = false
+  }
+}
+`, account)
+}
+
+func TestAccCloudAwsAccountResource_RegressionDisableDSPMThenVulnScanning(t *testing.T) {
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
+	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAwsAccountConfig_allFeaturesEnabled(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(fullResourceName, "asset_inventory.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.cloudtrail_region", "us-east-1"),
+					resource.TestCheckResourceAttr(fullResourceName, "idp.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "sensor_management.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "true"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "external_id"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "intermediate_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
+				),
+			},
+			{
+				Config: testAccCloudAwsAccountConfig_dspmDisabled(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(fullResourceName, "asset_inventory.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.cloudtrail_region", "us-east-1"),
+					resource.TestCheckResourceAttr(fullResourceName, "idp.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "sensor_management.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "false"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "true"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "external_id"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "intermediate_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
+				),
+			},
+			{
+				Config: testAccCloudAwsAccountConfig_dspmAndVulnDisabled(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(fullResourceName, "asset_inventory.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.cloudtrail_region", "us-east-1"),
+					resource.TestCheckResourceAttr(fullResourceName, "idp.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "sensor_management.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "false"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "false"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "external_id"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "intermediate_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
+				),
+			},
+		},
+	})
+}
