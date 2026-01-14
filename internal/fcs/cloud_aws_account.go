@@ -1140,17 +1140,25 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 	}
 
 	// For ARN construction, use the original settings values if they're already ARNs,
-	// otherwise construct them from role name and host account ID
+	// otherwise construct them from role name and host account ID (defaulting to same account)
 	if strings.HasPrefix(dspmRoleNameFromSettings, "arn:") {
 		dspmRoleArn = dspmRoleNameFromSettings
-	} else if dspmRoleName != "" && dspmHostAccountID != "" {
-		dspmRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partition, dspmHostAccountID, dspmRoleName)
+	} else if dspmRoleName != "" {
+		hostAccountID := dspmHostAccountID
+		if hostAccountID == "" {
+			hostAccountID = cloudAccount.AccountID // Default to same account
+		}
+		dspmRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partition, hostAccountID, dspmRoleName)
 	}
 
 	if strings.HasPrefix(vulnScanningRoleNameFromSettings, "arn:") {
 		vulnScanningRoleArn = vulnScanningRoleNameFromSettings
-	} else if vulnScanningRoleName != "" && vulnScanningHostAccountID != "" {
-		vulnScanningRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partition, vulnScanningHostAccountID, vulnScanningRoleName)
+	} else if vulnScanningRoleName != "" {
+		hostAccountID := vulnScanningHostAccountID
+		if hostAccountID == "" {
+			hostAccountID = cloudAccount.AccountID // Default to same account
+		}
+		vulnScanningRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partition, hostAccountID, vulnScanningRoleName)
 	}
 
 	// Set DSPM role fields - use DSPM role if available, otherwise use vuln role (matches CSPM behavior)
