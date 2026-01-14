@@ -287,17 +287,6 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 				ImportStateId:                        accountID,
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "account_id",
-				ImportStateVerifyIgnore: []string{
-					"id",
-					"deployment_method",
-					"target_ous",
-					"asset_inventory",
-					"realtime_visibility",
-					"idp",
-					"sensor_management",
-					"dspm",
-					"vulnerability_scanning",
-				},
 			},
 			// Update testing
 			{
@@ -673,15 +662,6 @@ func TestAccCloudAWSAccount_RealtimeVisibility(t *testing.T) {
 				ImportStateId:                        accountID,
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "account_id",
-				ImportStateVerifyIgnore: []string{
-					"id",
-					"deployment_method",
-					"target_ous",
-					"asset_inventory",
-					"idp",
-					"sensor_management",
-					"dspm",
-				},
 			},
 		},
 	})
@@ -877,16 +857,6 @@ func TestAccCloudAWSAccount_S3LogIngestion(t *testing.T) {
 				ImportStateId:                        accountID,
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "account_id",
-				ImportStateVerifyIgnore: []string{
-					"id",
-					"deployment_method",
-					"target_ous",
-					"asset_inventory",
-					"idp",
-					"sensor_management",
-					"dspm",
-					"vulnerability_scanning",
-				},
 			},
 		},
 	})

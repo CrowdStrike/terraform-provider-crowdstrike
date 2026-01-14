@@ -1196,28 +1196,26 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 		m.AgentlessScanningRoleName = types.StringNull()
 	}
 
-	// Update feature states from Products array
-	if m.RealtimeVisibility == nil {
-		m.RealtimeVisibility = &realtimeVisibilityOptions{}
-	}
 	updateFeatureStatesFromProducts(ctx, m, cloudAccount.Products, cloudAccount)
 
-	m.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
-	m.RealtimeVisibility.LogIngestionS3BucketName = types.StringNull()
-	m.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringNull()
-	m.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringNull()
-	m.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringNull()
-	m.RealtimeVisibility.Regions = types.ListNull(types.StringType)
+	if m.RealtimeVisibility != nil {
+		m.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
+		m.RealtimeVisibility.LogIngestionS3BucketName = types.StringNull()
+		m.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringNull()
+		m.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringNull()
+		m.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringNull()
+		m.RealtimeVisibility.Regions = types.ListNull(types.StringType)
 
-	m.RealtimeVisibility.Regions = settings.RTVDRegions
+		m.RealtimeVisibility.Regions = settings.RTVDRegions
 
-	if !settings.LogIngestionMethod.IsNull() {
-		m.RealtimeVisibility.LogIngestionMethod = settings.LogIngestionMethod
+		if !settings.LogIngestionMethod.IsNull() {
+			m.RealtimeVisibility.LogIngestionMethod = settings.LogIngestionMethod
+		}
+		m.RealtimeVisibility.LogIngestionS3BucketName = settings.LogIngestionS3BucketName
+		m.RealtimeVisibility.LogIngestionSnsTopicArn = settings.LogIngestionSnsTopicArn
+		m.RealtimeVisibility.LogIngestionS3BucketPrefix = settings.LogIngestionS3BucketPrefix
+		m.RealtimeVisibility.LogIngestionKmsKeyArn = settings.LogIngestionKmsKeyArn
 	}
-	m.RealtimeVisibility.LogIngestionS3BucketName = settings.LogIngestionS3BucketName
-	m.RealtimeVisibility.LogIngestionSnsTopicArn = settings.LogIngestionSnsTopicArn
-	m.RealtimeVisibility.LogIngestionS3BucketPrefix = settings.LogIngestionS3BucketPrefix
-	m.RealtimeVisibility.LogIngestionKmsKeyArn = settings.LogIngestionKmsKeyArn
 
 	return diags
 }
@@ -1540,6 +1538,62 @@ func (r *cloudAWSAccountResource) ImportState(
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// set default values to prevent import errors
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("asset_inventory"), &assetInventoryOptions{
+		Enabled:  types.BoolValue(true),
+		RoleName: types.StringNull(),
+	})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("realtime_visibility"), &realtimeVisibilityOptions{
+		Enabled:                    types.BoolValue(false),
+		CloudTrailRegion:           types.StringNull(),
+		UseExistingCloudTrail:      types.BoolValue(true),
+		LogIngestionMethod:         types.StringValue("eventbridge"),
+		LogIngestionS3BucketName:   types.StringNull(),
+		LogIngestionSnsTopicArn:    types.StringNull(),
+		LogIngestionS3BucketPrefix: types.StringNull(),
+		LogIngestionKmsKeyArn:      types.StringNull(),
+		Regions:                    types.ListNull(types.StringType),
+	})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("idp"), &idpOptions{
+		Enabled: types.BoolValue(false),
+		Status:  types.StringValue("configured"),
+	})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("sensor_management"), &sensorManagementOptions{
+		Enabled: types.BoolValue(false),
+	})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dspm"), &dspmOptions{
+		Enabled:  types.BoolValue(false),
+		RoleName: types.StringNull(),
+	})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("vulnerability_scanning"), &vulnerabilityScanningOptions{
+		Enabled:  types.BoolValue(false),
+		RoleName: types.StringNull(),
+	})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	resource.ImportStatePassthroughID(ctx, path.Root("account_id"), req, resp)
 }
 
