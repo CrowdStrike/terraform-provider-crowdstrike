@@ -14,6 +14,7 @@ import (
 type settingsConfig struct {
 	RTVDRegions types.List
 
+	DeploymentMethod           types.String
 	LogIngestionMethod         types.String
 	LogIngestionS3BucketName   types.String
 	LogIngestionSnsTopicArn    types.String
@@ -52,10 +53,11 @@ func parseRegionString(ctx context.Context, regionStr string, diags *diag.Diagno
 // Missing fields will default to their null types.
 func newSettingsConfig(ctx context.Context, settings interface{}, diags *diag.Diagnostics) *settingsConfig {
 	config := &settingsConfig{
-		RTVDRegions: types.ListNull(types.StringType),
 		// if other registration endpoints will default log ingestion method to eventbridge
 		// then this logic can be updated to default to eventbridge here instead of the
 		// resource logic checking if the output is null.
+		RTVDRegions:                types.ListNull(types.StringType),
+		DeploymentMethod:           types.StringNull(),
 		LogIngestionMethod:         types.StringNull(),
 		LogIngestionS3BucketName:   types.StringNull(),
 		LogIngestionSnsTopicArn:    types.StringNull(),
@@ -76,6 +78,7 @@ func newSettingsConfig(ctx context.Context, settings interface{}, diags *diag.Di
 	// Temporary struct for decoding raw values from settings map using mapstructure tags
 	var raw struct {
 		RTVDRegions                        string `mapstructure:"rtvd.regions"`
+		DeploymentMethod                   string `mapstructure:"deployment.method"`
 		LogIngestionMethod                 string `mapstructure:"log.ingestion.method"`
 		LogIngestionS3BucketName           string `mapstructure:"s3.log.ingestion.bucket.name"`
 		LogIngestionSnsTopicArn            string `mapstructure:"s3.log.ingestion.sns.topic.arn"`
@@ -96,6 +99,8 @@ func newSettingsConfig(ctx context.Context, settings interface{}, diags *diag.Di
 	}
 
 	config.RTVDRegions = parseRegionString(ctx, raw.RTVDRegions, diags)
+
+	config.DeploymentMethod = flex.StringValueToFramework(raw.DeploymentMethod)
 
 	config.LogIngestionMethod = flex.StringValueToFramework(raw.LogIngestionMethod)
 	config.LogIngestionS3BucketName = flex.StringValueToFramework(raw.LogIngestionS3BucketName)

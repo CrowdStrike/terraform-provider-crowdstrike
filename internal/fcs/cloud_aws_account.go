@@ -755,6 +755,7 @@ func updateFeatureStatesFromProducts(_ context.Context, model *cloudAWSAccountMo
 		if cloudAccount.ResourceMetadata != nil && cloudAccount.ResourceMetadata.AwsCloudtrailRegion != "" {
 			model.RealtimeVisibility.CloudTrailRegion = types.StringValue(cloudAccount.ResourceMetadata.AwsCloudtrailRegion)
 		}
+		model.RealtimeVisibility.UseExistingCloudTrail = types.BoolValue(cloudAccount.UseExistingCloudtrail)
 	}
 
 	// Update SensorManagement (sensormgmt feature)
@@ -997,10 +998,6 @@ func (r *cloudAWSAccountResource) Read(
 		state.OrganizationID = types.StringValue(cloudAccount.OrganizationID)
 	}
 
-	if state.DeploymentMethod.IsNull() {
-		state.DeploymentMethod = types.StringValue("terraform-native")
-	}
-
 	resp.Diagnostics.Append(state.wrap(ctx, cloudAccount)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -1082,9 +1079,6 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 	// Set basic account information
 	m.AccountID = types.StringValue(cloudAccount.AccountID)
 	m.AccountType = types.StringValue(cloudAccount.AccountType)
-	if m.DeploymentMethod.IsNull() {
-		m.DeploymentMethod = types.StringValue("terraform-native")
-	}
 
 	// Initialize TargetOUs to empty list by default
 	m.TargetOUs = types.ListValueMust(types.StringType, []attr.Value{})
@@ -1122,6 +1116,11 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 	settings := newSettingsConfig(ctx, cloudAccount.Settings, &diags)
 	if diags.HasError() {
 		return diags
+	}
+
+	m.DeploymentMethod = settings.DeploymentMethod
+	if m.DeploymentMethod.IsNull() {
+		m.DeploymentMethod = types.StringValue("terraform-native")
 	}
 
 	dspmRoleNameFromSettings := settings.DSPMRoleName.ValueString()
@@ -1198,27 +1197,27 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 	}
 
 	// Update feature states from Products array
+	if m.RealtimeVisibility == nil {
+		m.RealtimeVisibility = &realtimeVisibilityOptions{}
+	}
 	updateFeatureStatesFromProducts(ctx, m, cloudAccount.Products, cloudAccount)
 
-	// Set realtime visibility settings (original wrap functionality)
-	if m.RealtimeVisibility != nil {
-		m.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
-		m.RealtimeVisibility.LogIngestionS3BucketName = types.StringNull()
-		m.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringNull()
-		m.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringNull()
-		m.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringNull()
-		m.RealtimeVisibility.Regions = types.ListNull(types.StringType)
+	m.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
+	m.RealtimeVisibility.LogIngestionS3BucketName = types.StringNull()
+	m.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringNull()
+	m.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringNull()
+	m.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringNull()
+	m.RealtimeVisibility.Regions = types.ListNull(types.StringType)
 
-		m.RealtimeVisibility.Regions = settings.RTVDRegions
+	m.RealtimeVisibility.Regions = settings.RTVDRegions
 
-		if !settings.LogIngestionMethod.IsNull() {
-			m.RealtimeVisibility.LogIngestionMethod = settings.LogIngestionMethod
-		}
-		m.RealtimeVisibility.LogIngestionS3BucketName = settings.LogIngestionS3BucketName
-		m.RealtimeVisibility.LogIngestionSnsTopicArn = settings.LogIngestionSnsTopicArn
-		m.RealtimeVisibility.LogIngestionS3BucketPrefix = settings.LogIngestionS3BucketPrefix
-		m.RealtimeVisibility.LogIngestionKmsKeyArn = settings.LogIngestionKmsKeyArn
+	if !settings.LogIngestionMethod.IsNull() {
+		m.RealtimeVisibility.LogIngestionMethod = settings.LogIngestionMethod
 	}
+	m.RealtimeVisibility.LogIngestionS3BucketName = settings.LogIngestionS3BucketName
+	m.RealtimeVisibility.LogIngestionSnsTopicArn = settings.LogIngestionSnsTopicArn
+	m.RealtimeVisibility.LogIngestionS3BucketPrefix = settings.LogIngestionS3BucketPrefix
+	m.RealtimeVisibility.LogIngestionKmsKeyArn = settings.LogIngestionKmsKeyArn
 
 	return diags
 }
