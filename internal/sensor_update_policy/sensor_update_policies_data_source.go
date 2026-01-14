@@ -82,6 +82,17 @@ type policyDataModel struct {
 	BuildArm64          types.String `tfsdk:"build_arm64"`
 	UninstallProtection types.Bool   `tfsdk:"uninstall_protection"`
 	Schedule            types.Object `tfsdk:"schedule"`
+	Settings            types.Object `tfsdk:"settings"`
+}
+
+type settingsModel struct {
+	Build types.String `tfsdk:"build"`
+}
+
+func (s settingsModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"build": types.StringType,
+	}
 }
 
 func (m policyDataModel) AttributeTypes() map[string]attr.Type {
@@ -100,6 +111,7 @@ func (m policyDataModel) AttributeTypes() map[string]attr.Type {
 		"build_arm64":          types.StringType,
 		"uninstall_protection": types.BoolType,
 		"schedule":             types.ObjectType{AttrTypes: policySchedule{}.AttributeTypes()},
+		"settings":             types.ObjectType{AttrTypes: settingsModel{}.AttributeTypes()},
 	}
 }
 
@@ -163,6 +175,21 @@ func (m *sensorUpdatePoliciesDataSourceModel) wrap(ctx context.Context, policies
 					}
 				}
 			}
+
+			// Populate settings field
+			settings := settingsModel{
+				Build: flex.StringPointerToFramework(policy.Settings.Build),
+			}
+			settingsObj, diagsSettings := types.ObjectValueFrom(
+				ctx,
+				settings.AttributeTypes(),
+				settings,
+			)
+			diags.Append(diagsSettings...)
+			if diags.HasError() {
+				return diags
+			}
+			policyModel.Settings = settingsObj
 
 			policySchedule := policySchedule{}
 			policySchedule.TimeBlocks = types.SetNull(types.ObjectType{AttrTypes: timeBlock{}.AttributeTypes()})
@@ -420,6 +447,16 @@ func (d *sensorUpdatePoliciesDataSource) Schema(
 											},
 										},
 									},
+								},
+							},
+						},
+						"settings": schema.SingleNestedAttribute{
+							Computed:    true,
+							Description: "Policy settings",
+							Attributes: map[string]schema.Attribute{
+								"build": schema.StringAttribute{
+									Computed:    true,
+									Description: "The target build applied to devices in the policy",
 								},
 							},
 						},

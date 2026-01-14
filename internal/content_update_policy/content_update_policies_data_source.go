@@ -79,6 +79,45 @@ type policyDataModel struct {
 	SystemCritical          types.Object `tfsdk:"system_critical"`
 	VulnerabilityManagement types.Object `tfsdk:"vulnerability_management"`
 	RapidResponse           types.Object `tfsdk:"rapid_response"`
+	Settings                types.Object `tfsdk:"settings"`
+}
+
+type contentSettingsModel struct {
+	RingAssignmentSettings types.List `tfsdk:"ring_assignment_settings"`
+}
+
+func (s contentSettingsModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"ring_assignment_settings": types.ListType{ElemType: types.ObjectType{AttrTypes: ringAssignmentSettingsModel{}.AttributeTypes()}},
+	}
+}
+
+type ringAssignmentSettingsModel struct {
+	DelayHours           types.String `tfsdk:"delay_hours"`
+	ID                   types.String `tfsdk:"id"`
+	Override             types.Object `tfsdk:"override"`
+	PinnedContentVersion types.String `tfsdk:"pinned_content_version"`
+	RingAssignment       types.String `tfsdk:"ring_assignment"`
+}
+
+func (r ringAssignmentSettingsModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"delay_hours":            types.StringType,
+		"id":                     types.StringType,
+		"override":               types.ObjectType{AttrTypes: overrideModel{}.AttributeTypes()},
+		"pinned_content_version": types.StringType,
+		"ring_assignment":        types.StringType,
+	}
+}
+
+type overrideModel struct {
+	Value types.String `tfsdk:"value"`
+}
+
+func (o overrideModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"value": types.StringType,
+	}
 }
 
 func (m policyDataModel) AttributeTypes() map[string]attr.Type {
@@ -96,6 +135,7 @@ func (m policyDataModel) AttributeTypes() map[string]attr.Type {
 		"system_critical":          types.ObjectType{AttrTypes: ringAssignmentModel{}.AttributeTypes()},
 		"vulnerability_management": types.ObjectType{AttrTypes: ringAssignmentModel{}.AttributeTypes()},
 		"rapid_response":           types.ObjectType{AttrTypes: ringAssignmentModel{}.AttributeTypes()},
+		"settings":                 types.ObjectType{AttrTypes: contentSettingsModel{}.AttributeTypes()},
 	}
 }
 
@@ -143,10 +183,15 @@ func (m *ContentUpdatePoliciesDataSourceModel) wrap(ctx context.Context, policie
 			var vulnerabilityManagement ringAssignmentModel
 			var rapidResponse ringAssignmentModel
 
+			// Build ring assignment settings models for the settings field
+			ringAssignmentSettingsModels := make([]ringAssignmentSettingsModel, 0, len(policy.Settings.RingAssignmentSettings))
+
 			for _, setting := range policy.Settings.RingAssignmentSettings {
 				if setting == nil || setting.ID == nil {
 					continue
 				}
+
+				// Populate individual category models
 				switch *setting.ID {
 				case "sensor_operations":
 					sensorOperations.wrap(setting)
@@ -157,7 +202,47 @@ func (m *ContentUpdatePoliciesDataSourceModel) wrap(ctx context.Context, policie
 				case "rapid_response_al_bl_listing":
 					rapidResponse.wrap(setting)
 				}
+
+				// Create ring assignment settings model for the settings field
+				ringAssignmentSetting := ringAssignmentSettingsModel{
+					ID:             types.StringPointerValue(setting.ID),
+					RingAssignment: types.StringPointerValue(setting.RingAssignment),
+				}
+
+				if setting.DelayHours != nil {
+					ringAssignmentSetting.DelayHours = types.StringPointerValue(setting.DelayHours)
+				} else {
+					ringAssignmentSetting.DelayHours = types.StringNull()
+				}
+
+				if setting.PinnedContentVersion != nil {
+					ringAssignmentSetting.PinnedContentVersion = types.StringPointerValue(setting.PinnedContentVersion)
+				} else {
+					ringAssignmentSetting.PinnedContentVersion = types.StringNull()
+				}
+
+				if setting.Override != nil {
+					override := overrideModel{
+						Value: types.StringPointerValue(setting.Override.Value),
+					}
+					overrideObj, overrideDiags := utils.ConvertModelToTerraformObject(ctx, &override)
+					diags.Append(overrideDiags...)
+					ringAssignmentSetting.Override = overrideObj
+				} else {
+					ringAssignmentSetting.Override = types.ObjectNull(overrideModel{}.AttributeTypes())
+				}
+
+				ringAssignmentSettingsModels = append(ringAssignmentSettingsModels, ringAssignmentSetting)
 			}
+
+			// Create the settings object
+			settingsModel := contentSettingsModel{
+				RingAssignmentSettings: utils.SliceToListTypeObject(ctx, ringAssignmentSettingsModels, ringAssignmentSettingsModel{}.AttributeTypes(), &diags),
+			}
+
+			settingsObj, settingsDiags := utils.ConvertModelToTerraformObject(ctx, &settingsModel)
+			diags.Append(settingsDiags...)
+			policyModel.Settings = settingsObj
 
 			sensorOperationsObj, sensorOpsDiags := utils.ConvertModelToTerraformObject(ctx, &sensorOperations)
 			diags.Append(sensorOpsDiags...)
@@ -388,6 +473,46 @@ func (d *contentUpdatePoliciesDataSource) Schema(
 								"pinned_content_version": schema.StringAttribute{
 									Computed:    true,
 									Description: "Pinned content version for the content category",
+								},
+							},
+						},
+						"settings": schema.SingleNestedAttribute{
+							Computed:    true,
+							Description: "Content update policy settings",
+							Attributes: map[string]schema.Attribute{
+								"ring_assignment_settings": schema.ListNestedAttribute{
+									Computed:    true,
+									Description: "Ring assignment settings for content categories",
+									NestedObject: schema.NestedAttributeObject{
+										Attributes: map[string]schema.Attribute{
+											"delay_hours": schema.StringAttribute{
+												Computed:    true,
+												Description: "Delay in hours for ring assignment",
+											},
+											"id": schema.StringAttribute{
+												Computed:    true,
+												Description: "Content category ID",
+											},
+											"override": schema.SingleNestedAttribute{
+												Computed:    true,
+												Description: "Override settings",
+												Attributes: map[string]schema.Attribute{
+													"value": schema.StringAttribute{
+														Computed:    true,
+														Description: "Override value",
+													},
+												},
+											},
+											"pinned_content_version": schema.StringAttribute{
+												Computed:    true,
+												Description: "Pinned content version",
+											},
+											"ring_assignment": schema.StringAttribute{
+												Computed:    true,
+												Description: "Ring assignment type (ga, ea, pause)",
+											},
+										},
+									},
 								},
 							},
 						},

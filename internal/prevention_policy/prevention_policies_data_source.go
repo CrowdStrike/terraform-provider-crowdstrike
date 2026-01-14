@@ -66,32 +66,89 @@ type preventionPoliciesDataSource struct {
 }
 
 type policyDataModel struct {
-	ID                types.String `tfsdk:"id"`
-	Name              types.String `tfsdk:"name"`
-	Description       types.String `tfsdk:"description"`
-	PlatformName      types.String `tfsdk:"platform_name"`
-	Enabled           types.Bool   `tfsdk:"enabled"`
-	CreatedBy         types.String `tfsdk:"created_by"`
-	CreatedTimestamp  types.String `tfsdk:"created_timestamp"`
-	ModifiedBy        types.String `tfsdk:"modified_by"`
-	ModifiedTimestamp types.String `tfsdk:"modified_timestamp"`
-	HostGroups        types.List   `tfsdk:"host_groups"`
-	IoaRuleGroups     types.List   `tfsdk:"ioa_rule_groups"`
+	ID                 types.String `tfsdk:"id"`
+	Name               types.String `tfsdk:"name"`
+	Description        types.String `tfsdk:"description"`
+	PlatformName       types.String `tfsdk:"platform_name"`
+	Enabled            types.Bool   `tfsdk:"enabled"`
+	CreatedBy          types.String `tfsdk:"created_by"`
+	CreatedTimestamp   types.String `tfsdk:"created_timestamp"`
+	ModifiedBy         types.String `tfsdk:"modified_by"`
+	ModifiedTimestamp  types.String `tfsdk:"modified_timestamp"`
+	HostGroups         types.List   `tfsdk:"host_groups"`
+	IoaRuleGroups      types.List   `tfsdk:"ioa_rule_groups"`
+	PreventionSettings types.Object `tfsdk:"prevention_settings"`
+}
+
+type categorySettingsModel struct {
+	Detection  types.String `tfsdk:"detection"`
+	Prevention types.String `tfsdk:"prevention"`
+}
+
+func (c categorySettingsModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"detection":  types.StringType,
+		"prevention": types.StringType,
+	}
+}
+
+type preventionSettingsModel struct {
+	AdwareAndPUA                   types.Object `tfsdk:"adware_and_pua"`
+	CloudAntiMalware               types.Object `tfsdk:"cloud_anti_malware"`
+	CloudMachineLearning           types.Object `tfsdk:"cloud_machine_learning"`
+	CustomBlocking                 types.Object `tfsdk:"custom_blocking"`
+	EndUserNotifications           types.Object `tfsdk:"end_user_notifications"`
+	EnhancedExploitationVisibility types.Object `tfsdk:"enhanced_exploitation_visibility"`
+	ExploitBlocking                types.Object `tfsdk:"exploit_blocking"`
+	HashBlocking                   types.Object `tfsdk:"hash_blocking"`
+	MalwareProtection              types.Object `tfsdk:"malware_protection"`
+	MemoryScanning                 types.Object `tfsdk:"memory_scanning"`
+	OnSensorML                     types.Object `tfsdk:"on_sensor_ml"`
+	Quarantine                     types.Object `tfsdk:"quarantine"`
+	RealTimeResponse               types.Object `tfsdk:"real_time_response"`
+	ScriptBasedExecutionMonitoring types.Object `tfsdk:"script_based_execution_monitoring"`
+	SensorAntiMalware              types.Object `tfsdk:"sensor_anti_malware"`
+	UnknownDetectionRelated        types.Object `tfsdk:"unknown_detection_related"`
+	UnknownExecutableDetection     types.Object `tfsdk:"unknown_executable_detection"`
+}
+
+func (p preventionSettingsModel) AttributeTypes() map[string]attr.Type {
+	categoryType := types.ObjectType{AttrTypes: categorySettingsModel{}.AttributeTypes()}
+	return map[string]attr.Type{
+		"adware_and_pua":                    categoryType,
+		"cloud_anti_malware":                categoryType,
+		"cloud_machine_learning":            categoryType,
+		"custom_blocking":                   categoryType,
+		"end_user_notifications":            categoryType,
+		"enhanced_exploitation_visibility":  categoryType,
+		"exploit_blocking":                  categoryType,
+		"hash_blocking":                     categoryType,
+		"malware_protection":                categoryType,
+		"memory_scanning":                   categoryType,
+		"on_sensor_ml":                      categoryType,
+		"quarantine":                        categoryType,
+		"real_time_response":                categoryType,
+		"script_based_execution_monitoring": categoryType,
+		"sensor_anti_malware":               categoryType,
+		"unknown_detection_related":         categoryType,
+		"unknown_executable_detection":      categoryType,
+	}
 }
 
 func (m policyDataModel) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"id":                 types.StringType,
-		"name":               types.StringType,
-		"description":        types.StringType,
-		"platform_name":      types.StringType,
-		"enabled":            types.BoolType,
-		"created_by":         types.StringType,
-		"created_timestamp":  types.StringType,
-		"modified_by":        types.StringType,
-		"modified_timestamp": types.StringType,
-		"host_groups":        types.ListType{ElemType: types.StringType},
-		"ioa_rule_groups":    types.ListType{ElemType: types.StringType},
+		"id":                  types.StringType,
+		"name":                types.StringType,
+		"description":         types.StringType,
+		"platform_name":       types.StringType,
+		"enabled":             types.BoolType,
+		"created_by":          types.StringType,
+		"created_timestamp":   types.StringType,
+		"modified_by":         types.StringType,
+		"modified_timestamp":  types.StringType,
+		"host_groups":         types.ListType{ElemType: types.StringType},
+		"ioa_rule_groups":     types.ListType{ElemType: types.StringType},
+		"prevention_settings": types.ObjectType{AttrTypes: preventionSettingsModel{}.AttributeTypes()},
 	}
 }
 
@@ -139,6 +196,9 @@ func (m *preventionPoliciesDataSourceModel) wrap(ctx context.Context, policies [
 			return diags
 		}
 		policyModel.IoaRuleGroups = ioaRuleGroups
+
+		// Prevention settings are not available in the API response for this data source
+		policyModel.PreventionSettings = types.ObjectNull(preventionSettingsModel{}.AttributeTypes())
 
 		policyModels = append(policyModels, policyModel)
 	}
@@ -299,6 +359,250 @@ func (d *preventionPoliciesDataSource) Schema(
 							Computed:    true,
 							ElementType: types.StringType,
 							Description: "List of IOA rule group IDs associated with the policy",
+						},
+						"prevention_settings": schema.SingleNestedAttribute{
+							Computed:    true,
+							Description: "Prevention policy settings",
+							Attributes: map[string]schema.Attribute{
+								"adware_and_pua": schema.SingleNestedAttribute{
+									Computed:    true,
+									Description: "Adware and PUA protection settings",
+									Attributes: map[string]schema.Attribute{
+										"detection": schema.StringAttribute{
+											Computed:    true,
+											Description: "Detection setting",
+										},
+										"prevention": schema.StringAttribute{
+											Computed:    true,
+											Description: "Prevention setting",
+										},
+									},
+								},
+								"cloud_anti_malware": schema.SingleNestedAttribute{
+									Computed:    true,
+									Description: "Cloud anti-malware protection settings",
+									Attributes: map[string]schema.Attribute{
+										"detection": schema.StringAttribute{
+											Computed:    true,
+											Description: "Detection setting",
+										},
+										"prevention": schema.StringAttribute{
+											Computed:    true,
+											Description: "Prevention setting",
+										},
+									},
+								},
+								"cloud_machine_learning": schema.SingleNestedAttribute{
+									Computed:    true,
+									Description: "Cloud machine learning protection settings",
+									Attributes: map[string]schema.Attribute{
+										"detection": schema.StringAttribute{
+											Computed:    true,
+											Description: "Detection setting",
+										},
+										"prevention": schema.StringAttribute{
+											Computed:    true,
+											Description: "Prevention setting",
+										},
+									},
+								},
+								"custom_blocking": schema.SingleNestedAttribute{
+									Computed:    true,
+									Description: "Custom blocking protection settings",
+									Attributes: map[string]schema.Attribute{
+										"detection": schema.StringAttribute{
+											Computed:    true,
+											Description: "Detection setting",
+										},
+										"prevention": schema.StringAttribute{
+											Computed:    true,
+											Description: "Prevention setting",
+										},
+									},
+								},
+								"end_user_notifications": schema.SingleNestedAttribute{
+									Computed:    true,
+									Description: "End user notifications settings",
+									Attributes: map[string]schema.Attribute{
+										"detection": schema.StringAttribute{
+											Computed:    true,
+											Description: "Detection setting",
+										},
+										"prevention": schema.StringAttribute{
+											Computed:    true,
+											Description: "Prevention setting",
+										},
+									},
+								},
+								"enhanced_exploitation_visibility": schema.SingleNestedAttribute{
+									Computed:    true,
+									Description: "Enhanced exploitation visibility settings",
+									Attributes: map[string]schema.Attribute{
+										"detection": schema.StringAttribute{
+											Computed:    true,
+											Description: "Detection setting",
+										},
+										"prevention": schema.StringAttribute{
+											Computed:    true,
+											Description: "Prevention setting",
+										},
+									},
+								},
+								"exploit_blocking": schema.SingleNestedAttribute{
+									Computed:    true,
+									Description: "Exploit blocking protection settings",
+									Attributes: map[string]schema.Attribute{
+										"detection": schema.StringAttribute{
+											Computed:    true,
+											Description: "Detection setting",
+										},
+										"prevention": schema.StringAttribute{
+											Computed:    true,
+											Description: "Prevention setting",
+										},
+									},
+								},
+								"hash_blocking": schema.SingleNestedAttribute{
+									Computed:    true,
+									Description: "Hash blocking protection settings",
+									Attributes: map[string]schema.Attribute{
+										"detection": schema.StringAttribute{
+											Computed:    true,
+											Description: "Detection setting",
+										},
+										"prevention": schema.StringAttribute{
+											Computed:    true,
+											Description: "Prevention setting",
+										},
+									},
+								},
+								"malware_protection": schema.SingleNestedAttribute{
+									Computed:    true,
+									Description: "Malware protection settings",
+									Attributes: map[string]schema.Attribute{
+										"detection": schema.StringAttribute{
+											Computed:    true,
+											Description: "Detection setting",
+										},
+										"prevention": schema.StringAttribute{
+											Computed:    true,
+											Description: "Prevention setting",
+										},
+									},
+								},
+								"memory_scanning": schema.SingleNestedAttribute{
+									Computed:    true,
+									Description: "Memory scanning protection settings",
+									Attributes: map[string]schema.Attribute{
+										"detection": schema.StringAttribute{
+											Computed:    true,
+											Description: "Detection setting",
+										},
+										"prevention": schema.StringAttribute{
+											Computed:    true,
+											Description: "Prevention setting",
+										},
+									},
+								},
+								"on_sensor_ml": schema.SingleNestedAttribute{
+									Computed:    true,
+									Description: "On-sensor machine learning protection settings",
+									Attributes: map[string]schema.Attribute{
+										"detection": schema.StringAttribute{
+											Computed:    true,
+											Description: "Detection setting",
+										},
+										"prevention": schema.StringAttribute{
+											Computed:    true,
+											Description: "Prevention setting",
+										},
+									},
+								},
+								"quarantine": schema.SingleNestedAttribute{
+									Computed:    true,
+									Description: "Quarantine protection settings",
+									Attributes: map[string]schema.Attribute{
+										"detection": schema.StringAttribute{
+											Computed:    true,
+											Description: "Detection setting",
+										},
+										"prevention": schema.StringAttribute{
+											Computed:    true,
+											Description: "Prevention setting",
+										},
+									},
+								},
+								"real_time_response": schema.SingleNestedAttribute{
+									Computed:    true,
+									Description: "Real-time response protection settings",
+									Attributes: map[string]schema.Attribute{
+										"detection": schema.StringAttribute{
+											Computed:    true,
+											Description: "Detection setting",
+										},
+										"prevention": schema.StringAttribute{
+											Computed:    true,
+											Description: "Prevention setting",
+										},
+									},
+								},
+								"script_based_execution_monitoring": schema.SingleNestedAttribute{
+									Computed:    true,
+									Description: "Script-based execution monitoring settings",
+									Attributes: map[string]schema.Attribute{
+										"detection": schema.StringAttribute{
+											Computed:    true,
+											Description: "Detection setting",
+										},
+										"prevention": schema.StringAttribute{
+											Computed:    true,
+											Description: "Prevention setting",
+										},
+									},
+								},
+								"sensor_anti_malware": schema.SingleNestedAttribute{
+									Computed:    true,
+									Description: "Sensor anti-malware protection settings",
+									Attributes: map[string]schema.Attribute{
+										"detection": schema.StringAttribute{
+											Computed:    true,
+											Description: "Detection setting",
+										},
+										"prevention": schema.StringAttribute{
+											Computed:    true,
+											Description: "Prevention setting",
+										},
+									},
+								},
+								"unknown_detection_related": schema.SingleNestedAttribute{
+									Computed:    true,
+									Description: "Unknown detection related settings",
+									Attributes: map[string]schema.Attribute{
+										"detection": schema.StringAttribute{
+											Computed:    true,
+											Description: "Detection setting",
+										},
+										"prevention": schema.StringAttribute{
+											Computed:    true,
+											Description: "Prevention setting",
+										},
+									},
+								},
+								"unknown_executable_detection": schema.SingleNestedAttribute{
+									Computed:    true,
+									Description: "Unknown executable detection settings",
+									Attributes: map[string]schema.Attribute{
+										"detection": schema.StringAttribute{
+											Computed:    true,
+											Description: "Detection setting",
+										},
+										"prevention": schema.StringAttribute{
+											Computed:    true,
+											Description: "Prevention setting",
+										},
+									},
+								},
+							},
 						},
 					},
 				},
