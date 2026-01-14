@@ -5,7 +5,7 @@ description: |-
   This data source validate account configuration and connection status for an integrated AWS account.
   API Scopes
   The following API scopes are required:
-  Cloud security AWS registration | Read & WriteCSPM registration | Read & Write
+  Cloud security AWS registration | Read & Write
 ---
 
 # crowdstrike_cloud_aws_account_validation (Data Source)
@@ -17,7 +17,6 @@ This data source validate account configuration and connection status for an int
 The following API scopes are required:
 
 - Cloud security AWS registration | Read & Write
-- CSPM registration | Read & Write
 
 
 ~> **Warning** This data source validates AWS account resources by calling Falcon Cloud Security APIs, which in turn communicate with your AWS account via AWS APIs with the created IAM role. Each validation consumes API quota from your AWS account. To avoid hitting AWS API rate limits, use this data source sparingly.
