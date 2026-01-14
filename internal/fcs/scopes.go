@@ -8,11 +8,6 @@ var cloudSecurityScopes = []scopes.Scope{
 		Read:  true,
 		Write: true,
 	},
-	{
-		Name:  "CSPM registration",
-		Read:  true,
-		Write: true,
-	},
 }
 
 var azureRegistrationScopes = []scopes.Scope{

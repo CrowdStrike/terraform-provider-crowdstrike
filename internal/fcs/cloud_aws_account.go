@@ -722,7 +722,9 @@ func (r *cloudAWSAccountResource) Create(
 func updateFeatureStatesFromProducts(_ context.Context, model *cloudAWSAccountModel, products []*models.DomainProductFeatures, cloudAccount *models.DomainCloudAWSAccountV1) {
 	// Initialize feature states
 	cspmFeatures := make(map[string]bool)
-	model.IDP.Enabled = types.BoolValue(false)
+	if model.IDP != nil {
+		model.IDP.Enabled = types.BoolValue(false)
+	}
 
 	// Parse products and features
 	for _, product := range products {
@@ -736,7 +738,9 @@ func updateFeatureStatesFromProducts(_ context.Context, model *cloudAWSAccountMo
 				cspmFeatures[feature] = true
 			}
 		case "idp":
-			model.IDP.Enabled = types.BoolValue(true)
+			if model.IDP != nil {
+				model.IDP.Enabled = types.BoolValue(true)
+			}
 		}
 	}
 

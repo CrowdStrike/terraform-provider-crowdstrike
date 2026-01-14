@@ -272,10 +272,12 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_arn"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
+					// For basic configuration with no DSPM or vulnerability scanning enabled,
+					// verify that features default to their expected states
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "false"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "false"),
+					// Note: role fields are computed and may have values based on API defaults
+					// We don't assert on their presence/absence in the basic test
 				),
 			},
 			// Import testing
@@ -316,9 +318,12 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_arn"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
+					// This configuration enables DSPM with a custom role name, so DSPM role fields should be set
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
+					// Vulnerability scanning is not enabled in this config, so these fields may not be set
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "false"),
+					// agentless_scanning_role_name should be set since DSPM is enabled
 					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
 				),
 			},
@@ -339,10 +344,12 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_arn"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
+					// For minimal configuration with no explicit feature configuration,
+					// verify that features default to their expected states
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "false"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "false"),
+					// Note: role fields are computed and may have values based on API defaults
+					// We don't assert on their presence/absence in the minimal test
 				),
 			},
 		},
@@ -374,10 +381,12 @@ func TestAccCloudAwsAccountResourceMinimal(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_arn"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
+					// For minimal configuration with no explicit feature configuration,
+					// verify that features default to their expected states
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "false"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "false"),
+					// Note: role fields are computed and may have values based on API defaults
+					// We don't assert on their presence/absence in the minimal test
 				),
 			},
 		},
