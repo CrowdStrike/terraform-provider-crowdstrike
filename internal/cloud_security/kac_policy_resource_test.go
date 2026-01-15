@@ -48,17 +48,13 @@ type labelConfig struct {
 }
 
 type defaultRulesConfig struct {
-	privilegedContainer            *defaultRuleConfig
-	sensitiveDataInEnvironment     *defaultRuleConfig
-	containerRunAsRoot             *defaultRuleConfig
-	containerWithoutResourceLimits *defaultRuleConfig
-	sensitiveHostDirectories       *defaultRuleConfig
-	workloadInDefaultNamespace     *defaultRuleConfig
-	runtimeSocketInContainer       *defaultRuleConfig
-}
-
-type defaultRuleConfig struct {
-	action string
+	privilegedContainer            *string
+	sensitiveDataInEnvironment     *string
+	containerRunAsRoot             *string
+	containerWithoutResourceLimits *string
+	sensitiveHostDirectories       *string
+	workloadInDefaultNamespace     *string
+	runtimeSocketInContainer       *string
 }
 
 func (c kacPolicyConfig) String() string {
@@ -174,8 +170,8 @@ resource "crowdstrike_cloud_security_kac_policy" "test" {
 func boolPtr(b bool) *bool       { return &b }
 func stringPtr(s string) *string { return &s }
 
-func defaultRulePtr(action string) *defaultRuleConfig {
-	return &defaultRuleConfig{action: action}
+func defaultRulePtr(action string) *string {
+	return &action
 }
 
 func (dr *defaultRulesConfig) renderRules(indent string) string {
@@ -186,45 +182,31 @@ func (dr *defaultRulesConfig) renderRules(indent string) string {
 	config := ""
 	if dr.privilegedContainer != nil {
 		config += fmt.Sprintf(`
-%s  privileged_container = {
-%s    action = %q
-%s  }`, indent, indent, dr.privilegedContainer.action, indent)
+%s  privileged_container = %q`, indent, *dr.privilegedContainer)
 	}
 	if dr.sensitiveDataInEnvironment != nil {
 		config += fmt.Sprintf(`
-%s  sensitive_data_in_environment = {
-%s    action = %q
-%s  }`, indent, indent, dr.sensitiveDataInEnvironment.action, indent)
+%s  sensitive_data_in_environment = %q`, indent, *dr.sensitiveDataInEnvironment)
 	}
 	if dr.containerRunAsRoot != nil {
 		config += fmt.Sprintf(`
-%s  container_run_as_root = {
-%s    action = %q
-%s  }`, indent, indent, dr.containerRunAsRoot.action, indent)
+%s  container_run_as_root = %q`, indent, *dr.containerRunAsRoot)
 	}
 	if dr.containerWithoutResourceLimits != nil {
 		config += fmt.Sprintf(`
-%s  container_without_resource_limits = {
-%s    action = %q
-%s  }`, indent, indent, dr.containerWithoutResourceLimits.action, indent)
+%s  container_without_resource_limits = %q`, indent, *dr.containerWithoutResourceLimits)
 	}
 	if dr.sensitiveHostDirectories != nil {
 		config += fmt.Sprintf(`
-%s  sensitive_host_directories = {
-%s    action = %q
-%s  }`, indent, indent, dr.sensitiveHostDirectories.action, indent)
+%s  sensitive_host_directories = %q`, indent, *dr.sensitiveHostDirectories)
 	}
 	if dr.workloadInDefaultNamespace != nil {
 		config += fmt.Sprintf(`
-%s  workload_in_default_namespace = {
-%s    action = %q
-%s  }`, indent, indent, dr.workloadInDefaultNamespace.action, indent)
+%s  workload_in_default_namespace = %q`, indent, *dr.workloadInDefaultNamespace)
 	}
 	if dr.runtimeSocketInContainer != nil {
 		config += fmt.Sprintf(`
-%s  runtime_socket_in_container = {
-%s    action = %q
-%s  }`, indent, indent, dr.runtimeSocketInContainer.action, indent)
+%s  runtime_socket_in_container = %q`, indent, *dr.runtimeSocketInContainer)
 	}
 	return config
 }
@@ -505,8 +487,8 @@ func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.deny_on_error", "false"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.enabled", "true"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.unassessed_handling", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace.action", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container.action", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container", "Alert"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -535,8 +517,8 @@ func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.deny_on_error", "true"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.enabled", "false"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.unassessed_handling", "Allow Without Alert"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace.action", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container.action", "Disabled"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container", "Disabled"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -580,7 +562,7 @@ func TestCloudSecurityKacPolicyResource_RuleGroupsMinimal(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.0.value", "*"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.0.operator", "eq"),
 					// Check the first default rule to make sure the default action is set
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container.action", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container", "Alert"),
 				),
 			},
 		},
@@ -640,8 +622,8 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 					resource.TestCheckTypeSetElemAttr(resourceName, "rule_groups.0.namespaces.*", "test-namespace-1"),
 					resource.TestCheckTypeSetElemAttr(resourceName, "rule_groups.0.namespaces.*", "test-namespace-2"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container.action", "Disabled"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.sensitive_data_in_environment.action", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container", "Disabled"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.sensitive_data_in_environment", "Prevent"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.0.id"),
 					// save initial state for comparing IDs on subsequent updates
@@ -703,8 +685,8 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.namespaces.#", "1"),
 					resource.TestCheckTypeSetElemAttr(resourceName, "rule_groups.0.namespaces.*", "updated-namespace-1"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container.action", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.sensitive_data_in_environment.action", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.sensitive_data_in_environment", "Alert"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					// Verify rule group ID remains the same after update
 					testAccCheckNestedObjectIDsUnchanged(resourceName, capturedState, []string{"rule_groups.0.id"}),
@@ -738,9 +720,8 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.0.key", "*"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.0.value", "*"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.0.operator", "eq"),
-					// TODO: Add top default level default value for default_rules to make this test pass
-					// resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container.action", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.sensitive_data_in_environment.action", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.sensitive_data_in_environment", "Alert"),
 					// Verify rule group ID remains the same after update
 					testAccCheckNestedObjectIDsUnchanged(resourceName, capturedState, []string{"rule_groups.0.id"}),
 				),
@@ -824,8 +805,8 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.unassessed_handling", "Allow Without Alert"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.namespaces.#", "3"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.labels.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_run_as_root.action", "Disabled"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_without_resource_limits.action", "Disabled"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_run_as_root", "Disabled"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_without_resource_limits", "Disabled"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.0.id"),
 					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.1.id"),
@@ -908,7 +889,7 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.unassessed_handling", "Alert"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.namespaces.#", "3"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.sensitive_host_directories.action", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.sensitive_host_directories", "Prevent"),
 					// Second rule group updated checks
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.name", "development-rule-group-updated"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.description", "Updated development environment rule group"),
@@ -917,8 +898,8 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.unassessed_handling", "Prevent"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.namespaces.#", "2"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.labels.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_run_as_root.action", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_without_resource_limits.action", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_run_as_root", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_without_resource_limits", "Prevent"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.0.id"),
 					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.1.id"),
@@ -1010,20 +991,20 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.deny_on_error", "true"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.enabled", "true"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.unassessed_handling", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container.action", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container", "Prevent"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.name", "rule-group-2"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.deny_on_error", "false"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.enabled", "true"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.unassessed_handling", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_run_as_root.action", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_run_as_root", "Alert"),
 					// Default rule group checks
 					resource.TestCheckResourceAttrSet(resourceName, "default_rule_group.id"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.deny_on_error", "false"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.enabled", "true"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.unassessed_handling", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace.action", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container.action", "Disabled"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.sensitive_host_directories.action", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container", "Disabled"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.sensitive_host_directories", "Prevent"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.0.id"),
 					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.1.id"),
@@ -1129,8 +1110,8 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.unassessed_handling", "Allow Without Alert"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.namespaces.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.container_run_as_root.action", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.container_without_resource_limits.action", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.container_run_as_root", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.container_without_resource_limits", "Alert"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.name", "rule-group-2"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.description", "Updated rule group 2"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.deny_on_error", "true"),
@@ -1138,8 +1119,8 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.unassessed_handling", "Prevent"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.namespaces.#", "3"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.labels.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_run_as_root.action", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_without_resource_limits.action", "Disabled"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_run_as_root", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_without_resource_limits", "Disabled"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.name", "rule-group-1"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.description", "Reordered rule group 1"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.deny_on_error", "false"),
@@ -1147,17 +1128,17 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.image_assessment.unassessed_handling", "Alert"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.namespaces.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.labels.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.default_rules.privileged_container.action", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.default_rules.sensitive_data_in_environment.action", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.default_rules.privileged_container", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.default_rules.sensitive_data_in_environment", "Prevent"),
 					// Verify default rule group updates
 					resource.TestCheckResourceAttrSet(resourceName, "default_rule_group.id"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.deny_on_error", "true"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.enabled", "true"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.unassessed_handling", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace.action", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container.action", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.sensitive_host_directories.action", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.container_without_resource_limits.action", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.sensitive_host_directories", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.container_without_resource_limits", "Prevent"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.0.id"),
 					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.1.id"),

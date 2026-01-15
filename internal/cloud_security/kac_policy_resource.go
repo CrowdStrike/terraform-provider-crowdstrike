@@ -216,7 +216,7 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 			},
 			"rule_groups": schema.ListNestedAttribute{
 				Optional:    true,
-				Description: "A list of KAC policy rule groups in order of highest to lowest priority. Reordering the list will change rule group precedence.",
+				Description: "A list of KAC policy rule groups in order of highest to lowest priority. Reordering the list will change rule group precedence. When reordering the list of rule groups to update precedence, the rule group names must match the state, otherwise the provider will consider it a new rule group, or an in place update.",
 				Validators: []validator.List{
 					fwvalidators.ListObjectUniqueString("name"),
 				},
@@ -347,15 +347,7 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 								},
 							},
 						},
-						"default_rules": schema.SingleNestedAttribute{
-							Optional:    true,
-							Computed:    true,
-							Description: "Set the action Falcon KAC should take when assessing default rules. All default rules are set to \"Alert\" by default. Action must be one of:\n - \"Disabled\": Do nothing\n - \"Alert\": Send an alert\n - \"Prevent\": Prevent the object from running",
-							Attributes:  defaultRulesSchema,
-							PlanModifiers: []planmodifier.Object{
-								objectplanmodifier.UseStateForUnknown(),
-							},
-						},
+						"default_rules": defaultRulesSchema,
 					},
 				},
 			},
@@ -452,15 +444,7 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 							},
 						},
 					},
-					"default_rules": schema.SingleNestedAttribute{
-						Optional:    true,
-						Computed:    true,
-						Description: "Set the action Falcon KAC should take when assessing default rules. All default rules are set to \"Alert\" by default. Action must be one of:\n - \"Disabled\": Do nothing\n - \"Alert\": Send an alert\n - \"Prevent\": Prevent the object from running",
-						Attributes:  defaultRulesSchema,
-						PlanModifiers: []planmodifier.Object{
-							objectplanmodifier.UseStateForUnknown(),
-						},
-					},
+					"default_rules": defaultRulesSchema,
 				},
 			},
 		},
