@@ -47,7 +47,6 @@ const (
 	serviceAccountTokenAutomountedCode           = "201029"
 )
 
-
 var defaultRulesAttributeMap = map[string]attr.Type{
 	"privileged_container":                         types.StringType,
 	"sensitive_data_in_environment":                types.StringType,
@@ -120,7 +119,7 @@ var defaultRulesSchema = schema.SingleNestedAttribute{
 			},
 		),
 	),
-	Attributes:  map[string]schema.Attribute{
+	Attributes: map[string]schema.Attribute{
 		"privileged_container":                         defaultRuleSchema("Privileged workload running in kubernetes. A privileged workload allows access to host resources and kernel capabilities which increases the attack surface significantly."),
 		"sensitive_data_in_environment":                defaultRuleSchema("Environment variables expose sensitive data. Secrets found in environment variables."),
 		"sensitive_data_in_secret_key_ref":             defaultRuleSchema("Environment variables expose sensitive data. Secrets found in SecretKeyRef of spec."),
@@ -185,7 +184,6 @@ type defaultRulesTFModel struct {
 	ServiceAccountTokenAutomounted           types.String `tfsdk:"service_account_token_automounted"`
 }
 
-
 func defaultRuleSchema(ruleDescription string) schema.StringAttribute {
 	return schema.StringAttribute{
 		Optional:            true,
@@ -199,12 +197,7 @@ func defaultRuleSchema(ruleDescription string) schema.StringAttribute {
 	}
 }
 
-func (m *defaultRulesTFModel) wrapDefaultRule(
-	ctx context.Context,
-	apiRule *models.PolicyhandlerKACDefaultPolicyRule,
-) diag.Diagnostics {
-	var diags diag.Diagnostics
-
+func (m *defaultRulesTFModel) wrapDefaultRule(apiRule *models.PolicyhandlerKACDefaultPolicyRule) {
 	action := types.StringValue(*apiRule.Action)
 
 	switch *apiRule.Code {
@@ -266,12 +259,7 @@ func (m *defaultRulesTFModel) wrapDefaultRule(
 		m.MalformedSysctlValue = action
 	case serviceAccountTokenAutomountedCode:
 		m.ServiceAccountTokenAutomounted = action
-	default:
-		// TODO: add error/warning for code does not match any default rule
-		return diags
 	}
-
-	return diags
 }
 
 //nolint:gocyclo

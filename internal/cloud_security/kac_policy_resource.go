@@ -11,6 +11,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -474,10 +475,7 @@ func (r *cloudSecurityKacPolicyResource) Create(
 		WithBody(createRequest)
 	createResponse, err := r.client.AdmissionControlPolicies.AdmissionControlCreatePolicy(params)
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating KAC policy",
-			fmt.Sprintf("Could not create KAC policy: %s", err.Error()),
-		)
+		resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Create, err))
 		return
 	}
 
@@ -503,10 +501,7 @@ func (r *cloudSecurityKacPolicyResource) Create(
 
 		updateResponse, updateErr := r.client.AdmissionControlPolicies.AdmissionControlUpdatePolicy(updateParams)
 		if updateErr != nil {
-			resp.Diagnostics.AddError(
-				"Error updating KAC policy",
-				fmt.Sprintf("Could not update KAC policy: %s", updateErr.Error()),
-			)
+			resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Create, updateErr))
 			return
 		}
 
@@ -559,10 +554,7 @@ func (r *cloudSecurityKacPolicyResource) Read(
 
 	getResponse, err := r.client.AdmissionControlPolicies.AdmissionControlGetPolicies(params)
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error reading KAC policy",
-			fmt.Sprintf("Could not read KAC policy %s: %s", state.ID.ValueString(), err.Error()),
-		)
+		resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Read, err))
 		return
 	}
 
@@ -606,10 +598,7 @@ func (r *cloudSecurityKacPolicyResource) Update(
 
 		updateResponse, err := r.client.AdmissionControlPolicies.AdmissionControlUpdatePolicy(params)
 		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating KAC policy",
-				fmt.Sprintf("Could not update KAC policy: %s", err.Error()),
-			)
+			resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Update, err))
 			return
 		}
 
@@ -686,10 +675,7 @@ func (r *cloudSecurityKacPolicyResource) Delete(
 
 	_, err := r.client.AdmissionControlPolicies.AdmissionControlDeletePolicies(params)
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error deleting KAC policy",
-			fmt.Sprintf("Could not delete KAC policy %s: %s", state.ID.ValueString(), err.Error()),
-		)
+		resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Delete, err))
 		return
 	}
 }
@@ -759,8 +745,7 @@ func (r *cloudSecurityKacPolicyResource) matchRuleGroupIDsByName(
 	}
 
 	// Convert state rule groups to maps for matching
-	var stateRuleGroups []ruleGroupTFModel
-	diags.Append(state.RuleGroups.ElementsAs(ctx, &stateRuleGroups, false)...)
+	stateRuleGroups := flex.ExpandListAs[ruleGroupTFModel](ctx, state.RuleGroups, &diags)
 	if diags.HasError() {
 		return modifiedPlan, diags
 	}
@@ -778,8 +763,7 @@ func (r *cloudSecurityKacPolicyResource) matchRuleGroupIDsByName(
 	}
 
 	// Convert plan rule groups and match IDs by name first
-	var planRuleGroups []ruleGroupTFModel
-	diags.Append(plan.RuleGroups.ElementsAs(ctx, &planRuleGroups, false)...)
+	planRuleGroups := flex.ExpandListAs[ruleGroupTFModel](ctx, plan.RuleGroups, &diags)
 	if diags.HasError() {
 		return modifiedPlan, diags
 	}
@@ -927,10 +911,7 @@ func (r *cloudSecurityKacPolicyResource) deleteRemovedRuleGroups(
 
 	deleteResponse, err := r.client.AdmissionControlPolicies.AdmissionControlDeleteRuleGroups(deleteParams)
 	if err != nil {
-		diags.AddError(
-			"Error deleting rule groups from KAC policy",
-			fmt.Sprintf("Could not delete rule groups from KAC policy: %s", err.Error()),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Update, err))
 		return nil, diags
 	}
 
