@@ -1354,8 +1354,17 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 		ResourceNameSuffix: model.ResourceNameSuffix.ValueString(),
 	}
 
+	if model.DSPM != nil {
+		patchAccount.DspmRole = model.DSPM.RoleName.ValueString()
+	}
+
+	if model.VulnerabilityScanning != nil {
+		patchAccount.VulnerabilityScanningRole = model.VulnerabilityScanning.RoleName.ValueString()
+	}
+
 	// Add realtime visibility configuration (limited fields for patch)
 	if model.RealtimeVisibility != nil {
+		patchAccount.CloudtrailRegion = model.RealtimeVisibility.CloudTrailRegion.ValueString()
 		if !model.RealtimeVisibility.LogIngestionMethod.IsNull() {
 			patchAccount.LogIngestionMethod = model.RealtimeVisibility.LogIngestionMethod.ValueString()
 		}
