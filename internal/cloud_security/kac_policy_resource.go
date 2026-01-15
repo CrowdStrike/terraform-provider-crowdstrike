@@ -20,9 +20,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -35,6 +36,7 @@ var (
 	_ resource.ResourceWithConfigure      = &cloudSecurityKacPolicyResource{}
 	_ resource.ResourceWithImportState    = &cloudSecurityKacPolicyResource{}
 	_ resource.ResourceWithValidateConfig = &cloudSecurityKacPolicyResource{}
+	_ resource.ResourceWithModifyPlan     = &cloudSecurityKacPolicyResource{}
 )
 
 var (
@@ -113,7 +115,7 @@ func (m *cloudSecurityKacPolicyResourceModel) wrap(
 
 		// The default rule group is handled differently
 		if rg.IsDefault != nil && *rg.IsDefault {
-			defaultRuleGroup, objectDiags := types.ObjectValueFrom(ctx, ruleGroupAttributeMap, tfRuleGroup)
+			defaultRuleGroup, objectDiags := types.ObjectValueFrom(ctx, ruleGroupAttrMap, tfRuleGroup)
 			diags.Append(objectDiags...)
 
 			m.DefaultRuleGroup = defaultRuleGroup
@@ -124,7 +126,7 @@ func (m *cloudSecurityKacPolicyResourceModel) wrap(
 	}
 
 	if len(ruleGroups) > 0 {
-		ruleGroupsList, listValueDiags := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: ruleGroupAttributeMap}, ruleGroups)
+		ruleGroupsList, listValueDiags := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: ruleGroupAttrMap}, ruleGroups)
 		diags.Append(listValueDiags...)
 		if diags.HasError() {
 			return diags
@@ -132,7 +134,7 @@ func (m *cloudSecurityKacPolicyResourceModel) wrap(
 
 		m.RuleGroups = ruleGroupsList
 	} else if !m.RuleGroups.IsNull() {
-		m.RuleGroups = types.ListValueMust(types.ObjectType{AttrTypes: ruleGroupAttributeMap}, []attr.Value{})
+		m.RuleGroups = types.ListValueMust(types.ObjectType{AttrTypes: ruleGroupAttrMap}, []attr.Value{})
 	}
 
 	return diags
@@ -206,9 +208,6 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 				Computed:    true,
 				Default:     booldefault.StaticBool(false),
 				Description: "Whether the policy is enabled. Must be set to false before the policy can be deleted.",
-				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"host_groups": schema.SetAttribute{
 				Optional:    true,
@@ -218,6 +217,9 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 			"rule_groups": schema.ListNestedAttribute{
 				Optional:    true,
 				Description: "A list of KAC policy rule groups in order of highest to lowest priority. Reordering the list will change rule group precedence.",
+				Validators: []validator.List{
+					fwvalidators.ListObjectUniqueString("name"),
+				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"id": schema.StringAttribute{
@@ -246,17 +248,20 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 							Computed:    true,
 							Default:     booldefault.StaticBool(false),
 							Description: "Defines how KAC will handle an unrecognized error or timeout when processing an admission request. If set to \"false\", the pod or workload will be allowed to run.",
-							PlanModifiers: []planmodifier.Bool{
-								boolplanmodifier.UseStateForUnknown(),
-							},
 						},
 						"image_assessment": schema.SingleNestedAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "When enabled, KAC applies image assessment policies to pods or workloads that are being created or updated on the Kubernetes cluster.",
-							PlanModifiers: []planmodifier.Object{
-								objectplanmodifier.UseStateForUnknown(),
-							},
+							Default: objectdefault.StaticValue(
+								types.ObjectValueMust(
+									imageAssessmentAttrMap,
+									map[string]attr.Value{
+										"enabled":             types.BoolValue(false),
+										"unassessed_handling": types.StringValue("Allow Without Alert"),
+									},
+								),
+							),
 							Attributes: map[string]schema.Attribute{
 								"enabled": schema.BoolAttribute{
 									Required:    true,
@@ -276,9 +281,9 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 							Computed:    true,
 							Description: "Namespace selectors. Namespace must only include lowercased alphanumeric characters, dashes, and asterisk (for wildcard).",
 							ElementType: types.StringType,
-							PlanModifiers: []planmodifier.Set{
-								setplanmodifier.UseStateForUnknown(),
-							},
+							Default: setdefault.StaticValue(
+								types.SetValueMust(types.StringType, []attr.Value{types.StringValue("*")}),
+							),
 							Validators: []validator.Set{
 								setvalidator.ValueStringsAre(
 									stringvalidator.LengthAtMost(63),
@@ -293,9 +298,21 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 							Optional:    true,
 							Computed:    true,
 							Description: "Pod or Service label selectors.",
-							PlanModifiers: []planmodifier.Set{
-								setplanmodifier.UseStateForUnknown(),
-							},
+							Default: setdefault.StaticValue(
+								types.SetValueMust(
+									types.ObjectType{AttrTypes: labelsAttrMap},
+									[]attr.Value{
+										types.ObjectValueMust(
+											labelsAttrMap,
+											map[string]attr.Value{
+												"key":      types.StringValue("*"),
+												"value":    types.StringValue("*"),
+												"operator": types.StringValue("eq"),
+											},
+										),
+									},
+								),
+							),
 							NestedObject: schema.NestedAttributeObject{
 								Attributes: map[string]schema.Attribute{
 									"key": schema.StringAttribute{
@@ -376,17 +393,20 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 						Computed:    true,
 						Default:     booldefault.StaticBool(false),
 						Description: "Defines how KAC will handle an unrecognized error or timeout when processing an admission request. If set to \"false\", the pod or workload will be allowed to run.",
-						PlanModifiers: []planmodifier.Bool{
-							boolplanmodifier.UseStateForUnknown(),
-						},
 					},
 					"image_assessment": schema.SingleNestedAttribute{
 						Optional:    true,
 						Computed:    true,
 						Description: "When enabled, KAC applies image assessment policies to pods or workloads that are being created or updated on the Kubernetes cluster.",
-						PlanModifiers: []planmodifier.Object{
-							objectplanmodifier.UseStateForUnknown(),
-						},
+						Default: objectdefault.StaticValue(
+							types.ObjectValueMust(
+								imageAssessmentAttrMap,
+								map[string]attr.Value{
+									"enabled":             types.BoolValue(false),
+									"unassessed_handling": types.StringValue("Allow Without Alert"),
+								},
+							),
+						),
 						Attributes: map[string]schema.Attribute{
 							"enabled": schema.BoolAttribute{
 								Required:    true,
@@ -436,10 +456,10 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 						Optional:    true,
 						Computed:    true,
 						Description: "Set the action Falcon KAC should take when assessing default rules. All default rules are set to \"Alert\" by default. Action must be one of:\n - \"Disabled\": Do nothing\n - \"Alert\": Send an alert\n - \"Prevent\": Prevent the object from running",
+						Attributes:  defaultRulesSchema,
 						PlanModifiers: []planmodifier.Object{
 							objectplanmodifier.UseStateForUnknown(),
 						},
-						Attributes: defaultRulesSchema,
 					},
 				},
 			},
@@ -621,40 +641,36 @@ func (r *cloudSecurityKacPolicyResource) Update(
 	}
 
 	// Handle host groups updates - removes all host groups if plan.HostGroups is null
-	if !plan.HostGroups.IsUnknown() {
-		updatedPolicy, hostGroupDiags := r.updateHostGroups(ctx, plan.ID.ValueString(), plan.HostGroups, state.HostGroups)
-		resp.Diagnostics.Append(hostGroupDiags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		if updatedPolicy != nil {
-			policy = updatedPolicy
-		}
+	updatedPolicy, hostGroupDiags := r.updateHostGroups(ctx, plan.ID.ValueString(), plan.HostGroups, state.HostGroups)
+	resp.Diagnostics.Append(hostGroupDiags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	// Handle rule groups changes - removes all rule groups if plan.RuleGroups is null
-	if !plan.RuleGroups.IsUnknown() && !plan.RuleGroups.Equal(state.RuleGroups) {
-		// Delete rule groups by comparing the plan against the state
-		policyWithDeletedRuleGroups, deleteRuleGroupDiags := r.deleteRemovedRuleGroups(ctx, plan.ID.ValueString(), plan, state)
-		resp.Diagnostics.Append(deleteRuleGroupDiags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
+	if updatedPolicy != nil {
+		policy = updatedPolicy
+	}
 
-		if policyWithDeletedRuleGroups != nil {
-			policy = policyWithDeletedRuleGroups
-		}
+	// Handle rule groups updates
+	// Delete removed rule groups first
+	policyWithDeletedRuleGroups, deleteRuleGroupDiags := r.deleteRemovedRuleGroups(ctx, plan.ID.ValueString(), plan, state)
+	resp.Diagnostics.Append(deleteRuleGroupDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-		policyWithUpdatedRuleGroups, updateRuleGroupDiags := r.reconcileRuleGroupUpdates(ctx, plan, policy)
-		resp.Diagnostics.Append(updateRuleGroupDiags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
+	if policyWithDeletedRuleGroups != nil {
+		policy = policyWithDeletedRuleGroups
+	}
 
-		if policyWithUpdatedRuleGroups != nil {
-			policy = policyWithUpdatedRuleGroups
-		}
+	policyWithUpdatedRuleGroups, updateRuleGroupDiags := r.reconcileRuleGroupUpdates(ctx, plan, policy)
+	resp.Diagnostics.Append(updateRuleGroupDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if policyWithUpdatedRuleGroups != nil {
+		policy = policyWithUpdatedRuleGroups
 	}
 
 	resp.Diagnostics.Append(plan.wrap(ctx, policy)...)
@@ -709,6 +725,129 @@ func (r *cloudSecurityKacPolicyResource) ValidateConfig(
 ) {
 	var config cloudSecurityKacPolicyResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+}
+
+func (r *cloudSecurityKacPolicyResource) ModifyPlan(
+	ctx context.Context,
+	req resource.ModifyPlanRequest,
+	resp *resource.ModifyPlanResponse,
+) {
+	// Only modify plan for updates, not creates or deletes
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan cloudSecurityKacPolicyResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var state cloudSecurityKacPolicyResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Handle rule group reordering by matching names to preserve IDs
+	modifiedPlan, modifyDiags := r.matchRuleGroupIDsByName(ctx, plan, state)
+	resp.Diagnostics.Append(modifyDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Set the modified plan
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, modifiedPlan)...)
+}
+
+func (r *cloudSecurityKacPolicyResource) matchRuleGroupIDsByName(
+	ctx context.Context,
+	plan cloudSecurityKacPolicyResourceModel,
+	state cloudSecurityKacPolicyResourceModel,
+) (cloudSecurityKacPolicyResourceModel, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	modifiedPlan := plan
+
+	// If there are no rule groups in plan or state, nothing to match
+	if plan.RuleGroups.IsNull() || plan.RuleGroups.IsUnknown() ||
+		state.RuleGroups.IsNull() || state.RuleGroups.IsUnknown() {
+		return modifiedPlan, diags
+	}
+
+	// Convert state rule groups to maps for matching
+	var stateRuleGroups []ruleGroupTFModel
+	diags.Append(state.RuleGroups.ElementsAs(ctx, &stateRuleGroups, false)...)
+	if diags.HasError() {
+		return modifiedPlan, diags
+	}
+
+	// Create maps for tracking state rule groups
+	stateRGNameToRG := make(map[string]ruleGroupTFModel)
+	stateRGIndexToRG := make(map[int]ruleGroupTFModel)
+	matchedIDs := make(map[string]bool) // Track which IDs have been matched
+
+	for i, stateRG := range stateRuleGroups {
+		stateRGName := stateRG.Name.ValueString()
+
+		stateRGNameToRG[stateRGName] = stateRG
+		stateRGIndexToRG[i] = stateRG
+	}
+
+	// Convert plan rule groups and match IDs by name first
+	var planRuleGroups []ruleGroupTFModel
+	diags.Append(plan.RuleGroups.ElementsAs(ctx, &planRuleGroups, false)...)
+	if diags.HasError() {
+		return modifiedPlan, diags
+	}
+
+	var modifiedRuleGroups []ruleGroupTFModel
+
+	// First pass: match by name
+	for _, planRG := range planRuleGroups {
+		modifiedRG := planRG
+		planRGName := planRG.Name.ValueString()
+
+		if stateRG, exists := stateRGNameToRG[planRGName]; exists {
+			// Preserve the ID from state for this named rule group
+			modifiedRG.ID = stateRG.ID
+			matchedIDs[stateRG.ID.ValueString()] = true
+		} else {
+			// Clear ID for matching by index on second pass
+			modifiedRG.ID = types.StringUnknown()
+		}
+
+		modifiedRuleGroups = append(modifiedRuleGroups, modifiedRG)
+	}
+
+	// Second pass: for unmatched rule groups, try to preserve IDs by index position
+	// if the same index exists in state and that ID hasn't been matched yet
+	for i, modifiedRG := range modifiedRuleGroups {
+		// Skip if already matched by name
+		if matchedIDs[modifiedRG.ID.ValueString()] {
+			continue
+		}
+
+		// Check if there's a rule group at the same index in state
+		if stateRG, exists := stateRGIndexToRG[i]; exists {
+			stateRGID := stateRG.ID.ValueString()
+
+			// If this state ID hasn't been matched yet, preserve it
+			if !matchedIDs[stateRGID] {
+				modifiedRuleGroups[i].ID = types.StringValue(stateRGID)
+				matchedIDs[stateRGID] = true
+			}
+		}
+	}
+
+	// Convert back to types.List
+	modifiedRuleGroupsList, listDiags := types.ListValueFrom(ctx, plan.RuleGroups.ElementType(ctx), modifiedRuleGroups)
+	diags.Append(listDiags...)
+	if diags.HasError() {
+		return modifiedPlan, diags
+	}
+
+	modifiedPlan.RuleGroups = modifiedRuleGroupsList
+	return modifiedPlan, diags
 }
 
 func (r *cloudSecurityKacPolicyResource) updateHostGroups(
