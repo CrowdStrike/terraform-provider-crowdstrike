@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -89,35 +89,35 @@ var defaultRulesAttributeMap = map[string]attr.Type{
 }
 
 var defaultRulesSchema = map[string]schema.Attribute{
-	"privileged_container":                         defaultRuleSchema("Privileged workload running in kubernetes. A privileged workload allows access to host resources and kernel capabilities which increases the attack surface significantly."),
-	"sensitive_data_in_environment":                defaultRuleSchema("Environment variables expose sensitive data. Secrets found in environment variables."),
-	"sensitive_data_in_secret_key_ref":             defaultRuleSchema("Environment variables expose sensitive data. Secrets found in SecretKeyRef of spec."),
-	"container_run_as_root":                        defaultRuleSchema("The container is configured to run as root. Containers running as root allow applications to modify the container filesystem, memory and system packages at runtime. Additionally, root users can create raw sockets and bind on ports under 1024. These workloads should be avoided as it increases the attack surface."),
-	"container_without_run_as_non_root":            defaultRuleSchema("The container is allowed to run as root. Containers running as root allow applications to modify the container filesystem, memory and system packages at runtime. Additionally, root users can create raw sockets and bind on ports under 1024. These workloads should be avoided as it increases the attack surface."),
-	"privilege_escalation_allowed":                 defaultRuleSchema("AllowPrivilegeEscalation controls whether a process can gain more privileges than its parent process. It can be a security risk as it may help child process gain more privileges."),
-	"container_with_network_capabilities":          defaultRuleSchema("CAP_NET_RAW is a powerful Linux capability. Processes with this capability can forge any kind of packet or bind to any address. This allows a container to open raw sockets and inject malicious packets into the Kubernetes container network."),
-	"container_with_unsafe_proc_mount":             defaultRuleSchema("Container has access to the host's /proc filesystem. By default, container runtime masks certain parts of the /proc filesystem from within a container in order to prevent potential security issues. There are only two valid options for this entry: Default, which maintains the standard container runtime behavior, or Unmasked, which removes all masking for the /proc filesystem."),
-	"container_using_unsafe_sysctls":               defaultRuleSchema("Sysctl allows users to modify the kernel settings at run time. Some sysctl configs can exhaust resources for other containers."),
-	"container_without_resource_limits":            defaultRuleSchema("The container needs to have enough resources allocated on host to run. Without any resource constraints on container, a large application can drain all host resources, causing DoS attack (Denial of Service)."),
-	"sensitive_host_directories":                   defaultRuleSchema("Containers can mount sensitive folders from the hosts, giving them potentially dangerous access to critical host configurations and binaries. Sharing sensitive folders and files, such as / (root), /var/run/, docker.sock, etc. can allow a container to reconfigure the Kubernetes clusters, run new container images, etc."),
-	"container_with_sysadmin_capability":           defaultRuleSchema("One of the containers found with CAP_SYS_ADMIN capability. CAP_SYS_ADMIN capability is equivalent to root user. It can help an attacker to escape the container."),
-	"service_attached_to_load_balancer":            defaultRuleSchema("The service is accessible from local network or the internet. A load balancer is exposing the workload, making it accessible from local network or the Internet."),
-	"service_attached_to_node_port":                defaultRuleSchema("Workload is exposed through a node port. A node port can expose the workload on host network making it accessible from local network or the internet."),
-	"host_port_attached_to_container":              defaultRuleSchema("This container setting binds the container listening port to the IP address of the host. This exposes the pod to adjacent networks and/or to the Internet. Binding a pod to a hostPort, limits the number of places the pod can be scheduled, because each [hostIP, hostPort, protocol] combination must be unique."),
-	"host_network_attached_to_container":           defaultRuleSchema("Workload is exposed through a shared host network. Sharing host network allows container to sniff traffic on the host, access localhost services on node and potentially bypass network policy to attack the host network."),
-	"container_in_host_pid_namespace":              defaultRuleSchema("Workload is exposed through a shared host pid. Sharing host PID allows visibility of process on host, potentially leaking host and container processes, environment variables, configurations etc."),
-	"container_in_host_ipc_namespace":              defaultRuleSchema("Workload is exposed through a shared host ipc. Sharing host IPC allows container to communicate with host processes through IPC mechanism and access shared memory. It can potentially leak information or DoS the host process."),
-	"workload_in_default_namespace":                defaultRuleSchema("Workload running in default namespace. Each workload or micro-service should run in a dedicated namespace with namespace specific security policies. A default namespace can be used by an attacker to bypass these specific security policies."),
-	"workload_with_unconfined_seccomp_profile":     defaultRuleSchema("Workload should not have Unconfined seccomp profile attached. A seccomp policy specifies which system calls are allowed by the container. It is a sandboxing technique to limit system calls. An unconfined profile removes any system call limitations which allows an attacker to use any dangerous system call to break out of the container."),
-	"workload_without_selinux_or_apparmor":         defaultRuleSchema("Workload should have SELinux or AppArmor profile attached. SELinux (RedHat-based distributions) and AppArmor (Debian-based distributions) provides Mandatory Access Control (MAC). It is a kernel level security module which restricts the access to a resource, based on a policy rather than a user role. A process initiated by the root user inside a container can not access host resources even if they are available, which limits an attacker escaping a container."),
-	"container_with_many_capabilities":             defaultRuleSchema("This means that container has got more than expected number of capabilities. Limiting the admission of containers with capabilities ensures that only a small number of containers have extended capabilities outside the default range. This helps ensure that if a container is compromised, it is unable to provide a productive path for an attacker to move laterally to other containers in the pod."),
-	"workload_without_recommended_seccomp_profile": defaultRuleSchema("Workload should have seccomp profile attached. A seccomp policy specifies which system calls can be called by an application. It is a sandboxing technique that reduces the chance that a kernel vulnerability will be successfully exploited."),
-	"workload_without_security_context":            defaultRuleSchema("Workload should have appropriate security context present."),
-	"runtime_socket_in_container":                  defaultRuleSchema("The container runtime socket such as /var/run/docker.sock is the UNIX socket that the Container Runtime is listening to. This is the primary entry point for the Container Runtime API. Providing access to runtime's socket is equivalent to giving unrestricted root access to your host. It leads to container escape and privilege escalation to host."),
-	"entrypoint_contains_network_scanning_command": defaultRuleSchema("Presence of network scanning tool in the Pod command. The pod command configures how the container will run when initiated. Adversaries may attempt to get a listing of services running on remote hosts, including those that may be vulnerable to remote exploitation. Methods to acquire this information include port scans and vulnerability scans using tools that are brought onto a system."),
-	"entrypoint_contains_chroot_command":           defaultRuleSchema("Adversaries may attempt to gain root access to host by running chroot on the /mnt directory in the pod command. The pod command configures how the container will run when initiated."),
-	"malformed_sysctl_value":                       defaultRuleSchema("Sysctl allows users to modify the kernel settings at run time. A sysctl value was detected that attempts to set multiple kernel settings. This is an indication of malicious attempt to tamper with worker nodes in Kubernetes cluster. This is related to the vulnerability (CVE-2022-0811) that allows the attacker to pass malicious kernel settings via sysctl value and gain root access."),
-	"service_account_token_automounted":            defaultRuleSchema("Service account secret token is mounted within the pod. Kubernetes mounts the service account token within a pod by default. If an application within the pod is compromised, an attacker can further compromise the cluster with the service account token."),
+	"privileged_container":                         defaultRuleSchema("201000", "Privileged workload running in kubernetes. A privileged workload allows access to host resources and kernel capabilities which increases the attack surface significantly."),
+	"sensitive_data_in_environment":                defaultRuleSchema("201001", "Environment variables expose sensitive data. Secrets found in environment variables."),
+	"sensitive_data_in_secret_key_ref":             defaultRuleSchema("201002", "Environment variables expose sensitive data. Secrets found in SecretKeyRef of spec."),
+	"container_run_as_root":                        defaultRuleSchema("201004", "The container is configured to run as root. Containers running as root allow applications to modify the container filesystem, memory and system packages at runtime. Additionally, root users can create raw sockets and bind on ports under 1024. These workloads should be avoided as it increases the attack surface."),
+	"container_without_run_as_non_root":            defaultRuleSchema("201005", "The container is allowed to run as root. Containers running as root allow applications to modify the container filesystem, memory and system packages at runtime. Additionally, root users can create raw sockets and bind on ports under 1024. These workloads should be avoided as it increases the attack surface."),
+	"privilege_escalation_allowed":                 defaultRuleSchema("201006", "AllowPrivilegeEscalation controls whether a process can gain more privileges than its parent process. It can be a security risk as it may help child process gain more privileges."),
+	"container_with_network_capabilities":          defaultRuleSchema("201007", "CAP_NET_RAW is a powerful Linux capability. Processes with this capability can forge any kind of packet or bind to any address. This allows a container to open raw sockets and inject malicious packets into the Kubernetes container network."),
+	"container_with_unsafe_proc_mount":             defaultRuleSchema("201008", "Container has access to the host's /proc filesystem. By default, container runtime masks certain parts of the /proc filesystem from within a container in order to prevent potential security issues. There are only two valid options for this entry: Default, which maintains the standard container runtime behavior, or Unmasked, which removes all masking for the /proc filesystem."),
+	"container_using_unsafe_sysctls":               defaultRuleSchema("201009", "Sysctl allows users to modify the kernel settings at run time. Some sysctl configs can exhaust resources for other containers."),
+	"container_without_resource_limits":            defaultRuleSchema("201010", "The container needs to have enough resources allocated on host to run. Without any resource constraints on container, a large application can drain all host resources, causing DoS attack (Denial of Service)."),
+	"sensitive_host_directories":                   defaultRuleSchema("201011", "Containers can mount sensitive folders from the hosts, giving them potentially dangerous access to critical host configurations and binaries. Sharing sensitive folders and files, such as / (root), /var/run/, docker.sock, etc. can allow a container to reconfigure the Kubernetes clusters, run new container images, etc."),
+	"container_with_sysadmin_capability":           defaultRuleSchema("201012", "One of the containers found with CAP_SYS_ADMIN capability. CAP_SYS_ADMIN capability is equivalent to root user. It can help an attacker to escape the container."),
+	"service_attached_to_load_balancer":            defaultRuleSchema("201013", "The service is accessible from local network or the internet. A load balancer is exposing the workload, making it accessible from local network or the Internet."),
+	"service_attached_to_node_port":                defaultRuleSchema("201014", "Workload is exposed through a node port. A node port can expose the workload on host network making it accessible from local network or the internet."),
+	"host_port_attached_to_container":              defaultRuleSchema("201015", "This container setting binds the container listening port to the IP address of the host. This exposes the pod to adjacent networks and/or to the Internet. Binding a pod to a hostPort, limits the number of places the pod can be scheduled, because each [hostIP, hostPort, protocol] combination must be unique."),
+	"host_network_attached_to_container":           defaultRuleSchema("201016", "Workload is exposed through a shared host network. Sharing host network allows container to sniff traffic on the host, access localhost services on node and potentially bypass network policy to attack the host network."),
+	"container_in_host_pid_namespace":              defaultRuleSchema("201017", "Workload is exposed through a shared host pid. Sharing host PID allows visibility of process on host, potentially leaking host and container processes, environment variables, configurations etc."),
+	"container_in_host_ipc_namespace":              defaultRuleSchema("201018", "Workload is exposed through a shared host ipc. Sharing host IPC allows container to communicate with host processes through IPC mechanism and access shared memory. It can potentially leak information or DoS the host process."),
+	"workload_in_default_namespace":                defaultRuleSchema("201019", "Workload running in default namespace. Each workload or micro-service should run in a dedicated namespace with namespace specific security policies. A default namespace can be used by an attacker to bypass these specific security policies."),
+	"workload_with_unconfined_seccomp_profile":     defaultRuleSchema("201020", "Workload should not have Unconfined seccomp profile attached. A seccomp policy specifies which system calls are allowed by the container. It is a sandboxing technique to limit system calls. An unconfined profile removes any system call limitations which allows an attacker to use any dangerous system call to break out of the container."),
+	"workload_without_selinux_or_apparmor":         defaultRuleSchema("201021", "Workload should have SELinux or AppArmor profile attached. SELinux (RedHat-based distributions) and AppArmor (Debian-based distributions) provides Mandatory Access Control (MAC). It is a kernel level security module which restricts the access to a resource, based on a policy rather than a user role. A process initiated by the root user inside a container can not access host resources even if they are available, which limits an attacker escaping a container."),
+	"container_with_many_capabilities":             defaultRuleSchema("201022", "This means that container has got more than expected number of capabilities. Limiting the admission of containers with capabilities ensures that only a small number of containers have extended capabilities outside the default range. This helps ensure that if a container is compromised, it is unable to provide a productive path for an attacker to move laterally to other containers in the pod."),
+	"workload_without_recommended_seccomp_profile": defaultRuleSchema("201023", "Workload should have seccomp profile attached. A seccomp policy specifies which system calls can be called by an application. It is a sandboxing technique that reduces the chance that a kernel vulnerability will be successfully exploited."),
+	"workload_without_security_context":            defaultRuleSchema("201024", "Workload should have appropriate security context present."),
+	"runtime_socket_in_container":                  defaultRuleSchema("201025", "The container runtime socket such as /var/run/docker.sock is the UNIX socket that the Container Runtime is listening to. This is the primary entry point for the Container Runtime API. Providing access to runtime's socket is equivalent to giving unrestricted root access to your host. It leads to container escape and privilege escalation to host."),
+	"entrypoint_contains_network_scanning_command": defaultRuleSchema("201026", "Presence of network scanning tool in the Pod command. The pod command configures how the container will run when initiated. Adversaries may attempt to get a listing of services running on remote hosts, including those that may be vulnerable to remote exploitation. Methods to acquire this information include port scans and vulnerability scans using tools that are brought onto a system."),
+	"entrypoint_contains_chroot_command":           defaultRuleSchema("201027", "Adversaries may attempt to gain root access to host by running chroot on the /mnt directory in the pod command. The pod command configures how the container will run when initiated."),
+	"malformed_sysctl_value":                       defaultRuleSchema("201028", "Sysctl allows users to modify the kernel settings at run time. A sysctl value was detected that attempts to set multiple kernel settings. This is an indication of malicious attempt to tamper with worker nodes in Kubernetes cluster. This is related to the vulnerability (CVE-2022-0811) that allows the attacker to pass malicious kernel settings via sysctl value and gain root access."),
+	"service_account_token_automounted":            defaultRuleSchema("201029", "Service account secret token is mounted within the pod. Kubernetes mounts the service account token within a pod by default. If an application within the pod is compromised, an attacker can further compromise the cluster with the service account token."),
 }
 
 type defaultRulesTFModel struct {
@@ -157,13 +157,22 @@ type defaultRuleTFModel struct {
 	Action types.String `tfsdk:"action"`
 }
 
-func defaultRuleSchema(ruleDescription string) schema.SingleNestedAttribute {
+func defaultRuleSchema(ruleCode, ruleDescription string) schema.SingleNestedAttribute {
 	return schema.SingleNestedAttribute{
 		Optional: true,
 		Computed: true,
-		PlanModifiers: []planmodifier.Object{
-			objectplanmodifier.UseStateForUnknown(),
-		},
+		Default: objectdefault.StaticValue(
+			types.ObjectValueMust(
+				map[string]attr.Type{
+					"code":   types.StringType,
+					"action": types.StringType,
+				},
+				map[string]attr.Value{
+					"code":   types.StringValue(ruleCode),
+					"action": types.StringValue("Alert"),
+				},
+			),
+		),
 		MarkdownDescription: ruleDescription,
 		Attributes: map[string]schema.Attribute{
 			"code": schema.StringAttribute{
@@ -281,7 +290,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 
 	var apiDefaultRuleActions []*models.APIUpdateDefaultRuleAction
 
-	if !m.PrivilegedContainer.IsNull() && !m.PrivilegedContainer.IsUnknown() {
+	if !m.PrivilegedContainer.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.PrivilegedContainer.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -297,7 +306,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.SensitiveDataInEnvironment.IsNull() && !m.SensitiveDataInEnvironment.IsUnknown() {
+	if !m.SensitiveDataInEnvironment.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.SensitiveDataInEnvironment.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -313,7 +322,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.SensitiveDataInSecretKeyRef.IsNull() && !m.SensitiveDataInSecretKeyRef.IsUnknown() {
+	if !m.SensitiveDataInSecretKeyRef.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.SensitiveDataInSecretKeyRef.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -329,7 +338,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.ContainerRunAsRoot.IsNull() && !m.ContainerRunAsRoot.IsUnknown() {
+	if !m.ContainerRunAsRoot.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.ContainerRunAsRoot.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -345,7 +354,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.ContainerWithoutRunAsNonRoot.IsNull() && !m.ContainerWithoutRunAsNonRoot.IsUnknown() {
+	if !m.ContainerWithoutRunAsNonRoot.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.ContainerWithoutRunAsNonRoot.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -361,7 +370,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.PrivilegeEscalationAllowed.IsNull() && !m.PrivilegeEscalationAllowed.IsUnknown() {
+	if !m.PrivilegeEscalationAllowed.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.PrivilegeEscalationAllowed.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -377,7 +386,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.ContainerWithNetworkCapabilities.IsNull() && !m.ContainerWithNetworkCapabilities.IsUnknown() {
+	if !m.ContainerWithNetworkCapabilities.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.ContainerWithNetworkCapabilities.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -393,7 +402,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.ContainerWithUnsafeProcMount.IsNull() && !m.ContainerWithUnsafeProcMount.IsUnknown() {
+	if !m.ContainerWithUnsafeProcMount.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.ContainerWithUnsafeProcMount.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -409,7 +418,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.ContainerUsingUnsafeSysctls.IsNull() && !m.ContainerUsingUnsafeSysctls.IsUnknown() {
+	if !m.ContainerUsingUnsafeSysctls.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.ContainerUsingUnsafeSysctls.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -425,7 +434,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.ContainerWithoutResourceLimits.IsNull() && !m.ContainerWithoutResourceLimits.IsUnknown() {
+	if !m.ContainerWithoutResourceLimits.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.ContainerWithoutResourceLimits.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -441,7 +450,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.SensitiveHostDirectories.IsNull() && !m.SensitiveHostDirectories.IsUnknown() {
+	if !m.SensitiveHostDirectories.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.SensitiveHostDirectories.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -457,7 +466,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.ContainerWithSysadminCapability.IsNull() && !m.ContainerWithSysadminCapability.IsUnknown() {
+	if !m.ContainerWithSysadminCapability.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.ContainerWithSysadminCapability.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -473,7 +482,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.ServiceAttachedToLoadBalancer.IsNull() && !m.ServiceAttachedToLoadBalancer.IsUnknown() {
+	if !m.ServiceAttachedToLoadBalancer.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.ServiceAttachedToLoadBalancer.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -489,7 +498,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.ServiceAttachedToNodePort.IsNull() && !m.ServiceAttachedToNodePort.IsUnknown() {
+	if !m.ServiceAttachedToNodePort.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.ServiceAttachedToNodePort.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -505,7 +514,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.HostPortAttachedToContainer.IsNull() && !m.HostPortAttachedToContainer.IsUnknown() {
+	if !m.HostPortAttachedToContainer.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.HostPortAttachedToContainer.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -521,7 +530,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.HostNetworkAttachedToContainer.IsNull() && !m.HostNetworkAttachedToContainer.IsUnknown() {
+	if !m.HostNetworkAttachedToContainer.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.HostNetworkAttachedToContainer.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -537,7 +546,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.ContainerInHostPidNamespace.IsNull() && !m.ContainerInHostPidNamespace.IsUnknown() {
+	if !m.ContainerInHostPidNamespace.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.ContainerInHostPidNamespace.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -553,7 +562,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.ContainerInHostIpcNamespace.IsNull() && !m.ContainerInHostIpcNamespace.IsUnknown() {
+	if !m.ContainerInHostIpcNamespace.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.ContainerInHostIpcNamespace.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -569,7 +578,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.WorkloadInDefaultNamespace.IsNull() && !m.WorkloadInDefaultNamespace.IsUnknown() {
+	if !m.WorkloadInDefaultNamespace.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.WorkloadInDefaultNamespace.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -585,7 +594,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.WorkloadWithUnconfinedSeccompProfile.IsNull() && !m.WorkloadWithUnconfinedSeccompProfile.IsUnknown() {
+	if !m.WorkloadWithUnconfinedSeccompProfile.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.WorkloadWithUnconfinedSeccompProfile.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -601,7 +610,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.WorkloadWithoutSelinuxOrApparmor.IsNull() && !m.WorkloadWithoutSelinuxOrApparmor.IsUnknown() {
+	if !m.WorkloadWithoutSelinuxOrApparmor.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.WorkloadWithoutSelinuxOrApparmor.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -617,7 +626,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.ContainerWithManyCapabilities.IsNull() && !m.ContainerWithManyCapabilities.IsUnknown() {
+	if !m.ContainerWithManyCapabilities.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.ContainerWithManyCapabilities.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -633,7 +642,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.WorkloadWithoutRecommendedSeccompProfile.IsNull() && !m.WorkloadWithoutRecommendedSeccompProfile.IsUnknown() {
+	if !m.WorkloadWithoutRecommendedSeccompProfile.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.WorkloadWithoutRecommendedSeccompProfile.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -649,7 +658,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.WorkloadWithoutSecurityContext.IsNull() && !m.WorkloadWithoutSecurityContext.IsUnknown() {
+	if !m.WorkloadWithoutSecurityContext.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.WorkloadWithoutSecurityContext.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -665,7 +674,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.RuntimeSocketInContainer.IsNull() && !m.RuntimeSocketInContainer.IsUnknown() {
+	if !m.RuntimeSocketInContainer.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.RuntimeSocketInContainer.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -681,7 +690,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.EntrypointContainsNetworkScanningCommand.IsNull() && !m.EntrypointContainsNetworkScanningCommand.IsUnknown() {
+	if !m.EntrypointContainsNetworkScanningCommand.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.EntrypointContainsNetworkScanningCommand.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -697,7 +706,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.EntrypointContainsChrootCommand.IsNull() && !m.EntrypointContainsChrootCommand.IsUnknown() {
+	if !m.EntrypointContainsChrootCommand.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.EntrypointContainsChrootCommand.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -713,7 +722,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.MalformedSysctlValue.IsNull() && !m.MalformedSysctlValue.IsUnknown() {
+	if !m.MalformedSysctlValue.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.MalformedSysctlValue.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -729,7 +738,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 	}
 
-	if !m.ServiceAccountTokenAutomounted.IsNull() && !m.ServiceAccountTokenAutomounted.IsUnknown() {
+	if !m.ServiceAccountTokenAutomounted.IsUnknown() {
 		var rule defaultRuleTFModel
 		diags.Append(m.ServiceAccountTokenAutomounted.As(ctx, &rule, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {

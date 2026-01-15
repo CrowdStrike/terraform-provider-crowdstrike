@@ -13,24 +13,28 @@ import (
 
 const defaultRuleGroupName = "Default"
 
-var ruleGroupAttributeMap = map[string]attr.Type{
+var imageAssessmentAttrMap = map[string]attr.Type{
+	"enabled":             types.BoolType,
+	"unassessed_handling": types.StringType,
+}
+
+var labelsAttrMap = map[string]attr.Type{
+	"key":      types.StringType,
+	"value":    types.StringType,
+	"operator": types.StringType,
+}
+
+var ruleGroupAttrMap = map[string]attr.Type{
 	"id":            types.StringType,
 	"name":          types.StringType,
 	"description":   types.StringType,
 	"deny_on_error": types.BoolType,
 	"image_assessment": types.ObjectType{
-		AttrTypes: map[string]attr.Type{
-			"enabled":             types.BoolType,
-			"unassessed_handling": types.StringType,
-		},
+		AttrTypes: imageAssessmentAttrMap,
 	},
 	"namespaces": types.SetType{ElemType: types.StringType},
 	"labels": types.SetType{ElemType: types.ObjectType{
-		AttrTypes: map[string]attr.Type{
-			"key":      types.StringType,
-			"value":    types.StringType,
-			"operator": types.StringType,
-		},
+		AttrTypes: labelsAttrMap,
 	}},
 	"default_rules": types.ObjectType{
 		AttrTypes: defaultRulesAttributeMap,
@@ -41,31 +45,6 @@ type ruleGroupUpdates struct {
 	updateRuleGroupParams          *models.APIUpdateRuleGroup
 	replaceRuleGroupSelectorParams *models.APIReplaceRuleGroupSelectors
 }
-
-//func (m *cloudSecurityKacPolicyResourceModel) toRuleGroupsApiModel(ctx context.Context) ([]models.PolicyhandlerKACPolicyRuleGroup, diag.Diagnostics) {
-//	var diags diag.Diagnostics
-//	var ruleGroups []models.PolicyhandlerKACPolicyRuleGroup
-//
-//	if !m.RuleGroups.IsNull() && !m.RuleGroups.IsUnknown() {
-//		var tfRuleGroups []ruleGroupTFModel
-//		diags.Append(m.RuleGroups.ElementsAs(ctx, &tfRuleGroups, false)...)
-//		if diags.HasError() {
-//			return nil, diags
-//		}
-//
-//		ruleGroups = make([]models.PolicyhandlerKACPolicyRuleGroup, len(tfRuleGroups))
-//		for i, tfRG := range tfRuleGroups {
-//			domainRG, convertDiags := tfRG.toApiModel(ctx)
-//			diags.Append(convertDiags...)
-//			if diags.HasError() {
-//				return nil, diags
-//			}
-//			ruleGroups[i] = domainRG
-//		}
-//	}
-//
-//	return ruleGroups, diags
-//}
 
 func (m *cloudSecurityKacPolicyResourceModel) getRuleGroupIds(ctx context.Context) ([]string, diag.Diagnostics) {
 	var diags diag.Diagnostics
@@ -184,14 +163,13 @@ func (m *ruleGroupTFModel) toApiModel(ctx context.Context) (models.Policyhandler
 	apiModel.Name = m.Name.ValueStringPointer()
 	apiModel.Description = m.Description.ValueStringPointer()
 
-	if !m.DenyOnError.IsNull() && !m.DenyOnError.IsUnknown() {
+	if !m.DenyOnError.IsUnknown() {
 		apiModel.DenyOnError = &models.PolicyhandlerKACPolicyRuleGroupDenyOnError{
 			Deny: m.DenyOnError.ValueBoolPointer(),
 		}
 	}
 
-	// Image assessment
-	if !m.ImageAssessment.IsNull() && !m.ImageAssessment.IsUnknown() {
+	if !m.ImageAssessment.IsUnknown() {
 		var tfImageAssessment imageAssessmentTFModel
 		diags.Append(m.ImageAssessment.As(ctx, &tfImageAssessment, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
@@ -202,8 +180,7 @@ func (m *ruleGroupTFModel) toApiModel(ctx context.Context) (models.Policyhandler
 		}
 	}
 
-	// Namespaces
-	if !m.Namespaces.IsNull() && !m.Namespaces.IsUnknown() {
+	if !m.Namespaces.IsUnknown() {
 		var namespaces []string
 		diags.Append(m.Namespaces.ElementsAs(ctx, &namespaces, false)...)
 		if !diags.HasError() {
@@ -214,8 +191,7 @@ func (m *ruleGroupTFModel) toApiModel(ctx context.Context) (models.Policyhandler
 		}
 	}
 
-	// Labels
-	if !m.Labels.IsNull() && !m.Labels.IsUnknown() {
+	if !m.Labels.IsUnknown() {
 		var tfLabels []labelTFModel
 		diags.Append(m.Labels.ElementsAs(ctx, &tfLabels, false)...)
 		if !diags.HasError() {
@@ -231,7 +207,7 @@ func (m *ruleGroupTFModel) toApiModel(ctx context.Context) (models.Policyhandler
 	}
 
 	// Default rules
-	if !m.DefaultRules.IsNull() && !m.DefaultRules.IsUnknown() {
+	if !m.DefaultRules.IsUnknown() {
 		var tfDefaultRules defaultRulesTFModel
 		apiDefaultRuleActions, defaultRuleDiags := tfDefaultRules.toApiDefaultRuleActions(ctx, ruleGroupTFModel{DefaultRules: m.DefaultRules})
 		diags.Append(defaultRuleDiags...)

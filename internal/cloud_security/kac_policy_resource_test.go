@@ -263,7 +263,6 @@ func (drg *defaultRuleGroupConfig) render() string {
 	return config
 }
 
-// TestCloudSecurityKacPolicyResource_Minimal tests creating a KAC policy with minimal configuration.
 func TestCloudSecurityKacPolicyResource_Minimal(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
@@ -286,48 +285,7 @@ func TestCloudSecurityKacPolicyResource_Minimal(t *testing.T) {
 	})
 }
 
-// TestCloudSecurityKacPolicyResource_Basic tests basic CRUD operations for KAC policy resource.
 func TestCloudSecurityKacPolicyResource_Basic(t *testing.T) {
-	randomSuffix := sdkacctest.RandString(8)
-	resourceName := "crowdstrike_cloud_security_kac_policy.test"
-	policyName := fmt.Sprintf("tfacc-kac-policy-%s", randomSuffix)
-
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: kacPolicyConfig{
-					name:        policyName,
-					description: stringPtr("Test KAC policy created by Terraform"),
-					isEnabled:   boolPtr(false),
-				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy created by Terraform"),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-				),
-			},
-			{
-				ResourceName:                         resourceName,
-				ImportState:                          true,
-				ImportStateVerify:                    true,
-				ImportStateVerifyIdentifierAttribute: "id",
-				ImportStateIdFunc: func(s *terraform.State) (string, error) {
-					rs, ok := s.RootModule().Resources[resourceName]
-					if !ok {
-						return "", fmt.Errorf("Resource not found: %s", resourceName)
-					}
-					return rs.Primary.Attributes["id"], nil
-				},
-			},
-		},
-	})
-}
-
-// TestCloudSecurityKacPolicyResource_Update tests updating KAC policy attributes.
-func TestCloudSecurityKacPolicyResource_Update(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
 	policyName := fmt.Sprintf("tfacc-kac-policy-%s", randomSuffix)
@@ -363,11 +321,23 @@ func TestCloudSecurityKacPolicyResource_Update(t *testing.T) {
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
+			{
+				ResourceName:                         resourceName,
+				ImportState:                          true,
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "id",
+				ImportStateIdFunc: func(s *terraform.State) (string, error) {
+					rs, ok := s.RootModule().Resources[resourceName]
+					if !ok {
+						return "", fmt.Errorf("Resource not found: %s", resourceName)
+					}
+					return rs.Primary.Attributes["id"], nil
+				},
+			},
 		},
 	})
 }
 
-// TestCloudSecurityKacPolicyResource_EnabledToggle tests toggling the is_enabled flag.
 func TestCloudSecurityKacPolicyResource_EnabledToggle(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
@@ -414,7 +384,6 @@ func TestCloudSecurityKacPolicyResource_EnabledToggle(t *testing.T) {
 	})
 }
 
-// TestCloudSecurityKacPolicyResource_HostGroups tests creating and updating KAC policy host groups.
 func TestCloudSecurityKacPolicyResource_HostGroups(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
@@ -483,7 +452,6 @@ func TestCloudSecurityKacPolicyResource_HostGroups(t *testing.T) {
 	})
 }
 
-// TestCloudSecurityKacPolicyResource_NameValidation tests name validation.
 func TestCloudSecurityKacPolicyResource_NameValidation(t *testing.T) {
 	configWithoutName := `resource "crowdstrike_cloud_security_kac_policy" "test" {}`
 
@@ -503,7 +471,122 @@ func TestCloudSecurityKacPolicyResource_NameValidation(t *testing.T) {
 	})
 }
 
-// TestCloudSecurityKacPolicyResource_SingleRuleGroup tests creating and updating KAC policy rule groups.
+func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
+	randomSuffix := sdkacctest.RandString(8)
+	resourceName := "crowdstrike_cloud_security_kac_policy.test"
+	policyName := fmt.Sprintf("tfacc-kac-policy-defaultrulegroup-%s", randomSuffix)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: kacPolicyConfig{
+					name:        policyName,
+					description: stringPtr("Test KAC policy with default rule group"),
+					isEnabled:   boolPtr(false),
+					defaultRuleGroup: &defaultRuleGroupConfig{
+						denyOnError: boolPtr(false),
+						imageAssessment: &imageAssessmentConfig{
+							enabled:            true,
+							unassessedHandling: "Alert",
+						},
+						defaultRules: &defaultRulesConfig{
+							workloadInDefaultNamespace: defaultRulePtr("Prevent"),
+							runtimeSocketInContainer:   defaultRulePtr("Alert"),
+						},
+					},
+				}.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", policyName),
+					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with default rule group"),
+					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttrSet(resourceName, "default_rule_group.id"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.deny_on_error", "false"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.unassessed_handling", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace.action", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container.action", "Alert"),
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+				),
+			},
+			{
+				Config: kacPolicyConfig{
+					name:        policyName,
+					description: stringPtr("Test KAC policy with default rule group"),
+					isEnabled:   boolPtr(false),
+					defaultRuleGroup: &defaultRuleGroupConfig{
+						denyOnError: boolPtr(true),
+						imageAssessment: &imageAssessmentConfig{
+							enabled:            false,
+							unassessedHandling: "Allow Without Alert",
+						},
+						defaultRules: &defaultRulesConfig{
+							workloadInDefaultNamespace: defaultRulePtr("Alert"),
+							runtimeSocketInContainer:   defaultRulePtr("Disabled"),
+						},
+					},
+				}.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", policyName),
+					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with default rule group"),
+					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttrSet(resourceName, "default_rule_group.id"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.deny_on_error", "true"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.unassessed_handling", "Allow Without Alert"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace.action", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container.action", "Disabled"),
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+				),
+			},
+		},
+	})
+}
+
+func TestCloudSecurityKacPolicyResource_RuleGroupsMinimal(t *testing.T) {
+	randomSuffix := sdkacctest.RandString(8)
+	resourceName := "crowdstrike_cloud_security_kac_policy.test"
+	policyName := fmt.Sprintf("tfacc-kac-policy-minimal-rulegroups-%s", randomSuffix)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: kacPolicyConfig{
+					name: policyName,
+					ruleGroups: []ruleGroupConfig{
+						{
+							name: "minimal-rule-group",
+							// Only required fields, no optional ones
+						},
+					},
+				}.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+					resource.TestCheckResourceAttr(resourceName, "name", policyName),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "minimal-rule-group"),
+					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.0.id"),
+					// Check default values are set as expected
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.deny_on_error", "false"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.unassessed_handling", "Allow Without Alert"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.namespaces.#", "1"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "rule_groups.0.namespaces.*", "*"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.0.key", "*"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.0.value", "*"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.0.operator", "eq"),
+					// Check the first default rule to make sure the default action is set
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container.action", "Alert"),
+				),
+			},
+		},
+	})
+}
+
 func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
@@ -537,7 +620,8 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 								},
 							},
 							defaultRules: &defaultRulesConfig{
-								privilegedContainer: defaultRulePtr("Disabled"),
+								privilegedContainer:        defaultRulePtr("Disabled"),
+								sensitiveDataInEnvironment: defaultRulePtr("Prevent"),
 							},
 						},
 					},
@@ -557,6 +641,7 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 					resource.TestCheckTypeSetElemAttr(resourceName, "rule_groups.0.namespaces.*", "test-namespace-2"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container.action", "Disabled"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.sensitive_data_in_environment.action", "Prevent"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.0.id"),
 					// save initial state for comparing IDs on subsequent updates
@@ -600,8 +685,7 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 								},
 							},
 							defaultRules: &defaultRulesConfig{
-								privilegedContainer:        defaultRulePtr("Prevent"),
-								sensitiveDataInEnvironment: defaultRulePtr("Alert"),
+								privilegedContainer: defaultRulePtr("Prevent"),
 							},
 						},
 					},
@@ -626,11 +710,45 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 					testAccCheckNestedObjectIDsUnchanged(resourceName, capturedState, []string{"rule_groups.0.id"}),
 				),
 			},
+			{
+				Config: kacPolicyConfig{
+					name:        policyName,
+					description: stringPtr("Test KAC policy with updated rule groups"),
+					isEnabled:   boolPtr(false),
+					ruleGroups: []ruleGroupConfig{
+						{
+							name:        "test-rule-group-1-updated",
+							description: stringPtr("Updated first test rule group - optional attributes removed"),
+						},
+					},
+				}.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", policyName),
+					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with updated rule groups"),
+					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "test-rule-group-1-updated"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.description", "Updated first test rule group - optional attributes removed"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.deny_on_error", "false"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.unassessed_handling", "Allow Without Alert"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.namespaces.#", "1"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "rule_groups.0.namespaces.*", "*"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.0.key", "*"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.0.value", "*"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.0.operator", "eq"),
+					// TODO: Add top default level default value for default_rules to make this test pass
+					// resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container.action", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.sensitive_data_in_environment.action", "Alert"),
+					// Verify rule group ID remains the same after update
+					testAccCheckNestedObjectIDsUnchanged(resourceName, capturedState, []string{"rule_groups.0.id"}),
+				),
+			},
 		},
 	})
 }
 
-// TestCloudSecurityKacPolicyResource_MultipleRuleGroups tests creating multiple rule groups.
 func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
@@ -812,11 +930,11 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 	})
 }
 
-// TestCloudSecurityKacPolicyResource_RuleGroupsMinimal tests rule groups with minimal configuration.
-func TestCloudSecurityKacPolicyResource_RuleGroupsMinimal(t *testing.T) {
+func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
-	policyName := fmt.Sprintf("tfacc-kac-policy-minimal-rulegroups-%s", randomSuffix)
+	policyName := fmt.Sprintf("tfacc-kac-policy-complex-%s", randomSuffix)
+	capturedState := make(map[string]string)
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -825,42 +943,50 @@ func TestCloudSecurityKacPolicyResource_RuleGroupsMinimal(t *testing.T) {
 			{
 				Config: kacPolicyConfig{
 					name:        policyName,
-					description: stringPtr("Test KAC policy with minimal rule group"),
+					description: stringPtr("Test KAC policy with multiple rule groups and default rule group"),
 					isEnabled:   boolPtr(false),
 					ruleGroups: []ruleGroupConfig{
 						{
-							name: "minimal-rule-group",
-							// Only required fields, no optional ones
+							name:        "rule-group-1",
+							description: stringPtr("Rule group 1"),
+							denyOnError: boolPtr(true),
+							imageAssessment: &imageAssessmentConfig{
+								enabled:            true,
+								unassessedHandling: "Prevent",
+							},
+							namespaces: []string{"alpha", "alpha-*"},
+							labels: []labelConfig{
+								{
+									key:      "environment",
+									value:    "alpha",
+									operator: "eq",
+								},
+							},
+							defaultRules: &defaultRulesConfig{
+								privilegedContainer: defaultRulePtr("Prevent"),
+							},
+						},
+						{
+							name:        "rule-group-2",
+							description: stringPtr("Rule group 2"),
+							denyOnError: boolPtr(false),
+							imageAssessment: &imageAssessmentConfig{
+								enabled:            true,
+								unassessedHandling: "Alert",
+							},
+							namespaces: []string{"beta", "stage-*"},
+							labels: []labelConfig{
+								{
+									key:      "environment",
+									value:    "beta",
+									operator: "eq",
+								},
+							},
+							defaultRules: &defaultRulesConfig{
+								containerRunAsRoot: defaultRulePtr("Alert"),
+							},
 						},
 					},
-				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "minimal-rule-group"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.0.id"),
-				),
-			},
-		},
-	})
-}
-
-// TestCloudSecurityKacPolicyResource_DefaultRuleGroup tests creating a KAC policy with default rule group configuration.
-func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
-	randomSuffix := sdkacctest.RandString(8)
-	resourceName := "crowdstrike_cloud_security_kac_policy.test"
-	policyName := fmt.Sprintf("tfacc-kac-policy-defaultrulegroup-%s", randomSuffix)
-
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: kacPolicyConfig{
-					name:        policyName,
-					description: stringPtr("Test KAC policy with default rule group"),
-					isEnabled:   boolPtr(false),
 					defaultRuleGroup: &defaultRuleGroupConfig{
 						denyOnError: boolPtr(false),
 						imageAssessment: &imageAssessmentConfig{
@@ -869,21 +995,201 @@ func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
 						},
 						defaultRules: &defaultRulesConfig{
 							workloadInDefaultNamespace: defaultRulePtr("Prevent"),
-							runtimeSocketInContainer:   defaultRulePtr("Alert"),
+							runtimeSocketInContainer:   defaultRulePtr("Disabled"),
+							sensitiveHostDirectories:   defaultRulePtr("Prevent"),
 						},
 					},
 				}.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with default rule group"),
+					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with multiple rule groups and default rule group"),
 					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					// Rule groups checks
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "rule-group-1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.deny_on_error", "true"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.unassessed_handling", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container.action", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.name", "rule-group-2"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.deny_on_error", "false"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.unassessed_handling", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_run_as_root.action", "Alert"),
+					// Default rule group checks
 					resource.TestCheckResourceAttrSet(resourceName, "default_rule_group.id"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.deny_on_error", "false"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.enabled", "true"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.unassessed_handling", "Alert"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace.action", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container.action", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container.action", "Disabled"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.sensitive_host_directories.action", "Prevent"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
+					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.0.id"),
+					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.1.id"),
+					// Capture initial state
+					func(s *terraform.State) error {
+						rs := s.RootModule().Resources[resourceName]
+						if rs == nil {
+							return fmt.Errorf("resource not found")
+						}
+						capturedState["rule_groups.0.id"] = rs.Primary.Attributes["rule_groups.0.id"]
+						capturedState["rule_groups.1.id"] = rs.Primary.Attributes["rule_groups.1.id"]
+						capturedState["default_rule_group.id"] = rs.Primary.Attributes["default_rule_group.id"]
+						return nil
+					},
+				),
+			},
+			{
+				// Reorder rule groups and update default rule group
+				Config: kacPolicyConfig{
+					name:        policyName,
+					description: stringPtr("Test KAC policy with reordered rule groups and updated default rule group"),
+					isEnabled:   boolPtr(false),
+					ruleGroups: []ruleGroupConfig{
+						{
+							// new rule group in position 1
+							name:        "new-rule-group",
+							description: stringPtr("New rule group"),
+						},
+						{
+							// rule-group-2 stays in position 2
+							name:        "rule-group-2",
+							description: stringPtr("Updated rule group 2"),
+							denyOnError: boolPtr(true), // Changed from false to true
+							imageAssessment: &imageAssessmentConfig{
+								enabled:            false,     // Changed from true to false
+								unassessedHandling: "Prevent", // Changed from "Alert" to "Prevent"
+							},
+							namespaces: []string{"beta", "stage-*", "test"}, // Added "test"
+							labels: []labelConfig{
+								{
+									key:      "environment",
+									value:    "beta",
+									operator: "eq",
+								},
+								{
+									key:      "team",
+									value:    "qa",
+									operator: "eq",
+								},
+							},
+							defaultRules: &defaultRulesConfig{
+								containerRunAsRoot:             defaultRulePtr("Prevent"),  // Changed from "Alert" to "Prevent"
+								containerWithoutResourceLimits: defaultRulePtr("Disabled"), // New rule
+							},
+						},
+						{
+							// rule-group-1 moves to position 3
+							name:        "rule-group-1",
+							description: stringPtr("Reordered rule group 1"),
+							denyOnError: boolPtr(false),
+							imageAssessment: &imageAssessmentConfig{
+								enabled:            true,
+								unassessedHandling: "Alert",
+							},
+							namespaces: []string{"alpha"},
+							labels: []labelConfig{
+								{
+									key:      "environment",
+									value:    "alpha",
+									operator: "eq",
+								},
+							},
+							defaultRules: &defaultRulesConfig{
+								privilegedContainer:        defaultRulePtr("Prevent"), // Changed from "Prevent" to "Alert"
+								sensitiveDataInEnvironment: defaultRulePtr("Prevent"), // New rule
+							},
+						},
+					},
+					defaultRuleGroup: &defaultRuleGroupConfig{
+						denyOnError: boolPtr(true), // Changed from false to true
+						imageAssessment: &imageAssessmentConfig{
+							enabled:            true,
+							unassessedHandling: "Prevent", // Changed from "Alert" to "Prevent"
+						},
+						defaultRules: &defaultRulesConfig{
+							workloadInDefaultNamespace:     defaultRulePtr("Alert"),   // Changed from "Prevent" to "Alert"
+							runtimeSocketInContainer:       defaultRulePtr("Prevent"), // Changed from "Alert" to "Prevent"
+							sensitiveHostDirectories:       defaultRulePtr("Alert"),   // Changed from "Prevent" to "Alert"
+							containerWithoutResourceLimits: defaultRulePtr("Prevent"), // New rule
+						},
+					},
+				}.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", policyName),
+					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with reordered rule groups and updated default rule group"),
+					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					// Verify rule groups are reordered (staging now first, production second)
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "3"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "new-rule-group"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.description", "New rule group"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.deny_on_error", "false"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.unassessed_handling", "Allow Without Alert"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.namespaces.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.container_run_as_root.action", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.container_without_resource_limits.action", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.name", "rule-group-2"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.description", "Updated rule group 2"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.deny_on_error", "true"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.unassessed_handling", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.namespaces.#", "3"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.labels.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_run_as_root.action", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_without_resource_limits.action", "Disabled"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.name", "rule-group-1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.description", "Reordered rule group 1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.deny_on_error", "false"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.image_assessment.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.image_assessment.unassessed_handling", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.namespaces.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.labels.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.default_rules.privileged_container.action", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.default_rules.sensitive_data_in_environment.action", "Prevent"),
+					// Verify default rule group updates
+					resource.TestCheckResourceAttrSet(resourceName, "default_rule_group.id"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.deny_on_error", "true"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.unassessed_handling", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace.action", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container.action", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.sensitive_host_directories.action", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.container_without_resource_limits.action", "Prevent"),
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.0.id"),
+					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.1.id"),
+					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.2.id"),
+					// Verify that rule group IDs remain the same despite reordering (they should be stable)
+					func(s *terraform.State) error {
+						currentRS, ok := s.RootModule().Resources[resourceName]
+						if !ok {
+							return fmt.Errorf("resource not found in current state: %s", resourceName)
+						}
+
+						ruleGroupIdReorderedMap := map[string]string{
+							"rule_groups.0.id": "rule_groups.2.id", // first rule group becomes the third rule group
+							"rule_groups.1.id": "rule_groups.1.id", // second rule group stays in the second position
+						}
+
+						for originalIdPath, newIdPath := range ruleGroupIdReorderedMap {
+							initialID := capturedState[originalIdPath]
+							currentID := currentRS.Primary.Attributes[newIdPath]
+
+							if initialID == "" {
+								return fmt.Errorf("initial ID not found at path: %s", originalIdPath)
+							}
+
+							if currentID != initialID {
+								return fmt.Errorf("%s does not equal %s: %s -> %s", originalIdPath, newIdPath, initialID, currentID)
+							}
+
+						}
+
+						return nil
+					},
 				),
 			},
 		},
