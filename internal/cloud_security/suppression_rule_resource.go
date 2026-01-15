@@ -34,10 +34,11 @@ import (
 )
 
 var (
-	ruleSelectionTypeDefault = "all_rules"
-	ruleSelectionTypeFilter  = "rule_selection_filter"
-	scopeTypeDefault         = "all_assets"
-	scopeTypeFilter          = "asset_filter"
+	ruleSelectionTypeDefault   = "all_rules"
+	ruleSelectionTypeFilter    = "rule_selection_filter"
+	scopeTypeDefault           = "all_assets"
+	scopeTypeFilter            = "asset_filter"
+	suppressionRuleTypeDefault = "IOM"
 )
 
 var (
@@ -65,23 +66,22 @@ type cloudSecuritySuppressionRuleResource struct {
 
 type cloudSecuritySuppressionRuleResourceModel struct {
 	ID                        types.String `tfsdk:"id"`
+	Type                      types.String `tfsdk:"type"`
 	Description               types.String `tfsdk:"description"`
-	Domain                    types.String `tfsdk:"domain"`
 	Name                      types.String `tfsdk:"name"`
 	RuleSelectionFilter       types.Object `tfsdk:"rule_selection_filter"`
-	ScopeAssetFilter          types.Object `tfsdk:"scope_asset_filter"`
-	Subdomain                 types.String `tfsdk:"subdomain"`
-	SuppressionComment        types.String `tfsdk:"suppression_comment"`
-	SuppressionExpirationDate types.String `tfsdk:"suppression_expiration_date"`
-	SuppressionReason         types.String `tfsdk:"suppression_reason"`
+	AssetFilter               types.Object `tfsdk:"asset_filter"`
+	SuppressionComment        types.String `tfsdk:"comment"`
+	SuppressionExpirationDate types.String `tfsdk:"expiration_date"`
+	SuppressionReason         types.String `tfsdk:"reason"`
 }
 
 type ruleSelectionFilterModel struct {
 	RuleIds        types.Set `tfsdk:"rule_ids"`
 	RuleNames      types.Set `tfsdk:"rule_names"`
 	RuleOrigins    types.Set `tfsdk:"rule_origins"`
-	RuleProviders  types.Set `tfsdk:"rule_providers"`
 	RuleServices   types.Set `tfsdk:"rule_services"`
+	RuleProviders  types.Set `tfsdk:"rule_providers"`
 	RuleSeverities types.Set `tfsdk:"rule_severities"`
 }
 
@@ -130,19 +130,30 @@ func (m *cloudSecuritySuppressionRuleResourceModel) wrap(
 
 	m.ID = flex.StringPointerToFramework(rule.ID)
 	m.Description = types.StringValue(rule.Description)
-	m.Domain = flex.StringPointerToFramework(rule.Domain)
 	m.Name = flex.StringPointerToFramework(rule.Name)
-	m.Subdomain = flex.StringPointerToFramework(rule.Subdomain)
 	m.SuppressionComment = types.StringValue(rule.SuppressionComment)
 	m.SuppressionExpirationDate = flex.StringValueToFramework(rule.SuppressionExpirationDate)
 	m.SuppressionReason = flex.StringPointerToFramework(rule.SuppressionReason)
+
+	// Set type based on Domain and Subdomain from API response
+	if rule.Domain != nil && rule.Subdomain != nil {
+		if *rule.Domain == iomRuleDomainConfig.Domain && *rule.Subdomain == iomRuleDomainConfig.Subdomain {
+			m.Type = types.StringValue(suppressionRuleTypeDefault)
+		} else {
+			// Default to IOM if we don't recognize the domain/subdomain combination
+			m.Type = types.StringValue(suppressionRuleTypeDefault)
+		}
+	} else {
+		// Default to IOM if domain/subdomain are not provided
+		m.Type = types.StringValue(suppressionRuleTypeDefault)
+	}
 
 	diags.Append(m.setRuleSelectionFilter(ctx, rule)...)
 	if diags.HasError() {
 		return diags
 	}
 
-	diags.Append(m.setScopeAssetFilter(ctx, rule)...)
+	diags.Append(m.setAssetFilter(ctx, rule)...)
 	if diags.HasError() {
 		return diags
 	}
@@ -202,21 +213,20 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"type": schema.StringAttribute{
+				Description: "Type of suppression rule. Defaults to IOM.",
+				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString(suppressionRuleTypeDefault),
+				Validators: []validator.String{
+					stringvalidator.OneOf(suppressionRuleTypeDefault),
+				},
+			},
 			"description": schema.StringAttribute{
 				Description: "Description of the suppression rule.",
 				Optional:    true,
 				Computed:    true,
 				Default:     stringdefault.StaticString(""),
-			},
-			"domain": schema.StringAttribute{
-				MarkdownDescription: "Defines the Rule domain to which this suppression rule applies. Updating requires replacement. Only `CSPM` is currently supported for suppression rules.",
-				Required:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-				Validators: []validator.String{
-					fwvalidators.StringNotWhitespace(),
-				},
 			},
 			"name": schema.StringAttribute{
 				Description: "Name of the suppression rule",
@@ -225,23 +235,13 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 					fwvalidators.StringNotWhitespace(),
 				},
 			},
-			"subdomain": schema.StringAttribute{
-				MarkdownDescription: "Specifies the rule subdomain to which this suppression rule applies. Updating requires replacement. Only `IOM` is currently supported for suppression rules.",
-				Required:            true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-				Validators: []validator.String{
-					fwvalidators.StringNotWhitespace(),
-				},
-			},
-			"suppression_comment": schema.StringAttribute{
+			"comment": schema.StringAttribute{
 				Description: "Comment for suppression. This will be attached to the Findings suppressed by this rule.",
 				Optional:    true,
 				Computed:    true,
 				Default:     stringdefault.StaticString(""),
 			},
-			"suppression_expiration_date": schema.StringAttribute{
+			"expiration_date": schema.StringAttribute{
 				MarkdownDescription: "Expiration date for suppression. If defined, must be in RFC3339 format (e.g., `2025-08-11T10:00:00Z`). Once set, this field cannot be cleared. The suppression rule will still exist after expiration and can be reset by updating the expiration date.",
 				Optional:            true,
 				Validators: []validator.String{
@@ -252,7 +252,7 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 					fwmodifiers.PreventStringClearing("Suppression Expiration Date"),
 				},
 			},
-			"suppression_reason": schema.StringAttribute{
+			"reason": schema.StringAttribute{
 				Description: "Reason for suppression. One of: accept-risk, compensating-control, false-positive.",
 				Required:    true,
 				Validators: []validator.String{
@@ -264,7 +264,7 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 				},
 			},
 			"rule_selection_filter": schema.SingleNestedAttribute{
-				MarkdownDescription: "Filter criteria for rule selection. Only necessary when `rule_selection_type` is `rule_selection_filter`.",
+				MarkdownDescription: "Filter criteria for rule selection.",
 				Optional:            true,
 				Attributes: map[string]schema.Attribute{
 					"rule_ids": schema.SetAttribute{
@@ -333,8 +333,8 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 					},
 				},
 			},
-			"scope_asset_filter": schema.SingleNestedAttribute{
-				MarkdownDescription: "Filter criteria for scope assets. Only necessary when `scope_type` is `asset_filter`.",
+			"asset_filter": schema.SingleNestedAttribute{
+				MarkdownDescription: "Filter criteria for scope assets.",
 				Optional:            true,
 				Attributes: map[string]schema.Attribute{
 					"account_ids": schema.SetAttribute{
@@ -471,7 +471,7 @@ func (r *cloudSecuritySuppressionRuleResource) ValidateConfig(
 		return
 	}
 
-	r.validateScopeAssetFilter(ctx, requestConfig, resp)
+	r.validateAssetFilter(ctx, requestConfig, resp)
 }
 
 // validateSuppressionExpirationDate validates the suppression expiration date format.
@@ -483,9 +483,9 @@ func (r *cloudSecuritySuppressionRuleResource) validateSuppressionExpirationDate
 		_, err := time.Parse(time.RFC3339, requestConfig.SuppressionExpirationDate.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddAttributeError(
-				path.Root("suppression_expiration_date"),
+				path.Root("expiration_date"),
 				"Invalid Date Format",
-				"The suppression_expiration_date must be in RFC3339 format (e.g., '2006-01-02T15:04:05Z').",
+				"The expiration_date must be in RFC3339 format (e.g., '2006-01-02T15:04:05Z').",
 			)
 		}
 	}
@@ -496,10 +496,10 @@ func (r *cloudSecuritySuppressionRuleResource) validateRequiredFilters(
 	requestConfig cloudSecuritySuppressionRuleResourceModel,
 	resp *resource.ValidateConfigResponse,
 ) {
-	if requestConfig.RuleSelectionFilter.IsNull() && requestConfig.ScopeAssetFilter.IsNull() {
+	if requestConfig.RuleSelectionFilter.IsNull() && requestConfig.AssetFilter.IsNull() {
 		resp.Diagnostics.AddError(
 			"Missing Required Filter",
-			"At least one of 'rule_selection_filter' or 'scope_asset_filter' must be defined.",
+			"At least one of 'rule_selection_filter' or 'asset_filter' must be defined.",
 		)
 	}
 }
@@ -539,33 +539,33 @@ func (r *cloudSecuritySuppressionRuleResource) isRuleSelectionFilterEmpty(filter
 		(filter.RuleSeverities.IsNull() || len(filter.RuleSeverities.Elements()) == 0)
 }
 
-// validateScopeAssetFilter validates the scope asset filter is not empty when defined.
-func (r *cloudSecuritySuppressionRuleResource) validateScopeAssetFilter(
+// validateAssetFilter validates the scope asset filter is not empty when defined.
+func (r *cloudSecuritySuppressionRuleResource) validateAssetFilter(
 	ctx context.Context,
 	requestConfig cloudSecuritySuppressionRuleResourceModel,
 	resp *resource.ValidateConfigResponse,
 ) {
-	if !utils.IsKnown(requestConfig.ScopeAssetFilter) {
+	if !utils.IsKnown(requestConfig.AssetFilter) {
 		return
 	}
 
 	var scopeAssetFilter scopeAssetFilterModel
-	diags := requestConfig.ScopeAssetFilter.As(ctx, &scopeAssetFilter, basetypes.ObjectAsOptions{})
+	diags := requestConfig.AssetFilter.As(ctx, &scopeAssetFilter, basetypes.ObjectAsOptions{})
 	if diags.HasError() {
 		return
 	}
 
-	if r.isScopeAssetFilterEmpty(scopeAssetFilter) {
+	if r.isAssetFilterEmpty(scopeAssetFilter) {
 		resp.Diagnostics.AddAttributeError(
-			path.Root("scope_asset_filter"),
-			"Empty Scope Asset Filter",
-			"When scope_asset_filter is defined, at least one filter criterion must be specified (account_ids, cloud_group_ids, cloud_providers, regions, resource_ids, resource_names, resource_types, service_categories, or tags).",
+			path.Root("asset_filter"),
+			"Empty Asset Filter",
+			"When asset_filter is defined, at least one filter criterion must be specified (account_ids, cloud_group_ids, cloud_providers, regions, resource_ids, resource_names, resource_types, service_categories, or tags).",
 		)
 	}
 }
 
-// isScopeAssetFilterEmpty checks if all scope asset filter fields are empty.
-func (r *cloudSecuritySuppressionRuleResource) isScopeAssetFilterEmpty(filter scopeAssetFilterModel) bool {
+// isAssetFilterEmpty checks if all scope asset filter fields are empty.
+func (r *cloudSecuritySuppressionRuleResource) isAssetFilterEmpty(filter scopeAssetFilterModel) bool {
 	return (filter.AccountIds.IsNull() || len(filter.AccountIds.Elements()) == 0) &&
 		(filter.CloudGroupIds.IsNull() || len(filter.CloudGroupIds.Elements()) == 0) &&
 		(filter.CloudProviders.IsNull() || len(filter.CloudProviders.Elements()) == 0) &&
@@ -582,7 +582,7 @@ func (r *cloudSecuritySuppressionRuleResource) ModifyPlan(
 	req resource.ModifyPlanRequest,
 	resp *resource.ModifyPlanResponse,
 ) {
-	// Skip validation for delete operations
+	// Skip validation for destroy operations
 	if req.Plan.Raw.IsNull() {
 		return
 	}
@@ -593,67 +593,18 @@ func (r *cloudSecuritySuppressionRuleResource) ModifyPlan(
 		return
 	}
 
-	// Enhanced destroy detection
-	var isDestroyOperation bool
-
-	if !req.State.Raw.IsNull() {
-		var stateConfig cloudSecuritySuppressionRuleResourceModel
-		resp.Diagnostics.Append(req.State.Get(ctx, &stateConfig)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		if !stateConfig.ID.IsNull() && planConfig.ID.IsNull() {
-			isDestroyOperation = true
-		}
-
-		if !stateConfig.ID.IsNull() &&
-			(planConfig.Name.IsNull() && planConfig.Domain.IsNull() && planConfig.Subdomain.IsNull()) {
-			isDestroyOperation = true
-		}
-
-		if !stateConfig.ID.IsNull() && planConfig.ID.IsNull() &&
-			!planConfig.Name.IsNull() && !planConfig.Domain.IsNull() && !planConfig.Subdomain.IsNull() {
-			isDestroyOperation = true
-		}
-
-		if !stateConfig.ID.IsNull() && planConfig.ID.IsNull() {
-			isDestroyOperation = true
-		}
-
-		if !stateConfig.ID.IsNull() &&
-			planConfig.SuppressionExpirationDate.ValueString() != "" &&
-			stateConfig.SuppressionExpirationDate.ValueString() == planConfig.SuppressionExpirationDate.ValueString() {
-			expired, _ := isTimestampExpired(planConfig.SuppressionExpirationDate.ValueString())
-			if expired {
-				isDestroyOperation = true
-			}
-		}
-	}
-
-	// Skip all validation if this is a destroy operation
-	if isDestroyOperation {
-		return
-	}
-
+	// Validate suppression expiration date for all operations (including destroy)
 	if utils.IsKnown(planConfig.SuppressionExpirationDate) && planConfig.SuppressionExpirationDate.ValueString() != "" {
 		expired, diags := isTimestampExpired(planConfig.SuppressionExpirationDate.ValueString())
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
 		} else if expired {
-			if !req.State.Raw.IsNull() {
-				return
-			}
-
 			resp.Diagnostics.AddAttributeError(
-				path.Root("suppression_expiration_date"),
+				path.Root("expiration_date"),
 				"Expired Date",
-				"The suppression_expiration_date has already passed.",
+				"The expiration_date has already passed. If you are attempting to run a destroy operation, use 'terraform destroy -refresh=false' to skip the expiration check.",
 			)
 		}
-	}
-	if resp.Diagnostics.HasError() {
-		return
 	}
 }
 
@@ -812,13 +763,16 @@ func (r *cloudSecuritySuppressionRuleResource) getSuppressionRule(ctx context.Co
 func (r *cloudSecuritySuppressionRuleResource) createSuppressionRule(ctx context.Context, rule cloudSecuritySuppressionRuleResourceModel) (*models.ApimodelsSuppressionRule, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
+	// Get domain configuration based on type
+	domainConfig := getDomainConfig(rule.Type.ValueString())
+
 	// Required Params
 	body := &models.SuppressionrulesCreateSuppressionRuleRequest{
 		Name:                      rule.Name.ValueStringPointer(),
-		Domain:                    rule.Domain.ValueStringPointer(),
+		Domain:                    &domainConfig.Domain,
 		RuleSelectionType:         &ruleSelectionTypeDefault,
 		ScopeType:                 &scopeTypeDefault,
-		Subdomain:                 rule.Subdomain.ValueStringPointer(),
+		Subdomain:                 &domainConfig.Subdomain,
 		SuppressionReason:         rule.SuppressionReason.ValueStringPointer(),
 		Description:               rule.Description.ValueString(),
 		SuppressionComment:        rule.SuppressionComment.ValueString(),
@@ -840,9 +794,9 @@ func (r *cloudSecuritySuppressionRuleResource) createSuppressionRule(ctx context
 		body.RuleSelectionType = &ruleSelectionTypeFilter
 	}
 
-	if !rule.ScopeAssetFilter.IsNull() {
+	if !rule.AssetFilter.IsNull() {
 		var scopeAssetFilter scopeAssetFilterModel
-		diags = rule.ScopeAssetFilter.As(ctx, &scopeAssetFilter, basetypes.ObjectAsOptions{})
+		diags = rule.AssetFilter.As(ctx, &scopeAssetFilter, basetypes.ObjectAsOptions{})
 		if diags.HasError() {
 			return nil, diags
 		}
@@ -936,9 +890,9 @@ func (r *cloudSecuritySuppressionRuleResource) updateSuppressionRule(ctx context
 		body.RuleSelectionType = ruleSelectionTypeFilter
 	}
 
-	if !rule.ScopeAssetFilter.IsNull() {
+	if !rule.AssetFilter.IsNull() {
 		var scopeAssetFilter scopeAssetFilterModel
-		diags = rule.ScopeAssetFilter.As(ctx, &scopeAssetFilter, basetypes.ObjectAsOptions{})
+		diags = rule.AssetFilter.As(ctx, &scopeAssetFilter, basetypes.ObjectAsOptions{})
 		if diags.HasError() {
 			return nil, diags
 		}
@@ -1120,7 +1074,7 @@ func isTimestampExpired(timestampStr string) (bool, diag.Diagnostics) {
 	return timestamp.Before(time.Now()), diags
 }
 
-func (m *cloudSecuritySuppressionRuleResourceModel) setScopeAssetFilter(ctx context.Context, rule models.ApimodelsSuppressionRule) (diags diag.Diagnostics) {
+func (m *cloudSecuritySuppressionRuleResourceModel) setAssetFilter(ctx context.Context, rule models.ApimodelsSuppressionRule) (diags diag.Diagnostics) {
 	cloudGroupIDs := make([]string, 0)
 	if rule.ScopeAssetFilter != nil && len(rule.ScopeAssetFilter.CloudGroups) != 0 {
 		for _, cloudGroup := range rule.ScopeAssetFilter.CloudGroups {
@@ -1170,7 +1124,7 @@ func (m *cloudSecuritySuppressionRuleResourceModel) setScopeAssetFilter(ctx cont
 		}
 	}
 
-	m.ScopeAssetFilter = types.ObjectValueMust(
+	m.AssetFilter = types.ObjectValueMust(
 		scopeAssetFilterModel{}.AttributeTypes(),
 		scopeAssetFilter,
 	)

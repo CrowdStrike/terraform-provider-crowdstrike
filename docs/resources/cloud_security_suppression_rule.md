@@ -36,36 +36,34 @@ provider "crowdstrike" {
 
 # Example 1: Simple suppression rule with rule name filter
 resource "crowdstrike_cloud_security_suppression_rule" "example" {
-  name                = "Suppression Rule"
-  domain              = "CSPM"
-  subdomain           = "IOM"
-  suppression_reason  = "false-positive"
-  description         = "Suppress findings for IAM root user access key rule"
-  suppression_comment = "This is a known false positive in our development environment"
+  name        = "Suppression Rule"
+  type        = "IOM"
+  reason      = "false-positive"
+  description = "Suppress findings for IAM root user access key rule"
+  comment     = "This is a known false positive in our development environment"
 
-  rule_selection_filter {
+  rule_selection_filter = {
     rule_names = ["IAM root user has an active access key"]
   }
 
-  scope_asset_filter {
+  asset_filter = {
     regions = ["us-east-2"]
   }
 }
 
 # Example 2: More complex suppression rule with multiple filters
 resource "crowdstrike_cloud_security_suppression_rule" "multi_filter" {
-  name               = "Multi-filter Suppression Rule"
-  domain             = "CSPM"
-  subdomain          = "IOM"
-  suppression_reason = "accept-risk"
-  description        = "Suppress high and critical findings for specific cloud providers and regions"
+  name        = "Multi-filter Suppression Rule"
+  type        = "IOM"
+  reason      = "accept-risk"
+  description = "Suppress high and critical findings for specific cloud providers and regions"
 
-  rule_selection_filter {
+  rule_selection_filter = {
     rule_severities = ["critical", "high"]
     rule_providers  = ["AWS", "Azure"]
   }
 
-  scope_asset_filter {
+  asset_filter = {
     cloud_providers = ["aws", "azure"]
     regions         = ["us-west-1", "eastus"]
     tags            = ["environment=dev", "team=security"]
@@ -74,17 +72,16 @@ resource "crowdstrike_cloud_security_suppression_rule" "multi_filter" {
 
 # Example 3: Temporary suppression with expiration
 resource "crowdstrike_cloud_security_suppression_rule" "temporary" {
-  name                        = "Temporary Suppression"
-  domain                      = "CSPM"
-  subdomain                   = "IOM"
-  suppression_reason          = "compensating-control"
-  suppression_expiration_date = "2025-12-31T23:59:59Z"
+  name            = "Temporary Suppression"
+  type            = "IOM"
+  reason          = "compensating-control"
+  expiration_date = "2025-12-31T23:59:59Z"
 
-  rule_selection_filter {
+  rule_selection_filter = {
     rule_origins = ["Default"]
   }
 
-  scope_asset_filter {
+  asset_filter = {
     account_ids = ["123456789012"]
   }
 }
@@ -99,38 +96,24 @@ output "suppression_rule" {
 
 ### Required
 
-- `domain` (String) Defines the Rule domain to which this suppression rule applies. Updating requires replacement. Only `CSPM` is currently supported for suppression rules.
 - `name` (String) Name of the suppression rule
-- `subdomain` (String) Specifies the rule subdomain to which this suppression rule applies. Updating requires replacement. Only `IOM` is currently supported for suppression rules.
-- `suppression_reason` (String) Reason for suppression. One of: accept-risk, compensating-control, false-positive.
+- `reason` (String) Reason for suppression. One of: accept-risk, compensating-control, false-positive.
 
 ### Optional
 
+- `asset_filter` (Attributes) Filter criteria for scope assets. (see [below for nested schema](#nestedatt--asset_filter))
+- `comment` (String) Comment for suppression. This will be attached to the Findings suppressed by this rule.
 - `description` (String) Description of the suppression rule.
-- `rule_selection_filter` (Attributes) Filter criteria for rule selection. Only necessary when `rule_selection_type` is `rule_selection_filter`. (see [below for nested schema](#nestedatt--rule_selection_filter))
-- `scope_asset_filter` (Attributes) Filter criteria for scope assets. Only necessary when `scope_type` is `asset_filter`. (see [below for nested schema](#nestedatt--scope_asset_filter))
-- `suppression_comment` (String) Comment for suppression. This will be attached to the Findings suppressed by this rule.
-- `suppression_expiration_date` (String) Expiration date for suppression. If defined, must be in RFC3339 format (e.g., `2025-08-11T10:00:00Z`). Once set, this field cannot be cleared. The suppression rule will still exist after expiration and can be reset by updating the expiration date.
+- `expiration_date` (String) Expiration date for suppression. If defined, must be in RFC3339 format (e.g., `2025-08-11T10:00:00Z`). Once set, this field cannot be cleared. The suppression rule will still exist after expiration and can be reset by updating the expiration date.
+- `rule_selection_filter` (Attributes) Filter criteria for rule selection. (see [below for nested schema](#nestedatt--rule_selection_filter))
+- `type` (String) Type of suppression rule. Defaults to IOM.
 
 ### Read-Only
 
 - `id` (String) Unique identifier of the suppression rule.
 
-<a id="nestedatt--rule_selection_filter"></a>
-### Nested Schema for `rule_selection_filter`
-
-Optional:
-
-- `rule_ids` (Set of String) Set of rule IDs. A rule will match if its ID is included in this set.
-- `rule_names` (Set of String) Set of rule names. A rule will match if its name is included in this set.
-- `rule_origins` (Set of String) Set of rule origins. One of: `Custom`, `Default`. A rule will match if its origin is included in this set.
-- `rule_providers` (Set of String) Set of rule cloud providers. Examples: `AWS`, `Azure`, `GCP`, `OCI`. A rule will match if its cloud provider is included in this set.
-- `rule_services` (Set of String) Set of cloud services. Examples: `Azure Cosmos DB`, `CloudFront`, `Compute Engine`, `EC2`, `Elasticache`, `Virtual Network`. A rule will match if its cloud service is included in this set.
-- `rule_severities` (Set of String) Set of rule severities. One of: `critical`, `high`, `medium`, `informational`. A rule will match if its severity is included in this set.
-
-
-<a id="nestedatt--scope_asset_filter"></a>
-### Nested Schema for `scope_asset_filter`
+<a id="nestedatt--asset_filter"></a>
+### Nested Schema for `asset_filter`
 
 Optional:
 
@@ -143,6 +126,19 @@ Optional:
 - `resource_types` (Set of String) Set of resource types. Examples: `AWS::S3::Bucket`, `compute.googleapis.com/Instance`, `Microsoft.ContainerService/managedClusters`. An Asset will match if its resource type is included in this set.
 - `service_categories` (Set of String) Set of service categories. Examples: `Compute`, `Identity`, `Networking`.  An Asset will match if its cloud service category is included in this set.
 - `tags` (Set of String) Set of tags. These must match the k=v format. An Asset will match if at least one of its tags is included in this set.
+
+
+<a id="nestedatt--rule_selection_filter"></a>
+### Nested Schema for `rule_selection_filter`
+
+Optional:
+
+- `rule_ids` (Set of String) Set of rule IDs. A rule will match if its ID is included in this set.
+- `rule_names` (Set of String) Set of rule names. A rule will match if its name is included in this set.
+- `rule_origins` (Set of String) Set of rule origins. One of: `Custom`, `Default`. A rule will match if its origin is included in this set.
+- `rule_providers` (Set of String) Set of rule cloud providers. Examples: `AWS`, `Azure`, `GCP`, `OCI`. A rule will match if its cloud provider is included in this set.
+- `rule_services` (Set of String) Set of cloud services. Examples: `Azure Cosmos DB`, `CloudFront`, `Compute Engine`, `EC2`, `Elasticache`, `Virtual Network`. A rule will match if its cloud service is included in this set.
+- `rule_severities` (Set of String) Set of rule severities. One of: `critical`, `high`, `medium`, `informational`. A rule will match if its severity is included in this set.
 
 ## Import
 

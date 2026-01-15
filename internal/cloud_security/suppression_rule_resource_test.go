@@ -21,10 +21,31 @@ func TestCloudSecuritySuppressionRuleResource_Basic(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("crowdstrike_cloud_security_suppression_rule.test", "name", "TF Test Basic Suppression Rule"),
 					resource.TestCheckResourceAttr("crowdstrike_cloud_security_suppression_rule.test", "description", "Basic test suppression rule"),
-					resource.TestCheckResourceAttr("crowdstrike_cloud_security_suppression_rule.test", "domain", "CSPM"),
-					resource.TestCheckResourceAttr("crowdstrike_cloud_security_suppression_rule.test", "subdomain", "IOM"),
-					resource.TestCheckResourceAttr("crowdstrike_cloud_security_suppression_rule.test", "suppression_reason", "false-positive"),
+					resource.TestCheckResourceAttr("crowdstrike_cloud_security_suppression_rule.test", "reason", "false-positive"),
+					resource.TestCheckResourceAttr("crowdstrike_cloud_security_suppression_rule.test", "type", "IOM"),
 					resource.TestCheckResourceAttrSet("crowdstrike_cloud_security_suppression_rule.test", "id"),
+				),
+			},
+		},
+	})
+}
+
+func TestCloudSecuritySuppressionRuleResource_Defaults(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testSuppressionRuleDefaultsConfig(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("crowdstrike_cloud_security_suppression_rule.defaults_test", "name", "TF Test Defaults Suppression Rule"),
+					resource.TestCheckResourceAttr("crowdstrike_cloud_security_suppression_rule.defaults_test", "reason", "false-positive"),
+					// Test all default values
+					resource.TestCheckResourceAttr("crowdstrike_cloud_security_suppression_rule.defaults_test", "type", "IOM"),
+					resource.TestCheckResourceAttr("crowdstrike_cloud_security_suppression_rule.defaults_test", "description", ""),
+					resource.TestCheckResourceAttr("crowdstrike_cloud_security_suppression_rule.defaults_test", "comment", ""),
+					resource.TestCheckResourceAttrSet("crowdstrike_cloud_security_suppression_rule.defaults_test", "id"),
+					resource.TestCheckNoResourceAttr("crowdstrike_cloud_security_suppression_rule.defaults_test", "expiration_date"),
 				),
 			},
 		},
@@ -44,15 +65,13 @@ func TestCloudSecuritySuppressionRuleResource_EC2Scenario(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test EC2 Suppression %s", randomSuffix)),
 					resource.TestCheckResourceAttr(resourceName, "description", "Suppress EC2 instance excessive response hop limit rule for specific instances"),
-					resource.TestCheckResourceAttr(resourceName, "domain", "CSPM"),
-					resource.TestCheckResourceAttr(resourceName, "subdomain", "IOM"),
-					resource.TestCheckResourceAttr(resourceName, "suppression_reason", "accept-risk"),
-					resource.TestCheckResourceAttr(resourceName, "suppression_comment", "These instances are configured correctly for our architecture"),
+					resource.TestCheckResourceAttr(resourceName, "reason", "accept-risk"),
+					resource.TestCheckResourceAttr(resourceName, "comment", "These instances are configured correctly for our architecture"),
 					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_names.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.cloud_providers.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.regions.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.resource_types.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.account_ids.#", "3"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.cloud_providers.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.regions.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.resource_types.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.account_ids.#", "3"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -79,15 +98,13 @@ func TestCloudSecuritySuppressionRuleResource_SSMScenario(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test SSM Suppression %s", randomSuffix)),
 					resource.TestCheckResourceAttr(resourceName, "description", "Suppress SSM parameter encryption rule for legacy parameters"),
-					resource.TestCheckResourceAttr(resourceName, "domain", "CSPM"),
-					resource.TestCheckResourceAttr(resourceName, "subdomain", "IOM"),
-					resource.TestCheckResourceAttr(resourceName, "suppression_reason", "compensating-control"),
-					resource.TestCheckResourceAttr(resourceName, "suppression_comment", "Legacy parameters with alternative encryption"),
+					resource.TestCheckResourceAttr(resourceName, "reason", "compensating-control"),
+					resource.TestCheckResourceAttr(resourceName, "comment", "Legacy parameters with alternative encryption"),
 					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_names.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.cloud_providers.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.regions.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.resource_types.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.account_ids.#", "5"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.cloud_providers.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.regions.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.resource_types.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.account_ids.#", "5"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -108,15 +125,13 @@ func TestCloudSecuritySuppressionRuleResource_AccountLevelMultiRule(t *testing.T
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Account Level Suppression %s", randomSuffix)),
 					resource.TestCheckResourceAttr(resourceName, "description", "Suppress multiple backup and monitoring rules for test account"),
-					resource.TestCheckResourceAttr(resourceName, "domain", "CSPM"),
-					resource.TestCheckResourceAttr(resourceName, "subdomain", "IOM"),
-					resource.TestCheckResourceAttr(resourceName, "suppression_reason", "false-positive"),
-					resource.TestCheckResourceAttr(resourceName, "suppression_comment", "Test account with different compliance requirements"),
+					resource.TestCheckResourceAttr(resourceName, "reason", "false-positive"),
+					resource.TestCheckResourceAttr(resourceName, "comment", "Test account with different compliance requirements"),
 					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_names.#", "4"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.cloud_providers.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.regions.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.resource_types.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.account_ids.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.cloud_providers.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.regions.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.resource_types.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.account_ids.#", "1"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -139,7 +154,7 @@ func TestCloudSecuritySuppressionRuleResource_WithExpiration(t *testing.T) {
 				Config: testSuppressionRuleWithExpirationConfig(randomSuffix, expirationDate),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Expiration Suppression %s", randomSuffix)),
-					resource.TestCheckResourceAttr(resourceName, "suppression_expiration_date", expirationDate),
+					resource.TestCheckResourceAttr(resourceName, "expiration_date", expirationDate),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -161,8 +176,8 @@ func TestCloudSecuritySuppressionRuleResource_Update(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Update Suppression %s", randomSuffix)),
 					resource.TestCheckResourceAttr(resourceName, "description", "Initial description"),
-					resource.TestCheckResourceAttr(resourceName, "suppression_reason", "false-positive"),
-					resource.TestCheckResourceAttr(resourceName, "suppression_comment", "Initial comment"),
+					resource.TestCheckResourceAttr(resourceName, "reason", "false-positive"),
+					resource.TestCheckResourceAttr(resourceName, "comment", "Initial comment"),
 				),
 			},
 			// Update the rule
@@ -171,8 +186,8 @@ func TestCloudSecuritySuppressionRuleResource_Update(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Update Suppression %s", randomSuffix)),
 					resource.TestCheckResourceAttr(resourceName, "description", "Updated description"),
-					resource.TestCheckResourceAttr(resourceName, "suppression_reason", "compensating-control"),
-					resource.TestCheckResourceAttr(resourceName, "suppression_comment", "Updated comment"),
+					resource.TestCheckResourceAttr(resourceName, "reason", "compensating-control"),
+					resource.TestCheckResourceAttr(resourceName, "comment", "Updated comment"),
 				),
 			},
 		},
@@ -195,7 +210,7 @@ func TestCloudSecuritySuppressionRuleResource_ExpirationDateCannotBeCleared(t *t
 				Config: testSuppressionRuleWithExpirationClearConfig(randomSuffix, initialExpiration),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Expiration Clear %s", randomSuffix)),
-					resource.TestCheckResourceAttr(resourceName, "suppression_expiration_date", initialExpiration),
+					resource.TestCheckResourceAttr(resourceName, "expiration_date", initialExpiration),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -227,7 +242,7 @@ func TestCloudSecuritySuppressionRuleResource_ExpirationDateCanBeUpdated(t *test
 				Config: testSuppressionRuleWithExpirationUpdateConfig(randomSuffix, initialExpiration),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Expiration Update %s", randomSuffix)),
-					resource.TestCheckResourceAttr(resourceName, "suppression_expiration_date", initialExpiration),
+					resource.TestCheckResourceAttr(resourceName, "expiration_date", initialExpiration),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -236,7 +251,7 @@ func TestCloudSecuritySuppressionRuleResource_ExpirationDateCanBeUpdated(t *test
 				Config: testSuppressionRuleWithExpirationUpdateConfig(randomSuffix, updatedExpiration),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Expiration Update %s", randomSuffix)),
-					resource.TestCheckResourceAttr(resourceName, "suppression_expiration_date", updatedExpiration),
+					resource.TestCheckResourceAttr(resourceName, "expiration_date", updatedExpiration),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -254,7 +269,7 @@ func TestCloudSecuritySuppressionRuleResource_ValidationErrors(t *testing.T) {
 			// Test missing required filters
 			{
 				Config:      testSuppressionRuleInvalidConfigNoFilters(randomSuffix),
-				ExpectError: regexp.MustCompile(`At least one of 'rule_selection_filter' or 'scope_asset_filter'`),
+				ExpectError: regexp.MustCompile(`At least one of 'rule_selection_filter' or 'asset_filter'`),
 				PlanOnly:    true,
 			},
 			// Test invalid expiration date format
@@ -305,7 +320,7 @@ func TestCloudSecuritySuppressionRuleResource_TagFilters(t *testing.T) {
 				Config: testSuppressionRuleTagFilterConfig(randomSuffix),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Tag Filter %s", randomSuffix)),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.tags.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.tags.#", "2"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -329,7 +344,7 @@ func TestCloudSecuritySuppressionRuleResource_EmptyFilterValidation(t *testing.T
 			// Test empty scope asset filter
 			{
 				Config:      testSuppressionRuleEmptyScopeAssetFilter(randomSuffix),
-				ExpectError: regexp.MustCompile("Empty Scope Asset Filter"),
+				ExpectError: regexp.MustCompile("Empty Asset Filter"),
 				PlanOnly:    true,
 			},
 		},
@@ -374,14 +389,14 @@ func TestCloudSecuritySuppressionRuleResource_AllScopeAssetFilters(t *testing.T)
 				Config: testSuppressionRuleAllScopeAssetFiltersConfig(randomSuffix),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test All Scope Filters %s", randomSuffix)),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.account_ids.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.cloud_providers.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.regions.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.resource_ids.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.resource_names.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.resource_types.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.service_categories.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.tags.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.account_ids.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.cloud_providers.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.regions.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.resource_ids.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.resource_names.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.resource_types.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.service_categories.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.tags.#", "2"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -406,9 +421,9 @@ func TestCloudSecuritySuppressionRuleResource_ComplexFilterCombinations(t *testi
 					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_severities.#", "3"),
 					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_origins.#", "1"),
 					// Scope asset filter checks
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.cloud_providers.#", "3"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.service_categories.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.tags.#", "3"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.cloud_providers.#", "3"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.service_categories.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.tags.#", "3"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -459,11 +474,11 @@ func TestCloudSecuritySuppressionRuleResource_ComprehensiveImportState(t *testin
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Comprehensive Import %s", randomSuffix)),
 					resource.TestCheckResourceAttr(resourceName, "description", "Comprehensive test for import functionality"),
-					resource.TestCheckResourceAttr(resourceName, "suppression_comment", "Testing all attributes for import"),
+					resource.TestCheckResourceAttr(resourceName, "comment", "Testing all attributes for import"),
 					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_names.#", "2"),
 					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_severities.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.account_ids.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.tags.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.account_ids.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.tags.#", "2"),
 				),
 			},
 			{
@@ -490,7 +505,7 @@ func TestCloudSecuritySuppressionRuleResource_AdvancedUpdateScenarios(t *testing
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Advanced Update %s", randomSuffix)),
 					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_names.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.cloud_providers.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.cloud_providers.#", "1"),
 				),
 			},
 			// Update to add more complex filters
@@ -500,8 +515,8 @@ func TestCloudSecuritySuppressionRuleResource_AdvancedUpdateScenarios(t *testing
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Advanced Update %s", randomSuffix)),
 					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_names.#", "2"),
 					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_severities.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.cloud_providers.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.tags.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.cloud_providers.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.tags.#", "2"),
 				),
 			},
 			// Update to change filter types completely
@@ -511,8 +526,8 @@ func TestCloudSecuritySuppressionRuleResource_AdvancedUpdateScenarios(t *testing
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Advanced Update %s", randomSuffix)),
 					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_providers.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_origins.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.resource_types.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "scope_asset_filter.regions.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.resource_types.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "asset_filter.regions.#", "2"),
 				),
 			},
 		},
@@ -525,16 +540,15 @@ func testSuppressionRuleBasicConfig() string {
 	return `
 resource "crowdstrike_cloud_security_suppression_rule" "test" {
   name              = "TF Test Basic Suppression Rule"
+  type              = "IOM"
   description       = "Basic test suppression rule"
-  domain            = "CSPM"
-  subdomain         = "IOM"
-  suppression_reason = "false-positive"
+  reason = "false-positive"
 
   rule_selection_filter = {
     rule_names = ["Test Rule"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     regions        = ["us-east-1"]
   }
@@ -546,17 +560,16 @@ func testSuppressionRuleEC2ScenarioConfig(suffix string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_security_suppression_rule" "ec2_test" {
   name                = "TF Test EC2 Suppression %s"
+  type                = "IOM"
   description         = "Suppress EC2 instance excessive response hop limit rule for specific instances"
-  domain              = "CSPM"
-  subdomain           = "IOM"
-  suppression_reason  = "accept-risk"
-  suppression_comment = "These instances are configured correctly for our architecture"
+  reason  = "accept-risk"
+  comment = "These instances are configured correctly for our architecture"
 
   rule_selection_filter = {
     rule_names = ["EC2 instance with excessive response hop limit"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     regions        = ["us-east-1"]
     resource_types = ["AWS::EC2::Instance"]
@@ -571,16 +584,14 @@ func testSuppressionRuleSSMScenarioConfig(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "ssm_test" {
   name                = "TF Test SSM Suppression %s"
   description         = "Suppress SSM parameter encryption rule for legacy parameters"
-  domain              = "CSPM"
-  subdomain           = "IOM"
-  suppression_reason  = "compensating-control"
-  suppression_comment = "Legacy parameters with alternative encryption"
+  reason  = "compensating-control"
+  comment = "Legacy parameters with alternative encryption"
 
   rule_selection_filter = {
     rule_names = ["SSM contains parameters that are not encrypted"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     regions        = ["us-east-1"]
     resource_types = ["AWS::SSM::Parameter"]
@@ -595,10 +606,8 @@ func testSuppressionRuleAccountLevelConfig(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "account_test" {
   name                = "TF Test Account Level Suppression %s"
   description         = "Suppress multiple backup and monitoring rules for test account"
-  domain              = "CSPM"
-  subdomain           = "IOM"
-  suppression_reason  = "false-positive"
-  suppression_comment = "Test account with different compliance requirements"
+  reason  = "false-positive"
+  comment = "Test account with different compliance requirements"
 
   rule_selection_filter = {
     rule_names = [
@@ -609,7 +618,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "account_test" {
     ]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     regions        = ["global"]
     resource_types = ["AWS::Account"]
@@ -623,17 +632,16 @@ func testSuppressionRuleWithExpirationConfig(suffix, expirationDate string) stri
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_security_suppression_rule" "expiration_test" {
   name                       = "TF Test Expiration Suppression %s"
+  type                       = "IOM"
   description                = "Suppression rule with expiration date"
-  domain                     = "CSPM"
-  subdomain                  = "IOM"
-  suppression_reason         = "false-positive"
-  suppression_expiration_date = "%s"
+  reason         = "false-positive"
+  expiration_date = "%s"
 
   rule_selection_filter = {
     rule_names = ["Test Rule with Expiration"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     regions        = ["us-east-1"]
   }
@@ -646,16 +654,14 @@ func testSuppressionRuleUpdateConfigStep1(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "update_test" {
   name                = "TF Test Update Suppression %s"
   description         = "Initial description"
-  domain              = "CSPM"
-  subdomain           = "IOM"
-  suppression_reason  = "false-positive"
-  suppression_comment = "Initial comment"
+  reason  = "false-positive"
+  comment = "Initial comment"
 
   rule_selection_filter = {
     rule_names = ["Test Rule"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     regions        = ["us-east-1"]
   }
@@ -668,16 +674,14 @@ func testSuppressionRuleUpdateConfigStep2(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "update_test" {
   name                = "TF Test Update Suppression %s"
   description         = "Updated description"
-  domain              = "CSPM"
-  subdomain           = "IOM"
-  suppression_reason  = "compensating-control"
-  suppression_comment = "Updated comment"
+  reason  = "compensating-control"
+  comment = "Updated comment"
 
   rule_selection_filter = {
     rule_names = ["Test Rule"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     regions        = ["us-east-1"]
   }
@@ -690,9 +694,7 @@ func testSuppressionRuleInvalidConfigNoFilters(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "invalid_test" {
   name              = "TF Test Invalid Suppression %s"
   description       = "Invalid suppression rule without filters"
-  domain            = "CSPM"
-  subdomain         = "IOM"
-  suppression_reason = "false-positive"
+  reason = "false-positive"
 }
 `, suffix)
 }
@@ -702,16 +704,14 @@ func testSuppressionRuleInvalidExpirationDate(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "invalid_date_test" {
   name                       = "TF Test Invalid Date %s"
   description                = "Invalid expiration date format"
-  domain                     = "CSPM"
-  subdomain                  = "IOM"
-  suppression_reason         = "false-positive"
-  suppression_expiration_date = "2025-12-31"  # Invalid format - should be RFC3339
+  reason         = "false-positive"
+  expiration_date = "2025-12-31"  # Invalid format - should be RFC3339
 
   rule_selection_filter = {
     rule_names = ["Test Rule"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
   }
 }
@@ -723,15 +723,13 @@ func testSuppressionRuleSeverityFilterConfig(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "severity_test" {
   name              = "TF Test Severity Filter %s"
   description       = "Test rule severity filtering"
-  domain            = "CSPM"
-  subdomain         = "IOM"
-  suppression_reason = "false-positive"
+  reason = "false-positive"
 
   rule_selection_filter = {
     rule_severities = ["critical", "high"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     regions        = ["us-east-1"]
   }
@@ -744,15 +742,13 @@ func testSuppressionRuleTagFilterConfig(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "tag_test" {
   name              = "TF Test Tag Filter %s"
   description       = "Test asset tag filtering"
-  domain            = "CSPM"
-  subdomain         = "IOM"
-  suppression_reason = "false-positive"
+  reason = "false-positive"
 
   rule_selection_filter = {
     rule_names = ["Test Rule"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     tags           = ["Environment=test", "Team=security"]
   }
@@ -765,16 +761,14 @@ func testSuppressionRuleWithExpirationClearConfig(suffix, expirationDate string)
 resource "crowdstrike_cloud_security_suppression_rule" "expiration_clear_test" {
   name                       = "TF Test Expiration Clear %s"
   description                = "Test expiration date clearing prevention"
-  domain                     = "CSPM"
-  subdomain                  = "IOM"
-  suppression_reason         = "false-positive"
-  suppression_expiration_date = "%s"
+  reason         = "false-positive"
+  expiration_date = "%s"
 
   rule_selection_filter = {
     rule_names = ["Test Rule Clear"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     regions        = ["us-east-1"]
   }
@@ -787,16 +781,14 @@ func testSuppressionRuleExpirationClearedConfig(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "expiration_clear_test" {
   name                = "TF Test Expiration Clear %s"
   description         = "Test expiration date clearing prevention"
-  domain              = "CSPM"
-  subdomain           = "IOM"
-  suppression_reason  = "false-positive"
-  # suppression_expiration_date is intentionally removed/cleared
+  reason  = "false-positive"
+  # expiration_date is intentionally removed/cleared
 
   rule_selection_filter = {
     rule_names = ["Test Rule Clear"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     regions        = ["us-east-1"]
   }
@@ -809,16 +801,14 @@ func testSuppressionRuleWithExpirationUpdateConfig(suffix, expirationDate string
 resource "crowdstrike_cloud_security_suppression_rule" "expiration_update_test" {
   name                       = "TF Test Expiration Update %s"
   description                = "Test expiration date updating"
-  domain                     = "CSPM"
-  subdomain                  = "IOM"
-  suppression_reason         = "false-positive"
-  suppression_expiration_date = "%s"
+  reason         = "false-positive"
+  expiration_date = "%s"
 
   rule_selection_filter = {
     rule_names = ["Test Rule Update"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     regions        = ["us-east-1"]
   }
@@ -831,15 +821,13 @@ func testSuppressionRuleEmptyRuleSelectionFilter(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "empty_rule_filter_test" {
   name              = "TF Test Empty Rule Filter %s"
   description       = "Test empty rule selection filter validation"
-  domain            = "CSPM"
-  subdomain         = "IOM"
-  suppression_reason = "false-positive"
+  reason = "false-positive"
 
   rule_selection_filter = {
     # All filter criteria are intentionally empty/null
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     regions        = ["us-east-1"]
   }
@@ -852,15 +840,13 @@ func testSuppressionRuleEmptyScopeAssetFilter(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "empty_scope_filter_test" {
   name              = "TF Test Empty Scope Filter %s"
   description       = "Test empty scope asset filter validation"
-  domain            = "CSPM"
-  subdomain         = "IOM"
-  suppression_reason = "false-positive"
+  reason = "false-positive"
 
   rule_selection_filter = {
     rule_names = ["Test Rule"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     # All filter criteria are intentionally empty/null
   }
 }
@@ -877,9 +863,7 @@ data "crowdstrike_cloud_security_rules" "test_rule" {
 resource "crowdstrike_cloud_security_suppression_rule" "rule_filters_test" {
   name              = "TF Test All Rule Filters %s"
   description       = "Test all rule selection filter types"
-  domain            = "CSPM"
-  subdomain         = "IOM"
-  suppression_reason = "false-positive"
+  reason = "false-positive"
 
   rule_selection_filter = {
     rule_ids        = [for rule in data.crowdstrike_cloud_security_rules.test_rule.rules : rule.id]
@@ -890,7 +874,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "rule_filters_test" {
     rule_severities = ["critical", "high"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     regions        = ["us-east-1"]
   }
@@ -903,15 +887,13 @@ func testSuppressionRuleAllScopeAssetFiltersConfig(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "scope_filters_test" {
   name              = "TF Test All Scope Filters %s"
   description       = "Test all scope asset filter types"
-  domain            = "CSPM"
-  subdomain         = "IOM"
-  suppression_reason = "false-positive"
+  reason = "false-positive"
 
   rule_selection_filter = {
     rule_names = ["Test Rule"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     account_ids        = ["123456789012", "123456789013"]
     cloud_providers    = ["aws", "azure"]
     regions           = ["us-east-1", "us-west-2"]
@@ -930,10 +912,8 @@ func testSuppressionRuleComplexFiltersConfig(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "complex_test" {
   name              = "TF Test Complex Filters %s"
   description       = "Test complex filter combinations"
-  domain            = "CSPM"
-  subdomain         = "IOM"
-  suppression_reason = "accept-risk"
-  suppression_comment = "Complex filtering scenario for testing"
+  reason = "accept-risk"
+  comment = "Complex filtering scenario for testing"
 
   rule_selection_filter = {
     rule_providers  = ["AWS", "GCP"]
@@ -941,7 +921,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "complex_test" {
     rule_origins    = ["Custom"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers    = ["aws", "gcp", "azure"]
     service_categories = ["Compute", "Networking"]
     tags              = ["Environment=staging", "Project=test", "Owner=devops"]
@@ -955,15 +935,13 @@ func testSuppressionRuleInvalidTagFormat(suffix, invalidTag string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "invalid_tag_test" {
   name              = "TF Test Invalid Tag %s"
   description       = "Test invalid tag format validation"
-  domain            = "CSPM"
-  subdomain         = "IOM"
-  suppression_reason = "false-positive"
+  reason = "false-positive"
 
   rule_selection_filter = {
     rule_names = ["Test Rule"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     tags           = ["%s"]
   }
@@ -976,17 +954,15 @@ func testSuppressionRuleComprehensiveImportConfig(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "import_test" {
   name                = "TF Test Comprehensive Import %s"
   description         = "Comprehensive test for import functionality"
-  domain              = "CSPM"
-  subdomain           = "IOM"
-  suppression_reason  = "compensating-control"
-  suppression_comment = "Testing all attributes for import"
+  reason  = "compensating-control"
+  comment = "Testing all attributes for import"
 
   rule_selection_filter = {
     rule_names      = ["Import Test Rule 1", "Import Test Rule 2"]
     rule_severities = ["critical", "high"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     account_ids    = ["123456789012", "123456789013"]
     cloud_providers = ["aws"]
     regions        = ["us-east-1"]
@@ -1001,15 +977,13 @@ func testSuppressionRuleAdvancedUpdateStep1(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "advanced_update_test" {
   name              = "TF Test Advanced Update %s"
   description       = "Initial configuration for advanced update test"
-  domain            = "CSPM"
-  subdomain         = "IOM"
-  suppression_reason = "false-positive"
+  reason = "false-positive"
 
   rule_selection_filter = {
     rule_names = ["Initial Rule"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
   }
 }
@@ -1021,17 +995,15 @@ func testSuppressionRuleAdvancedUpdateStep2(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "advanced_update_test" {
   name              = "TF Test Advanced Update %s"
   description       = "Updated with more complex filters"
-  domain            = "CSPM"
-  subdomain         = "IOM"
-  suppression_reason = "compensating-control"
-  suppression_comment = "Added more complex filtering criteria"
+  reason = "compensating-control"
+  comment = "Added more complex filtering criteria"
 
   rule_selection_filter = {
     rule_names      = ["Initial Rule", "Additional Rule"]
     rule_severities = ["high", "medium"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws", "azure"]
     tags           = ["Environment=updated", "Status=testing"]
   }
@@ -1044,17 +1016,15 @@ func testSuppressionRuleAdvancedUpdateStep3(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "advanced_update_test" {
   name              = "TF Test Advanced Update %s"
   description       = "Completely different filter configuration"
-  domain            = "CSPM"
-  subdomain         = "IOM"
-  suppression_reason = "accept-risk"
-  suppression_comment = "Changed to completely different filter types"
+  reason = "accept-risk"
+  comment = "Changed to completely different filter types"
 
   rule_selection_filter = {
     rule_providers = ["GCP"]
     rule_origins   = ["Default"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     resource_types = ["compute.googleapis.com/Instance", "storage.googleapis.com/Bucket"]
     regions       = ["us-central1", "us-east1"]
   }
@@ -1084,40 +1054,6 @@ func TestCloudSecuritySuppressionRuleResource_ExpiredRuleCreation(t *testing.T) 
 	})
 }
 
-func TestCloudSecuritySuppressionRuleResource_ExpiredRuleDestroyAllowed(t *testing.T) {
-	randomSuffix := sdkacctest.RandString(8)
-	resourceName := "crowdstrike_cloud_security_suppression_rule.expired_destroy_test"
-
-	// Create with a future date first, then test destroy behavior
-	futureDate := time.Now().Add(24 * time.Hour).UTC().Format(time.RFC3339)
-
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			// Step 1: Create resource with future expiration date
-			{
-				Config: testSuppressionRuleValidCreateForDestroyConfig(randomSuffix, futureDate),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Destroy %s", randomSuffix)),
-					resource.TestCheckResourceAttr(resourceName, "suppression_expiration_date", futureDate),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-				),
-			},
-			// Step 2: Update config to have expired date, then destroy should work
-			// This simulates the scenario where a date expires after resource creation
-			{
-				Config: testSuppressionRuleExpiredForDestroyConfig(randomSuffix),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Destroy %s", randomSuffix)),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-				),
-			},
-			// The destroy will happen automatically at the end, testing our destroy logic
-		},
-	})
-}
-
 func TestCloudSecuritySuppressionRuleResource_ExpiredRuleWarningOnRead(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_suppression_rule.expired_warning_test"
@@ -1133,7 +1069,7 @@ func TestCloudSecuritySuppressionRuleResource_ExpiredRuleWarningOnRead(t *testin
 				Config: testSuppressionRuleExpiredWarningConfig(randomSuffix, futureDate),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Expired Warning %s", randomSuffix)),
-					resource.TestCheckResourceAttr(resourceName, "suppression_expiration_date", futureDate),
+					resource.TestCheckResourceAttr(resourceName, "expiration_date", futureDate),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -1150,16 +1086,14 @@ func testSuppressionRuleAutoRemovalConfig(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "auto_removal_test" {
   name                       = "TF Test Auto Removal %s"
   description                = "Test automatic removal when suppression expires"
-  domain                     = "CSPM"
-  subdomain                  = "IOM"
-  suppression_reason         = "false-positive"
-  suppression_expiration_date = "%s"
+  reason         = "false-positive"
+  expiration_date = "%s"
 
   rule_selection_filter = {
     rule_names = ["Test Auto Removal Rule"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     regions        = ["us-east-1"]
   }
@@ -1174,16 +1108,14 @@ func testSuppressionRuleExpiredCreateConfig(suffix string) string {
 resource "crowdstrike_cloud_security_suppression_rule" "expired_create_test" {
   name                       = "TF Test Expired Create %s"
   description                = "Test create validation with expired suppression date"
-  domain                     = "CSPM"
-  subdomain                  = "IOM"
-  suppression_reason         = "false-positive"
-  suppression_expiration_date = "%s"
+  reason         = "false-positive"
+  expiration_date = "%s"
 
   rule_selection_filter = {
     rule_names = ["Test Expired Create Rule"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     regions        = ["us-east-1"]
   }
@@ -1196,67 +1128,19 @@ func testSuppressionRuleExpiredWarningConfig(suffix, expirationDate string) stri
 resource "crowdstrike_cloud_security_suppression_rule" "expired_warning_test" {
   name                       = "TF Test Expired Warning %s"
   description                = "Test warning behavior when suppression expires"
-  domain                     = "CSPM"
-  subdomain                  = "IOM"
-  suppression_reason         = "false-positive"
-  suppression_expiration_date = "%s"
+  reason         = "false-positive"
+  expiration_date = "%s"
 
   rule_selection_filter = {
     rule_names = ["Test Expired Warning Rule"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     regions        = ["us-east-1"]
   }
 }
 `, suffix, expirationDate)
-}
-
-func testSuppressionRuleValidCreateForDestroyConfig(suffix, expirationDate string) string {
-	return fmt.Sprintf(`
-resource "crowdstrike_cloud_security_suppression_rule" "expired_destroy_test" {
-  name                       = "TF Test Destroy %s"
-  description                = "Test resource creation with valid date for destroy test"
-  domain                     = "CSPM"
-  subdomain                  = "IOM"
-  suppression_reason         = "false-positive"
-  suppression_expiration_date = "%s"
-
-  rule_selection_filter = {
-    rule_names = ["Test Valid Create for Destroy Rule"]
-  }
-
-  scope_asset_filter = {
-    cloud_providers = ["aws"]
-    regions        = ["us-east-1"]
-  }
-}
-`, suffix, expirationDate)
-}
-
-func testSuppressionRuleExpiredForDestroyConfig(suffix string) string {
-	// Set expiration to a past date to test destroy behavior with expired config
-	expiredDate := time.Now().Add(-24 * time.Hour).UTC().Format(time.RFC3339)
-	return fmt.Sprintf(`
-resource "crowdstrike_cloud_security_suppression_rule" "expired_destroy_test" {
-  name                       = "TF Test Destroy %s"
-  description                = "Test destroy behavior with expired config date"
-  domain                     = "CSPM"
-  subdomain                  = "IOM"
-  suppression_reason         = "false-positive"
-  suppression_expiration_date = "%s"
-
-  rule_selection_filter = {
-    rule_names = ["Test Valid Create for Destroy Rule"]
-  }
-
-  scope_asset_filter = {
-    cloud_providers = ["aws"]
-    regions        = ["us-east-1"]
-  }
-}
-`, suffix, expiredDate)
 }
 
 func TestCloudSecuritySuppressionRuleResource_BadRequestErrorHandling(t *testing.T) {
@@ -1266,7 +1150,7 @@ func TestCloudSecuritySuppressionRuleResource_BadRequestErrorHandling(t *testing
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
-			// Test creating a suppression rule with invalid domain to trigger a 400 Bad Request
+			// Test creating a suppression rule with an invalid rule name to trigger a 400 Bad Request
 			// This will test that GetPayloadErrorMessage correctly extracts error messages from API responses
 			{
 				Config:      testSuppressionRuleBadRequestConfig(randomSuffix),
@@ -1276,24 +1160,40 @@ func TestCloudSecuritySuppressionRuleResource_BadRequestErrorHandling(t *testing
 	})
 }
 
-// Configuration that will trigger a 400 Bad Request due to invalid subdomain.
+// Configuration that may trigger a 400 Bad Request for API testing.
 func testSuppressionRuleBadRequestConfig(suffix string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_security_suppression_rule" "bad_request_test" {
-  name              = "TF Test Bad Request %s"
+  name              = "This is a test suppression rule name that deliberately exceeds the one hundred character limit to validate proper error handling %s"
   description       = "Test bad request error handling"
-  domain            = "CSPM"  # Invalid domain to trigger 400 error
-  subdomain         = "IOC"
-  suppression_reason = "false-positive"
+  reason = "false-positive"
 
   rule_selection_filter = {
     rule_names = ["Test Rule"]
   }
 
-  scope_asset_filter = {
+  asset_filter = {
     cloud_providers = ["aws"]
     regions        = ["us-east-1"]
   }
 }
 `, suffix)
+}
+
+func testSuppressionRuleDefaultsConfig() string {
+	return `
+resource "crowdstrike_cloud_security_suppression_rule" "defaults_test" {
+  name   = "TF Test Defaults Suppression Rule"
+  reason = "false-positive"
+
+  rule_selection_filter = {
+    rule_names = ["Test Rule for Defaults"]
+  }
+
+  asset_filter = {
+    cloud_providers = ["aws"]
+    regions        = ["us-east-1"]
+  }
+}
+`
 }
