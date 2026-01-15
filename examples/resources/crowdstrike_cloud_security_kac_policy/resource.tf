@@ -37,24 +37,19 @@ resource "crowdstrike_cloud_security_kac_policy" "example" {
       ]
       namespaces = ["abc*"]
       default_rules = {
-        privileged_container = {
-          action = "Prevent"
-        }
-        sensitive_data_in_environment = {
-          action = "Disabled"
-        }
+        privileged_container          = "Alert"
+        sensitive_data_in_environment = "Disabled"
       }
     }
   ]
   default_rule_group = {
     deny_on_error = false
     image_assessment = {
-      enabled = false
+      enabled             = false
+      unassessed_handling = "Allow Without Alert"
     }
-    default_rule_overrides = {
-      container_run_as_root = {
-        action = "Prevent"
-      }
+    default_rules = {
+      container_run_as_root = "Prevent"
     }
   }
 }
