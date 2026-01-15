@@ -51,8 +51,7 @@ func (m *cloudSecurityKacPolicyResourceModel) getRuleGroupIds(ctx context.Contex
 	var ruleGroupIds []string
 
 	if !m.RuleGroups.IsNull() && !m.RuleGroups.IsUnknown() {
-		var tfRuleGroups []ruleGroupTFModel
-		diags.Append(m.RuleGroups.ElementsAs(ctx, &tfRuleGroups, false)...)
+		tfRuleGroups := flex.ExpandListAs[ruleGroupTFModel](ctx, m.RuleGroups, &diags)
 		if diags.HasError() {
 			return nil, diags
 		}
@@ -133,7 +132,7 @@ func (m *ruleGroupTFModel) wrapRuleGroup(ctx context.Context, rg *models.Policyh
 	// Convert DefaultRules from API response to TF model structure
 	defaultRules := defaultRulesTFModel{}
 	for _, apiRule := range rg.DefaultRules {
-		diags.Append(defaultRules.wrapDefaultRule(ctx, apiRule)...)
+		defaultRules.wrapDefaultRule(apiRule)
 	}
 
 	defaultRulesObj, objDiags := types.ObjectValueFrom(ctx, defaultRulesAttributeMap, defaultRules)
@@ -181,8 +180,7 @@ func (m *ruleGroupTFModel) toApiModel(ctx context.Context) (models.Policyhandler
 	}
 
 	if !m.Namespaces.IsUnknown() {
-		var namespaces []string
-		diags.Append(m.Namespaces.ElementsAs(ctx, &namespaces, false)...)
+		namespaces := flex.ExpandSetAs[string](ctx, m.Namespaces, &diags)
 		if !diags.HasError() {
 			apiModel.Namespaces = make([]*models.PolicyhandlerKACPolicyRuleGroupNamespace, len(namespaces))
 			for i, ns := range namespaces {
@@ -192,8 +190,7 @@ func (m *ruleGroupTFModel) toApiModel(ctx context.Context) (models.Policyhandler
 	}
 
 	if !m.Labels.IsUnknown() {
-		var tfLabels []labelTFModel
-		diags.Append(m.Labels.ElementsAs(ctx, &tfLabels, false)...)
+		tfLabels := flex.ExpandSetAs[labelTFModel](ctx, m.Labels, &diags)
 		if !diags.HasError() {
 			apiModel.Labels = make([]*models.PolicyhandlerKACPolicyRuleGroupLabel, len(tfLabels))
 			for i, tfLabel := range tfLabels {
