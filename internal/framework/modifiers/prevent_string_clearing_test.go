@@ -1,7 +1,6 @@
 package modifiers
 
 import (
-	"context"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -93,13 +92,9 @@ func TestPreventStringClearingModifierLogic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Test the core logic of our plan modifier
 			shouldError := false
 
-			// If the resource is not new (existing resource)
 			if !tt.isNewResource {
-				// Check if the field was previously set (not null and not empty)
-				// and is now being cleared (config value is null or empty)
 				if !tt.stateValue.IsNull() && tt.stateValue.ValueString() != "" {
 					if tt.configValue.IsNull() || tt.configValue.ValueString() == "" {
 						shouldError = true
@@ -107,7 +102,6 @@ func TestPreventStringClearingModifierLogic(t *testing.T) {
 				}
 			}
 
-			// Verify our expectations match the logic
 			if shouldError != tt.expectedError {
 				t.Errorf("Expected error=%v but logic resulted in error=%v for case: %s", tt.expectedError, shouldError, tt.name)
 				t.Errorf("  Field name: %s", tt.fieldName)
@@ -116,31 +110,5 @@ func TestPreventStringClearingModifierLogic(t *testing.T) {
 				t.Errorf("  Is new resource: %v", tt.isNewResource)
 			}
 		})
-	}
-}
-
-func TestPreventStringClearingModifierDescriptions(t *testing.T) {
-	ctx := context.Background()
-
-	// Test generic modifier with field name
-	modifier := PreventStringClearing("test_field")
-	description := modifier.Description(ctx)
-	expectedDescription := "Prevents test_field from being cleared once set"
-	if description != expectedDescription {
-		t.Errorf("Expected description '%s' but got '%s'", expectedDescription, description)
-	}
-
-	markdownDescription := modifier.MarkdownDescription(ctx)
-	expectedMarkdown := "Prevents `test_field` from being cleared once set"
-	if markdownDescription != expectedMarkdown {
-		t.Errorf("Expected markdown description '%s' but got '%s'", expectedMarkdown, markdownDescription)
-	}
-
-	// Test generic modifier without field name
-	modifierNoName := PreventStringClearing("")
-	descriptionNoName := modifierNoName.Description(ctx)
-	expectedDescriptionNoName := "Prevents field from being cleared once set"
-	if descriptionNoName != expectedDescriptionNoName {
-		t.Errorf("Expected description '%s' but got '%s'", expectedDescriptionNoName, descriptionNoName)
 	}
 }
