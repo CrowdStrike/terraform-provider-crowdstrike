@@ -38,11 +38,9 @@ func TestAccCloudAwsAccountDataSource(t *testing.T) {
 					resource.TestCheckResourceAttrPair(resourceNameAcc, "iam_role_arn", dataSourceNameAcc, "accounts.0.iam_role_arn"),
 					resource.TestCheckResourceAttrPair(resourceNameAcc, "eventbus_name", dataSourceNameAcc, "accounts.0.eventbus_name"),
 					resource.TestCheckResourceAttrPair(resourceNameAcc, "eventbus_arn", dataSourceNameAcc, "accounts.0.eventbus_arn"),
-					// Role ARN fields may differ between resource and data source when features use default roles
-					// Data source should have these values when features are enabled
-					resource.TestCheckResourceAttrSet(dataSourceNameAcc, "accounts.0.dspm_role_arn"),
-					resource.TestCheckResourceAttrSet(dataSourceNameAcc, "accounts.0.vulnerability_scanning_role_arn"),
-					resource.TestCheckResourceAttrSet(dataSourceNameAcc, "accounts.0.vulnerability_scanning_role_name"),
+					resource.TestCheckResourceAttrPair(resourceNameAcc, "dspm.role_arn", dataSourceNameAcc, "accounts.0.dspm_role_arn"),
+					resource.TestCheckResourceAttrPair(resourceNameAcc, "vulnerability_scanning.role_arn", dataSourceNameAcc, "accounts.0.vulnerability_scanning_role_arn"),
+					resource.TestCheckResourceAttrPair(resourceNameAcc, "vulnerability_scanning.role_name", dataSourceNameAcc, "accounts.0.vulnerability_scanning_role_name"),
 					resource.TestCheckResourceAttrSet(dataSourceNameAcc, "accounts.0.agentless_scanning_role_name"),
 					resource.TestCheckResourceAttrPair(resourceNameAcc, "realtime_visibility.enabled", dataSourceNameAcc, "accounts.0.realtime_visibility_enabled"),
 					resource.TestCheckResourceAttrPair(resourceNameAcc, "idp.enabled", dataSourceNameAcc, "accounts.0.idp_enabled"),
@@ -64,11 +62,9 @@ func TestAccCloudAwsAccountDataSource(t *testing.T) {
 					resource.TestCheckResourceAttrPair(resourceNameOrg, "iam_role_arn", dataSourceNameOrg, "accounts.0.iam_role_arn"),
 					resource.TestCheckResourceAttrPair(resourceNameOrg, "eventbus_name", dataSourceNameOrg, "accounts.0.eventbus_name"),
 					resource.TestCheckResourceAttrPair(resourceNameOrg, "eventbus_arn", dataSourceNameOrg, "accounts.0.eventbus_arn"),
-					// Role ARN fields may differ between resource and data source when features use default roles
-					// Data source should have these values when features are enabled
-					resource.TestCheckResourceAttrSet(dataSourceNameOrg, "accounts.0.dspm_role_arn"),
-					resource.TestCheckResourceAttrSet(dataSourceNameOrg, "accounts.0.vulnerability_scanning_role_arn"),
-					resource.TestCheckResourceAttrSet(dataSourceNameOrg, "accounts.0.vulnerability_scanning_role_name"),
+					resource.TestCheckResourceAttrPair(resourceNameOrg, "dspm.role_arn", dataSourceNameOrg, "accounts.0.dspm_role_arn"),
+					resource.TestCheckResourceAttrPair(resourceNameOrg, "vulnerability_scanning.role_arn", dataSourceNameOrg, "accounts.0.vulnerability_scanning_role_arn"),
+					resource.TestCheckResourceAttrPair(resourceNameOrg, "vulnerability_scanning.role_name", dataSourceNameOrg, "accounts.0.vulnerability_scanning_role_name"),
 					resource.TestCheckResourceAttrSet(dataSourceNameOrg, "accounts.0.agentless_scanning_role_name"),
 					resource.TestCheckResourceAttrPair(resourceNameOrg, "realtime_visibility.enabled", dataSourceNameOrg, "accounts.0.realtime_visibility_enabled"),
 					resource.TestCheckResourceAttrPair(resourceNameOrg, "idp.enabled", dataSourceNameOrg, "accounts.0.idp_enabled"),
