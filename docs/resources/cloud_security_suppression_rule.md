@@ -102,7 +102,7 @@ output "suppression_rule" {
 ### Optional
 
 - `asset_filter` (Attributes) Filter criteria for scope assets. (see [below for nested schema](#nestedatt--asset_filter))
-- `comment` (String) Comment for suppression. This will be attached to the Findings suppressed by this rule.
+- `comment` (String) Comment for suppression. This will be attached to the findings suppressed by this rule.
 - `description` (String) Description of the suppression rule.
 - `expiration_date` (String) Expiration date for suppression. If defined, must be in RFC3339 format (e.g., `2025-08-11T10:00:00Z`). Once set, this field cannot be cleared. The suppression rule will still exist after expiration and can be reset by updating the expiration date.
 - `rule_selection_filter` (Attributes) Filter criteria for rule selection. (see [below for nested schema](#nestedatt--rule_selection_filter))
