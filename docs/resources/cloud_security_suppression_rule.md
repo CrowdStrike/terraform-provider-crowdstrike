@@ -117,7 +117,7 @@ output "suppression_rule" {
 
 Optional:
 
-- `account_ids` (Set of String) Set of account IDs. An Asset will match if it belongs to an account included in this set.
+- `account_ids` (Set of String) Set of cloud account IDs. An Asset will match if it belongs to an account included in this set.
 - `cloud_group_ids` (Set of String) Set of cloud group IDs. An Asset will match if it belongs to a Cloud Group whose ID is included in this set.
 - `cloud_providers` (Set of String) Set of cloud providers. Examples: `aws`, `azure`, `gcp`. An Asset will match if it belongs to a cloud provider included in this set.
 - `regions` (Set of String) Set of regions. Examples: `eu-central-1`, `eastus`, `us-west-1`. An Asset will match if it is located in a region included in this set.
