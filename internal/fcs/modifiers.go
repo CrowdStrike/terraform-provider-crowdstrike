@@ -20,6 +20,11 @@ type roleArnStateModifier struct {
 }
 
 func (m roleArnStateModifier) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	// Do nothing if there is no state value.
+	if req.StateValue.IsNull() {
+		return
+	}
+
 	// Do nothing if there is an unknown configuration value, otherwise interpolation gets messed up.
 	if req.ConfigValue.IsUnknown() {
 		return
@@ -32,36 +37,7 @@ func (m roleArnStateModifier) PlanModifyString(ctx context.Context, req planmodi
 		return
 	}
 
-	// Check if the associated feature is disabled - if so, these fields should be null and stable
-	switch m.roleType {
-	case roleTypeDSPM:
-		// DSPM role fields should be null only if BOTH DSPM and vulnerability scanning are disabled
-		// This is because vulnerability scanning roles can be shared with DSPM
-		dspmEnabled := plan.DSPM != nil && plan.DSPM.Enabled.ValueBool()
-		vulnEnabled := plan.VulnerabilityScanning != nil && plan.VulnerabilityScanning.Enabled.ValueBool()
-		if !dspmEnabled && !vulnEnabled {
-			// Both features disabled, role fields should be null and not unknown
-			resp.PlanValue = types.StringNull()
-			return
-		}
-	case roleTypeVulnerabilityScanning:
-		// Vulnerability scanning role fields should be null only if BOTH DSPM and vulnerability scanning are disabled
-		// This is because DSPM roles can be shared with vulnerability scanning
-		dspmEnabled := plan.DSPM != nil && plan.DSPM.Enabled.ValueBool()
-		vulnEnabled := plan.VulnerabilityScanning != nil && plan.VulnerabilityScanning.Enabled.ValueBool()
-		if !dspmEnabled && !vulnEnabled {
-			// Both features disabled, role fields should be null and not unknown
-			resp.PlanValue = types.StringNull()
-			return
-		}
-	}
-
-	// If there is no state value, let the resource compute it
-	if req.StateValue.IsNull() {
-		return
-	}
-
-	// Get the state to compare for changes
+	// Get the state to compare
 	var state cloudAWSAccountModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -81,9 +57,8 @@ func (m roleArnStateModifier) PlanModifyString(ctx context.Context, req planmodi
 			resp.PlanValue = types.StringUnknown()
 			return
 		}
-	}
 
-	// Use state value if no changes
+	}
 	resp.PlanValue = req.StateValue
 }
 
@@ -108,6 +83,11 @@ type agentlessScanningRoleNameModifier struct {
 }
 
 func (m agentlessScanningRoleNameModifier) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	// Do nothing if there is no state value.
+	if req.StateValue.IsNull() {
+		return
+	}
+
 	// Do nothing if there is an unknown configuration value, otherwise interpolation gets messed up.
 	if req.ConfigValue.IsUnknown() {
 		return
@@ -120,22 +100,7 @@ func (m agentlessScanningRoleNameModifier) PlanModifyString(ctx context.Context,
 		return
 	}
 
-	// Check if both DSPM and vulnerability scanning are disabled - if so, this field should be null
-	dspmEnabled := plan.DSPM != nil && plan.DSPM.Enabled.ValueBool()
-	vulnEnabled := plan.VulnerabilityScanning != nil && plan.VulnerabilityScanning.Enabled.ValueBool()
-
-	if !dspmEnabled && !vulnEnabled {
-		// Neither feature is enabled, agentless scanning role should be null
-		resp.PlanValue = types.StringNull()
-		return
-	}
-
-	// If there is no state value, let the resource compute it
-	if req.StateValue.IsNull() {
-		return
-	}
-
-	// Get the state to compare for changes
+	// Get the state to compare
 	var state cloudAWSAccountModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {

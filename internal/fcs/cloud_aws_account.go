@@ -11,7 +11,6 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_aws_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	privatestate "github.com/crowdstrike/terraform-provider-crowdstrike/internal/private_state"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
@@ -734,6 +733,7 @@ func updateFeatureStatesFromProducts(_ context.Context, model *cloudAWSAccountMo
 		case "idp":
 			if model.IDP != nil {
 				model.IDP.Enabled = types.BoolValue(true)
+				model.IDP.Status = types.StringValue("configured")
 			}
 		}
 	}
@@ -1076,8 +1076,6 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 	m.CloudTrailBucketName = types.StringValue(cloudAccount.ResourceMetadata.AwsCloudtrailBucketName)
 
 	// Handle settings - both old realtime visibility settings and DSPM/Vuln scanning settings
-	var dspmRoleArn, vulnScanningRoleArn string
-
 	settings := newSettingsConfig(ctx, cloudAccount.Settings, &diags)
 	if diags.HasError() {
 		return diags
@@ -1088,83 +1086,46 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 		m.DeploymentMethod = types.StringValue("terraform-native")
 	}
 
-	dspmRoleNameFromSettings := settings.DSPMRoleName.ValueString()
-	dspmHostAccountID := settings.DSPMHostAccountID.ValueString()
-	vulnScanningRoleNameFromSettings := settings.VulnerabilityScanningRoleName.ValueString()
-	vulnScanningHostAccountID := settings.VulnerabilityScanningHostAccountID.ValueString()
-
-	// Extract actual role names (in case settings contain ARNs)
-	dspmRoleName := getRoleNameFromArn(dspmRoleNameFromSettings)
-	vulnScanningRoleName := getRoleNameFromArn(vulnScanningRoleNameFromSettings)
-
-	// Construct ARNs if we have role names and host account IDs
 	partition := "aws"
 	if cloudAccount.AccountType == "gov" {
 		partition = "aws-us-gov"
 	}
 
-	// For ARN construction, use the original settings values if they're already ARNs,
-	// otherwise construct them from role name and host account ID (defaulting to same account)
+	var dspmRoleArn string
+	dspmRoleNameFromSettings := settings.DSPMRoleName.ValueString()
+	dspmRoleName := getRoleNameFromArn(dspmRoleNameFromSettings)
 	if strings.HasPrefix(dspmRoleNameFromSettings, "arn:") {
 		dspmRoleArn = dspmRoleNameFromSettings
 	} else if dspmRoleName != "" {
-		hostAccountID := dspmHostAccountID
+		hostAccountID := settings.DSPMHostAccountID.ValueString()
 		if hostAccountID == "" {
-			hostAccountID = cloudAccount.AccountID // Default to same account
+			hostAccountID = cloudAccount.AccountID
 		}
 		dspmRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partition, hostAccountID, dspmRoleName)
 	}
+	m.DspmRoleName = types.StringValue(dspmRoleName)
+	m.DspmRoleArn = types.StringValue(dspmRoleArn)
 
+	var vulnScanningRoleArn string
+	vulnScanningRoleNameFromSettings := settings.VulnerabilityScanningRoleName.ValueString()
+	vulnScanningRoleName := getRoleNameFromArn(vulnScanningRoleNameFromSettings)
 	if strings.HasPrefix(vulnScanningRoleNameFromSettings, "arn:") {
 		vulnScanningRoleArn = vulnScanningRoleNameFromSettings
 	} else if vulnScanningRoleName != "" {
-		hostAccountID := vulnScanningHostAccountID
+		hostAccountID := settings.VulnerabilityScanningHostAccountID.ValueString()
 		if hostAccountID == "" {
-			hostAccountID = cloudAccount.AccountID // Default to same account
+			hostAccountID = cloudAccount.AccountID
 		}
 		vulnScanningRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partition, hostAccountID, vulnScanningRoleName)
 	}
+	m.VulnerabilityScanningRoleName = types.StringValue(vulnScanningRoleName)
+	m.VulnerabilityScanningRoleArn = types.StringValue(vulnScanningRoleArn)
 
-	//
-	if !m.DSPM.Enabled.ValueBool() && !m.VulnerabilityScanning.Enabled.ValueBool() {
-		m.VulnerabilityScanningRoleArn = types.StringNull()
-		m.VulnerabilityScanningRoleName = types.StringNull()
-		m.DspmRoleArn = types.StringNull()
-		m.DspmRoleName = types.StringNull()
-	} else {
-		switch {
-		case dspmRoleArn != "":
-			m.DspmRoleArn = flex.StringValueToFramework(dspmRoleArn)
-			m.DspmRoleName = flex.StringValueToFramework(dspmRoleName)
-		case vulnScanningRoleArn != "":
-			m.DspmRoleArn = flex.StringValueToFramework(vulnScanningRoleArn)
-			m.DspmRoleName = flex.StringValueToFramework(vulnScanningRoleName)
-		default:
-			m.DspmRoleArn = flex.StringValueToFramework("")
-			m.DspmRoleName = flex.StringValueToFramework("")
-		}
-
-		switch {
-		case vulnScanningRoleArn != "":
-			m.VulnerabilityScanningRoleArn = flex.StringValueToFramework(vulnScanningRoleArn)
-			m.VulnerabilityScanningRoleName = flex.StringValueToFramework(vulnScanningRoleName)
-		case dspmRoleArn != "":
-			m.VulnerabilityScanningRoleArn = flex.StringValueToFramework(dspmRoleArn)
-			m.VulnerabilityScanningRoleName = flex.StringValueToFramework(dspmRoleName)
-		default:
-			m.VulnerabilityScanningRoleArn = flex.StringValueToFramework("")
-			m.VulnerabilityScanningRoleName = flex.StringValueToFramework("")
-		}
-
-		var agentlessRoleName string
-		if m.DSPM != nil && m.DSPM.Enabled.ValueBool() {
-			agentlessRoleName = dspmRoleName
-		} else {
-			agentlessRoleName = vulnScanningRoleName
-		}
-
-		m.AgentlessScanningRoleName = flex.StringValueToFramework(agentlessRoleName)
+	agentlessScanningRoleName := dspmRoleName
+	if !m.DSPM.Enabled.ValueBool() && m.VulnerabilityScanning.Enabled.ValueBool() {
+		agentlessScanningRoleName = vulnScanningRoleName
 	}
+	m.AgentlessScanningRoleName = types.StringValue(agentlessScanningRoleName)
 
 	updateFeatureStatesFromProducts(ctx, m, cloudAccount.Products, cloudAccount)
 

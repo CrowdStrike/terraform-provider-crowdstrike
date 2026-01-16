@@ -1,12 +1,19 @@
 package fcs_test
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"testing"
 
+	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 )
@@ -484,8 +491,6 @@ func TestAccCloudAwsAccountResourceAgentlessRoleUpdates(t *testing.T) {
 					// Computed fields
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
 					resource.TestCheckResourceAttr(fullResourceName, "dspm_role_name", testDSPMRoleName),
-					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
 					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", testDSPMRoleName),
 				),
 			},
@@ -1325,4 +1330,180 @@ func TestAccCloudAwsAccountResource_RegressionDisableDSPMThenVulnScanning(t *tes
 			},
 		},
 	})
+}
+
+func TestBuildProductsFromModel(t *testing.T) {
+	tests := []struct {
+		name     string
+		model    fcs.CloudAWSAccountModel
+		expected []*models.RestAccountProductRequestExtV1
+	}{
+		{
+			name:  "nil features defaults to asset inventory only",
+			model: fcs.CloudAWSAccountModel{},
+			expected: []*models.RestAccountProductRequestExtV1{
+				{
+					Product:  utils.Addr("cspm"),
+					Features: []string{"iom"},
+				},
+			},
+		},
+		{
+			name: "all features enabled",
+			model: fcs.CloudAWSAccountModel{
+				AssetInventory:        &fcs.AssetInventoryOptions{Enabled: types.BoolValue(true)},
+				RealtimeVisibility:    &fcs.RealtimeVisibilityOptions{Enabled: types.BoolValue(true)},
+				SensorManagement:      &fcs.SensorManagementOptions{Enabled: types.BoolValue(true)},
+				DSPM:                  &fcs.DSPMOptions{Enabled: types.BoolValue(true)},
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{Enabled: types.BoolValue(true)},
+				IDP:                   &fcs.IDPOptions{Enabled: types.BoolValue(true)},
+			},
+			expected: []*models.RestAccountProductRequestExtV1{
+				{
+					Product:  utils.Addr("cspm"),
+					Features: []string{"iom", "ioa", "sensormgmt", "dspm", "vulnerability_scanning"},
+				},
+				{
+					Product:  utils.Addr("idp"),
+					Features: []string{"default"},
+				},
+			},
+		},
+		{
+			name: "IDP separate from cspm features",
+			model: fcs.CloudAWSAccountModel{
+				IDP: &fcs.IDPOptions{Enabled: types.BoolValue(true)},
+			},
+			expected: []*models.RestAccountProductRequestExtV1{
+				{
+					Product:  utils.Addr("cspm"),
+					Features: []string{"iom"},
+				},
+				{
+					Product:  utils.Addr("idp"),
+					Features: []string{"default"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &fcs.CloudAWSAccountResource{}
+			result := fcs.BuildProductsFromModel(r, tt.model)
+
+			require.Equal(t, len(tt.expected), len(result))
+
+			for i, expectedProduct := range tt.expected {
+				assert.Equal(t, *expectedProduct.Product, *result[i].Product)
+				assert.ElementsMatch(t, expectedProduct.Features, result[i].Features)
+			}
+		})
+	}
+}
+
+func TestUpdateFeatureStatesFromProducts(t *testing.T) {
+	tests := []struct {
+		name          string
+		initialModel  fcs.CloudAWSAccountModel
+		products      []*models.DomainProductFeatures
+		cloudAccount  *models.DomainCloudAWSAccountV1
+		expectedModel fcs.CloudAWSAccountModel
+	}{
+		{
+			name: "update from products with all features",
+			initialModel: fcs.CloudAWSAccountModel{
+				RealtimeVisibility:    &fcs.RealtimeVisibilityOptions{Enabled: types.BoolValue(false)},
+				SensorManagement:      &fcs.SensorManagementOptions{Enabled: types.BoolValue(false)},
+				DSPM:                  &fcs.DSPMOptions{Enabled: types.BoolValue(false)},
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{Enabled: types.BoolValue(false)},
+				IDP:                   &fcs.IDPOptions{Enabled: types.BoolValue(false)},
+			},
+			products: []*models.DomainProductFeatures{
+				{
+					Product:  utils.Addr("cspm"),
+					Features: []string{"iom", "ioa", "sensormgmt", "dspm", "vulnerability_scanning"},
+				},
+				{
+					Product:  utils.Addr("idp"),
+					Features: []string{"default"},
+				},
+			},
+			cloudAccount: &models.DomainCloudAWSAccountV1{
+				ResourceMetadata: &models.DomainAWSAccountResourceMetadata{
+					AwsCloudtrailRegion: "us-east-1",
+				},
+			},
+			expectedModel: fcs.CloudAWSAccountModel{
+				RealtimeVisibility: &fcs.RealtimeVisibilityOptions{
+					Enabled:          types.BoolValue(true),
+					CloudTrailRegion: types.StringValue("us-east-1"),
+				},
+				SensorManagement:      &fcs.SensorManagementOptions{Enabled: types.BoolValue(true)},
+				DSPM:                  &fcs.DSPMOptions{Enabled: types.BoolValue(true)},
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{Enabled: types.BoolValue(true)},
+				IDP: &fcs.IDPOptions{
+					Enabled: types.BoolValue(true),
+					Status:  types.StringValue("configured"),
+				},
+			},
+		},
+		{
+			name: "nil IDP remains nil",
+			initialModel: fcs.CloudAWSAccountModel{
+				IDP: nil,
+			},
+			products: []*models.DomainProductFeatures{
+				{
+					Product:  utils.Addr("cspm"),
+					Features: []string{"iom"},
+				},
+			},
+			cloudAccount: &models.DomainCloudAWSAccountV1{
+				ResourceMetadata: &models.DomainAWSAccountResourceMetadata{},
+			},
+			expectedModel: fcs.CloudAWSAccountModel{
+				IDP: nil,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			fcs.UpdateFeatureStatesFromProducts(ctx, &tt.initialModel, tt.products, tt.cloudAccount)
+
+			if tt.expectedModel.RealtimeVisibility != nil {
+				require.NotNil(t, tt.initialModel.RealtimeVisibility)
+				assert.Equal(t, tt.expectedModel.RealtimeVisibility.Enabled, tt.initialModel.RealtimeVisibility.Enabled)
+				if !tt.expectedModel.RealtimeVisibility.CloudTrailRegion.IsNull() {
+					assert.Equal(t, tt.expectedModel.RealtimeVisibility.CloudTrailRegion, tt.initialModel.RealtimeVisibility.CloudTrailRegion)
+				}
+			}
+
+			if tt.expectedModel.SensorManagement != nil {
+				require.NotNil(t, tt.initialModel.SensorManagement)
+				assert.Equal(t, tt.expectedModel.SensorManagement.Enabled, tt.initialModel.SensorManagement.Enabled)
+			}
+
+			if tt.expectedModel.DSPM != nil {
+				require.NotNil(t, tt.initialModel.DSPM)
+				assert.Equal(t, tt.expectedModel.DSPM.Enabled, tt.initialModel.DSPM.Enabled)
+			}
+
+			if tt.expectedModel.VulnerabilityScanning != nil {
+				require.NotNil(t, tt.initialModel.VulnerabilityScanning)
+				assert.Equal(t, tt.expectedModel.VulnerabilityScanning.Enabled, tt.initialModel.VulnerabilityScanning.Enabled)
+			}
+
+			if tt.expectedModel.IDP != nil {
+				require.NotNil(t, tt.initialModel.IDP)
+				assert.Equal(t, tt.expectedModel.IDP.Enabled, tt.initialModel.IDP.Enabled)
+				assert.Equal(t, tt.expectedModel.IDP.Status, tt.initialModel.IDP.Status)
+			} else {
+				assert.Nil(t, tt.initialModel.IDP)
+			}
+		})
+	}
 }
