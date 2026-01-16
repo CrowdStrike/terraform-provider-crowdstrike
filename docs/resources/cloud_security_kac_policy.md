@@ -101,6 +101,7 @@ output "cloud_security_kac_policy" {
 ### Read-Only
 
 - `id` (String) Identifier for the Cloud Security KAC Policy.
+- `last_updated` (String) Timestamp of the last Terraform update of the resource.
 
 <a id="nestedatt--default_rule_group"></a>
 ### Nested Schema for `default_rule_group`
