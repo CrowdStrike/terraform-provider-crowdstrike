@@ -77,22 +77,22 @@ type cloudSecuritySuppressionRuleResourceModel struct {
 }
 
 type ruleSelectionFilterModel struct {
-	RuleIds        types.Set `tfsdk:"rule_ids"`
-	RuleNames      types.Set `tfsdk:"rule_names"`
-	RuleOrigins    types.Set `tfsdk:"rule_origins"`
-	RuleServices   types.Set `tfsdk:"rule_services"`
-	RuleProviders  types.Set `tfsdk:"rule_providers"`
-	RuleSeverities types.Set `tfsdk:"rule_severities"`
+	Ids        types.Set `tfsdk:"ids"`
+	Names      types.Set `tfsdk:"names"`
+	Origins    types.Set `tfsdk:"origins"`
+	Services   types.Set `tfsdk:"services"`
+	Providers  types.Set `tfsdk:"providers"`
+	Severities types.Set `tfsdk:"severities"`
 }
 
 func (m ruleSelectionFilterModel) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"rule_ids":        types.SetType{ElemType: types.StringType},
-		"rule_names":      types.SetType{ElemType: types.StringType},
-		"rule_origins":    types.SetType{ElemType: types.StringType},
-		"rule_providers":  types.SetType{ElemType: types.StringType},
-		"rule_services":   types.SetType{ElemType: types.StringType},
-		"rule_severities": types.SetType{ElemType: types.StringType},
+		"ids":        types.SetType{ElemType: types.StringType},
+		"names":      types.SetType{ElemType: types.StringType},
+		"origins":    types.SetType{ElemType: types.StringType},
+		"providers":  types.SetType{ElemType: types.StringType},
+		"services":   types.SetType{ElemType: types.StringType},
+		"severities": types.SetType{ElemType: types.StringType},
 	}
 }
 
@@ -257,7 +257,7 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 				MarkdownDescription: "Filter criteria for rule selection.",
 				Optional:            true,
 				Attributes: map[string]schema.Attribute{
-					"rule_ids": schema.SetAttribute{
+					"ids": schema.SetAttribute{
 						Description: "Set of rule IDs. A rule will match if its ID is included in this set.",
 						ElementType: types.StringType,
 						Optional:    true,
@@ -268,7 +268,7 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 							),
 						},
 					},
-					"rule_names": schema.SetAttribute{
+					"names": schema.SetAttribute{
 						Description: "Set of rule names. A rule will match if its name is included in this set.",
 						ElementType: types.StringType,
 						Optional:    true,
@@ -279,7 +279,7 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 							),
 						},
 					},
-					"rule_origins": schema.SetAttribute{
+					"origins": schema.SetAttribute{
 						MarkdownDescription: "Set of rule origins. One of: `Custom`, `Default`. A rule will match if its origin is included in this set.",
 						ElementType:         types.StringType,
 						Optional:            true,
@@ -289,7 +289,7 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 							),
 						},
 					},
-					"rule_providers": schema.SetAttribute{
+					"providers": schema.SetAttribute{
 						MarkdownDescription: "Set of rule cloud providers. Examples: `AWS`, `Azure`, `GCP`, `OCI`. A rule will match if its cloud provider is included in this set.",
 						ElementType:         types.StringType,
 						Optional:            true,
@@ -300,7 +300,7 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 							),
 						},
 					},
-					"rule_services": schema.SetAttribute{
+					"services": schema.SetAttribute{
 						MarkdownDescription: "Set of cloud services. Examples: `Azure Cosmos DB`, `CloudFront`, `Compute Engine`, `EC2`, `Elasticache`, `Virtual Network`. A rule will match if its cloud service is included in this set.",
 						ElementType:         types.StringType,
 						Optional:            true,
@@ -311,7 +311,7 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 							),
 						},
 					},
-					"rule_severities": schema.SetAttribute{
+					"severities": schema.SetAttribute{
 						MarkdownDescription: "Set of rule severities. One of: `critical`, `high`, `medium`, `informational`. A rule will match if its severity is included in this set.",
 						ElementType:         types.StringType,
 						Optional:            true,
@@ -328,7 +328,7 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 				Optional:            true,
 				Attributes: map[string]schema.Attribute{
 					"account_ids": schema.SetAttribute{
-						Description: "Set of account IDs. An Asset will match if it belongs to an account included in this set.",
+						Description: "Set of cloud account IDs. An Asset will match if it belongs to an account included in this set.",
 						ElementType: types.StringType,
 						Optional:    true,
 						Validators: []validator.Set{
@@ -514,19 +514,19 @@ func (r *cloudSecuritySuppressionRuleResource) validateRuleSelectionFilter(
 		resp.Diagnostics.AddAttributeError(
 			path.Root("rule_selection_filter"),
 			"Empty Rule Selection Filter",
-			"When rule_selection_filter is defined, at least one filter criterion must be specified (rule_ids, rule_names, rule_origins, rule_providers, rule_services, or rule_severities).",
+			"When rule_selection_filter is defined, at least one filter criterion must be specified (ids, names, origins, providers, services, or severities).",
 		)
 	}
 }
 
 // isRuleSelectionFilterEmpty checks if all rule selection filter fields are empty.
 func (r *cloudSecuritySuppressionRuleResource) isRuleSelectionFilterEmpty(filter ruleSelectionFilterModel) bool {
-	return (filter.RuleIds.IsNull() || len(filter.RuleIds.Elements()) == 0) &&
-		(filter.RuleNames.IsNull() || len(filter.RuleNames.Elements()) == 0) &&
-		(filter.RuleOrigins.IsNull() || len(filter.RuleOrigins.Elements()) == 0) &&
-		(filter.RuleProviders.IsNull() || len(filter.RuleProviders.Elements()) == 0) &&
-		(filter.RuleServices.IsNull() || len(filter.RuleServices.Elements()) == 0) &&
-		(filter.RuleSeverities.IsNull() || len(filter.RuleSeverities.Elements()) == 0)
+	return (filter.Ids.IsNull() || len(filter.Ids.Elements()) == 0) &&
+		(filter.Names.IsNull() || len(filter.Names.Elements()) == 0) &&
+		(filter.Origins.IsNull() || len(filter.Origins.Elements()) == 0) &&
+		(filter.Providers.IsNull() || len(filter.Providers.Elements()) == 0) &&
+		(filter.Services.IsNull() || len(filter.Services.Elements()) == 0) &&
+		(filter.Severities.IsNull() || len(filter.Severities.Elements()) == 0)
 }
 
 // validateAssetFilter validates the scope asset filter is not empty when defined.
@@ -971,27 +971,27 @@ func (c ruleSelectionFilterModel) Expand(ctx context.Context) (*models.Suppressi
 	var ruleSelectionFilter models.SuppressionrulesRuleSelectionFilter
 	var diags diag.Diagnostics
 
-	if diags = c.RuleIds.ElementsAs(ctx, &ruleSelectionFilter.RuleIds, false); diags.HasError() {
+	if diags = c.Ids.ElementsAs(ctx, &ruleSelectionFilter.RuleIds, false); diags.HasError() {
 		return nil, diags
 	}
 
-	if diags = c.RuleNames.ElementsAs(ctx, &ruleSelectionFilter.RuleNames, false); diags.HasError() {
+	if diags = c.Names.ElementsAs(ctx, &ruleSelectionFilter.RuleNames, false); diags.HasError() {
 		return nil, diags
 	}
 
-	if diags = c.RuleOrigins.ElementsAs(ctx, &ruleSelectionFilter.RuleOrigins, false); diags.HasError() {
+	if diags = c.Origins.ElementsAs(ctx, &ruleSelectionFilter.RuleOrigins, false); diags.HasError() {
 		return nil, diags
 	}
 
-	if diags = c.RuleProviders.ElementsAs(ctx, &ruleSelectionFilter.RuleProviders, false); diags.HasError() {
+	if diags = c.Providers.ElementsAs(ctx, &ruleSelectionFilter.RuleProviders, false); diags.HasError() {
 		return nil, diags
 	}
 
-	if diags = c.RuleServices.ElementsAs(ctx, &ruleSelectionFilter.RuleServices, false); diags.HasError() {
+	if diags = c.Services.ElementsAs(ctx, &ruleSelectionFilter.RuleServices, false); diags.HasError() {
 		return nil, diags
 	}
 
-	if diags = c.RuleSeverities.ElementsAs(ctx, &ruleSelectionFilter.RuleSeverities, false); diags.HasError() {
+	if diags = c.Severities.ElementsAs(ctx, &ruleSelectionFilter.RuleSeverities, false); diags.HasError() {
 		return nil, diags
 	}
 
@@ -1135,52 +1135,52 @@ func (m *cloudSecuritySuppressionRuleResourceModel) setRuleSelectionFilter(ctx c
 			}
 		}
 
-		ruleSelectionFilter["rule_ids"], diags = fwtypes.OptionalStringSet(ctx, rule.RuleSelectionFilter.RuleIds)
+		ruleSelectionFilter["ids"], diags = fwtypes.OptionalStringSet(ctx, rule.RuleSelectionFilter.RuleIds)
 		if diags.HasError() {
 			return diags
 		}
-		ruleSelectionFilter["rule_names"], diags = fwtypes.OptionalStringSet(ctx, rule.RuleSelectionFilter.RuleNames)
+		ruleSelectionFilter["names"], diags = fwtypes.OptionalStringSet(ctx, rule.RuleSelectionFilter.RuleNames)
 		if diags.HasError() {
 			return diags
 		}
-		ruleSelectionFilter["rule_origins"], diags = fwtypes.OptionalStringSet(ctx, rule.RuleSelectionFilter.RuleOrigins)
+		ruleSelectionFilter["origins"], diags = fwtypes.OptionalStringSet(ctx, rule.RuleSelectionFilter.RuleOrigins)
 		if diags.HasError() {
 			return diags
 		}
-		ruleSelectionFilter["rule_providers"], diags = fwtypes.OptionalStringSet(ctx, rule.RuleSelectionFilter.RuleProviders)
+		ruleSelectionFilter["providers"], diags = fwtypes.OptionalStringSet(ctx, rule.RuleSelectionFilter.RuleProviders)
 		if diags.HasError() {
 			return diags
 		}
-		ruleSelectionFilter["rule_services"], diags = fwtypes.OptionalStringSet(ctx, rule.RuleSelectionFilter.RuleServices)
+		ruleSelectionFilter["services"], diags = fwtypes.OptionalStringSet(ctx, rule.RuleSelectionFilter.RuleServices)
 		if diags.HasError() {
 			return diags
 		}
-		ruleSelectionFilter["rule_severities"], diags = fwtypes.OptionalStringSet(ctx, convertedRuleSeverities)
+		ruleSelectionFilter["severities"], diags = fwtypes.OptionalStringSet(ctx, convertedRuleSeverities)
 		if diags.HasError() {
 			return diags
 		}
 	} else {
-		ruleSelectionFilter["rule_ids"], diags = fwtypes.OptionalStringSet(ctx, nil)
+		ruleSelectionFilter["ids"], diags = fwtypes.OptionalStringSet(ctx, nil)
 		if diags.HasError() {
 			return diags
 		}
-		ruleSelectionFilter["rule_names"], diags = fwtypes.OptionalStringSet(ctx, nil)
+		ruleSelectionFilter["names"], diags = fwtypes.OptionalStringSet(ctx, nil)
 		if diags.HasError() {
 			return diags
 		}
-		ruleSelectionFilter["rule_origins"], diags = fwtypes.OptionalStringSet(ctx, nil)
+		ruleSelectionFilter["origins"], diags = fwtypes.OptionalStringSet(ctx, nil)
 		if diags.HasError() {
 			return diags
 		}
-		ruleSelectionFilter["rule_providers"], diags = fwtypes.OptionalStringSet(ctx, nil)
+		ruleSelectionFilter["providers"], diags = fwtypes.OptionalStringSet(ctx, nil)
 		if diags.HasError() {
 			return diags
 		}
-		ruleSelectionFilter["rule_services"], diags = fwtypes.OptionalStringSet(ctx, nil)
+		ruleSelectionFilter["services"], diags = fwtypes.OptionalStringSet(ctx, nil)
 		if diags.HasError() {
 			return diags
 		}
-		ruleSelectionFilter["rule_severities"], diags = fwtypes.OptionalStringSet(ctx, nil)
+		ruleSelectionFilter["severities"], diags = fwtypes.OptionalStringSet(ctx, nil)
 		if diags.HasError() {
 			return diags
 		}

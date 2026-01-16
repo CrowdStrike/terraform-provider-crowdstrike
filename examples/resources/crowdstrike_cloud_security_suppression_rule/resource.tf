@@ -19,7 +19,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "example" {
   comment     = "This is a known false positive in our development environment"
 
   rule_selection_filter = {
-    rule_names = ["IAM root user has an active access key"]
+    names = ["IAM root user has an active access key"]
   }
 
   asset_filter = {
@@ -35,8 +35,8 @@ resource "crowdstrike_cloud_security_suppression_rule" "multi_filter" {
   description = "Suppress high and critical findings for specific cloud providers and regions"
 
   rule_selection_filter = {
-    rule_severities = ["critical", "high"]
-    rule_providers  = ["AWS", "Azure"]
+    severities = ["critical", "high"]
+    providers  = ["AWS", "Azure"]
   }
 
   asset_filter = {
@@ -54,7 +54,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "temporary" {
   expiration_date = "2025-12-31T23:59:59Z"
 
   rule_selection_filter = {
-    rule_origins = ["Default"]
+    origins = ["Default"]
   }
 
   asset_filter = {
