@@ -67,7 +67,7 @@ func TestCloudSecuritySuppressionRuleResource_EC2Scenario(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "description", "Suppress EC2 instance excessive response hop limit rule for specific instances"),
 					resource.TestCheckResourceAttr(resourceName, "reason", "accept-risk"),
 					resource.TestCheckResourceAttr(resourceName, "comment", "These instances are configured correctly for our architecture"),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_names.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.names.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.cloud_providers.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.regions.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.resource_types.#", "1"),
@@ -100,7 +100,7 @@ func TestCloudSecuritySuppressionRuleResource_SSMScenario(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "description", "Suppress SSM parameter encryption rule for legacy parameters"),
 					resource.TestCheckResourceAttr(resourceName, "reason", "compensating-control"),
 					resource.TestCheckResourceAttr(resourceName, "comment", "Legacy parameters with alternative encryption"),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_names.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.names.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.cloud_providers.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.regions.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.resource_types.#", "1"),
@@ -127,7 +127,7 @@ func TestCloudSecuritySuppressionRuleResource_AccountLevelMultiRule(t *testing.T
 					resource.TestCheckResourceAttr(resourceName, "description", "Suppress multiple backup and monitoring rules for test account"),
 					resource.TestCheckResourceAttr(resourceName, "reason", "false-positive"),
 					resource.TestCheckResourceAttr(resourceName, "comment", "Test account with different compliance requirements"),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_names.#", "4"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.names.#", "4"),
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.cloud_providers.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.regions.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.resource_types.#", "1"),
@@ -300,7 +300,7 @@ func TestCloudSecuritySuppressionRuleResource_RuleSeverityFilters(t *testing.T) 
 				Config: testSuppressionRuleSeverityFilterConfig(randomSuffix),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Severity Filter %s", randomSuffix)),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_severities.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.severities.#", "2"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -363,12 +363,12 @@ func TestCloudSecuritySuppressionRuleResource_AllRuleSelectionFilters(t *testing
 				Config: testSuppressionRuleAllRuleSelectionFiltersConfig(randomSuffix),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test All Rule Filters %s", randomSuffix)),
-					resource.TestCheckResourceAttrSet(resourceName, "rule_selection_filter.rule_ids.#"),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_names.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_origins.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_providers.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_services.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_severities.#", "2"),
+					resource.TestCheckResourceAttrSet(resourceName, "rule_selection_filter.ids.#"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.names.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.origins.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.providers.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.services.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.severities.#", "2"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -417,9 +417,9 @@ func TestCloudSecuritySuppressionRuleResource_ComplexFilterCombinations(t *testi
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Complex Filters %s", randomSuffix)),
 					// Rule selection filter checks
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_providers.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_severities.#", "3"),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_origins.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.providers.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.severities.#", "3"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.origins.#", "1"),
 					// Scope asset filter checks
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.cloud_providers.#", "3"),
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.service_categories.#", "2"),
@@ -475,8 +475,8 @@ func TestCloudSecuritySuppressionRuleResource_ComprehensiveImportState(t *testin
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Comprehensive Import %s", randomSuffix)),
 					resource.TestCheckResourceAttr(resourceName, "description", "Comprehensive test for import functionality"),
 					resource.TestCheckResourceAttr(resourceName, "comment", "Testing all attributes for import"),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_names.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_severities.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.names.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.severities.#", "2"),
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.account_ids.#", "2"),
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.tags.#", "2"),
 				),
@@ -504,7 +504,7 @@ func TestCloudSecuritySuppressionRuleResource_AdvancedUpdateScenarios(t *testing
 				Config: testSuppressionRuleAdvancedUpdateStep1(randomSuffix),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Advanced Update %s", randomSuffix)),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_names.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.names.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.cloud_providers.#", "1"),
 				),
 			},
@@ -513,8 +513,8 @@ func TestCloudSecuritySuppressionRuleResource_AdvancedUpdateScenarios(t *testing
 				Config: testSuppressionRuleAdvancedUpdateStep2(randomSuffix),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Advanced Update %s", randomSuffix)),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_names.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_severities.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.names.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.severities.#", "2"),
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.cloud_providers.#", "2"),
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.tags.#", "2"),
 				),
@@ -524,8 +524,8 @@ func TestCloudSecuritySuppressionRuleResource_AdvancedUpdateScenarios(t *testing
 				Config: testSuppressionRuleAdvancedUpdateStep3(randomSuffix),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Advanced Update %s", randomSuffix)),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_providers.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.rule_origins.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.providers.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.origins.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.resource_types.#", "2"),
 					resource.TestCheckResourceAttr(resourceName, "asset_filter.regions.#", "2"),
 				),
@@ -545,7 +545,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "test" {
   reason = "false-positive"
 
   rule_selection_filter = {
-    rule_names = ["Test Rule"]
+    names = ["Test Rule"]
   }
 
   asset_filter = {
@@ -566,7 +566,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "ec2_test" {
   comment = "These instances are configured correctly for our architecture"
 
   rule_selection_filter = {
-    rule_names = ["EC2 instance with excessive response hop limit"]
+    names = ["EC2 instance with excessive response hop limit"]
   }
 
   asset_filter = {
@@ -588,7 +588,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "ssm_test" {
   comment = "Legacy parameters with alternative encryption"
 
   rule_selection_filter = {
-    rule_names = ["SSM contains parameters that are not encrypted"]
+    names = ["SSM contains parameters that are not encrypted"]
   }
 
   asset_filter = {
@@ -610,7 +610,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "account_test" {
   comment = "Test account with different compliance requirements"
 
   rule_selection_filter = {
-    rule_names = [
+    names = [
       "Backup plan does not include EBS resources",
       "Backup plan does not include DynamoDB resources",
       "CloudWatch log metric filter and alarm missing for changes to Network Access Control Lists",
@@ -638,7 +638,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "expiration_test" {
   expiration_date = "%s"
 
   rule_selection_filter = {
-    rule_names = ["Test Rule with Expiration"]
+    names = ["Test Rule with Expiration"]
   }
 
   asset_filter = {
@@ -658,7 +658,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "update_test" {
   comment = "Initial comment"
 
   rule_selection_filter = {
-    rule_names = ["Test Rule"]
+    names = ["Test Rule"]
   }
 
   asset_filter = {
@@ -678,7 +678,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "update_test" {
   comment = "Updated comment"
 
   rule_selection_filter = {
-    rule_names = ["Test Rule"]
+    names = ["Test Rule"]
   }
 
   asset_filter = {
@@ -708,7 +708,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "invalid_date_test" {
   expiration_date = "2025-12-31"  # Invalid format - should be RFC3339
 
   rule_selection_filter = {
-    rule_names = ["Test Rule"]
+    names = ["Test Rule"]
   }
 
   asset_filter = {
@@ -726,7 +726,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "severity_test" {
   reason = "false-positive"
 
   rule_selection_filter = {
-    rule_severities = ["critical", "high"]
+    severities = ["critical", "high"]
   }
 
   asset_filter = {
@@ -745,7 +745,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "tag_test" {
   reason = "false-positive"
 
   rule_selection_filter = {
-    rule_names = ["Test Rule"]
+    names = ["Test Rule"]
   }
 
   asset_filter = {
@@ -765,7 +765,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "expiration_clear_test" {
   expiration_date = "%s"
 
   rule_selection_filter = {
-    rule_names = ["Test Rule Clear"]
+    names = ["Test Rule Clear"]
   }
 
   asset_filter = {
@@ -785,7 +785,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "expiration_clear_test" {
   # expiration_date is intentionally removed/cleared
 
   rule_selection_filter = {
-    rule_names = ["Test Rule Clear"]
+    names = ["Test Rule Clear"]
   }
 
   asset_filter = {
@@ -805,7 +805,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "expiration_update_test" 
   expiration_date = "%s"
 
   rule_selection_filter = {
-    rule_names = ["Test Rule Update"]
+    names = ["Test Rule Update"]
   }
 
   asset_filter = {
@@ -843,7 +843,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "empty_scope_filter_test"
   reason = "false-positive"
 
   rule_selection_filter = {
-    rule_names = ["Test Rule"]
+    names = ["Test Rule"]
   }
 
   asset_filter = {
@@ -866,12 +866,12 @@ resource "crowdstrike_cloud_security_suppression_rule" "rule_filters_test" {
   reason = "false-positive"
 
   rule_selection_filter = {
-    rule_ids        = [for rule in data.crowdstrike_cloud_security_rules.test_rule.rules : rule.id]
-    rule_names      = ["IAM root user has an active access key"]
-    rule_origins    = ["Custom", "Default"]
-    rule_providers  = ["AWS", "Azure"]
-    rule_services   = ["EC2", "S3"]
-    rule_severities = ["critical", "high"]
+    ids        = [for rule in data.crowdstrike_cloud_security_rules.test_rule.rules : rule.id]
+    names      = ["IAM root user has an active access key"]
+    origins    = ["Custom", "Default"]
+    providers  = ["AWS", "Azure"]
+    services   = ["EC2", "S3"]
+    severities = ["critical", "high"]
   }
 
   asset_filter = {
@@ -890,7 +890,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "scope_filters_test" {
   reason = "false-positive"
 
   rule_selection_filter = {
-    rule_names = ["Test Rule"]
+    names = ["Test Rule"]
   }
 
   asset_filter = {
@@ -916,9 +916,9 @@ resource "crowdstrike_cloud_security_suppression_rule" "complex_test" {
   comment = "Complex filtering scenario for testing"
 
   rule_selection_filter = {
-    rule_providers  = ["AWS", "GCP"]
-    rule_severities = ["critical", "high", "medium"]
-    rule_origins    = ["Custom"]
+    providers  = ["AWS", "GCP"]
+    severities = ["critical", "high", "medium"]
+    origins    = ["Custom"]
   }
 
   asset_filter = {
@@ -938,7 +938,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "invalid_tag_test" {
   reason = "false-positive"
 
   rule_selection_filter = {
-    rule_names = ["Test Rule"]
+    names = ["Test Rule"]
   }
 
   asset_filter = {
@@ -958,8 +958,8 @@ resource "crowdstrike_cloud_security_suppression_rule" "import_test" {
   comment = "Testing all attributes for import"
 
   rule_selection_filter = {
-    rule_names      = ["Import Test Rule 1", "Import Test Rule 2"]
-    rule_severities = ["critical", "high"]
+    names      = ["Import Test Rule 1", "Import Test Rule 2"]
+    severities = ["critical", "high"]
   }
 
   asset_filter = {
@@ -980,7 +980,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "advanced_update_test" {
   reason = "false-positive"
 
   rule_selection_filter = {
-    rule_names = ["Initial Rule"]
+    names = ["Initial Rule"]
   }
 
   asset_filter = {
@@ -999,8 +999,8 @@ resource "crowdstrike_cloud_security_suppression_rule" "advanced_update_test" {
   comment = "Added more complex filtering criteria"
 
   rule_selection_filter = {
-    rule_names      = ["Initial Rule", "Additional Rule"]
-    rule_severities = ["high", "medium"]
+    names      = ["Initial Rule", "Additional Rule"]
+    severities = ["high", "medium"]
   }
 
   asset_filter = {
@@ -1020,8 +1020,8 @@ resource "crowdstrike_cloud_security_suppression_rule" "advanced_update_test" {
   comment = "Changed to completely different filter types"
 
   rule_selection_filter = {
-    rule_providers = ["GCP"]
-    rule_origins   = ["Default"]
+    providers = ["GCP"]
+    origins   = ["Default"]
   }
 
   asset_filter = {
@@ -1090,7 +1090,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "auto_removal_test" {
   expiration_date = "%s"
 
   rule_selection_filter = {
-    rule_names = ["Test Auto Removal Rule"]
+    names = ["Test Auto Removal Rule"]
   }
 
   asset_filter = {
@@ -1112,7 +1112,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "expired_create_test" {
   expiration_date = "%s"
 
   rule_selection_filter = {
-    rule_names = ["Test Expired Create Rule"]
+    names = ["Test Expired Create Rule"]
   }
 
   asset_filter = {
@@ -1132,7 +1132,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "expired_warning_test" {
   expiration_date = "%s"
 
   rule_selection_filter = {
-    rule_names = ["Test Expired Warning Rule"]
+    names = ["Test Expired Warning Rule"]
   }
 
   asset_filter = {
@@ -1169,7 +1169,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "bad_request_test" {
   reason = "false-positive"
 
   rule_selection_filter = {
-    rule_names = ["Test Rule"]
+    names = ["Test Rule"]
   }
 
   asset_filter = {
@@ -1187,7 +1187,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "defaults_test" {
   reason = "false-positive"
 
   rule_selection_filter = {
-    rule_names = ["Test Rule for Defaults"]
+    names = ["Test Rule for Defaults"]
   }
 
   asset_filter = {

@@ -43,7 +43,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "example" {
   comment     = "This is a known false positive in our development environment"
 
   rule_selection_filter = {
-    rule_names = ["IAM root user has an active access key"]
+    names = ["IAM root user has an active access key"]
   }
 
   asset_filter = {
@@ -59,8 +59,8 @@ resource "crowdstrike_cloud_security_suppression_rule" "multi_filter" {
   description = "Suppress high and critical findings for specific cloud providers and regions"
 
   rule_selection_filter = {
-    rule_severities = ["critical", "high"]
-    rule_providers  = ["AWS", "Azure"]
+    severities = ["critical", "high"]
+    providers  = ["AWS", "Azure"]
   }
 
   asset_filter = {
@@ -78,7 +78,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "temporary" {
   expiration_date = "2025-12-31T23:59:59Z"
 
   rule_selection_filter = {
-    rule_origins = ["Default"]
+    origins = ["Default"]
   }
 
   asset_filter = {
@@ -133,12 +133,12 @@ Optional:
 
 Optional:
 
-- `rule_ids` (Set of String) Set of rule IDs. A rule will match if its ID is included in this set.
-- `rule_names` (Set of String) Set of rule names. A rule will match if its name is included in this set.
-- `rule_origins` (Set of String) Set of rule origins. One of: `Custom`, `Default`. A rule will match if its origin is included in this set.
-- `rule_providers` (Set of String) Set of rule cloud providers. Examples: `AWS`, `Azure`, `GCP`, `OCI`. A rule will match if its cloud provider is included in this set.
-- `rule_services` (Set of String) Set of cloud services. Examples: `Azure Cosmos DB`, `CloudFront`, `Compute Engine`, `EC2`, `Elasticache`, `Virtual Network`. A rule will match if its cloud service is included in this set.
-- `rule_severities` (Set of String) Set of rule severities. One of: `critical`, `high`, `medium`, `informational`. A rule will match if its severity is included in this set.
+- `ids` (Set of String) Set of rule IDs. A rule will match if its ID is included in this set.
+- `names` (Set of String) Set of rule names. A rule will match if its name is included in this set.
+- `origins` (Set of String) Set of rule origins. One of: `Custom`, `Default`. A rule will match if its origin is included in this set.
+- `providers` (Set of String) Set of rule cloud providers. Examples: `AWS`, `Azure`, `GCP`, `OCI`. A rule will match if its cloud provider is included in this set.
+- `services` (Set of String) Set of cloud services. Examples: `Azure Cosmos DB`, `CloudFront`, `Compute Engine`, `EC2`, `Elasticache`, `Virtual Network`. A rule will match if its cloud service is included in this set.
+- `severities` (Set of String) Set of rule severities. One of: `critical`, `high`, `medium`, `informational`. A rule will match if its severity is included in this set.
 
 ## Import
 
