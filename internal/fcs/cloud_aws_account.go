@@ -774,35 +774,6 @@ func updateFeatureStatesFromProducts(_ context.Context, model *cloudAWSAccountMo
 	}
 }
 
-// resolveAgentlessScanningRoleNameV1 resolves agentless scanning role name from cloud account V1.
-// DSPM role takes precedence over vulnerability scanning role, extracted from settings.
-func resolveAgentlessScanningRoleNameV1(ctx context.Context, cloudAccount *models.DomainCloudAWSAccountV1) string {
-	if cloudAccount == nil {
-		return ""
-	}
-
-	// Use newSettingsConfig to decode the settings and extract role names
-	var diags diag.Diagnostics
-	settings := newSettingsConfig(ctx, cloudAccount.Settings, &diags)
-	if diags.HasError() {
-		return ""
-	}
-
-	// DSPM role takes precedence over vulnerability scanning role
-	dspmRoleName := settings.DSPMRoleName.ValueString()
-	if dspmRoleName != "" {
-		return getRoleNameFromArn(dspmRoleName)
-	}
-
-	// Fallback to vulnerability scanning role
-	vulnRoleName := settings.VulnerabilityScanningRoleName.ValueString()
-	if vulnRoleName != "" {
-		return getRoleNameFromArn(vulnRoleName)
-	}
-
-	return ""
-}
-
 // createCloudAccount creates a new Cloud AWS account from the resource model.
 func (r *cloudAWSAccountResource) createCloudAccount(
 	ctx context.Context,
@@ -1191,12 +1162,14 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 			m.VulnerabilityScanningRoleName = flex.StringValueToFramework("")
 		}
 
-		agentlessRoleName := resolveAgentlessScanningRoleNameV1(ctx, cloudAccount)
-		if agentlessRoleName != "" {
-			m.AgentlessScanningRoleName = types.StringValue(agentlessRoleName)
+		var agentlessRoleName string
+		if m.DSPM != nil && m.DSPM.Enabled.ValueBool() {
+			agentlessRoleName = dspmRoleName
 		} else {
-			m.AgentlessScanningRoleName = types.StringNull()
+			agentlessRoleName = vulnScanningRoleName
 		}
+
+		m.AgentlessScanningRoleName = flex.StringValueToFramework(agentlessRoleName)
 	}
 
 	updateFeatureStatesFromProducts(ctx, m, cloudAccount.Products, cloudAccount)
