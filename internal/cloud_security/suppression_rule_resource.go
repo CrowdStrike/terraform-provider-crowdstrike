@@ -14,6 +14,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwmodifiers "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/modifiers"
 	fwtypes "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/types"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
@@ -236,10 +237,12 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 				},
 			},
 			"comment": schema.StringAttribute{
-				Description: "Comment for suppression. This will be attached to the Findings suppressed by this rule.",
+				Description: "Comment for suppression. This will be attached to the findings suppressed by this rule.",
 				Optional:    true,
 				Computed:    true,
-				Default:     stringdefault.StaticString(""),
+				Validators: []validator.String{
+					validators.StringNotWhitespace(),
+				},
 			},
 			"expiration_date": schema.StringAttribute{
 				MarkdownDescription: "Expiration date for suppression. If defined, must be in RFC3339 format (e.g., `2025-08-11T10:00:00Z`). Once set, this field cannot be cleared. The suppression rule will still exist after expiration and can be reset by updating the expiration date.",

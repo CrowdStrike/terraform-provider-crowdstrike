@@ -135,9 +135,6 @@ func TestGetPayloadErrorMessage(t *testing.T) {
 }
 
 func TestGetPayloadErrorMessage_GenericPayloadStructure(t *testing.T) {
-	// Test that the reflection-based approach works with any payload structure
-	// that has an Errors field, not just the specific model types
-
 	type GenericErrorPayload struct {
 		Errors []*models.MsaAPIError
 	}
@@ -171,7 +168,6 @@ func TestGetPayloadErrorMessage_GenericPayloadStructure(t *testing.T) {
 	}
 }
 
-// Helper function to create string pointers.
 func stringPtr(s string) *string {
 	return &s
 }

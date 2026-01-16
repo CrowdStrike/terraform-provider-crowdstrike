@@ -67,20 +67,17 @@ func NewOperationError(operation Operation, err error) diag.ErrorDiagnostic {
 }
 
 // GetPayloadErrorMessage safely extracts error messages from API error response payloads.
-func GetPayloadErrorMessage(payload interface{}) string {
+func GetPayloadErrorMessage(payload any) string {
 	v := reflect.ValueOf(payload)
 
-	// Handle nil or invalid values
-	if !v.IsValid() || (v.Kind() == reflect.Ptr && v.IsNil()) {
+	if !v.IsValid() || (v.Kind() == reflect.Pointer && v.IsNil()) {
 		return "API error response payload is nil"
 	}
 
-	// Dereference pointer types
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 
-	// Look for the Errors field in struct types
 	if v.Kind() == reflect.Struct {
 		if errorsField := v.FieldByName("Errors"); errorsField.IsValid() && !errorsField.IsNil() && errorsField.Len() > 0 {
 			if firstError := errorsField.Index(0); !firstError.IsNil() {
