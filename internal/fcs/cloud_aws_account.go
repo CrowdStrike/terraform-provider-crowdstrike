@@ -695,12 +695,6 @@ func (r *cloudAWSAccountResource) Create(
 
 	tflog.Info(ctx, "cloud account created", map[string]interface{}{"account": cloudAccount})
 
-	// Populate plan from cloudAccount response
-	resp.Diagnostics.Append(plan.wrap(ctx, cloudAccount)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	resp.Diagnostics.Append(plan.wrap(ctx, cloudAccount)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -1214,12 +1208,6 @@ func (r *cloudAWSAccountResource) Update(
 	// Update Cloud Registration account (replacing both CSPM and Cloud calls)
 	cloudAccount, diags := r.updateCloudAccount(ctx, plan)
 	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Populate plan from cloudAccount response
-	resp.Diagnostics.Append(plan.wrap(ctx, cloudAccount)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
