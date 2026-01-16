@@ -208,7 +208,7 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 				Optional:    true,
 				Computed:    true,
 				Default:     booldefault.StaticBool(false),
-				Description: "Whether the policy is enabled. Must be set to false before the policy can be deleted.",
+				Description: "Whether the policy is enabled.",
 			},
 			"host_groups": schema.SetAttribute{
 				Optional:    true,
@@ -661,13 +661,21 @@ func (r *cloudSecurityKacPolicyResource) Delete(
 		return
 	}
 
-	// Verify policy is disabled before deletion
+	// Disable policy if it's enabled before deletion
 	if !state.IsEnabled.IsNull() && !state.IsEnabled.IsUnknown() && state.IsEnabled.ValueBool() {
-		resp.Diagnostics.AddError(
-			"Cannot delete enabled KAC policy",
-			"The KAC policy must be disabled before it can be deleted.",
-		)
-		return
+		updateRequest := &models.APIUpdatePolicyRequest{
+			IsEnabled: false,
+		}
+
+		updateParams := admission_control_policies.NewAdmissionControlUpdatePolicyParamsWithContext(ctx).
+			WithBody(updateRequest).
+			WithIds(state.ID.ValueString())
+
+		_, updateErr := r.client.AdmissionControlPolicies.AdmissionControlUpdatePolicy(updateParams)
+		if updateErr != nil {
+			resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Delete, updateErr))
+			return
+		}
 	}
 
 	params := admission_control_policies.NewAdmissionControlDeletePoliciesParamsWithContext(ctx).

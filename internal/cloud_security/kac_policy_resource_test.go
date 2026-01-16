@@ -294,12 +294,12 @@ func TestCloudSecurityKacPolicyResource_Basic(t *testing.T) {
 				Config: kacPolicyConfig{
 					name:        updatedPolicyName,
 					description: stringPtr("Updated KAC policy description"),
-					isEnabled:   boolPtr(false),
+					isEnabled:   boolPtr(true),
 				}.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", updatedPolicyName),
 					resource.TestCheckResourceAttr(resourceName, "description", "Updated KAC policy description"),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "is_enabled", "true"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -332,17 +332,6 @@ func TestCloudSecurityKacPolicyResource_EnabledToggle(t *testing.T) {
 			{
 				Config: kacPolicyConfig{
 					name:      policyName,
-					isEnabled: boolPtr(false),
-				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-				),
-			},
-			{
-				Config: kacPolicyConfig{
-					name:      policyName,
 					isEnabled: boolPtr(true),
 				}.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -359,6 +348,17 @@ func TestCloudSecurityKacPolicyResource_EnabledToggle(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+				),
+			},
+			{
+				Config: kacPolicyConfig{
+					name:      policyName,
+					isEnabled: boolPtr(true),
+				}.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", policyName),
+					resource.TestCheckResourceAttr(resourceName, "is_enabled", "true"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -1035,7 +1035,7 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 						},
 						{
 							// rule-group-2 stays in position 2
-							name:        "rule-group-2",
+							name:        "rule-group-2-renamed",
 							description: stringPtr("Updated rule group 2"),
 							denyOnError: boolPtr(true), // Changed from false to true
 							imageAssessment: &imageAssessmentConfig{
@@ -1101,7 +1101,7 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with reordered rule groups and updated default rule group"),
 					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
-					// Verify rule groups are reordered (staging now first, production second)
+					// Verify rule groups are reordered (new-rule-group now first, rule-group-2 still second, and rule-group-1 third)
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "3"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "new-rule-group"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.description", "New rule group"),
@@ -1112,7 +1112,7 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.container_run_as_root", "Alert"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.container_without_resource_limits", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.name", "rule-group-2"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.name", "rule-group-2-renamed"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.description", "Updated rule group 2"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.deny_on_error", "true"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.enabled", "false"),
