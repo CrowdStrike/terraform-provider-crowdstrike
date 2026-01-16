@@ -62,6 +62,7 @@ type cloudSecurityKacPolicyResourceModel struct {
 	HostGroups       types.Set    `tfsdk:"host_groups"`
 	RuleGroups       types.List   `tfsdk:"rule_groups"`
 	DefaultRuleGroup types.Object `tfsdk:"default_rule_group"`
+	LastUpdated      types.String `tfsdk:"last_updated"`
 }
 
 type ruleGroupTFModel struct {
@@ -448,6 +449,10 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 					"default_rules": defaultRulesSchema,
 				},
 			},
+			"last_updated": schema.StringAttribute{
+				Computed:    true,
+				Description: "Timestamp of the last Terraform update of the resource.",
+			},
 		},
 	}
 }
@@ -534,6 +539,7 @@ func (r *cloudSecurityKacPolicyResource) Create(
 		policy = policyWithRuleGroups
 	}
 
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 	resp.Diagnostics.Append(plan.wrap(ctx, policy)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -646,6 +652,7 @@ func (r *cloudSecurityKacPolicyResource) Update(
 		policy = policyWithUpdatedRuleGroups
 	}
 
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 	resp.Diagnostics.Append(plan.wrap(ctx, policy)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
