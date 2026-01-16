@@ -2,6 +2,7 @@ package cloudsecurity
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -46,6 +47,70 @@ const (
 	malformedSysctlValueCode                     = "201028"
 	serviceAccountTokenAutomountedCode           = "201029"
 )
+
+var fieldNameToRuleCodeMap = map[string]string{
+	"PrivilegedContainer":                      privilegedContainerCode,
+	"SensitiveDataInEnvironment":               sensitiveDataInEnvironmentCode,
+	"SensitiveDataInSecretKeyRef":              sensitiveDataInSecretKeyRefCode,
+	"ContainerRunAsRoot":                       containerRunAsRootCode,
+	"ContainerWithoutRunAsNonRoot":             containerWithoutRunAsNonRootCode,
+	"PrivilegeEscalationAllowed":               privilegeEscalationAllowedCode,
+	"ContainerWithNetworkCapabilities":         containerWithNetworkCapabilitiesCode,
+	"ContainerWithUnsafeProcMount":             containerWithUnsafeProcMountCode,
+	"ContainerUsingUnsafeSysctls":              containerUsingUnsafeSysctlsCode,
+	"ContainerWithoutResourceLimits":           containerWithoutResourceLimitsCode,
+	"SensitiveHostDirectories":                 sensitiveHostDirectoriesCode,
+	"ContainerWithSysadminCapability":          containerWithSysadminCapabilityCode,
+	"ServiceAttachedToLoadBalancer":            serviceAttachedToLoadBalancerCode,
+	"ServiceAttachedToNodePort":                serviceAttachedToNodePortCode,
+	"HostPortAttachedToContainer":              hostPortAttachedToContainerCode,
+	"HostNetworkAttachedToContainer":           hostNetworkAttachedToContainerCode,
+	"ContainerInHostPidNamespace":              containerInHostPidNamespaceCode,
+	"ContainerInHostIpcNamespace":              containerInHostIpcNamespaceCode,
+	"WorkloadInDefaultNamespace":               workloadInDefaultNamespaceCode,
+	"WorkloadWithUnconfinedSeccompProfile":     workloadWithUnconfinedSeccompProfileCode,
+	"WorkloadWithoutSelinuxOrApparmor":         workloadWithoutSelinuxOrApparmorCode,
+	"ContainerWithManyCapabilities":            containerWithManyCapabilitiesCode,
+	"WorkloadWithoutRecommendedSeccompProfile": workloadWithoutRecommendedSeccompProfileCode,
+	"WorkloadWithoutSecurityContext":           workloadWithoutSecurityContextCode,
+	"RuntimeSocketInContainer":                 runtimeSocketInContainerCode,
+	"EntrypointContainsNetworkScanningCommand": entrypointContainsNetworkScanningCommandCode,
+	"EntrypointContainsChrootCommand":          entrypointContainsChrootCommandCode,
+	"MalformedSysctlValue":                     malformedSysctlValueCode,
+	"ServiceAccountTokenAutomounted":           serviceAccountTokenAutomountedCode,
+}
+
+var ruleCodeToFieldNameMap = map[string]string{
+	privilegedContainerCode:                      "PrivilegedContainer",
+	sensitiveDataInEnvironmentCode:               "SensitiveDataInEnvironment",
+	sensitiveDataInSecretKeyRefCode:              "SensitiveDataInSecretKeyRef",
+	containerRunAsRootCode:                       "ContainerRunAsRoot",
+	containerWithoutRunAsNonRootCode:             "ContainerWithoutRunAsNonRoot",
+	privilegeEscalationAllowedCode:               "PrivilegeEscalationAllowed",
+	containerWithNetworkCapabilitiesCode:         "ContainerWithNetworkCapabilities",
+	containerWithUnsafeProcMountCode:             "ContainerWithUnsafeProcMount",
+	containerUsingUnsafeSysctlsCode:              "ContainerUsingUnsafeSysctls",
+	containerWithoutResourceLimitsCode:           "ContainerWithoutResourceLimits",
+	sensitiveHostDirectoriesCode:                 "SensitiveHostDirectories",
+	containerWithSysadminCapabilityCode:          "ContainerWithSysadminCapability",
+	serviceAttachedToLoadBalancerCode:            "ServiceAttachedToLoadBalancer",
+	serviceAttachedToNodePortCode:                "ServiceAttachedToNodePort",
+	hostPortAttachedToContainerCode:              "HostPortAttachedToContainer",
+	hostNetworkAttachedToContainerCode:           "HostNetworkAttachedToContainer",
+	containerInHostPidNamespaceCode:              "ContainerInHostPidNamespace",
+	containerInHostIpcNamespaceCode:              "ContainerInHostIpcNamespace",
+	workloadInDefaultNamespaceCode:               "WorkloadInDefaultNamespace",
+	workloadWithUnconfinedSeccompProfileCode:     "WorkloadWithUnconfinedSeccompProfile",
+	workloadWithoutSelinuxOrApparmorCode:         "WorkloadWithoutSelinuxOrApparmor",
+	containerWithManyCapabilitiesCode:            "ContainerWithManyCapabilities",
+	workloadWithoutRecommendedSeccompProfileCode: "WorkloadWithoutRecommendedSeccompProfile",
+	workloadWithoutSecurityContextCode:           "WorkloadWithoutSecurityContext",
+	runtimeSocketInContainerCode:                 "RuntimeSocketInContainer",
+	entrypointContainsNetworkScanningCommandCode: "EntrypointContainsNetworkScanningCommand",
+	entrypointContainsChrootCommandCode:          "EntrypointContainsChrootCommand",
+	malformedSysctlValueCode:                     "MalformedSysctlValue",
+	serviceAccountTokenAutomountedCode:           "ServiceAccountTokenAutomounted",
+}
 
 var defaultRulesAttributeMap = map[string]attr.Type{
 	"privileged_container":                         types.StringType,
@@ -200,69 +265,20 @@ func defaultRuleSchema(ruleDescription string) schema.StringAttribute {
 func (m *defaultRulesTFModel) wrapDefaultRule(apiRule *models.PolicyhandlerKACDefaultPolicyRule) {
 	action := types.StringValue(*apiRule.Action)
 
-	switch *apiRule.Code {
-	case privilegedContainerCode:
-		m.PrivilegedContainer = action
-	case sensitiveDataInEnvironmentCode:
-		m.SensitiveDataInEnvironment = action
-	case sensitiveDataInSecretKeyRefCode:
-		m.SensitiveDataInSecretKeyRef = action
-	case containerRunAsRootCode:
-		m.ContainerRunAsRoot = action
-	case containerWithoutRunAsNonRootCode:
-		m.ContainerWithoutRunAsNonRoot = action
-	case privilegeEscalationAllowedCode:
-		m.PrivilegeEscalationAllowed = action
-	case containerWithNetworkCapabilitiesCode:
-		m.ContainerWithNetworkCapabilities = action
-	case containerWithUnsafeProcMountCode:
-		m.ContainerWithUnsafeProcMount = action
-	case containerUsingUnsafeSysctlsCode:
-		m.ContainerUsingUnsafeSysctls = action
-	case containerWithoutResourceLimitsCode:
-		m.ContainerWithoutResourceLimits = action
-	case sensitiveHostDirectoriesCode:
-		m.SensitiveHostDirectories = action
-	case containerWithSysadminCapabilityCode:
-		m.ContainerWithSysadminCapability = action
-	case serviceAttachedToLoadBalancerCode:
-		m.ServiceAttachedToLoadBalancer = action
-	case serviceAttachedToNodePortCode:
-		m.ServiceAttachedToNodePort = action
-	case hostPortAttachedToContainerCode:
-		m.HostPortAttachedToContainer = action
-	case hostNetworkAttachedToContainerCode:
-		m.HostNetworkAttachedToContainer = action
-	case containerInHostPidNamespaceCode:
-		m.ContainerInHostPidNamespace = action
-	case containerInHostIpcNamespaceCode:
-		m.ContainerInHostIpcNamespace = action
-	case workloadInDefaultNamespaceCode:
-		m.WorkloadInDefaultNamespace = action
-	case workloadWithUnconfinedSeccompProfileCode:
-		m.WorkloadWithUnconfinedSeccompProfile = action
-	case workloadWithoutSelinuxOrApparmorCode:
-		m.WorkloadWithoutSelinuxOrApparmor = action
-	case containerWithManyCapabilitiesCode:
-		m.ContainerWithManyCapabilities = action
-	case workloadWithoutRecommendedSeccompProfileCode:
-		m.WorkloadWithoutRecommendedSeccompProfile = action
-	case workloadWithoutSecurityContextCode:
-		m.WorkloadWithoutSecurityContext = action
-	case runtimeSocketInContainerCode:
-		m.RuntimeSocketInContainer = action
-	case entrypointContainsNetworkScanningCommandCode:
-		m.EntrypointContainsNetworkScanningCommand = action
-	case entrypointContainsChrootCommandCode:
-		m.EntrypointContainsChrootCommand = action
-	case malformedSysctlValueCode:
-		m.MalformedSysctlValue = action
-	case serviceAccountTokenAutomountedCode:
-		m.ServiceAccountTokenAutomounted = action
+	// Get the field name from the rule code
+	fieldName, exists := ruleCodeToFieldNameMap[*apiRule.Code]
+	if !exists {
+		return
+	}
+
+	// Use reflection to set the field
+	v := reflect.ValueOf(m).Elem()
+	field := v.FieldByName(fieldName)
+	if field.IsValid() && field.CanSet() {
+		field.Set(reflect.ValueOf(action))
 	}
 }
 
-//nolint:gocyclo
 func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 	ctx context.Context,
 	tfRuleGroup ruleGroupTFModel,
@@ -276,262 +292,32 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 
 	var apiDefaultRuleActions []*models.APIUpdateDefaultRuleAction
 
-	if !m.PrivilegedContainer.IsUnknown() {
-		action := m.PrivilegedContainer.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(privilegedContainerCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
+	// Use reflection to iterate through all fields in the struct
+	v := reflect.ValueOf(m).Elem()
+	t := reflect.TypeOf(m).Elem()
 
-	if !m.SensitiveDataInEnvironment.IsUnknown() {
-		action := m.SensitiveDataInEnvironment.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(sensitiveDataInEnvironmentCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		fieldType := t.Field(i)
+		fieldName := fieldType.Name
 
-	if !m.SensitiveDataInSecretKeyRef.IsUnknown() {
-		action := m.SensitiveDataInSecretKeyRef.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(sensitiveDataInSecretKeyRefCode),
-			Action: &action,
+		tfString, ok := field.Interface().(types.String)
+		if !ok {
+			continue
 		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
 
-	if !m.ContainerRunAsRoot.IsUnknown() {
-		action := m.ContainerRunAsRoot.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(containerRunAsRootCode),
-			Action: &action,
+		if tfString.IsUnknown() {
+			continue
 		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
 
-	if !m.ContainerWithoutRunAsNonRoot.IsUnknown() {
-		action := m.ContainerWithoutRunAsNonRoot.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(containerWithoutRunAsNonRootCode),
-			Action: &action,
+		ruleCode, exists := fieldNameToRuleCodeMap[fieldName]
+		if !exists {
+			continue
 		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
 
-	if !m.PrivilegeEscalationAllowed.IsUnknown() {
-		action := m.PrivilegeEscalationAllowed.ValueString()
+		action := tfString.ValueString()
 		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(privilegeEscalationAllowedCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.ContainerWithNetworkCapabilities.IsUnknown() {
-		action := m.ContainerWithNetworkCapabilities.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(containerWithNetworkCapabilitiesCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.ContainerWithUnsafeProcMount.IsUnknown() {
-		action := m.ContainerWithUnsafeProcMount.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(containerWithUnsafeProcMountCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.ContainerUsingUnsafeSysctls.IsUnknown() {
-		action := m.ContainerUsingUnsafeSysctls.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(containerUsingUnsafeSysctlsCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.ContainerWithoutResourceLimits.IsUnknown() {
-		action := m.ContainerWithoutResourceLimits.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(containerWithoutResourceLimitsCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.SensitiveHostDirectories.IsUnknown() {
-		action := m.SensitiveHostDirectories.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(sensitiveHostDirectoriesCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.ContainerWithSysadminCapability.IsUnknown() {
-		action := m.ContainerWithSysadminCapability.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(containerWithSysadminCapabilityCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.ServiceAttachedToLoadBalancer.IsUnknown() {
-		action := m.ServiceAttachedToLoadBalancer.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(serviceAttachedToLoadBalancerCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.ServiceAttachedToNodePort.IsUnknown() {
-		action := m.ServiceAttachedToNodePort.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(serviceAttachedToNodePortCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.HostPortAttachedToContainer.IsUnknown() {
-		action := m.HostPortAttachedToContainer.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(hostPortAttachedToContainerCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.HostNetworkAttachedToContainer.IsUnknown() {
-		action := m.HostNetworkAttachedToContainer.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(hostNetworkAttachedToContainerCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.ContainerInHostPidNamespace.IsUnknown() {
-		action := m.ContainerInHostPidNamespace.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(containerInHostPidNamespaceCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.ContainerInHostIpcNamespace.IsUnknown() {
-		action := m.ContainerInHostIpcNamespace.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(containerInHostIpcNamespaceCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.WorkloadInDefaultNamespace.IsUnknown() {
-		action := m.WorkloadInDefaultNamespace.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(workloadInDefaultNamespaceCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.WorkloadWithUnconfinedSeccompProfile.IsUnknown() {
-		action := m.WorkloadWithUnconfinedSeccompProfile.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(workloadWithUnconfinedSeccompProfileCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.WorkloadWithoutSelinuxOrApparmor.IsUnknown() {
-		action := m.WorkloadWithoutSelinuxOrApparmor.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(workloadWithoutSelinuxOrApparmorCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.ContainerWithManyCapabilities.IsUnknown() {
-		action := m.ContainerWithManyCapabilities.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(containerWithManyCapabilitiesCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.WorkloadWithoutRecommendedSeccompProfile.IsUnknown() {
-		action := m.WorkloadWithoutRecommendedSeccompProfile.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(workloadWithoutRecommendedSeccompProfileCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.WorkloadWithoutSecurityContext.IsUnknown() {
-		action := m.WorkloadWithoutSecurityContext.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(workloadWithoutSecurityContextCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.RuntimeSocketInContainer.IsUnknown() {
-		action := m.RuntimeSocketInContainer.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(runtimeSocketInContainerCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.EntrypointContainsNetworkScanningCommand.IsUnknown() {
-		action := m.EntrypointContainsNetworkScanningCommand.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(entrypointContainsNetworkScanningCommandCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.EntrypointContainsChrootCommand.IsUnknown() {
-		action := m.EntrypointContainsChrootCommand.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(entrypointContainsChrootCommandCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.MalformedSysctlValue.IsUnknown() {
-		action := m.MalformedSysctlValue.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(malformedSysctlValueCode),
-			Action: &action,
-		}
-		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)
-	}
-
-	if !m.ServiceAccountTokenAutomounted.IsUnknown() {
-		action := m.ServiceAccountTokenAutomounted.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
-			Code:   stringPtr(serviceAccountTokenAutomountedCode),
+			Code:   stringPtr(ruleCode),
 			Action: &action,
 		}
 		apiDefaultRuleActions = append(apiDefaultRuleActions, apiDefaultRuleAction)

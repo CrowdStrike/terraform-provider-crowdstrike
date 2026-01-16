@@ -79,7 +79,7 @@ resource "crowdstrike_cloud_security_kac_policy" "test" {
 			if i > 0 {
 				config += `, `
 			}
-			config += fmt.Sprintf(`%q`, hg)
+			config += hg
 		}
 		config += `]`
 	}
@@ -371,57 +371,83 @@ func TestCloudSecurityKacPolicyResource_HostGroups(t *testing.T) {
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
 	policyName := fmt.Sprintf("tfacc-kac-policy-hostgroups-%s", randomSuffix)
 
-	// Host group IDs for testing
-	// TODO: Replace with host group data source once implemented
-	hostGroup1 := "36d2638f17534c11828eff6453c9756b"
-	hostGroup2 := "a2b5ab34baee4410817f74430dbb8eaf"
-	hostGroup3 := "1aa4e7fdc0c24dfaabbd6a7aa77f0fbd"
+	hostGroupsConfig := `
+resource "crowdstrike_host_group" "test-hg-1" {
+  name        = "tfacc-kac-policy-hg-1"
+  description = "test host group for kac policy tf acceptance tests"
+  type        = "staticByID"
+  host_ids    = []
+}
+
+resource "crowdstrike_host_group" "test-hg-2" {
+  name        = "tfacc-kac-policy-hg-2"
+  description = "test host group for kac policy tf acceptance tests"
+  type        = "staticByID"
+  host_ids    = []
+}
+
+resource "crowdstrike_host_group" "test-hg-3" {
+  name        = "tfacc-kac-policy-hg-3"
+  description = "test host group for kac policy tf acceptance tests"
+  type        = "staticByID"
+  host_ids    = []
+}
+`
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: kacPolicyConfig{
-					name:        policyName,
-					description: stringPtr("Test KAC policy with host groups"),
-					isEnabled:   boolPtr(false),
-					hostGroups:  []string{hostGroup1, hostGroup2},
-				}.String(),
+				Config: acctest.ConfigCompose(
+					hostGroupsConfig,
+					kacPolicyConfig{
+						name:        policyName,
+						description: stringPtr("Test KAC policy with host groups"),
+						isEnabled:   boolPtr(false),
+						hostGroups:  []string{"crowdstrike_host_group.test-hg-1.id", "crowdstrike_host_group.test-hg-2.id"},
+					}.String(),
+				),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with host groups"),
 					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
 					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "2"),
-					resource.TestCheckTypeSetElemAttr(resourceName, "host_groups.*", hostGroup1),
-					resource.TestCheckTypeSetElemAttr(resourceName, "host_groups.*", hostGroup2),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test-hg-1", "id"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test-hg-2", "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
 			{
-				Config: kacPolicyConfig{
-					name:        policyName,
-					description: stringPtr("Test KAC policy with updated host groups"),
-					isEnabled:   boolPtr(false),
-					hostGroups:  []string{hostGroup2, hostGroup3}, // Remove hostGroup1, add hostGroup3
-				}.String(),
+				Config: acctest.ConfigCompose(
+					hostGroupsConfig,
+					kacPolicyConfig{
+						name:        policyName,
+						description: stringPtr("Test KAC policy with updated host groups"),
+						isEnabled:   boolPtr(false),
+						hostGroups:  []string{"crowdstrike_host_group.test-hg-2.id", "crowdstrike_host_group.test-hg-3.id"}, // Remove hostGroup1, add hostGroup3
+					}.String(),
+				),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with updated host groups"),
 					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
 					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "2"),
-					resource.TestCheckTypeSetElemAttr(resourceName, "host_groups.*", hostGroup2),
-					resource.TestCheckTypeSetElemAttr(resourceName, "host_groups.*", hostGroup3),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test-hg-2", "id"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test-hg-3", "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
 			{
-				Config: kacPolicyConfig{
-					name:        policyName,
-					description: stringPtr("Test KAC policy with no host groups"),
-					isEnabled:   boolPtr(false),
-					hostGroups:  []string{}, // Remove all host groups
-				}.String(),
+				Config: acctest.ConfigCompose(
+					hostGroupsConfig,
+					kacPolicyConfig{
+						name:        policyName,
+						description: stringPtr("Test KAC policy with no host groups"),
+						isEnabled:   boolPtr(false),
+						hostGroups:  []string{}, // Remove all host groups
+					}.String(),
+				),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with no host groups"),
@@ -1166,7 +1192,6 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 							if currentID != initialID {
 								return fmt.Errorf("%s does not equal %s: %s -> %s", originalIdPath, newIdPath, initialID, currentID)
 							}
-
 						}
 
 						return nil
