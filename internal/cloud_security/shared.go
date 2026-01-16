@@ -58,13 +58,11 @@ type cloudSecurityDomainConfig struct {
 	Subdomain string
 }
 
-// getDomainConfig returns the domain configuration for the specified rule type
 func getDomainConfig(ruleType string) cloudSecurityDomainConfig {
 	switch ruleType {
 	case "IOM":
 		return iomRuleDomainConfig
 	default:
-		// Default to IOM configuration
 		return iomRuleDomainConfig
 	}
 }

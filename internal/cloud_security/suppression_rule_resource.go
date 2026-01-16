@@ -14,7 +14,6 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwmodifiers "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/modifiers"
 	fwtypes "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/types"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
@@ -66,15 +65,15 @@ type cloudSecuritySuppressionRuleResource struct {
 }
 
 type cloudSecuritySuppressionRuleResourceModel struct {
-	ID                        types.String `tfsdk:"id"`
-	Type                      types.String `tfsdk:"type"`
-	Description               types.String `tfsdk:"description"`
-	Name                      types.String `tfsdk:"name"`
-	RuleSelectionFilter       types.Object `tfsdk:"rule_selection_filter"`
-	AssetFilter               types.Object `tfsdk:"asset_filter"`
-	SuppressionComment        types.String `tfsdk:"comment"`
-	SuppressionExpirationDate types.String `tfsdk:"expiration_date"`
-	SuppressionReason         types.String `tfsdk:"reason"`
+	ID                  types.String `tfsdk:"id"`
+	Type                types.String `tfsdk:"type"`
+	Description         types.String `tfsdk:"description"`
+	Name                types.String `tfsdk:"name"`
+	RuleSelectionFilter types.Object `tfsdk:"rule_selection_filter"`
+	AssetFilter         types.Object `tfsdk:"asset_filter"`
+	Comment             types.String `tfsdk:"comment"`
+	ExpirationDate      types.String `tfsdk:"expiration_date"`
+	Reason              types.String `tfsdk:"reason"`
 }
 
 type ruleSelectionFilterModel struct {
@@ -132,22 +131,10 @@ func (m *cloudSecuritySuppressionRuleResourceModel) wrap(
 	m.ID = flex.StringPointerToFramework(rule.ID)
 	m.Description = types.StringValue(rule.Description)
 	m.Name = flex.StringPointerToFramework(rule.Name)
-	m.SuppressionComment = types.StringValue(rule.SuppressionComment)
-	m.SuppressionExpirationDate = flex.StringValueToFramework(rule.SuppressionExpirationDate)
-	m.SuppressionReason = flex.StringPointerToFramework(rule.SuppressionReason)
-
-	// Set type based on Domain and Subdomain from API response
-	if rule.Domain != nil && rule.Subdomain != nil {
-		if *rule.Domain == iomRuleDomainConfig.Domain && *rule.Subdomain == iomRuleDomainConfig.Subdomain {
-			m.Type = types.StringValue(suppressionRuleTypeDefault)
-		} else {
-			// Default to IOM if we don't recognize the domain/subdomain combination
-			m.Type = types.StringValue(suppressionRuleTypeDefault)
-		}
-	} else {
-		// Default to IOM if domain/subdomain are not provided
-		m.Type = types.StringValue(suppressionRuleTypeDefault)
-	}
+	m.Comment = types.StringValue(rule.SuppressionComment)
+	m.ExpirationDate = flex.StringValueToFramework(rule.SuppressionExpirationDate)
+	m.Reason = flex.StringPointerToFramework(rule.SuppressionReason)
+	m.Type = flex.StringPointerToFramework(rule.Subdomain)
 
 	diags.Append(m.setRuleSelectionFilter(ctx, rule)...)
 	if diags.HasError() {
@@ -241,7 +228,7 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 				Optional:    true,
 				Computed:    true,
 				Validators: []validator.String{
-					validators.StringNotWhitespace(),
+					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"expiration_date": schema.StringAttribute{
@@ -482,8 +469,8 @@ func (r *cloudSecuritySuppressionRuleResource) validateSuppressionExpirationDate
 	requestConfig cloudSecuritySuppressionRuleResourceModel,
 	resp *resource.ValidateConfigResponse,
 ) {
-	if utils.IsKnown(requestConfig.SuppressionExpirationDate) && requestConfig.SuppressionExpirationDate.ValueString() != "" {
-		_, err := time.Parse(time.RFC3339, requestConfig.SuppressionExpirationDate.ValueString())
+	if utils.IsKnown(requestConfig.ExpirationDate) && requestConfig.ExpirationDate.ValueString() != "" {
+		_, err := time.Parse(time.RFC3339, requestConfig.ExpirationDate.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("expiration_date"),
@@ -597,8 +584,8 @@ func (r *cloudSecuritySuppressionRuleResource) ModifyPlan(
 	}
 
 	// Validate suppression expiration date for all operations (including destroy)
-	if utils.IsKnown(planConfig.SuppressionExpirationDate) && planConfig.SuppressionExpirationDate.ValueString() != "" {
-		expired, diags := isTimestampExpired(planConfig.SuppressionExpirationDate.ValueString())
+	if utils.IsKnown(planConfig.ExpirationDate) && planConfig.ExpirationDate.ValueString() != "" {
+		expired, diags := isTimestampExpired(planConfig.ExpirationDate.ValueString())
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
 		} else if expired {
@@ -651,8 +638,8 @@ func (r *cloudSecuritySuppressionRuleResource) Read(
 
 	resp.Diagnostics.Append(state.wrap(ctx, *rule)...)
 
-	if state.SuppressionExpirationDate.ValueString() != "" {
-		if expired, diags := isTimestampExpired(state.SuppressionExpirationDate.ValueString()); diags.HasError() {
+	if state.ExpirationDate.ValueString() != "" {
+		if expired, diags := isTimestampExpired(state.ExpirationDate.ValueString()); diags.HasError() {
 			resp.Diagnostics.AddWarning(
 				"Timestamp Parsing Warning",
 				fmt.Sprintf("Could not parse suppression expiration date: %s", diags.Errors()[0].Summary()),
@@ -776,10 +763,10 @@ func (r *cloudSecuritySuppressionRuleResource) createSuppressionRule(ctx context
 		RuleSelectionType:         &ruleSelectionTypeDefault,
 		ScopeType:                 &scopeTypeDefault,
 		Subdomain:                 &domainConfig.Subdomain,
-		SuppressionReason:         rule.SuppressionReason.ValueStringPointer(),
+		SuppressionReason:         rule.Reason.ValueStringPointer(),
 		Description:               rule.Description.ValueString(),
-		SuppressionComment:        rule.SuppressionComment.ValueString(),
-		SuppressionExpirationDate: rule.SuppressionExpirationDate.ValueString(),
+		SuppressionComment:        rule.Comment.ValueString(),
+		SuppressionExpirationDate: rule.ExpirationDate.ValueString(),
 	}
 
 	if !rule.RuleSelectionFilter.IsNull() {
@@ -872,9 +859,9 @@ func (r *cloudSecuritySuppressionRuleResource) updateSuppressionRule(ctx context
 		Name:                      rule.Name.ValueString(),
 		RuleSelectionType:         ruleSelectionTypeDefault,
 		ScopeType:                 scopeTypeDefault,
-		SuppressionComment:        rule.SuppressionComment.ValueStringPointer(),
-		SuppressionExpirationDate: rule.SuppressionExpirationDate.ValueString(),
-		SuppressionReason:         rule.SuppressionReason.ValueString(),
+		SuppressionComment:        rule.Comment.ValueStringPointer(),
+		SuppressionExpirationDate: rule.ExpirationDate.ValueString(),
+		SuppressionReason:         rule.Reason.ValueString(),
 		Description:               rule.Description.ValueStringPointer(),
 	}
 
