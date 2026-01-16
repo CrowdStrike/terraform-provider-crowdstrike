@@ -5,7 +5,7 @@ description: |-
   This resource registers an AWS account or organization in Falcon Cloud Security.
   API Scopes
   The following API scopes are required:
-  Cloud security AWS registration | Read & WriteCSPM registration | Read & Write
+  Cloud security AWS registration | Read & Write
 ---
 
 # crowdstrike_cloud_aws_account (Resource)
@@ -17,7 +17,6 @@ This resource registers an AWS account or organization in Falcon Cloud Security.
 The following API scopes are required:
 
 - Cloud security AWS registration | Read & Write
-- CSPM registration | Read & Write
 
 
 ## Example Usage
@@ -133,7 +132,7 @@ Required:
 
 Read-Only:
 
-- `status` (String) Current status of the Identity Protection integration
+- `status` (String, Deprecated) Current status of the Identity Protection integration
 
 
 <a id="nestedatt--realtime_visibility"></a>
