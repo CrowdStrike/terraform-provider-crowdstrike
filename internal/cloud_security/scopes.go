@@ -9,3 +9,11 @@ var cloudSecurityRuleScopes = []scopes.Scope{
 		Write: true,
 	},
 }
+
+var cloudSecurityKacPolicyScopes = []scopes.Scope{
+	{
+		Name:  "Falcon Container Image",
+		Read:  true,
+		Write: true,
+	},
+}
