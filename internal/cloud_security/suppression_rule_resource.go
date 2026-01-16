@@ -122,33 +122,6 @@ func (m scopeAssetFilterModel) AttributeTypes() map[string]attr.Type {
 	}
 }
 
-func (m *cloudSecuritySuppressionRuleResourceModel) wrap(
-	ctx context.Context,
-	rule models.ApimodelsSuppressionRule,
-) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	m.ID = flex.StringPointerToFramework(rule.ID)
-	m.Description = types.StringValue(rule.Description)
-	m.Name = flex.StringPointerToFramework(rule.Name)
-	m.Comment = types.StringValue(rule.SuppressionComment)
-	m.ExpirationDate = flex.StringValueToFramework(rule.SuppressionExpirationDate)
-	m.Reason = flex.StringPointerToFramework(rule.SuppressionReason)
-	m.Type = flex.StringPointerToFramework(rule.Subdomain)
-
-	diags.Append(m.setRuleSelectionFilter(ctx, rule)...)
-	if diags.HasError() {
-		return diags
-	}
-
-	diags.Append(m.setAssetFilter(ctx, rule)...)
-	if diags.HasError() {
-		return diags
-	}
-
-	return diags
-}
-
 func (r *cloudSecuritySuppressionRuleResource) Configure(
 	ctx context.Context,
 	req resource.ConfigureRequest,
@@ -181,6 +154,14 @@ func (r *cloudSecuritySuppressionRuleResource) Metadata(
 	resp *resource.MetadataResponse,
 ) {
 	resp.TypeName = req.ProviderTypeName + "_cloud_security_suppression_rule"
+}
+
+func (r *cloudSecuritySuppressionRuleResource) ImportState(
+	ctx context.Context,
+	req resource.ImportStateRequest,
+	resp *resource.ImportStateResponse,
+) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 func (r *cloudSecuritySuppressionRuleResource) Schema(
@@ -434,170 +415,6 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 	}
 }
 
-func (r *cloudSecuritySuppressionRuleResource) ValidateConfig(
-	ctx context.Context,
-	req resource.ValidateConfigRequest,
-	resp *resource.ValidateConfigResponse,
-) {
-	var requestConfig cloudSecuritySuppressionRuleResourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &requestConfig)...)
-
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	r.validateSuppressionExpirationDate(requestConfig, resp)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	r.validateRequiredFilters(requestConfig, resp)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	r.validateRuleSelectionFilter(ctx, requestConfig, resp)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	r.validateAssetFilter(ctx, requestConfig, resp)
-}
-
-// validateSuppressionExpirationDate validates the suppression expiration date format.
-func (r *cloudSecuritySuppressionRuleResource) validateSuppressionExpirationDate(
-	requestConfig cloudSecuritySuppressionRuleResourceModel,
-	resp *resource.ValidateConfigResponse,
-) {
-	if utils.IsKnown(requestConfig.ExpirationDate) && requestConfig.ExpirationDate.ValueString() != "" {
-		_, err := time.Parse(time.RFC3339, requestConfig.ExpirationDate.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("expiration_date"),
-				"Invalid Date Format",
-				"The expiration_date must be in RFC3339 format (e.g., '2006-01-02T15:04:05Z').",
-			)
-		}
-	}
-}
-
-// validateRequiredFilters validates that at least one filter is defined.
-func (r *cloudSecuritySuppressionRuleResource) validateRequiredFilters(
-	requestConfig cloudSecuritySuppressionRuleResourceModel,
-	resp *resource.ValidateConfigResponse,
-) {
-	if requestConfig.RuleSelectionFilter.IsNull() && requestConfig.AssetFilter.IsNull() {
-		resp.Diagnostics.AddError(
-			"Missing Required Filter",
-			"At least one of 'rule_selection_filter' or 'asset_filter' must be defined.",
-		)
-	}
-}
-
-// validateRuleSelectionFilter validates the rule selection filter is not empty when defined.
-func (r *cloudSecuritySuppressionRuleResource) validateRuleSelectionFilter(
-	ctx context.Context,
-	requestConfig cloudSecuritySuppressionRuleResourceModel,
-	resp *resource.ValidateConfigResponse,
-) {
-	if !utils.IsKnown(requestConfig.RuleSelectionFilter) {
-		return
-	}
-
-	var ruleSelectionFilter ruleSelectionFilterModel
-	diags := requestConfig.RuleSelectionFilter.As(ctx, &ruleSelectionFilter, basetypes.ObjectAsOptions{})
-	if diags.HasError() {
-		return
-	}
-
-	if r.isRuleSelectionFilterEmpty(ruleSelectionFilter) {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("rule_selection_filter"),
-			"Empty Rule Selection Filter",
-			"When rule_selection_filter is defined, at least one filter criterion must be specified (ids, names, origins, providers, services, or severities).",
-		)
-	}
-}
-
-// isRuleSelectionFilterEmpty checks if all rule selection filter fields are empty.
-func (r *cloudSecuritySuppressionRuleResource) isRuleSelectionFilterEmpty(filter ruleSelectionFilterModel) bool {
-	return (filter.Ids.IsNull() || len(filter.Ids.Elements()) == 0) &&
-		(filter.Names.IsNull() || len(filter.Names.Elements()) == 0) &&
-		(filter.Origins.IsNull() || len(filter.Origins.Elements()) == 0) &&
-		(filter.Providers.IsNull() || len(filter.Providers.Elements()) == 0) &&
-		(filter.Services.IsNull() || len(filter.Services.Elements()) == 0) &&
-		(filter.Severities.IsNull() || len(filter.Severities.Elements()) == 0)
-}
-
-// validateAssetFilter validates the scope asset filter is not empty when defined.
-func (r *cloudSecuritySuppressionRuleResource) validateAssetFilter(
-	ctx context.Context,
-	requestConfig cloudSecuritySuppressionRuleResourceModel,
-	resp *resource.ValidateConfigResponse,
-) {
-	if !utils.IsKnown(requestConfig.AssetFilter) {
-		return
-	}
-
-	var scopeAssetFilter scopeAssetFilterModel
-	diags := requestConfig.AssetFilter.As(ctx, &scopeAssetFilter, basetypes.ObjectAsOptions{})
-	if diags.HasError() {
-		return
-	}
-
-	if r.isAssetFilterEmpty(scopeAssetFilter) {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("asset_filter"),
-			"Empty Asset Filter",
-			"When asset_filter is defined, at least one filter criterion must be specified (account_ids, cloud_group_ids, cloud_providers, regions, resource_ids, resource_names, resource_types, service_categories, or tags).",
-		)
-	}
-}
-
-// isAssetFilterEmpty checks if all scope asset filter fields are empty.
-func (r *cloudSecuritySuppressionRuleResource) isAssetFilterEmpty(filter scopeAssetFilterModel) bool {
-	return (filter.AccountIds.IsNull() || len(filter.AccountIds.Elements()) == 0) &&
-		(filter.CloudGroupIds.IsNull() || len(filter.CloudGroupIds.Elements()) == 0) &&
-		(filter.CloudProviders.IsNull() || len(filter.CloudProviders.Elements()) == 0) &&
-		(filter.Regions.IsNull() || len(filter.Regions.Elements()) == 0) &&
-		(filter.ResourceIds.IsNull() || len(filter.ResourceIds.Elements()) == 0) &&
-		(filter.ResourceNames.IsNull() || len(filter.ResourceNames.Elements()) == 0) &&
-		(filter.ResourceTypes.IsNull() || len(filter.ResourceTypes.Elements()) == 0) &&
-		(filter.ServiceCategories.IsNull() || len(filter.ServiceCategories.Elements()) == 0) &&
-		(filter.Tags.IsNull() || len(filter.Tags.Elements()) == 0)
-}
-
-func (r *cloudSecuritySuppressionRuleResource) ModifyPlan(
-	ctx context.Context,
-	req resource.ModifyPlanRequest,
-	resp *resource.ModifyPlanResponse,
-) {
-	// Skip validation for destroy operations
-	if req.Plan.Raw.IsNull() {
-		return
-	}
-
-	var planConfig cloudSecuritySuppressionRuleResourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &planConfig)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Validate suppression expiration date for all operations (including destroy)
-	if utils.IsKnown(planConfig.ExpirationDate) && planConfig.ExpirationDate.ValueString() != "" {
-		expired, diags := isTimestampExpired(planConfig.ExpirationDate.ValueString())
-		if diags.HasError() {
-			resp.Diagnostics.Append(diags...)
-		} else if expired {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("expiration_date"),
-				"Expired Date",
-				"The expiration_date has already passed. If you are attempting to run a destroy operation, use 'terraform destroy -refresh=false' to skip the expiration check.",
-			)
-		}
-	}
-}
-
 func (r *cloudSecuritySuppressionRuleResource) Create(
 	ctx context.Context,
 	req resource.CreateRequest,
@@ -687,12 +504,189 @@ func (r *cloudSecuritySuppressionRuleResource) Delete(
 	resp.Diagnostics.Append(r.deleteSuppressionRule(ctx, state.ID.ValueString())...)
 }
 
-func (r *cloudSecuritySuppressionRuleResource) ImportState(
+func (r *cloudSecuritySuppressionRuleResource) ValidateConfig(
 	ctx context.Context,
-	req resource.ImportStateRequest,
-	resp *resource.ImportStateResponse,
+	req resource.ValidateConfigRequest,
+	resp *resource.ValidateConfigResponse,
 ) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	var requestConfig cloudSecuritySuppressionRuleResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &requestConfig)...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	r.validateSuppressionExpirationDate(requestConfig, resp)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	r.validateRequiredFilters(requestConfig, resp)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	r.validateRuleSelectionFilter(ctx, requestConfig, resp)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	r.validateAssetFilter(ctx, requestConfig, resp)
+}
+
+func (r *cloudSecuritySuppressionRuleResource) ModifyPlan(
+	ctx context.Context,
+	req resource.ModifyPlanRequest,
+	resp *resource.ModifyPlanResponse,
+) {
+	// Skip validation for destroy operations
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var planConfig cloudSecuritySuppressionRuleResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &planConfig)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Validate suppression expiration date for all operations (including destroy)
+	if utils.IsKnown(planConfig.ExpirationDate) && planConfig.ExpirationDate.ValueString() != "" {
+		expired, diags := isTimestampExpired(planConfig.ExpirationDate.ValueString())
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+		} else if expired {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("expiration_date"),
+				"Expired Date",
+				"The expiration_date has already passed. If you are attempting to run a destroy operation, use 'terraform destroy -refresh=false' to skip the expiration check.",
+			)
+		}
+	}
+}
+
+// validateSuppressionExpirationDate validates the suppression expiration date format.
+func (r *cloudSecuritySuppressionRuleResource) validateSuppressionExpirationDate(
+	requestConfig cloudSecuritySuppressionRuleResourceModel,
+	resp *resource.ValidateConfigResponse,
+) {
+	if utils.IsKnown(requestConfig.ExpirationDate) && requestConfig.ExpirationDate.ValueString() != "" {
+		_, err := time.Parse(time.RFC3339, requestConfig.ExpirationDate.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("expiration_date"),
+				"Invalid Date Format",
+				"The expiration_date must be in RFC3339 format (e.g., '2006-01-02T15:04:05Z').",
+			)
+		}
+	}
+}
+
+// validateRequiredFilters validates that at least one filter is defined.
+func (r *cloudSecuritySuppressionRuleResource) validateRequiredFilters(
+	requestConfig cloudSecuritySuppressionRuleResourceModel,
+	resp *resource.ValidateConfigResponse,
+) {
+	if requestConfig.RuleSelectionFilter.IsNull() && requestConfig.AssetFilter.IsNull() {
+		resp.Diagnostics.AddError(
+			"Missing Required Filter",
+			"At least one of 'rule_selection_filter' or 'asset_filter' must be defined.",
+		)
+	}
+}
+
+// validateRuleSelectionFilter validates the rule selection filter is not empty when defined.
+func (r *cloudSecuritySuppressionRuleResource) validateRuleSelectionFilter(
+	ctx context.Context,
+	requestConfig cloudSecuritySuppressionRuleResourceModel,
+	resp *resource.ValidateConfigResponse,
+) {
+	if !utils.IsKnown(requestConfig.RuleSelectionFilter) {
+		return
+	}
+
+	var ruleSelectionFilter ruleSelectionFilterModel
+	diags := requestConfig.RuleSelectionFilter.As(ctx, &ruleSelectionFilter, basetypes.ObjectAsOptions{})
+	if diags.HasError() {
+		return
+	}
+
+	if isRuleSelectionFilterEmpty(ruleSelectionFilter) {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("rule_selection_filter"),
+			"Empty Rule Selection Filter",
+			"When rule_selection_filter is defined, at least one filter criterion must be specified (ids, names, origins, providers, services, or severities).",
+		)
+	}
+}
+
+// validateAssetFilter validates the scope asset filter is not empty when defined.
+func (r *cloudSecuritySuppressionRuleResource) validateAssetFilter(
+	ctx context.Context,
+	requestConfig cloudSecuritySuppressionRuleResourceModel,
+	resp *resource.ValidateConfigResponse,
+) {
+	if !utils.IsKnown(requestConfig.AssetFilter) {
+		return
+	}
+
+	var scopeAssetFilter scopeAssetFilterModel
+	diags := requestConfig.AssetFilter.As(ctx, &scopeAssetFilter, basetypes.ObjectAsOptions{})
+	if diags.HasError() {
+		return
+	}
+
+	if isAssetFilterEmpty(scopeAssetFilter) {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("asset_filter"),
+			"Empty Asset Filter",
+			"When asset_filter is defined, at least one filter criterion must be specified (account_ids, cloud_group_ids, cloud_providers, regions, resource_ids, resource_names, resource_types, service_categories, or tags).",
+		)
+	}
+}
+
+// isRuleSelectionFilterEmpty checks if all rule selection filter fields are empty.
+func isRuleSelectionFilterEmpty(filter ruleSelectionFilterModel) bool {
+	// Check each filter field - all must be null or empty for the filter to be considered empty
+	return isSetFieldEmpty(filter.Ids) &&
+		isSetFieldEmpty(filter.Names) &&
+		isSetFieldEmpty(filter.Origins) &&
+		isSetFieldEmpty(filter.Providers) &&
+		isSetFieldEmpty(filter.Services) &&
+		isSetFieldEmpty(filter.Severities)
+}
+
+// isAssetFilterEmpty checks if all scope asset filter fields are empty.
+func isAssetFilterEmpty(filter scopeAssetFilterModel) bool {
+	// Check each filter field - all must be null or empty for the filter to be considered empty
+	return isSetFieldEmpty(filter.AccountIds) &&
+		isSetFieldEmpty(filter.CloudGroupIds) &&
+		isSetFieldEmpty(filter.CloudProviders) &&
+		isSetFieldEmpty(filter.Regions) &&
+		isSetFieldEmpty(filter.ResourceIds) &&
+		isSetFieldEmpty(filter.ResourceNames) &&
+		isSetFieldEmpty(filter.ResourceTypes) &&
+		isSetFieldEmpty(filter.ServiceCategories) &&
+		isSetFieldEmpty(filter.Tags)
+}
+
+// isSetFieldEmpty checks if a set field is null or has no elements.
+func isSetFieldEmpty(field types.Set) bool {
+	return field.IsNull() || len(field.Elements()) == 0
+}
+
+func isTimestampExpired(timestampStr string) (bool, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	timestamp, err := time.Parse(time.RFC3339, timestampStr)
+	if err != nil {
+		diags.AddError(
+			"Error Parsing Timestamp",
+			fmt.Sprintf("Failed to parse timestamp: %+v", err),
+		)
+	}
+
+	return timestamp.Before(time.Now()), diags
 }
 
 func (r *cloudSecuritySuppressionRuleResource) getSuppressionRule(ctx context.Context, id string) (*models.ApimodelsSuppressionRule, diag.Diagnostics) {
@@ -966,6 +960,33 @@ func (r *cloudSecuritySuppressionRuleResource) deleteSuppressionRule(ctx context
 	return diags
 }
 
+func (m *cloudSecuritySuppressionRuleResourceModel) wrap(
+	ctx context.Context,
+	rule models.ApimodelsSuppressionRule,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	m.ID = flex.StringPointerToFramework(rule.ID)
+	m.Description = types.StringValue(rule.Description)
+	m.Name = flex.StringPointerToFramework(rule.Name)
+	m.Comment = types.StringValue(rule.SuppressionComment)
+	m.ExpirationDate = flex.StringValueToFramework(rule.SuppressionExpirationDate)
+	m.Reason = flex.StringPointerToFramework(rule.SuppressionReason)
+	m.Type = flex.StringPointerToFramework(rule.Subdomain)
+
+	diags.Append(m.setRuleSelectionFilter(ctx, rule)...)
+	if diags.HasError() {
+		return diags
+	}
+
+	diags.Append(m.setAssetFilter(ctx, rule)...)
+	if diags.HasError() {
+		return diags
+	}
+
+	return diags
+}
+
 // Expand converts the Terraform model to an API Rule Selection Filter.
 func (c ruleSelectionFilterModel) Expand(ctx context.Context) (*models.SuppressionrulesRuleSelectionFilter, diag.Diagnostics) {
 	var ruleSelectionFilter models.SuppressionrulesRuleSelectionFilter
@@ -1048,20 +1069,6 @@ func (c scopeAssetFilterModel) Expand(ctx context.Context) (*models.Suppressionr
 	}
 
 	return &scopeAssetFilter, diags
-}
-
-func isTimestampExpired(timestampStr string) (bool, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	timestamp, err := time.Parse(time.RFC3339, timestampStr)
-	if err != nil {
-		diags.AddError(
-			"Error Parsing Timestamp",
-			fmt.Sprintf("Failed to parse timestamp: %+v", err),
-		)
-	}
-
-	return timestamp.Before(time.Now()), diags
 }
 
 func (m *cloudSecuritySuppressionRuleResourceModel) setAssetFilter(ctx context.Context, rule models.ApimodelsSuppressionRule) (diags diag.Diagnostics) {
