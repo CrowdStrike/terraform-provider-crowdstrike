@@ -96,22 +96,6 @@ var commonConfig = ruleBaseConfig{
 	},
 }
 
-// Runtime domain configuration
-var runtimeConfig = ruleBaseConfig{
-	ruleNamePrefix: "Terraform Automated Runtime Test ",
-	description: []string{
-		"This is a runtime rule description",
-		"This is an updated runtime rule description",
-	},
-	subdomain: "IOM",
-	domain:    "Runtime",
-	severity:  []string{"high", "medium"},
-	logic: []string{
-		"package crowdstrike\ndefault result = \"pass\"\nresult = \"fail\" if {\n input.runtime.process.name == \"malicious\"\n }",
-		"package crowdstrike\ndefault result = \"pass\"\nresult = \"fail\" if {\n input.runtime.process.name == \"suspicious\"\n }",
-	},
-}
-
 var awsCopyConfig = ruleCustomConfig{
 	ruleBaseConfig: commonConfig,
 	parentId:       "0473a26b-7f29-43c7-9581-105f8c9c0b7d",
@@ -232,7 +216,7 @@ func TestCloudSecurityCustomRuleResource_AWS_CopyEmptyOnCreate(t *testing.T) {
 	})
 }
 
-// Runtime/IOM Field Validation Tests
+// Runtime/IOM Field Validation Tests.
 func TestCloudSecurityCustomRuleResource_Runtime_IOM_DisabledFields(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
@@ -1347,7 +1331,7 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 
 // Test generator functions for Runtime/IOM field validation
 
-// Test that validates fields are disabled for Runtime domain with IOM subdomain
+// Test that validates fields are disabled for Runtime domain with IOM subdomain.
 func generateRuntimeIOMDisabledFieldsTests() []resource.TestStep {
 	randomSuffix := sdkacctest.RandString(8)
 
@@ -1440,7 +1424,7 @@ EOF
 	return []resource.TestStep{alertInfoStep, controlsStep, parentRuleStep, resourceTypeStep}
 }
 
-// Test that validates a valid Runtime/IOM configuration works
+// Test that validates a valid Runtime/IOM configuration works.
 func generateRuntimeIOMValidConfigurationTests() []resource.TestStep {
 	randomSuffix := sdkacctest.RandString(8)
 	ruleName := fmt.Sprintf("tfacc_runtime_valid_%s", randomSuffix)
@@ -1478,7 +1462,7 @@ EOF
 	return []resource.TestStep{validStep}
 }
 
-// Test that validates CSPM/IOM required fields
+// Test that validates CSPM/IOM required fields.
 func generateCSPMIOMRequiredFieldsTests() []resource.TestStep {
 	randomSuffix := sdkacctest.RandString(8)
 
@@ -1558,7 +1542,7 @@ EOF
 	return []resource.TestStep{missingResourceTypeStep, missingProviderStep, validStep}
 }
 
-// Test backward compatibility between new and deprecated fields
+// Test backward compatibility between new and deprecated fields.
 func generateNewFieldsBackwardCompatibilityTests() []resource.TestStep {
 	randomSuffix := sdkacctest.RandString(8)
 

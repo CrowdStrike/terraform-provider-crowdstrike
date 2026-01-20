@@ -44,29 +44,7 @@ var (
 		2: SeverityMedium,
 		3: SeverityInformational,
 	}
-	iomRuleDomainConfig = cloudSecurityDomainConfig{
-		Domain:    "CSPM",
-		Subdomain: "IOM",
-	}
-	kacIomRuleDomainConfig = cloudSecurityDomainConfig{
-		Domain:    "Runtime",
-		Subdomain: "IOM",
-	}
 )
-
-type cloudSecurityDomainConfig struct {
-	Domain    string
-	Subdomain string
-}
-
-func getDomainConfig(ruleType string) cloudSecurityDomainConfig {
-	switch ruleType {
-	case "IOM":
-		return iomRuleDomainConfig
-	default:
-		return iomRuleDomainConfig
-	}
-}
 
 func convertAlertRemediationInfoToTerraformState(input *string) basetypes.ListValue {
 	if input == nil || *input == "" {
@@ -346,7 +324,13 @@ func deleteCloudPolicyRule(client *client.CrowdStrikeAPISpecification, params cl
 // removing the resource from state and logging a warning. Returns true if the error was handled,
 // false otherwise. This function can be used across all custom rule resources for consistent
 // error handling.
-func handleNotFoundRemoveFromState(ctx context.Context, diags diag.Diagnostics, resourceID string, resourceType string, resp *resource.ReadResponse) bool {
+func handleNotFoundRemoveFromState(
+	ctx context.Context,
+	diags diag.Diagnostics,
+	resourceID string,
+	resourceType string,
+	resp *resource.ReadResponse,
+) bool {
 	if !diags.HasError() {
 		return false
 	}
