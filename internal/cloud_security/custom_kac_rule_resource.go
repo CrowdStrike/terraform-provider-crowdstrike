@@ -166,7 +166,7 @@ func (r *cloudSecurityKacCustomRuleResource) Create(
 		return
 	}
 
-	resp.Diagnostics.Append(plan.wrap(ctx, rule)...)
+	plan.wrap(ctx, rule)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -190,7 +190,7 @@ func (r *cloudSecurityKacCustomRuleResource) Read(
 		return
 	}
 
-	resp.Diagnostics.Append(state.wrap(ctx, rule)...)
+	state.wrap(ctx, rule)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -211,7 +211,7 @@ func (r *cloudSecurityKacCustomRuleResource) Update(
 		return
 	}
 
-	resp.Diagnostics.Append(plan.wrap(ctx, rule)...)
+	plan.wrap(ctx, rule)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
@@ -240,19 +240,14 @@ func (r *cloudSecurityKacCustomRuleResource) ImportState(
 func (m *cloudSecurityKacCustomRuleResourceModel) wrap(
 	_ context.Context,
 	rule *models.ApimodelsRule,
-) diag.Diagnostics {
-	var diags diag.Diagnostics
-
+) {
 	m.ID = types.StringPointerValue(rule.UUID)
 	m.Name = types.StringPointerValue(rule.Name)
 	m.Description = types.StringPointerValue(rule.Description)
 	m.Logic = types.StringValue(rule.Logic)
 	m.Severity = types.StringValue(int32ToSeverity[int32(*rule.Severity)])
-
-	return diags
 }
 
-//nolint:gocyclo
 func (r *cloudSecurityKacCustomRuleResource) createCloudPolicyRule(ctx context.Context, plan *cloudSecurityKacCustomRuleResourceModel) (*models.ApimodelsRule, diag.Diagnostics) {
 	return createCloudPolicyRule(r.client, cloud_policies.CreateRuleMixin0Params{
 		Context: ctx,

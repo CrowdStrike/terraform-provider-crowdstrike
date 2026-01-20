@@ -17,7 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-// TestCloudSecurityKacCustomRuleResource_Basic tests basic CRUD operations
+// TestCloudSecurityKacCustomRuleResource_Basic tests basic CRUD operations.
 func TestCloudSecurityKacCustomRuleResource_Basic(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	randomSuffix := sdkacctest.RandString(8)
@@ -68,7 +68,7 @@ func TestCloudSecurityKacCustomRuleResource_Basic(t *testing.T) {
 	})
 }
 
-// TestCloudSecurityKacCustomRuleResource_MinimalConfig tests minimal required configuration
+// TestCloudSecurityKacCustomRuleResource_MinimalConfig tests minimal required configuration.
 func TestCloudSecurityKacCustomRuleResource_MinimalConfig(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	randomSuffix := sdkacctest.RandString(8)
@@ -92,7 +92,7 @@ func TestCloudSecurityKacCustomRuleResource_MinimalConfig(t *testing.T) {
 	})
 }
 
-// TestCloudSecurityKacCustomRuleResource_SeverityValidation tests severity field validation
+// TestCloudSecurityKacCustomRuleResource_SeverityValidation tests severity field validation.
 func TestCloudSecurityKacCustomRuleResource_SeverityValidation(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	randomSuffix := sdkacctest.RandString(8)
@@ -110,7 +110,7 @@ func TestCloudSecurityKacCustomRuleResource_SeverityValidation(t *testing.T) {
 	})
 }
 
-// TestCloudSecurityKacCustomRuleResource_MissingLogic tests that logic is required
+// TestCloudSecurityKacCustomRuleResource_MissingLogic tests that logic is required.
 func TestCloudSecurityKacCustomRuleResource_MissingLogic(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 
@@ -127,7 +127,7 @@ func TestCloudSecurityKacCustomRuleResource_MissingLogic(t *testing.T) {
 	})
 }
 
-// TestCloudSecurityKacCustomRuleResource_AllSeverities tests all valid severity values
+// TestCloudSecurityKacCustomRuleResource_AllSeverities tests all valid severity values.
 func TestCloudSecurityKacCustomRuleResource_AllSeverities(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	randomSuffix := sdkacctest.RandString(8)
@@ -154,7 +154,7 @@ func TestCloudSecurityKacCustomRuleResource_AllSeverities(t *testing.T) {
 	}
 }
 
-// TestCloudSecurityKacCustomRuleResource_NameRequiresReplace tests that name changes require replacement
+// TestCloudSecurityKacCustomRuleResource_NameRequiresReplace tests that name changes require replacement.
 func TestCloudSecurityKacCustomRuleResource_NameRequiresReplace(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	randomSuffix := sdkacctest.RandString(8)
