@@ -1121,13 +1121,18 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 	m.VulnerabilityScanningRoleName = types.StringValue(vulnScanningRoleName)
 	m.VulnerabilityScanningRoleArn = types.StringValue(vulnScanningRoleArn)
 
-	agentlessScanningRoleName := dspmRoleName
-	if !m.DSPM.Enabled.ValueBool() && m.VulnerabilityScanning.Enabled.ValueBool() {
-		agentlessScanningRoleName = vulnScanningRoleName
-	}
-	m.AgentlessScanningRoleName = types.StringValue(agentlessScanningRoleName)
+	// Preserve the original DSPM and vulnerability scanning configuration before updateFeatureStatesFromProducts
+	// This handles timing issues where Products might not reflect the latest configuration yet
+	originalDSPMEnabled := (m.DSPM != nil && m.DSPM.Enabled.ValueBool())
+	originalVulnEnabled := (m.VulnerabilityScanning != nil && m.VulnerabilityScanning.Enabled.ValueBool())
 
 	updateFeatureStatesFromProducts(ctx, m, cloudAccount.Products, cloudAccount)
+
+	// Compute agentless scanning role name with timing-aware logic
+	agentlessScanningRoleName := computeAgentlessScanningRoleName(
+		ctx, m, originalDSPMEnabled, originalVulnEnabled, dspmRoleName, vulnScanningRoleName,
+	)
+	m.AgentlessScanningRoleName = types.StringValue(agentlessScanningRoleName)
 
 	if m.RealtimeVisibility != nil {
 		m.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
@@ -1582,5 +1587,64 @@ func (r *cloudAWSAccountResource) ValidateConfig(
 				fmt.Sprintf("When both DSPM and Vulnerability Scanning are enabled role names must be identical. DSPM role: '%s', Vulnerability Scanning role: '%s'", dspmRole, vulnRole),
 			)
 		}
+	}
+}
+
+// computeAgentlessScanningRoleName determines the appropriate role name for agentless scanning
+// based on DSPM and vulnerability scanning feature states and available role names.
+// It handles timing issues where API Products might not reflect the latest configuration yet.
+func computeAgentlessScanningRoleName(
+	ctx context.Context,
+	model *cloudAWSAccountModel,
+	originalDSPMEnabled, originalVulnEnabled bool,
+	dspmRoleName, vulnScanningRoleName string,
+) string {
+	// Check current API state for enabled features
+	dspmCurrentlyEnabled := (model.DSPM != nil && model.DSPM.Enabled.ValueBool())
+	vulnCurrentlyEnabled := (model.VulnerabilityScanning != nil && model.VulnerabilityScanning.Enabled.ValueBool())
+
+	// Handle timing issues - if feature was enabled in config but not reflected in API yet
+	// Also handle the case where DSPM/Vuln is newly added (going from nil to enabled)
+	if !dspmCurrentlyEnabled && originalDSPMEnabled {
+		dspmCurrentlyEnabled = true // Treat as enabled during timing window
+		tflog.Debug(ctx, "preserving DSPM enabled state due to timing issue")
+	}
+	if !vulnCurrentlyEnabled && originalVulnEnabled {
+		vulnCurrentlyEnabled = true // Treat as enabled during timing window
+		tflog.Debug(ctx, "preserving vuln enabled state due to timing issue")
+	}
+
+	// Debug logging
+	tflog.Debug(ctx, "agentless_scanning_role_name state after API update", map[string]interface{}{
+		"original_dspm_enabled":  originalDSPMEnabled,
+		"original_vuln_enabled":  originalVulnEnabled,
+		"dspm_currently_enabled": dspmCurrentlyEnabled,
+		"vuln_currently_enabled": vulnCurrentlyEnabled,
+		"dspm_role_name":         dspmRoleName,
+		"vuln_role_name":         vulnScanningRoleName,
+	})
+
+	const defaultRoleName = "CrowdStrikeAgentlessScanningIntegrationRole"
+
+	switch {
+	case dspmCurrentlyEnabled:
+		// DSPM has precedence - use API response if available, otherwise use default
+		if dspmRoleName != "" {
+			return dspmRoleName
+		}
+		return defaultRoleName
+
+	case vulnCurrentlyEnabled:
+		// Fallback to vulnerability scanning role
+		if vulnScanningRoleName != "" {
+			return vulnScanningRoleName
+		}
+		return defaultRoleName
+
+	default:
+		// Both features are disabled - always return default role name to ensure
+		// downstream modules have a valid value, especially during Read operations
+		// before Updates that will enable features
+		return defaultRoleName
 	}
 }

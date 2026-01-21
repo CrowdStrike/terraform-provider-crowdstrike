@@ -287,7 +287,7 @@ func (d *cloudAwsAccountsDataSource) Read(
 			continue
 		}
 
-		// Apply organization filter if specified
+		// Apply organization filter if specifie
 		if orgFilter != "" && a.OrganizationID != orgFilter {
 			continue
 		}
