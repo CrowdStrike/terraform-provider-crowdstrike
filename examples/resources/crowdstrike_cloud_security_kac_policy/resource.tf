@@ -14,7 +14,7 @@ provider "crowdstrike" {
 resource "crowdstrike_cloud_security_kac_policy" "example" {
   name        = "example-kac-policy"
   description = "An example KAC policy created with Terraform"
-  is_enabled  = true
+  enabled     = true
   host_groups = [
     "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
     "f47ac10b58cc4372a5670e4cn521b862",

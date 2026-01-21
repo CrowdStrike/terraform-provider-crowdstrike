@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/admission_control_policies"
@@ -13,6 +14,7 @@ import (
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -22,7 +24,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectdefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
@@ -30,6 +31,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -58,11 +60,11 @@ type cloudSecurityKacPolicyResourceModel struct {
 	ID               types.String `tfsdk:"id"`
 	Name             types.String `tfsdk:"name"`
 	Description      types.String `tfsdk:"description"`
-	IsEnabled        types.Bool   `tfsdk:"is_enabled"`
+	Enabled          types.Bool   `tfsdk:"enabled"`
 	HostGroups       types.Set    `tfsdk:"host_groups"`
 	RuleGroups       types.List   `tfsdk:"rule_groups"`
 	DefaultRuleGroup types.Object `tfsdk:"default_rule_group"`
-	LastUpdated      types.String `tfsdk:"last_updated"`
+	// LastUpdated      types.String `tfsdk:"last_updated"`
 }
 
 type ruleGroupTFModel struct {
@@ -96,7 +98,7 @@ func (m *cloudSecurityKacPolicyResourceModel) wrap(
 	m.ID = types.StringPointerValue(policy.ID)
 	m.Name = types.StringPointerValue(policy.Name)
 	m.Description = flex.StringPointerToFramework(policy.Description)
-	m.IsEnabled = types.BoolValue(*policy.IsEnabled)
+	m.Enabled = types.BoolValue(*policy.IsEnabled)
 
 	if policy.HostGroups != nil {
 		hostGroupIDs, setValueDiags := types.SetValueFrom(ctx, types.StringType, policy.HostGroups)
@@ -205,7 +207,7 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 					fwvalidators.StringNotWhitespace(),
 				},
 			},
-			"is_enabled": schema.BoolAttribute{
+			"enabled": schema.BoolAttribute{
 				Optional:    true,
 				Computed:    true,
 				Default:     booldefault.StaticBool(false),
@@ -215,11 +217,18 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 				Optional:    true,
 				ElementType: types.StringType,
 				Description: "Host Group ids to attach to the KAC policy.",
+				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
+					setvalidator.ValueStringsAre(
+						fwvalidators.StringNotWhitespace(),
+					),
+				},
 			},
 			"rule_groups": schema.ListNestedAttribute{
 				Optional:    true,
 				Description: "A list of KAC policy rule groups in order of highest to lowest priority. Reordering the list will change rule group precedence. When reordering the list of rule groups to update precedence, the rule group names must match the state, otherwise the provider will consider it a new rule group, or an in place update.",
 				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
 					fwvalidators.ListObjectUniqueString("name"),
 				},
 				NestedObject: schema.NestedAttributeObject{
@@ -358,7 +367,7 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 				Computed:    true,
 				Description: "The default rule group always has the lowest precedence. Only deny_on_error, image_assessment, and default_rules are configurable for the default rule group.",
 				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.UseStateForUnknown(),
+					UseDefaultRuleGroupModifier(),
 				},
 				Attributes: map[string]schema.Attribute{
 					"id": schema.StringAttribute{
@@ -449,10 +458,10 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 					"default_rules": defaultRulesSchema,
 				},
 			},
-			"last_updated": schema.StringAttribute{
-				Computed:    true,
-				Description: "Timestamp of the last Terraform update of the resource.",
-			},
+			// "last_updated": schema.StringAttribute{
+			//	Computed:    true,
+			//	Description: "Timestamp of the last Terraform update of the resource.",
+			// },
 		},
 	}
 }
@@ -469,35 +478,38 @@ func (r *cloudSecurityKacPolicyResource) Create(
 	}
 
 	createRequest := &models.APICreatePolicyRequest{
-		Name: plan.Name.ValueStringPointer(),
-	}
-
-	if !plan.Description.IsNull() && !plan.Description.IsUnknown() {
-		createRequest.Description = plan.Description.ValueString()
+		Name:        plan.Name.ValueStringPointer(),
+		Description: plan.Description.ValueString(),
 	}
 
 	params := admission_control_policies.NewAdmissionControlCreatePolicyParamsWithContext(ctx).
 		WithBody(createRequest)
 	createResponse, err := r.client.AdmissionControlPolicies.AdmissionControlCreatePolicy(params)
 	if err != nil {
+		if strings.Contains(err.Error(), "403") {
+			resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Create, cloudSecurityKacPolicyScopes))
+			return
+		}
+
 		resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Create, err))
 		return
 	}
 
-	if len(createResponse.Payload.Resources) == 0 {
-		resp.Diagnostics.AddError(
-			"Error creating KAC policy",
-			"No policy returned in create response",
-		)
+	if createResponse == nil || createResponse.Payload == nil || len(createResponse.Payload.Resources) == 0 {
+		resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
 		return
 	}
 
 	policy := createResponse.Payload.Resources[0]
 	plan.ID = types.StringValue(*policy.ID)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	if !plan.IsEnabled.IsNull() && !plan.IsEnabled.IsUnknown() && plan.IsEnabled.ValueBool() {
+	if plan.Enabled.ValueBool() {
 		updateRequest := &models.APIUpdatePolicyRequest{
-			IsEnabled: plan.IsEnabled.ValueBool(),
+			IsEnabled: plan.Enabled.ValueBool(),
 		}
 
 		updateParams := admission_control_policies.NewAdmissionControlUpdatePolicyParamsWithContext(ctx).
@@ -510,22 +522,23 @@ func (r *cloudSecurityKacPolicyResource) Create(
 			return
 		}
 
-		if len(updateResponse.Payload.Resources) > 0 {
-			policy = updateResponse.Payload.Resources[0]
-		}
-	}
-
-	// Handle host groups if specified
-	if !plan.HostGroups.IsNull() && !plan.HostGroups.IsUnknown() {
-		updatedPolicy, hostGroupDiags := r.updateHostGroups(ctx, plan.ID.ValueString(), plan.HostGroups, basetypes.SetValue{})
-		resp.Diagnostics.Append(hostGroupDiags...)
-		if resp.Diagnostics.HasError() {
+		if updateResponse == nil || updateResponse.Payload == nil || len(updateResponse.Payload.Resources) == 0 {
+			resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
 			return
 		}
 
-		if updatedPolicy != nil {
-			policy = updatedPolicy
-		}
+		policy = updateResponse.Payload.Resources[0]
+	}
+
+	// Handle host groups
+	updatedPolicy, hostGroupDiags := r.updateHostGroups(ctx, plan.ID.ValueString(), plan.HostGroups, basetypes.SetValue{})
+	resp.Diagnostics.Append(hostGroupDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if updatedPolicy != nil {
+		policy = updatedPolicy
 	}
 
 	// Handle rule groups
@@ -539,7 +552,7 @@ func (r *cloudSecurityKacPolicyResource) Create(
 		policy = policyWithRuleGroups
 	}
 
-	plan.LastUpdated = utils.GenerateUpdateTimestamp()
+	// plan.LastUpdated = utils.GenerateUpdateTimestamp()
 	resp.Diagnostics.Append(plan.wrap(ctx, policy)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -560,12 +573,29 @@ func (r *cloudSecurityKacPolicyResource) Read(
 
 	getResponse, err := r.client.AdmissionControlPolicies.AdmissionControlGetPolicies(params)
 	if err != nil {
+		if strings.Contains(err.Error(), "404") {
+			tflog.Warn(
+				ctx,
+				fmt.Sprintf(
+					"KAC policy with ID %s not found, removing from state",
+					state.ID.ValueString(),
+				),
+			)
+			resp.State.RemoveResource(ctx)
+			return
+		}
+
+		if strings.Contains(err.Error(), "403") {
+			resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Read, cloudSecurityKacPolicyScopes))
+			return
+		}
+
 		resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Read, err))
 		return
 	}
 
-	if len(getResponse.Payload.Resources) == 0 {
-		resp.State.RemoveResource(ctx)
+	if getResponse == nil || getResponse.Payload == nil || len(getResponse.Payload.Resources) == 0 {
+		resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Read))
 		return
 	}
 
@@ -592,11 +622,11 @@ func (r *cloudSecurityKacPolicyResource) Update(
 		return
 	}
 
-	if !plan.Name.Equal(state.Name) || !plan.Description.Equal(state.Description) || !plan.IsEnabled.Equal(state.IsEnabled) {
+	if !plan.Name.Equal(state.Name) || !plan.Description.Equal(state.Description) || !plan.Enabled.Equal(state.Enabled) {
 		updateRequest := &models.APIUpdatePolicyRequest{}
 		updateRequest.Name = plan.Name.ValueString()
 		updateRequest.Description = plan.Description.ValueString()
-		updateRequest.IsEnabled = plan.IsEnabled.ValueBool()
+		updateRequest.IsEnabled = plan.Enabled.ValueBool()
 
 		params := admission_control_policies.NewAdmissionControlUpdatePolicyParamsWithContext(ctx).
 			WithBody(updateRequest).
@@ -604,15 +634,17 @@ func (r *cloudSecurityKacPolicyResource) Update(
 
 		updateResponse, err := r.client.AdmissionControlPolicies.AdmissionControlUpdatePolicy(params)
 		if err != nil {
+			if strings.Contains(err.Error(), "403") {
+				resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
+				return
+			}
+
 			resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Update, err))
 			return
 		}
 
-		if len(updateResponse.Payload.Resources) == 0 {
-			resp.Diagnostics.AddError(
-				"Error updating KAC policy",
-				"No policy returned in update response",
-			)
+		if updateResponse == nil || updateResponse.Payload == nil || len(updateResponse.Payload.Resources) == 0 {
+			resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Update))
 			return
 		}
 
@@ -652,7 +684,7 @@ func (r *cloudSecurityKacPolicyResource) Update(
 		policy = policyWithUpdatedRuleGroups
 	}
 
-	plan.LastUpdated = utils.GenerateUpdateTimestamp()
+	// plan.LastUpdated = utils.GenerateUpdateTimestamp()
 	resp.Diagnostics.Append(plan.wrap(ctx, policy)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
@@ -669,7 +701,7 @@ func (r *cloudSecurityKacPolicyResource) Delete(
 	}
 
 	// Disable policy if it's enabled before deletion
-	if !state.IsEnabled.IsNull() && !state.IsEnabled.IsUnknown() && state.IsEnabled.ValueBool() {
+	if state.Enabled.ValueBool() {
 		updateRequest := &models.APIUpdatePolicyRequest{
 			IsEnabled: false,
 		}
@@ -741,7 +773,6 @@ func (r *cloudSecurityKacPolicyResource) ModifyPlan(
 		return
 	}
 
-	// Set the modified plan
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, modifiedPlan)...)
 }
 
@@ -851,17 +882,21 @@ func (r *cloudSecurityKacPolicyResource) updateHostGroups(
 
 		removeResponse, err := r.client.AdmissionControlPolicies.AdmissionControlRemoveHostGroups(removeParams)
 		if err != nil {
-			diags.AddError(
-				"Error removing host groups from KAC policy",
-				fmt.Sprintf("Could not remove host groups from KAC policy: %s", err.Error()),
-			)
+			if strings.Contains(err.Error(), "403") {
+				diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
+				return nil, diags
+			}
+
+			diags.Append(tferrors.NewOperationError(tferrors.Update, err))
 			return nil, diags
 		}
 
-		// Use the updated policy from remove response
-		if len(removeResponse.Payload.Resources) > 0 {
-			updatedPolicy = removeResponse.Payload.Resources[0]
+		if removeResponse == nil || removeResponse.Payload == nil || len(removeResponse.Payload.Resources) == 0 {
+			diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
+			return nil, diags
 		}
+
+		updatedPolicy = removeResponse.Payload.Resources[0]
 	}
 
 	// Add new host groups
@@ -876,17 +911,21 @@ func (r *cloudSecurityKacPolicyResource) updateHostGroups(
 
 		addResponse, err := r.client.AdmissionControlPolicies.AdmissionControlAddHostGroups(addParams)
 		if err != nil {
-			diags.AddError(
-				"Error adding host groups to KAC policy",
-				fmt.Sprintf("Could not add host groups to KAC policy: %s", err.Error()),
-			)
+			if strings.Contains(err.Error(), "403") {
+				diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
+				return nil, diags
+			}
+
+			diags.Append(tferrors.NewOperationError(tferrors.Update, err))
 			return nil, diags
 		}
 
-		// Use the updated policy from add response (this will be the most recent)
-		if len(addResponse.Payload.Resources) > 0 {
-			updatedPolicy = addResponse.Payload.Resources[0]
+		if addResponse == nil || addResponse.Payload == nil || len(addResponse.Payload.Resources) == 0 {
+			diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
+			return nil, diags
 		}
+
+		updatedPolicy = addResponse.Payload.Resources[0]
 	}
 
 	return updatedPolicy, diags
@@ -926,15 +965,17 @@ func (r *cloudSecurityKacPolicyResource) deleteRemovedRuleGroups(
 
 	deleteResponse, err := r.client.AdmissionControlPolicies.AdmissionControlDeleteRuleGroups(deleteParams)
 	if err != nil {
+		if strings.Contains(err.Error(), "403") {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
+			return nil, diags
+		}
+
 		diags.Append(tferrors.NewOperationError(tferrors.Update, err))
 		return nil, diags
 	}
 
-	if len(deleteResponse.Payload.Resources) == 0 {
-		diags.AddError(
-			"Error deleting rule groups from KAC policy",
-			"No policy returned in delete rule groups response",
-		)
+	if deleteResponse == nil || deleteResponse.Payload == nil || len(deleteResponse.Payload.Resources) == 0 {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
 		return nil, diags
 	}
 
@@ -1114,18 +1155,17 @@ func (r *cloudSecurityKacPolicyResource) createNewRuleGroups(
 
 	createResponse, err := r.client.AdmissionControlPolicies.AdmissionControlCreateRuleGroups(params)
 	if err != nil {
-		diags.AddError(
-			"Error creating rule groups",
-			fmt.Sprintf("Could not create rule groups for KAC policy: %s", err.Error()),
-		)
+		if strings.Contains(err.Error(), "403") {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
+			return nil
+		}
+
+		diags.Append(tferrors.NewOperationError(tferrors.Update, err))
 		return nil
 	}
 
-	if len(createResponse.Payload.Resources) == 0 {
-		diags.AddError(
-			"Error creating rule groups",
-			"No policy returned in create rule groups response",
-		)
+	if createResponse == nil || createResponse.Payload == nil || len(createResponse.Payload.Resources) == 0 {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
 		return nil
 	}
 
@@ -1158,18 +1198,17 @@ func (r *cloudSecurityKacPolicyResource) updateRuleGroupPrecedence(
 
 	changePrecedenceResponse, err := r.client.AdmissionControlPolicies.AdmissionControlSetRuleGroupPrecedence(params)
 	if err != nil {
-		diags.AddError(
-			"Error updating precedence of rule groups",
-			fmt.Sprintf("Could not update precedence of rule groups: %s", err.Error()),
-		)
+		if strings.Contains(err.Error(), "403") {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
+			return nil
+		}
+
+		diags.Append(tferrors.NewOperationError(tferrors.Update, err))
 		return nil
 	}
 
-	if len(changePrecedenceResponse.Payload.Resources) == 0 {
-		diags.AddError(
-			"Error updating precedence of rule groups",
-			"No policy returned in set rule group precedence response",
-		)
+	if changePrecedenceResponse == nil || changePrecedenceResponse.Payload == nil || len(changePrecedenceResponse.Payload.Resources) == 0 {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
 		return nil
 	}
 
@@ -1196,18 +1235,17 @@ func (r *cloudSecurityKacPolicyResource) updateRuleGroupAttributesAndRules(
 
 	updateResponse, err := r.client.AdmissionControlPolicies.AdmissionControlUpdateRuleGroups(params)
 	if err != nil {
-		diags.AddError(
-			"Error updating rule groups",
-			fmt.Sprintf("Could not update rule groups for KAC policy: %s", err.Error()),
-		)
+		if strings.Contains(err.Error(), "403") {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
+			return nil
+		}
+
+		diags.Append(tferrors.NewOperationError(tferrors.Update, err))
 		return nil
 	}
 
-	if len(updateResponse.Payload.Resources) == 0 {
-		diags.AddError(
-			"Error updating rule groups",
-			"No policy returned in update rule groups response",
-		)
+	if updateResponse == nil || updateResponse.Payload == nil || len(updateResponse.Payload.Resources) == 0 {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
 		return nil
 	}
 
@@ -1234,18 +1272,17 @@ func (r *cloudSecurityKacPolicyResource) replaceRuleGroupSelectors(
 
 	replaceSelectorsResponse, err := r.client.AdmissionControlPolicies.AdmissionControlReplaceRuleGroupSelectors(params)
 	if err != nil {
-		diags.AddError(
-			"Error replacing selectors for rule groups",
-			fmt.Sprintf("Could not replace selectors for rule groups: %s", err.Error()),
-		)
+		if strings.Contains(err.Error(), "403") {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
+			return nil
+		}
+
+		diags.Append(tferrors.NewOperationError(tferrors.Update, err))
 		return nil
 	}
 
-	if len(replaceSelectorsResponse.Payload.Resources) == 0 {
-		diags.AddError(
-			"Error replacing selectors for rule groups",
-			"No policy returned in replace rule group selectors response",
-		)
+	if replaceSelectorsResponse == nil || replaceSelectorsResponse.Payload == nil || len(replaceSelectorsResponse.Payload.Resources) == 0 {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
 		return nil
 	}
 

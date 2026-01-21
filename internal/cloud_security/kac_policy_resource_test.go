@@ -14,7 +14,7 @@ import (
 type kacPolicyConfig struct {
 	name             string
 	description      *string
-	isEnabled        *bool
+	enabled          *bool
 	hostGroups       []string
 	ruleGroups       []ruleGroupConfig
 	defaultRuleGroup *defaultRuleGroupConfig
@@ -67,9 +67,9 @@ resource "crowdstrike_cloud_security_kac_policy" "test" {
   description = %q`, *c.description)
 	}
 
-	if c.isEnabled != nil {
+	if c.enabled != nil {
 		config += fmt.Sprintf(`
-  is_enabled = %t`, *c.isEnabled)
+  enabled = %t`, *c.enabled)
 	}
 
 	if len(c.hostGroups) > 0 {
@@ -259,7 +259,7 @@ func TestCloudSecurityKacPolicyResource_Minimal(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckNoResourceAttr(resourceName, "description"),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"), // should default to false
+					resource.TestCheckResourceAttr(resourceName, "enabled", "false"), // should default to false
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -281,12 +281,12 @@ func TestCloudSecurityKacPolicyResource_Basic(t *testing.T) {
 				Config: kacPolicyConfig{
 					name:        policyName,
 					description: stringPtr("Test KAC policy created by Terraform"),
-					isEnabled:   boolPtr(false),
+					enabled:     boolPtr(false),
 				}.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy created by Terraform"),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -294,12 +294,12 @@ func TestCloudSecurityKacPolicyResource_Basic(t *testing.T) {
 				Config: kacPolicyConfig{
 					name:        updatedPolicyName,
 					description: stringPtr("Updated KAC policy description"),
-					isEnabled:   boolPtr(true),
+					enabled:     boolPtr(true),
 				}.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", updatedPolicyName),
 					resource.TestCheckResourceAttr(resourceName, "description", "Updated KAC policy description"),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "true"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -331,34 +331,34 @@ func TestCloudSecurityKacPolicyResource_EnabledToggle(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: kacPolicyConfig{
-					name:      policyName,
-					isEnabled: boolPtr(true),
+					name:    policyName,
+					enabled: boolPtr(true),
 				}.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "true"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
 			{
 				Config: kacPolicyConfig{
-					name:      policyName,
-					isEnabled: boolPtr(false),
+					name:    policyName,
+					enabled: boolPtr(false),
 				}.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
 			{
 				Config: kacPolicyConfig{
-					name:      policyName,
-					isEnabled: boolPtr(true),
+					name:    policyName,
+					enabled: boolPtr(true),
 				}.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "true"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -404,14 +404,14 @@ resource "crowdstrike_host_group" "test-hg-3" {
 					kacPolicyConfig{
 						name:        policyName,
 						description: stringPtr("Test KAC policy with host groups"),
-						isEnabled:   boolPtr(false),
+						enabled:     boolPtr(false),
 						hostGroups:  []string{"crowdstrike_host_group.test-hg-1.id", "crowdstrike_host_group.test-hg-2.id"},
 					}.String(),
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with host groups"),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
 					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "2"),
 					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test-hg-1", "id"),
 					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test-hg-2", "id"),
@@ -424,14 +424,14 @@ resource "crowdstrike_host_group" "test-hg-3" {
 					kacPolicyConfig{
 						name:        policyName,
 						description: stringPtr("Test KAC policy with updated host groups"),
-						isEnabled:   boolPtr(false),
+						enabled:     boolPtr(false),
 						hostGroups:  []string{"crowdstrike_host_group.test-hg-2.id", "crowdstrike_host_group.test-hg-3.id"}, // Remove hostGroup1, add hostGroup3
 					}.String(),
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with updated host groups"),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
 					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "2"),
 					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test-hg-2", "id"),
 					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test-hg-3", "id"),
@@ -444,14 +444,14 @@ resource "crowdstrike_host_group" "test-hg-3" {
 					kacPolicyConfig{
 						name:        policyName,
 						description: stringPtr("Test KAC policy with no host groups"),
-						isEnabled:   boolPtr(false),
+						enabled:     boolPtr(false),
 						hostGroups:  []string{}, // Remove all host groups
 					}.String(),
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with no host groups"),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
 					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "0"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
@@ -492,7 +492,7 @@ func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
 				Config: kacPolicyConfig{
 					name:        policyName,
 					description: stringPtr("Test KAC policy with default rule group"),
-					isEnabled:   boolPtr(false),
+					enabled:     boolPtr(false),
 					defaultRuleGroup: &defaultRuleGroupConfig{
 						denyOnError: boolPtr(false),
 						imageAssessment: &imageAssessmentConfig{
@@ -508,7 +508,7 @@ func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with default rule group"),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
 					resource.TestCheckResourceAttrSet(resourceName, "default_rule_group.id"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.deny_on_error", "false"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.enabled", "true"),
@@ -522,12 +522,12 @@ func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
 				Config: kacPolicyConfig{
 					name:        policyName,
 					description: stringPtr("Test KAC policy with default rule group"),
-					isEnabled:   boolPtr(false),
+					enabled:     boolPtr(false),
 					defaultRuleGroup: &defaultRuleGroupConfig{
 						denyOnError: boolPtr(true),
 						imageAssessment: &imageAssessmentConfig{
-							enabled:            false,
-							unassessedHandling: "Allow Without Alert",
+							enabled:            true,
+							unassessedHandling: "Prevent",
 						},
 						defaultRules: &defaultRulesConfig{
 							workloadInDefaultNamespace: defaultRulePtr("Alert"),
@@ -538,13 +538,33 @@ func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with default rule group"),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
 					resource.TestCheckResourceAttrSet(resourceName, "default_rule_group.id"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.deny_on_error", "true"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.unassessed_handling", "Prevent"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace", "Alert"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container", "Disabled"),
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+				),
+			},
+			{
+				Config: kacPolicyConfig{
+					name:        policyName,
+					description: stringPtr("Test KAC policy with default rule group"),
+					enabled:     boolPtr(false),
+				}.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", policyName),
+					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with default rule group"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
+					resource.TestCheckResourceAttrSet(resourceName, "default_rule_group.id"),
+					// All optional default rule group attributes should revert back to their default values
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.deny_on_error", "false"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.enabled", "false"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.unassessed_handling", "Allow Without Alert"),
 					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container", "Disabled"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container", "Alert"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -609,7 +629,7 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 				Config: kacPolicyConfig{
 					name:        policyName,
 					description: stringPtr("Test KAC policy with rule groups"),
-					isEnabled:   boolPtr(false),
+					enabled:     boolPtr(false),
 					ruleGroups: []ruleGroupConfig{
 						{
 							name:        "test-rule-group-1",
@@ -637,7 +657,7 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with rule groups"),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "test-rule-group-1"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.description", "First test rule group"),
@@ -669,7 +689,7 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 				Config: kacPolicyConfig{
 					name:        policyName,
 					description: stringPtr("Test KAC policy with updated rule groups"),
-					isEnabled:   boolPtr(false),
+					enabled:     boolPtr(false),
 					ruleGroups: []ruleGroupConfig{
 						{
 							name:        "test-rule-group-1-updated",
@@ -701,7 +721,7 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with updated rule groups"),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "test-rule-group-1-updated"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.description", "Updated first test rule group"),
@@ -722,7 +742,7 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 				Config: kacPolicyConfig{
 					name:        policyName,
 					description: stringPtr("Test KAC policy with updated rule groups"),
-					isEnabled:   boolPtr(false),
+					enabled:     boolPtr(false),
 					ruleGroups: []ruleGroupConfig{
 						{
 							name:        "test-rule-group-1-updated",
@@ -733,7 +753,7 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with updated rule groups"),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "1"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "test-rule-group-1-updated"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.description", "Updated first test rule group - optional attributes removed"),
@@ -770,7 +790,7 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 				Config: kacPolicyConfig{
 					name:        policyName,
 					description: stringPtr("Test KAC policy with multiple rule groups"),
-					isEnabled:   boolPtr(false),
+					enabled:     boolPtr(false),
 					ruleGroups: []ruleGroupConfig{
 						{
 							name:        "production-rule-group",
@@ -854,7 +874,7 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 				Config: kacPolicyConfig{
 					name:        policyName,
 					description: stringPtr("Test KAC policy with updated multiple rule groups"),
-					isEnabled:   boolPtr(false),
+					enabled:     boolPtr(false),
 					ruleGroups: []ruleGroupConfig{
 						{
 							name:        "production-rule-group-updated",
@@ -951,7 +971,7 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 				Config: kacPolicyConfig{
 					name:        policyName,
 					description: stringPtr("Test KAC policy with multiple rule groups and default rule group"),
-					isEnabled:   boolPtr(false),
+					enabled:     boolPtr(false),
 					ruleGroups: []ruleGroupConfig{
 						{
 							name:        "rule-group-1",
@@ -1010,7 +1030,7 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with multiple rule groups and default rule group"),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
 					// Rule groups checks
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "2"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "rule-group-1"),
@@ -1052,7 +1072,7 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 				Config: kacPolicyConfig{
 					name:        policyName,
 					description: stringPtr("Test KAC policy with reordered rule groups and updated default rule group"),
-					isEnabled:   boolPtr(false),
+					enabled:     boolPtr(false),
 					ruleGroups: []ruleGroupConfig{
 						{
 							// new rule group in position 1
@@ -1126,7 +1146,7 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
 					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with reordered rule groups and updated default rule group"),
-					resource.TestCheckResourceAttr(resourceName, "is_enabled", "false"),
+					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
 					// Verify rule groups are reordered (new-rule-group now first, rule-group-2 still second, and rule-group-1 third)
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "3"),
 					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "new-rule-group"),

@@ -5,7 +5,7 @@ description: |-
   This resource manages an Admission Control policy, which provides instructions to the Falcon Kubernetes Admission Controller (KAC) about what actions to take on objects at runtime.
   API Scopes
   The following API scopes are required:
-  Falcon Container Image | Read & Write
+  Falcon Container Policies | Read & Write
 ---
 
 # crowdstrike_cloud_security_kac_policy (Resource)
@@ -16,7 +16,7 @@ This resource manages an Admission Control policy, which provides instructions t
 
 The following API scopes are required:
 
-- Falcon Container Image | Read & Write
+- Falcon Container Policies | Read & Write
 
 
 ## Example Usage
@@ -38,7 +38,7 @@ provider "crowdstrike" {
 resource "crowdstrike_cloud_security_kac_policy" "example" {
   name        = "example-kac-policy"
   description = "An example KAC policy created with Terraform"
-  is_enabled  = true
+  enabled     = true
   host_groups = [
     "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
     "f47ac10b58cc4372a5670e4cn521b862",
@@ -94,14 +94,13 @@ output "cloud_security_kac_policy" {
 
 - `default_rule_group` (Attributes) The default rule group always has the lowest precedence. Only deny_on_error, image_assessment, and default_rules are configurable for the default rule group. (see [below for nested schema](#nestedatt--default_rule_group))
 - `description` (String) Description of the Kubernetes Admission Control policy.
+- `enabled` (Boolean) Whether the policy is enabled.
 - `host_groups` (Set of String) Host Group ids to attach to the KAC policy.
-- `is_enabled` (Boolean) Whether the policy is enabled.
 - `rule_groups` (Attributes List) A list of KAC policy rule groups in order of highest to lowest priority. Reordering the list will change rule group precedence. When reordering the list of rule groups to update precedence, the rule group names must match the state, otherwise the provider will consider it a new rule group, or an in place update. (see [below for nested schema](#nestedatt--rule_groups))
 
 ### Read-Only
 
 - `id` (String) Identifier for the Cloud Security KAC Policy.
-- `last_updated` (String) Timestamp of the last Terraform update of the resource.
 
 <a id="nestedatt--default_rule_group"></a>
 ### Nested Schema for `default_rule_group`
