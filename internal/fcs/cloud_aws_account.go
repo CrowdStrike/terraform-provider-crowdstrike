@@ -1103,8 +1103,16 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 		}
 		dspmRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partition, hostAccountID, dspmRoleName)
 	}
-	m.DspmRoleName = types.StringValue(dspmRoleName)
-	m.DspmRoleArn = types.StringValue(dspmRoleArn)
+	if dspmRoleName != "" {
+		m.DspmRoleName = types.StringValue(dspmRoleName)
+	} else {
+		m.DspmRoleName = types.StringNull()
+	}
+	if dspmRoleArn != "" {
+		m.DspmRoleArn = types.StringValue(dspmRoleArn)
+	} else {
+		m.DspmRoleArn = types.StringNull()
+	}
 
 	var vulnScanningRoleArn string
 	vulnScanningRoleNameFromSettings := settings.VulnerabilityScanningRoleName.ValueString()
@@ -1118,8 +1126,16 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 		}
 		vulnScanningRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partition, hostAccountID, vulnScanningRoleName)
 	}
-	m.VulnerabilityScanningRoleName = types.StringValue(vulnScanningRoleName)
-	m.VulnerabilityScanningRoleArn = types.StringValue(vulnScanningRoleArn)
+	if vulnScanningRoleName != "" {
+		m.VulnerabilityScanningRoleName = types.StringValue(vulnScanningRoleName)
+	} else {
+		m.VulnerabilityScanningRoleName = types.StringNull()
+	}
+	if vulnScanningRoleArn != "" {
+		m.VulnerabilityScanningRoleArn = types.StringValue(vulnScanningRoleArn)
+	} else {
+		m.VulnerabilityScanningRoleArn = types.StringNull()
+	}
 
 	// Preserve the original DSPM and vulnerability scanning configuration before updateFeatureStatesFromProducts
 	// This handles timing issues where Products might not reflect the latest configuration yet
