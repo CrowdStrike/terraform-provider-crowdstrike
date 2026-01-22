@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -90,11 +91,11 @@ func (d *cloudAwsAccountsDataSource) Schema(
 		Attributes: map[string]schema.Attribute{
 			"account_id": schema.StringAttribute{
 				Optional:    true,
-				Description: "Filter the results to a specific AWS Account ID. When specified, returns details for the matching AWS account. Can be used together with organization_id filter for OR matching",
+				Description: "Filter the results to a specific AWS Account ID. When both account_id and organization_id are specified, only accounts matching both are returned",
 			},
 			"organization_id": schema.StringAttribute{
 				Optional:    true,
-				Description: "Filter the results to accounts within a specific AWS Organization. When specified, returns all AWS accounts associated with this organization ID. Can be used together with account_id filter for OR matching",
+				Description: "Filter the results to accounts within a specific AWS Organization. When both account_id and organization_id are specified, only accounts matching both are returned",
 			},
 			"accounts": schema.ListNestedAttribute{
 				Computed:    true,
@@ -218,39 +219,35 @@ func (d *cloudAwsAccountsDataSource) Schema(
 func (d *cloudAwsAccountsDataSource) getCloudAccounts(
 	ctx context.Context,
 	accounts []string,
+	organizations []string,
 ) ([]*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	tflog.Debug(
 		ctx,
 		"[datasource] Getting Cloud AWS Accounts ",
-		map[string]interface{}{"accounts": accounts},
+		map[string]interface{}{"accounts": accounts, "organizations": organizations},
 	)
 	res, status, err := d.client.CloudAwsRegistration.CloudRegistrationAwsGetAccounts(
 		&cloud_aws_registration.CloudRegistrationAwsGetAccountsParams{
-			Context: ctx,
-			Ids:     accounts,
+			Context:         ctx,
+			Ids:             accounts,
+			OrganizationIds: organizations,
 		},
 	)
 	if err != nil {
 		if _, ok := err.(*cloud_aws_registration.CloudRegistrationAwsGetAccountsForbidden); ok {
-			diags.AddError(
-				"Failed to read Cloud Registration AWS accounts:: 403 Forbidden",
-				scopes.GenerateScopeDescription(cloudSecurityScopes),
-			)
+			diags.Append(tferrors.NewForbiddenError(tferrors.Read, cloudSecurityScopes))
 			return nil, diags
 		}
-		diags.AddError(
-			"Failed to read Cloud Registration AWS accounts",
-			fmt.Sprintf("Failed to get Cloud AWS accounts: %s", err.Error()),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Read, err))
 		return nil, diags
 	}
 	if status != nil {
-		for _, err := range status.Payload.Errors {
-			diags.AddError(
-				"Failed to read Cloud Registration AWS accounts",
-				fmt.Sprintf("Failed to get Cloud AWS accounts: %s", *err.Message),
-			)
+		for _, apiErr := range status.Payload.Errors {
+			diags.Append(tferrors.NewOperationError(
+				tferrors.Read,
+				fmt.Errorf("API error (code %d): %s", *apiErr.Code, *apiErr.Message),
+			))
 		}
 		return nil, diags
 	}
@@ -268,27 +265,25 @@ func (d *cloudAwsAccountsDataSource) Read(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	// Get cloud accounts with account ID filter if provided
 	var accountIDs []string
 	if accountFilter := data.AccountID.ValueString(); accountFilter != "" {
 		accountIDs = []string{accountFilter}
 	}
-	cloudAccounts, diags := d.getCloudAccounts(ctx, accountIDs)
+
+	var organizationIDs []string
+	if orgFilter := data.OrganizationID.ValueString(); orgFilter != "" {
+		organizationIDs = []string{orgFilter}
+	}
+
+	cloudAccounts, diags := d.getCloudAccounts(ctx, accountIDs, organizationIDs)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	// Filter accounts based on organization filter only (account ID is handled server-side)
-	orgFilter := data.OrganizationID.ValueString()
 
 	data.Accounts = make([]*cloudAWSAccountDataModel, 0)
 	for _, a := range cloudAccounts {
 		if a == nil {
-			continue
-		}
-
-		// Apply organization filter if specifie
-		if orgFilter != "" && a.OrganizationID != orgFilter {
 			continue
 		}
 

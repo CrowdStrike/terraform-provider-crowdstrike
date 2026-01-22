@@ -10,13 +10,11 @@ import (
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 )
 
-var (
-	test_account_id     = sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
-	test_org_account_id = sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
-	test_org_id         = fmt.Sprintf("o-%s", sdkacctest.RandStringFromCharSet(10, sdkacctest.CharSetAlpha))
-)
-
 func TestAccCloudAwsAccountDataSource(t *testing.T) {
+	testAccountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	testOrgAccountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	testOrgID := fmt.Sprintf("o-%s", sdkacctest.RandStringFromCharSet(10, sdkacctest.CharSetAlpha))
+
 	resourceNameAcc := "crowdstrike_cloud_aws_account.acc"
 	dataSourceNameAcc := "data.crowdstrike_cloud_aws_account.acc"
 	resourceNameOrg := "crowdstrike_cloud_aws_account.org"
@@ -27,7 +25,7 @@ func TestAccCloudAwsAccountDataSource(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloudAwsAccountDataSource_byAccountID(),
+				Config: testAccCloudAwsAccountDataSource_byAccountID(testAccountID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(dataSourceNameAcc, "accounts.#", "1"),
 					resource.TestCheckResourceAttrPair(resourceNameAcc, "account_id", dataSourceNameAcc, "accounts.0.account_id"),
@@ -50,7 +48,7 @@ func TestAccCloudAwsAccountDataSource(t *testing.T) {
 				),
 			},
 			{
-				Config: testAccCloudAwsAccountDataSource_byOrgID(),
+				Config: testAccCloudAwsAccountDataSource_byOrgID(testOrgAccountID, testOrgID),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(dataSourceNameOrg, "accounts.#", "1"),
 					resource.TestCheckResourceAttrPair(resourceNameOrg, "account_id", dataSourceNameOrg, "accounts.0.account_id"),
@@ -77,11 +75,51 @@ func TestAccCloudAwsAccountDataSource(t *testing.T) {
 	})
 }
 
-func testAccCloudAwsAccountDataSource_byAccountID() string {
+func TestAccCloudAwsAccountDataSource_Minimal(t *testing.T) {
+	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+
+	resourceName := "crowdstrike_cloud_aws_account.test"
+	dataSourceName := "data.crowdstrike_cloud_aws_account.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAwsAccountDataSource_minimal(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(dataSourceName, "accounts.#", "1"),
+					resource.TestCheckResourceAttrPair(resourceName, "account_id", dataSourceName, "accounts.0.account_id"),
+					resource.TestCheckResourceAttrPair(resourceName, "is_organization_management_account", dataSourceName, "accounts.0.is_organization_management_account"),
+					resource.TestCheckResourceAttrPair(resourceName, "account_type", dataSourceName, "accounts.0.account_type"),
+					resource.TestCheckResourceAttrPair(resourceName, "external_id", dataSourceName, "accounts.0.external_id"),
+					resource.TestCheckResourceAttrPair(resourceName, "intermediate_role_arn", dataSourceName, "accounts.0.intermediate_role_arn"),
+					resource.TestCheckResourceAttrPair(resourceName, "iam_role_arn", dataSourceName, "accounts.0.iam_role_arn"),
+					resource.TestCheckResourceAttrPair(resourceName, "iam_role_name", dataSourceName, "accounts.0.iam_role_name"),
+					resource.TestCheckResourceAttrPair(resourceName, "eventbus_name", dataSourceName, "accounts.0.eventbus_name"),
+					resource.TestCheckResourceAttrPair(resourceName, "eventbus_arn", dataSourceName, "accounts.0.eventbus_arn"),
+					resource.TestCheckResourceAttrPair(resourceName, "dspm_role_arn", dataSourceName, "accounts.0.dspm_role_arn"),
+					resource.TestCheckResourceAttrPair(resourceName, "dspm_role_name", dataSourceName, "accounts.0.dspm_role_name"),
+					resource.TestCheckResourceAttrPair(resourceName, "vulnerability_scanning_role_arn", dataSourceName, "accounts.0.vulnerability_scanning_role_arn"),
+					resource.TestCheckResourceAttrPair(resourceName, "vulnerability_scanning_role_name", dataSourceName, "accounts.0.vulnerability_scanning_role_name"),
+					resource.TestCheckResourceAttrPair(resourceName, "agentless_scanning_role_name", dataSourceName, "accounts.0.agentless_scanning_role_name"),
+					resource.TestCheckResourceAttrPair(resourceName, "asset_inventory.enabled", dataSourceName, "accounts.0.asset_inventory_enabled"),
+					resource.TestCheckResourceAttrPair(resourceName, "realtime_visibility.enabled", dataSourceName, "accounts.0.realtime_visibility_enabled"),
+					resource.TestCheckResourceAttrPair(resourceName, "idp.enabled", dataSourceName, "accounts.0.idp_enabled"),
+					resource.TestCheckResourceAttrPair(resourceName, "sensor_management.enabled", dataSourceName, "accounts.0.sensor_management_enabled"),
+					resource.TestCheckResourceAttrPair(resourceName, "dspm.enabled", dataSourceName, "accounts.0.dspm_enabled"),
+					resource.TestCheckResourceAttrPair(resourceName, "vulnerability_scanning.enabled", dataSourceName, "accounts.0.vulnerability_scanning_enabled"),
+				),
+			},
+		},
+	})
+}
+
+func testAccCloudAwsAccountDataSource_byAccountID(accountID string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_aws_account" "acc" {
-  account_id                         = "%s"
-  
+  account_id = %[1]q
+
   realtime_visibility = {
     enabled           = true
     cloudtrail_region = "us-east-1"
@@ -105,19 +143,19 @@ resource "crowdstrike_cloud_aws_account" "acc" {
 }
 
 data "crowdstrike_cloud_aws_account" "acc" {
-  account_id = "%s"
+  account_id = %[1]q
   depends_on = [
     crowdstrike_cloud_aws_account.acc
   ]
 }
-`, test_account_id, test_account_id)
+`, accountID)
 }
 
-func testAccCloudAwsAccountDataSource_byOrgID() string {
+func testAccCloudAwsAccountDataSource_byOrgID(accountID, orgID string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_aws_account" "org" {
-  account_id                         = "%s"
-  organization_id                    = "%s"
+  account_id      = %[1]q
+  organization_id = %[2]q
 
   realtime_visibility = {
     enabled           = true
@@ -142,10 +180,25 @@ resource "crowdstrike_cloud_aws_account" "org" {
 }
 
 data "crowdstrike_cloud_aws_account" "org" {
-  organization_id = "%s"
+  organization_id = %[2]q
   depends_on = [
     crowdstrike_cloud_aws_account.org
   ]
 }
-`, test_org_account_id, test_org_id, test_org_id)
+`, accountID, orgID)
+}
+
+func testAccCloudAwsAccountDataSource_minimal(accountID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = %[1]q
+}
+
+data "crowdstrike_cloud_aws_account" "test" {
+  account_id = %[1]q
+  depends_on = [
+    crowdstrike_cloud_aws_account.test
+  ]
+}
+`, accountID)
 }
