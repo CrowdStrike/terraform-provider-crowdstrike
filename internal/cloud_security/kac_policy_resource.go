@@ -64,7 +64,7 @@ type cloudSecurityKacPolicyResourceModel struct {
 	HostGroups       types.Set    `tfsdk:"host_groups"`
 	RuleGroups       types.List   `tfsdk:"rule_groups"`
 	DefaultRuleGroup types.Object `tfsdk:"default_rule_group"`
-	// LastUpdated      types.String `tfsdk:"last_updated"`
+	LastUpdated      types.String `tfsdk:"last_updated"`
 }
 
 type ruleGroupTFModel struct {
@@ -366,9 +366,28 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 				Optional:    true,
 				Computed:    true,
 				Description: "The default rule group always has the lowest precedence. Only deny_on_error, image_assessment, and default_rules are configurable for the default rule group.",
-				PlanModifiers: []planmodifier.Object{
-					UseDefaultRuleGroupModifier(),
-				},
+				Default: objectdefault.StaticValue(
+					types.ObjectValueMust(
+						ruleGroupAttrMap,
+						map[string]attr.Value{
+							"id":            types.StringUnknown(),
+							"name":          types.StringUnknown(),
+							"description":   types.StringUnknown(),
+							"deny_on_error": types.BoolValue(false),
+							"image_assessment": types.ObjectValueMust(
+								imageAssessmentAttrMap,
+								map[string]attr.Value{
+									"enabled":             types.BoolValue(false),
+									"unassessed_handling": types.StringValue("Allow Without Alert"),
+								},
+							),
+							"namespaces":    types.SetUnknown(types.StringType),
+							"labels":        types.SetUnknown(types.ObjectType{AttrTypes: labelsAttrMap}),
+							"default_rules": defaultRulesDefaultValue,
+						},
+					),
+				),
+
 				Attributes: map[string]schema.Attribute{
 					"id": schema.StringAttribute{
 						Computed:    true,
@@ -458,10 +477,10 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 					"default_rules": defaultRulesSchema,
 				},
 			},
-			// "last_updated": schema.StringAttribute{
-			//	Computed:    true,
-			//	Description: "Timestamp of the last Terraform update of the resource.",
-			// },
+			"last_updated": schema.StringAttribute{
+				Computed:    true,
+				Description: "Timestamp of the last Terraform update of the resource.",
+			},
 		},
 	}
 }
@@ -552,7 +571,7 @@ func (r *cloudSecurityKacPolicyResource) Create(
 		policy = policyWithRuleGroups
 	}
 
-	// plan.LastUpdated = utils.GenerateUpdateTimestamp()
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 	resp.Diagnostics.Append(plan.wrap(ctx, policy)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -573,7 +592,7 @@ func (r *cloudSecurityKacPolicyResource) Read(
 
 	getResponse, err := r.client.AdmissionControlPolicies.AdmissionControlGetPolicies(params)
 	if err != nil {
-		if strings.Contains(err.Error(), "404") {
+		if strings.Contains(err.Error(), "status 404") {
 			tflog.Warn(
 				ctx,
 				fmt.Sprintf(
@@ -585,7 +604,7 @@ func (r *cloudSecurityKacPolicyResource) Read(
 			return
 		}
 
-		if strings.Contains(err.Error(), "403") {
+		if strings.Contains(err.Error(), "status 403") {
 			resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Read, cloudSecurityKacPolicyScopes))
 			return
 		}
@@ -684,7 +703,7 @@ func (r *cloudSecurityKacPolicyResource) Update(
 		policy = policyWithUpdatedRuleGroups
 	}
 
-	// plan.LastUpdated = utils.GenerateUpdateTimestamp()
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 	resp.Diagnostics.Append(plan.wrap(ctx, policy)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
@@ -749,24 +768,44 @@ func (r *cloudSecurityKacPolicyResource) ModifyPlan(
 	req resource.ModifyPlanRequest,
 	resp *resource.ModifyPlanResponse,
 ) {
-	// Only modify plan for updates, not creates or deletes
+	// Skip modification on resource change or creation
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
 		return
 	}
 
-	var plan cloudSecurityKacPolicyResourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
+	// Skip modification when there are no changes
+	if req.Plan.Raw.Equal(req.State.Raw) {
 		return
 	}
 
-	var state cloudSecurityKacPolicyResourceModel
+	var originalPlan, plan, state cloudSecurityKacPolicyResourceModel
+
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &originalPlan)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Handle rule group reordering by matching names to preserve IDs
+	// Computed+Optional object attributes (default_rule_group) cause constant plan diffs
+	// This causes computed values that need to be set on update (LastUpdated) to be marked
+	// as UnKnown, resulting in constant plan diffs.
+	// When there are no plan changes and LastUpdated is Unknown revert it to prior state value.
+	if plan.LastUpdated.IsUnknown() {
+		plan.LastUpdated = state.LastUpdated
+
+		resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		// Revert if LastUpdated is not the only change
+		if !resp.Plan.Raw.Equal(req.State.Raw) {
+			plan = originalPlan
+			resp.Diagnostics.Append(resp.Plan.Set(ctx, originalPlan)...)
+		}
+	}
+
 	modifiedPlan, modifyDiags := r.matchRuleGroupIDsByName(ctx, plan, state)
 	resp.Diagnostics.Append(modifyDiags...)
 	if resp.Diagnostics.HasError() {

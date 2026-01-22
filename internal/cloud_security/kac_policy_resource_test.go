@@ -250,7 +250,7 @@ func TestCloudSecurityKacPolicyResource_Minimal(t *testing.T) {
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
 	policyName := fmt.Sprintf("tfacc-kac-policy-minimal-%s", randomSuffix)
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -273,7 +273,7 @@ func TestCloudSecurityKacPolicyResource_Basic(t *testing.T) {
 	policyName := fmt.Sprintf("tfacc-kac-policy-%s", randomSuffix)
 	updatedPolicyName := fmt.Sprintf("tfacc-kac-policy-updated-%s", randomSuffix)
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -308,13 +308,7 @@ func TestCloudSecurityKacPolicyResource_Basic(t *testing.T) {
 				ImportState:                          true,
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "id",
-				ImportStateIdFunc: func(s *terraform.State) (string, error) {
-					rs, ok := s.RootModule().Resources[resourceName]
-					if !ok {
-						return "", fmt.Errorf("Resource not found: %s", resourceName)
-					}
-					return rs.Primary.Attributes["id"], nil
-				},
+				ImportStateVerifyIgnore:              []string{"last_updated"},
 			},
 		},
 	})
@@ -325,7 +319,7 @@ func TestCloudSecurityKacPolicyResource_EnabledToggle(t *testing.T) {
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
 	policyName := fmt.Sprintf("tfacc-kac-policy-enabled-%s", randomSuffix)
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -394,7 +388,7 @@ resource "crowdstrike_host_group" "test-hg-3" {
 }
 `
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -463,7 +457,7 @@ resource "crowdstrike_host_group" "test-hg-3" {
 func TestCloudSecurityKacPolicyResource_NameValidation(t *testing.T) {
 	configWithoutName := `resource "crowdstrike_cloud_security_kac_policy" "test" {}`
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -484,7 +478,7 @@ func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
 	policyName := fmt.Sprintf("tfacc-kac-policy-defaultrulegroup-%s", randomSuffix)
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -577,7 +571,7 @@ func TestCloudSecurityKacPolicyResource_RuleGroupsMinimal(t *testing.T) {
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
 	policyName := fmt.Sprintf("tfacc-kac-policy-minimal-rulegroups-%s", randomSuffix)
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -621,7 +615,7 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 	policyName := fmt.Sprintf("tfacc-kac-policy-rulegroups-%s", randomSuffix)
 	capturedState := make(map[string]string)
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -782,7 +776,7 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 	policyName := fmt.Sprintf("tfacc-kac-policy-multiplerulegroups-%s", randomSuffix)
 	capturedState := make(map[string]string)
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -963,7 +957,7 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 	policyName := fmt.Sprintf("tfacc-kac-policy-complex-%s", randomSuffix)
 	capturedState := make(map[string]string)
 
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
