@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/content_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -46,6 +47,17 @@ func getContentUpdatePolicy(
 		},
 	)
 	if err != nil {
+		if _, ok := err.(*content_update_policies.GetContentUpdatePoliciesNotFound); ok {
+			tflog.Warn(ctx, "Content update policy not found", map[string]interface{}{
+				"policyID": policyID,
+			})
+			diags.Append(
+				tferrors.NewNotFoundError(
+					fmt.Sprintf("No content update policy with id: %s found.", policyID),
+				),
+			)
+			return nil, diags
+		}
 		tflog.Error(ctx, "API call failed in getContentUpdatePolicy", map[string]interface{}{
 			"policyID": policyID,
 			"error":    err.Error(),
@@ -66,9 +78,10 @@ func getContentUpdatePolicy(
 		tflog.Warn(ctx, "Content update policy not found", map[string]interface{}{
 			"policyID": policyID,
 		})
-		diags.AddError(
-			"Content update policy not found",
-			fmt.Sprintf("Content update policy with ID %s not found", policyID),
+		diags.Append(
+			tferrors.NewNotFoundError(
+				fmt.Sprintf("No content update policy with id: %s found.", policyID),
+			),
 		)
 		return nil, diags
 	}
