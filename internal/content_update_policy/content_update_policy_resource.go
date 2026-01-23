@@ -11,6 +11,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -564,11 +565,10 @@ func (r *contentPolicyResource) Read(
 	})
 	policy, diags := getContentUpdatePolicy(ctx, r.client, state.ID.ValueString())
 	if diags.HasError() {
-		for _, diag := range diags {
-			if strings.Contains(diag.Summary(), "not found") {
-				resp.State.RemoveResource(ctx)
-				return
-			}
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
+			resp.State.RemoveResource(ctx)
+			return
 		}
 		resp.Diagnostics.Append(diags...)
 		return
@@ -721,7 +721,7 @@ func (r *contentPolicyResource) Delete(
 	})
 	err := updatePolicyEnabledState(ctx, r.client, state.ID.ValueString(), false)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if _, ok := err.(*content_update_policies.PerformContentUpdatePoliciesActionNotFound); ok {
 			return
 		}
 		resp.Diagnostics.AddError(
@@ -738,7 +738,7 @@ func (r *contentPolicyResource) Delete(
 		},
 	)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if _, ok := err.(*content_update_policies.DeleteContentUpdatePoliciesNotFound); ok {
 			return
 		}
 		resp.Diagnostics.AddError(
