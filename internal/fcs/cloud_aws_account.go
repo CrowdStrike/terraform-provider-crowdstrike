@@ -980,11 +980,7 @@ func (r *cloudAWSAccountResource) getCloudAccount(
 	}
 
 	if len(res.Payload.Resources) == 0 {
-		diags.AddWarning(
-			"Failed to read Cloud Registration AWS account",
-			"No error returned from api but Cloud Registration account was not returned. Please report this issue to the provider developers.",
-		)
-
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Read))
 		return nil, false, diags
 	}
 
@@ -1036,7 +1032,6 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 	m.EventbusArn = types.StringValue(cloudAccount.ResourceMetadata.AwsEventbusArn)
 	m.CloudTrailBucketName = types.StringValue(cloudAccount.ResourceMetadata.AwsCloudtrailBucketName)
 
-	// Handle settings - both old realtime visibility settings and DSPM/Vuln scanning settings
 	settings := newSettingsConfig(ctx, cloudAccount.Settings, &diags)
 	if diags.HasError() {
 		return diags
@@ -1093,15 +1088,7 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 	updateFeatureStatesFromProducts(ctx, m, cloudAccount.Products, cloudAccount)
 
 	if m.RealtimeVisibility != nil {
-		m.RealtimeVisibility.LogIngestionMethod = types.StringValue("eventbridge")
-		m.RealtimeVisibility.LogIngestionS3BucketName = types.StringNull()
-		m.RealtimeVisibility.LogIngestionSnsTopicArn = types.StringNull()
-		m.RealtimeVisibility.LogIngestionS3BucketPrefix = types.StringNull()
-		m.RealtimeVisibility.LogIngestionKmsKeyArn = types.StringNull()
-		m.RealtimeVisibility.Regions = types.ListNull(types.StringType)
-
 		m.RealtimeVisibility.Regions = settings.RTVDRegions
-
 		if !settings.LogIngestionMethod.IsNull() {
 			m.RealtimeVisibility.LogIngestionMethod = settings.LogIngestionMethod
 		}
