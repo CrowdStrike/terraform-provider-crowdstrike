@@ -13,6 +13,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	privatestate "github.com/crowdstrike/terraform-provider-crowdstrike/internal/private_state"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -677,7 +678,6 @@ func (r *cloudAWSAccountResource) Create(
 		return
 	}
 
-	// create Cloud Registration account (replacing both CSPM and Cloud calls)
 	cloudAccount, diags := r.createCloudAccount(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -695,12 +695,7 @@ func (r *cloudAWSAccountResource) Create(
 	// This field is deprecated and will be removed in a future version.
 	plan.IDP.Status = types.StringValue("configured")
 
-	// Set refreshed state
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
 // updateFeatureStatesFromProducts updates model feature states from CloudAwsRegistration Products.
@@ -862,32 +857,19 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 	)
 	if err != nil {
 		if _, ok := err.(*cloud_aws_registration.CloudRegistrationAwsCreateAccountForbidden); ok {
-			diags.AddError(
-				"Failed to create Cloud Registration AWS account: 403 Forbidden",
-				scopes.GenerateScopeDescription(cloudSecurityScopes),
-			)
+			diags.Append(tferrors.NewForbiddenError(tferrors.Create, cloudSecurityScopes))
 			return nil, diags
 		}
-		diags.AddError(
-			"Failed to create Cloud Registration AWS account",
-			fmt.Sprintf("Failed to create Cloud Registration AWS account: %s", err.Error()),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Create, err))
 		return nil, diags
 	}
 	if status != nil {
-		diags.AddError(
-			"Failed to create Cloud Registration AWS account",
-			fmt.Sprintf("Failed to create Cloud Registration AWS account: %s", status.Error()),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Create, status))
 		return nil, diags
 	}
 
-	if res.Payload == nil || len(res.Payload.Resources) == 0 {
-		diags.AddError(
-			"Failed to create Cloud Registration AWS account",
-			"No error returned from api but Cloud Registration account was not created. Please report this issue to the provider developers.",
-		)
-
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Create))
 		return nil, diags
 	}
 
@@ -924,16 +906,13 @@ func (r *cloudAWSAccountResource) Read(
 	}
 
 	cloudAccount, found, diags := r.getCloudAccount(ctx, state.AccountID.ValueString())
-	for _, diagErr := range diags.Errors() {
-		if strings.Contains(diagErr.Detail(), "404 Not Found") {
-			tflog.Warn(
-				ctx,
-				fmt.Sprintf("cloud account %s not found, removing from state", state.AccountID),
-				map[string]interface{}{"resp": diagErr.Detail()},
-			)
-			resp.State.RemoveResource(ctx)
-			return
-		}
+	if tferrors.HasNotFoundError(diags) {
+		tflog.Warn(
+			ctx,
+			fmt.Sprintf("cloud account %s not found, removing from state", state.AccountID),
+		)
+		resp.State.RemoveResource(ctx)
+		return
 	}
 
 	resp.Diagnostics.Append(diags...)
@@ -987,26 +966,16 @@ func (r *cloudAWSAccountResource) getCloudAccount(
 	)
 	if err != nil {
 		if _, ok := err.(*cloud_aws_registration.CloudRegistrationAwsGetAccountsForbidden); ok {
-			diags.AddError(
-				"Failed to read Cloud Registration AWS account: 403 Forbidden",
-				scopes.GenerateScopeDescription(cloudSecurityScopes),
-			)
+			diags.Append(tferrors.NewForbiddenError(tferrors.Read, cloudSecurityScopes))
 			return nil, false, diags
 		}
-		diags.AddError(
-			"Failed to read Cloud Registration AWS account",
-			fmt.Sprintf("Failed to read Cloud Registration AWS account: %s", err.Error()),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Read, err))
 		return nil, false, diags
 	}
 	if status != nil {
-		diags.AddError(
-			"Failed to read Cloud Registration AWS account",
-			fmt.Sprintf(
-				"Failed to read Cloud Registration AWS account: 404 Not Found %s",
-				status.Error(),
-			),
-		)
+		diags.Append(tferrors.NewNotFoundError(
+			fmt.Sprintf("Cloud Registration AWS account %s not found: %s", accountID, status.Error()),
+		))
 		return nil, false, diags
 	}
 
@@ -1331,31 +1300,19 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 	)
 	if err != nil {
 		if _, ok := err.(*cloud_aws_registration.CloudRegistrationAwsUpdateAccountForbidden); ok {
-			diags.AddError(
-				"Failed to update Cloud Registration AWS account: 403 Forbidden",
-				scopes.GenerateScopeDescription(cloudSecurityScopes),
-			)
+			diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityScopes))
 			return nil, diags
 		}
-		diags.AddError(
-			"Failed to update Cloud Registration AWS account",
-			fmt.Sprintf("Failed to update Cloud Registration AWS account: %s", err.Error()),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Update, err))
 		return nil, diags
 	}
 	if status != nil {
-		diags.AddError(
-			"Failed to update Cloud Registration AWS account",
-			fmt.Sprintf("Failed to update Cloud Registration AWS account: %s", status.Error()),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Update, status))
 		return nil, diags
 	}
 
 	if len(res.Payload.Resources) == 0 {
-		diags.AddError(
-			"Failed to update Cloud Registration AWS account",
-			"No error returned from api but Cloud Registration account was not returned. Please report this issue to the provider developers.",
-		)
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
 		return nil, diags
 	}
 	return res.Payload.Resources[0], diags
@@ -1406,16 +1363,10 @@ func (r *cloudAWSAccountResource) deleteCloudAccount(
 	_, status, err := r.client.CloudAwsRegistration.CloudRegistrationAwsDeleteAccount(params)
 	if err != nil {
 		if _, ok := err.(*cloud_aws_registration.CloudRegistrationAwsDeleteAccountForbidden); ok {
-			diags.AddError(
-				"Failed to delete Cloud Registration AWS account: 403 Forbidden",
-				scopes.GenerateScopeDescription(cloudSecurityScopes),
-			)
+			diags.Append(tferrors.NewForbiddenError(tferrors.Delete, cloudSecurityScopes))
 			return diags
 		}
-		diags.AddError(
-			"Failed to delete Cloud Registration AWS account",
-			fmt.Sprintf("Failed to delete Cloud Registration AWS account: %s", err.Error()),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Delete, err))
 		return diags
 	}
 	if status != nil {
