@@ -53,8 +53,8 @@ data "crowdstrike_cloud_aws_account" "org" {
 
 ### Optional
 
-- `account_id` (String) Filter the results to a specific AWS Account ID. When specified, returns details for the matching AWS account. Can be used together with organization_id filter for OR matching
-- `organization_id` (String) Filter the results to accounts within a specific AWS Organization. When specified, returns all AWS accounts associated with this organization ID. Can be used together with account_id filter for OR matching
+- `account_id` (String) Filter the results to a specific AWS Account ID. When both account_id and organization_id are specified, only accounts matching both are returned
+- `organization_id` (String) Filter the results to accounts within a specific AWS Organization. When both account_id and organization_id are specified, only accounts matching both are returned
 
 ### Read-Only
 
