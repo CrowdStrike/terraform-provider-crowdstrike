@@ -317,7 +317,7 @@ func (d *cloudAwsAccountsDataSource) Read(
 			EventbusName:                  tempModel.EventbusName,
 			EventbusArn:                   tempModel.EventbusArn,
 			CloudTrailBucketName:          tempModel.CloudTrailBucketName,
-			CloudTrailRegion:              types.StringValue(""), // Not available in data source schema
+			CloudTrailRegion:              tempModel.RealtimeVisibility.CloudTrailRegion,
 			DspmRoleArn:                   tempModel.DspmRoleArn,
 			DspmRoleName:                  tempModel.DspmRoleName,
 			VulnerabilityScanningRoleArn:  tempModel.VulnerabilityScanningRoleArn,
