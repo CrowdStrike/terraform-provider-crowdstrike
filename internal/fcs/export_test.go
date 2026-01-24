@@ -16,5 +16,4 @@ var (
 	NewSettingsConfig               = newSettingsConfig
 	BuildProductsFromModel          = (*cloudAWSAccountResource).buildProductsFromModel
 	UpdateFeatureStatesFromProducts = updateFeatureStatesFromProducts
-	Wrap                            = (*cloudAWSAccountModel).wrap
 )
