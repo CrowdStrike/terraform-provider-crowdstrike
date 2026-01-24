@@ -495,9 +495,6 @@ func (r *cloudAWSAccountResource) Schema(
 						},
 					),
 				),
-				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"vulnerability_scanning": schema.SingleNestedAttribute{
 				Required: false,
@@ -530,9 +527,6 @@ func (r *cloudAWSAccountResource) Schema(
 						},
 					),
 				),
-				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.UseStateForUnknown(),
-				},
 			},
 			// Computed values
 			"is_organization_management_account": schema.BoolAttribute{
