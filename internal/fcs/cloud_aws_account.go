@@ -1102,8 +1102,6 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-//
-//nolint:gocyclo
 func (r *cloudAWSAccountResource) Update(
 	ctx context.Context,
 	req resource.UpdateRequest,
@@ -1128,12 +1126,7 @@ func (r *cloudAWSAccountResource) Update(
 		return
 	}
 
-	// Set refreshed state
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
 // buildUpdateProducts builds enabled and disabled products from the plan state.
@@ -1234,24 +1227,13 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 		patchAccount.VulnerabilityScanningRole = model.VulnerabilityScanning.RoleName.ValueString()
 	}
 
-	// Add realtime visibility configuration (limited fields for patch)
 	if model.RealtimeVisibility != nil {
 		patchAccount.CloudtrailRegion = model.RealtimeVisibility.CloudTrailRegion.ValueString()
-		if !model.RealtimeVisibility.LogIngestionMethod.IsNull() {
-			patchAccount.LogIngestionMethod = model.RealtimeVisibility.LogIngestionMethod.ValueString()
-		}
-		if !model.RealtimeVisibility.LogIngestionS3BucketName.IsNull() {
-			patchAccount.S3LogIngestionBucketName = model.RealtimeVisibility.LogIngestionS3BucketName.ValueString()
-		}
-		if !model.RealtimeVisibility.LogIngestionS3BucketPrefix.IsNull() {
-			patchAccount.S3LogIngestionBucketPrefix = model.RealtimeVisibility.LogIngestionS3BucketPrefix.ValueString()
-		}
-		if !model.RealtimeVisibility.LogIngestionKmsKeyArn.IsNull() {
-			patchAccount.S3LogIngestionKmsKeyArn = model.RealtimeVisibility.LogIngestionKmsKeyArn.ValueString()
-		}
-		if !model.RealtimeVisibility.LogIngestionSnsTopicArn.IsNull() {
-			patchAccount.S3LogIngestionSnsTopicArn = model.RealtimeVisibility.LogIngestionSnsTopicArn.ValueString()
-		}
+		patchAccount.LogIngestionMethod = model.RealtimeVisibility.LogIngestionMethod.ValueString()
+		patchAccount.S3LogIngestionBucketName = model.RealtimeVisibility.LogIngestionS3BucketName.ValueString()
+		patchAccount.S3LogIngestionBucketPrefix = model.RealtimeVisibility.LogIngestionS3BucketPrefix.ValueString()
+		patchAccount.S3LogIngestionKmsKeyArn = model.RealtimeVisibility.LogIngestionKmsKeyArn.ValueString()
+		patchAccount.S3LogIngestionSnsTopicArn = model.RealtimeVisibility.LogIngestionSnsTopicArn.ValueString()
 	}
 
 	// Add RTVD regions
@@ -1358,10 +1340,6 @@ func (r *cloudAWSAccountResource) deleteCloudAccount(
 	}
 	if status != nil {
 		// treating this as a 404 not found which is not an error when deleting
-		// diags.AddError(
-		// 	"Failed to delete Cloud Registration AWS account",
-		// 	fmt.Sprintf("Failed to delete Cloud Registration AWS account: %s", status.Error()),
-		// )
 		return diags
 	}
 	return diags
