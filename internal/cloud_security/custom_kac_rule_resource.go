@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
@@ -11,6 +12,8 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -38,12 +41,9 @@ const (
 )
 
 var (
-	kacRuledocumentationSection        string = "Falcon Cloud Security"
-	kacRuleresourceMarkdownDescription string = "This resource manages custom cloud security rules. " +
-		"These rules can be created either by inheriting properties from a parent rule with minimal customization, or by fully customizing all attributes for maximum flexibility. " +
-		"To create a rule based on a parent rule, utilize the `crowdstrike_cloud_security_rules` data source to gather parent rule information to use in the new custom rule. " +
-		"The `crowdstrike_cloud_compliance_framework_controls` data source can be used to query Falcon for compliance benchmark controls to associate with custom rules created with this resource. "
-	kacRulerequiredScopes []scopes.Scope = cloudSecurityRuleScopes
+	kacRuledocumentationSection        string         = "Falcon Cloud Security"
+	kacRuleresourceMarkdownDescription string         = "This resource manages custom cloud security rules."
+	kacRulerequiredScopes              []scopes.Scope = cloudSecurityRuleScopes
 )
 
 func NewCloudSecurityKacCustomRuleResource() resource.Resource {
@@ -55,11 +55,14 @@ type cloudSecurityKacCustomRuleResource struct {
 }
 
 type cloudSecurityKacCustomRuleResourceModel struct {
-	ID          types.String `tfsdk:"id"`
-	Description types.String `tfsdk:"description"`
-	Logic       types.String `tfsdk:"logic"`
-	Name        types.String `tfsdk:"name"`
-	Severity    types.String `tfsdk:"severity"`
+	ID              types.String `tfsdk:"id"`
+	Description     types.String `tfsdk:"description"`
+	Logic           types.String `tfsdk:"logic"`
+	Name            types.String `tfsdk:"name"`
+	Severity        types.String `tfsdk:"severity"`
+	RemediationInfo types.List   `tfsdk:"remediation_info"`
+	AttackTypes     types.Set    `tfsdk:"attack_types"`
+	AlertInfo       types.List   `tfsdk:"alert_info"`
 }
 
 func (r *cloudSecurityKacCustomRuleResource) Configure(
@@ -142,6 +145,36 @@ func (r *cloudSecurityKacCustomRuleResource) Schema(
 					stringvalidator.OneOf("critical", "high", "medium", "informational"),
 				},
 			},
+			"remediation_info": schema.ListAttribute{
+				Optional:            true,
+				ElementType:         types.StringType,
+				MarkdownDescription: "Information about how to remediate issues detected by this rule. Do not include numbering within this list. The Falcon console will automatically add numbering.",
+				Validators: []validator.List{
+					listvalidator.ValueStringsAre(
+						stringvalidator.LengthAtLeast(1),
+					),
+				},
+			},
+			"attack_types": schema.SetAttribute{
+				Optional:            true,
+				MarkdownDescription: "Specific attack types associated with the rule.",
+				ElementType:         types.StringType,
+				Validators: []validator.Set{
+					setvalidator.ValueStringsAre(
+						stringvalidator.LengthAtLeast(1),
+					),
+				},
+			},
+			"alert_info": schema.ListAttribute{
+				Optional:            true,
+				ElementType:         types.StringType,
+				MarkdownDescription: "A list of the alert logic and detection criteria for rule violations. Do not include numbering within this list. The Falcon console will automatically add numbering.When `alert_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `alert_info`.",
+				Validators: []validator.List{
+					listvalidator.ValueStringsAre(
+						stringvalidator.LengthAtLeast(1),
+					),
+				},
+			},
 		},
 	}
 }
@@ -166,7 +199,7 @@ func (r *cloudSecurityKacCustomRuleResource) Create(
 		return
 	}
 
-	plan.wrap(ctx, rule)
+	resp.Diagnostics.Append(plan.wrap(ctx, rule)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -190,7 +223,7 @@ func (r *cloudSecurityKacCustomRuleResource) Read(
 		return
 	}
 
-	state.wrap(ctx, rule)
+	resp.Diagnostics.Append(state.wrap(ctx, rule)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -211,7 +244,7 @@ func (r *cloudSecurityKacCustomRuleResource) Update(
 		return
 	}
 
-	plan.wrap(ctx, rule)
+	resp.Diagnostics.Append(plan.wrap(ctx, rule)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
@@ -238,29 +271,87 @@ func (r *cloudSecurityKacCustomRuleResource) ImportState(
 }
 
 func (m *cloudSecurityKacCustomRuleResourceModel) wrap(
-	_ context.Context,
+	ctx context.Context,
 	rule *models.ApimodelsRule,
-) {
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
 	m.ID = types.StringPointerValue(rule.UUID)
 	m.Name = types.StringPointerValue(rule.Name)
 	m.Description = types.StringPointerValue(rule.Description)
 	m.Logic = types.StringValue(rule.Logic)
-	m.Severity = types.StringValue(int32ToSeverity[int32(*rule.Severity)])
+
+	if rule.Severity != nil {
+		m.Severity = types.StringValue(int32ToSeverity[int32(*rule.Severity)])
+	}
+
+	if rule.AlertInfo != nil && *rule.AlertInfo != "" {
+		m.AlertInfo = convertAlertRemediationInfoToTerraformState(rule.AlertInfo)
+	}
+
+	if rule.Remediation != nil && *rule.Remediation != "" {
+		m.RemediationInfo = convertAlertRemediationInfoToTerraformState(rule.Remediation)
+	}
+
+	m.AttackTypes = types.SetNull(types.StringType)
+	if len(rule.AttackTypes) > 0 {
+		filteredAttackTypes := make([]types.String, 0, len(rule.AttackTypes))
+		for _, attackType := range rule.AttackTypes {
+			if attackType != "" {
+				filteredAttackTypes = append(filteredAttackTypes, types.StringValue(attackType))
+			}
+		}
+		if len(filteredAttackTypes) > 0 {
+			attackTypes, diags := types.SetValueFrom(ctx, types.StringType, filteredAttackTypes)
+			if diags.HasError() {
+				return diags
+			}
+			m.AttackTypes = attackTypes
+		}
+	}
+
+	return diags
 }
 
 func (r *cloudSecurityKacCustomRuleResource) createCloudPolicyRule(ctx context.Context, plan *cloudSecurityKacCustomRuleResourceModel) (*models.ApimodelsRule, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	body := &models.CommonCreateRuleRequest{
+		Description: plan.Description.ValueStringPointer(),
+		Name:        plan.Name.ValueStringPointer(),
+		Platform:    utils.Addr(KacRuleDefaultPlatform),
+		Provider:    utils.Addr(KacRuleDefaultProvider),
+		Logic:       plan.Logic.ValueStringPointer(),
+		Domain:      utils.Addr(KacRuleDefaultDomain),
+		Subdomain:   utils.Addr(KacRuleDefaultSubdomain),
+		Severity:    severityToInt64[plan.Severity.ValueString()],
+	}
+
+	if !plan.AlertInfo.IsNull() {
+		body.AlertInfo, diags = convertAlertInfoToAPIFormat(ctx, plan.AlertInfo)
+		if diags.HasError() {
+			return nil, diags
+		}
+	}
+
+	if !plan.RemediationInfo.IsNull() {
+		body.RemediationInfo, diags = convertRemediationInfoToAPIFormat(ctx, plan.RemediationInfo)
+		if diags.HasError() {
+			return nil, diags
+		}
+	}
+
+	if len(plan.AttackTypes.Elements()) > 0 {
+		var attackTypes []string
+		diags = plan.AttackTypes.ElementsAs(ctx, &attackTypes, false)
+		if diags.HasError() {
+			return nil, diags
+		}
+		body.AttackTypes = strings.Join(attackTypes, ",")
+	}
+
 	return createCloudPolicyRule(r.client, cloud_policies.CreateRuleMixin0Params{
 		Context: ctx,
-		Body: &models.CommonCreateRuleRequest{
-			Description: plan.Description.ValueStringPointer(),
-			Name:        plan.Name.ValueStringPointer(),
-			Platform:    utils.Addr(KacRuleDefaultPlatform),
-			Provider:    utils.Addr(KacRuleDefaultProvider),
-			Logic:       plan.Logic.ValueStringPointer(),
-			Domain:      utils.Addr(KacRuleDefaultDomain),
-			Subdomain:   utils.Addr(KacRuleDefaultSubdomain),
-			Severity:    severityToInt64[plan.Severity.ValueString()],
-		},
+		Body:    body,
 	})
 }
 
@@ -272,18 +363,45 @@ func (r *cloudSecurityKacCustomRuleResource) getCloudPolicyRule(ctx context.Cont
 }
 
 func (r *cloudSecurityKacCustomRuleResource) updateCloudPolicyRule(ctx context.Context, plan *cloudSecurityKacCustomRuleResourceModel) (*models.ApimodelsRule, diag.Diagnostics) {
+	body := &models.CommonUpdateRuleRequest{
+		Description: plan.Description.ValueString(),
+		Name:        plan.Name.ValueString(),
+		UUID:        plan.ID.ValueStringPointer(),
+		Severity:    severityToInt64[plan.Severity.ValueString()],
+		RuleLogicList: []*models.ApimodelsRuleLogic{{
+			Platform: utils.Addr(KacRuleDefaultPlatform),
+			Logic:    plan.Logic.ValueString(),
+		}},
+	}
+
+	if !plan.AlertInfo.IsNull() {
+		alertInfo, diags := convertAlertInfoToAPIFormat(ctx, plan.AlertInfo)
+		if diags.HasError() {
+			return nil, diags
+		}
+		body.AlertInfo = &alertInfo
+	}
+
+	if !plan.RemediationInfo.IsNull() {
+		remediationInfo, diags := convertRemediationInfoToAPIFormat(ctx, plan.RemediationInfo)
+		if diags.HasError() {
+			return nil, diags
+		}
+		body.RuleLogicList[0].RemediationInfo = &remediationInfo
+	}
+
+	if len(plan.AttackTypes.Elements()) > 0 {
+		var attackTypes []string
+		diags := plan.AttackTypes.ElementsAs(ctx, &attackTypes, false)
+		if diags.HasError() {
+			return nil, diags
+		}
+		body.AttackTypes = attackTypes
+	}
+
 	return updateCloudPolicyRule(r.client, cloud_policies.UpdateRuleParams{
 		Context: ctx,
-		Body: &models.CommonUpdateRuleRequest{
-			Description: plan.Description.ValueString(),
-			Name:        plan.Name.ValueString(),
-			UUID:        plan.ID.ValueStringPointer(),
-			Severity:    severityToInt64[plan.Severity.ValueString()],
-			RuleLogicList: []*models.ApimodelsRuleLogic{{
-				Platform: utils.Addr(KacRuleDefaultPlatform),
-				Logic:    plan.Logic.ValueString(),
-			}},
-		},
+		Body:    body,
 	})
 }
 
