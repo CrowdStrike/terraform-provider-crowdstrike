@@ -376,7 +376,6 @@ func TestCloudSecuritySuppressionRuleResource_AllRuleSelectionFilters(t *testing
 	})
 }
 
-// Add cloud_group_ids when cloud groups data source is added.
 func TestCloudSecuritySuppressionRuleResource_AllScopeAssetFilters(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_suppression_rule.scope_filters_test"
@@ -533,8 +532,6 @@ func TestCloudSecuritySuppressionRuleResource_AdvancedUpdateScenarios(t *testing
 		},
 	})
 }
-
-// Test configuration helper functions
 
 func testSuppressionRuleBasicConfig() string {
 	return `
