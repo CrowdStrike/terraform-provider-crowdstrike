@@ -262,7 +262,7 @@ func defaultRuleSchema(ruleDescription string) schema.StringAttribute {
 	}
 }
 
-func (m *defaultRulesTFModel) wrapDefaultRule(apiRule *models.PolicyhandlerKACDefaultPolicyRule) {
+func (m *defaultRulesTFModel) wrapDefaultRule(apiRule *models.ModelsKACDefaultPolicyRule) {
 	action := types.StringValue(*apiRule.Action)
 
 	// Get the field name from the rule code
@@ -282,7 +282,7 @@ func (m *defaultRulesTFModel) wrapDefaultRule(apiRule *models.PolicyhandlerKACDe
 func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 	ctx context.Context,
 	tfRuleGroup ruleGroupTFModel,
-) ([]*models.APIUpdateDefaultRuleAction, diag.Diagnostics) {
+) ([]*models.ModelsUpdateDefaultRuleAction, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	diags.Append(tfRuleGroup.DefaultRules.As(ctx, m, basetypes.ObjectAsOptions{})...)
@@ -290,7 +290,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		return nil, diags
 	}
 
-	var apiDefaultRuleActions []*models.APIUpdateDefaultRuleAction
+	var apiDefaultRuleActions []*models.ModelsUpdateDefaultRuleAction
 
 	// Use reflection to iterate through all fields in the struct
 	v := reflect.ValueOf(m).Elem()
@@ -316,7 +316,7 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 		}
 
 		action := tfString.ValueString()
-		apiDefaultRuleAction := &models.APIUpdateDefaultRuleAction{
+		apiDefaultRuleAction := &models.ModelsUpdateDefaultRuleAction{
 			Code:   stringPtr(ruleCode),
 			Action: &action,
 		}

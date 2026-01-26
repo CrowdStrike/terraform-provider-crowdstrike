@@ -91,7 +91,7 @@ type labelTFModel struct {
 
 func (m *cloudSecurityKacPolicyResourceModel) wrap(
 	ctx context.Context,
-	policy *models.PolicyhandlerKACPolicy,
+	policy *models.ModelsKACPolicy,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -496,7 +496,7 @@ func (r *cloudSecurityKacPolicyResource) Create(
 		return
 	}
 
-	createRequest := &models.APICreatePolicyRequest{
+	createRequest := &models.ModelsCreatePolicyRequest{
 		Name:        plan.Name.ValueStringPointer(),
 		Description: plan.Description.ValueString(),
 	}
@@ -527,8 +527,8 @@ func (r *cloudSecurityKacPolicyResource) Create(
 	}
 
 	if plan.Enabled.ValueBool() {
-		updateRequest := &models.APIUpdatePolicyRequest{
-			IsEnabled: plan.Enabled.ValueBool(),
+		updateRequest := &models.ModelsUpdatePolicyRequest{
+			IsEnabled: plan.Enabled.ValueBoolPointer(),
 		}
 
 		updateParams := admission_control_policies.NewAdmissionControlUpdatePolicyParamsWithContext(ctx).
@@ -628,7 +628,7 @@ func (r *cloudSecurityKacPolicyResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	var policy *models.PolicyhandlerKACPolicy
+	var policy *models.ModelsKACPolicy
 	var plan cloudSecurityKacPolicyResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -642,10 +642,10 @@ func (r *cloudSecurityKacPolicyResource) Update(
 	}
 
 	if !plan.Name.Equal(state.Name) || !plan.Description.Equal(state.Description) || !plan.Enabled.Equal(state.Enabled) {
-		updateRequest := &models.APIUpdatePolicyRequest{}
+		updateRequest := &models.ModelsUpdatePolicyRequest{}
 		updateRequest.Name = plan.Name.ValueString()
 		updateRequest.Description = plan.Description.ValueString()
-		updateRequest.IsEnabled = plan.Enabled.ValueBool()
+		updateRequest.IsEnabled = plan.Enabled.ValueBoolPointer()
 
 		params := admission_control_policies.NewAdmissionControlUpdatePolicyParamsWithContext(ctx).
 			WithBody(updateRequest).
@@ -721,8 +721,9 @@ func (r *cloudSecurityKacPolicyResource) Delete(
 
 	// Disable policy if it's enabled before deletion
 	if state.Enabled.ValueBool() {
-		updateRequest := &models.APIUpdatePolicyRequest{
-			IsEnabled: false,
+		disableBool := false
+		updateRequest := &models.ModelsUpdatePolicyRequest{
+			IsEnabled: &disableBool,
 		}
 
 		updateParams := admission_control_policies.NewAdmissionControlUpdatePolicyParamsWithContext(ctx).
@@ -759,8 +760,8 @@ func (r *cloudSecurityKacPolicyResource) ValidateConfig(
 	req resource.ValidateConfigRequest,
 	resp *resource.ValidateConfigResponse,
 ) {
-	var config cloudSecurityKacPolicyResourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	var kacPolicyConfig cloudSecurityKacPolicyResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &kacPolicyConfig)...)
 }
 
 func (r *cloudSecurityKacPolicyResource) ModifyPlan(
@@ -908,8 +909,8 @@ func (r *cloudSecurityKacPolicyResource) updateHostGroups(
 	policyID string,
 	planHostGroups types.Set,
 	stateHostGroups types.Set,
-) (*models.PolicyhandlerKACPolicy, diag.Diagnostics) {
-	var updatedPolicy *models.PolicyhandlerKACPolicy
+) (*models.ModelsKACPolicy, diag.Diagnostics) {
+	var updatedPolicy *models.ModelsKACPolicy
 
 	hostGroupsToAdd, hostGroupsToRemove, diags := utils.SetIDsToModify(ctx, planHostGroups, stateHostGroups)
 
@@ -940,7 +941,7 @@ func (r *cloudSecurityKacPolicyResource) updateHostGroups(
 
 	// Add new host groups
 	if len(hostGroupsToAdd) > 0 {
-		addHostGroupRequest := &models.APIAddHostGroupRequest{
+		addHostGroupRequest := &models.ModelsAddHostGroupRequest{
 			ID:         &policyID,
 			HostGroups: hostGroupsToAdd,
 		}
@@ -974,7 +975,7 @@ func (r *cloudSecurityKacPolicyResource) deleteRemovedRuleGroups(
 	ctx context.Context,
 	policyID string,
 	plan, state cloudSecurityKacPolicyResourceModel,
-) (*models.PolicyhandlerKACPolicy, diag.Diagnostics) {
+) (*models.ModelsKACPolicy, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	// Get state rule group IDs for comparison
@@ -1026,8 +1027,8 @@ func (r *cloudSecurityKacPolicyResource) deleteRemovedRuleGroups(
 func (r *cloudSecurityKacPolicyResource) reconcileRuleGroupUpdates(
 	ctx context.Context,
 	plan cloudSecurityKacPolicyResourceModel,
-	apiKacPolicy *models.PolicyhandlerKACPolicy,
-) (*models.PolicyhandlerKACPolicy, diag.Diagnostics) {
+	apiKacPolicy *models.ModelsKACPolicy,
+) (*models.ModelsKACPolicy, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	// On Update operations, the API policy may not have been populated yet.
@@ -1098,7 +1099,7 @@ func (r *cloudSecurityKacPolicyResource) reconcileRuleGroupUpdates(
 	}
 
 	nameToIdMap := make(map[string]string)
-	idToApiRuleGroupPointerMap := make(map[string]*models.PolicyhandlerKACPolicyRuleGroup)
+	idToApiRuleGroupPointerMap := make(map[string]*models.ModelsKACPolicyRuleGroup)
 	for _, apiRG := range apiKacPolicy.RuleGroups {
 		nameToIdMap[*apiRG.Name] = *apiRG.ID
 		idToApiRuleGroupPointerMap[*apiRG.ID] = apiRG
@@ -1117,7 +1118,7 @@ func (r *cloudSecurityKacPolicyResource) reconcileRuleGroupUpdates(
 	}
 
 	// Convert plan rule groups to api models
-	var planApiRuleGroups []models.PolicyhandlerKACPolicyRuleGroup
+	var planApiRuleGroups []models.ModelsKACPolicyRuleGroup
 	for _, tfRG := range planTFRuleGroups {
 		apiRG, convertDiags := tfRG.toApiModel(ctx)
 		diags.Append(convertDiags...)
@@ -1128,8 +1129,8 @@ func (r *cloudSecurityKacPolicyResource) reconcileRuleGroupUpdates(
 	}
 
 	// Reconcile plan against actual state of API response to find what needs updating
-	var updateParams []*models.APIUpdateRuleGroup
-	var replaceSelectorParams []*models.APIReplaceRuleGroupSelectors
+	var updateParams []*models.ModelsUpdateRuleGroup
+	var replaceSelectorParams []*models.ModelsReplaceRuleGroupSelectors
 	for _, planRG := range planApiRuleGroups {
 		// Check if this rule group exists in state
 		stateRG := idToApiRuleGroupPointerMap[*planRG.ID]
@@ -1162,9 +1163,9 @@ func (r *cloudSecurityKacPolicyResource) createNewRuleGroups(
 	diags *diag.Diagnostics,
 	policyID string,
 	ruleGroups []ruleGroupTFModel,
-) *models.PolicyhandlerKACPolicy {
+) *models.ModelsKACPolicy {
 	// Convert TF models to API create requests
-	var newRuleGroups []*models.APICreateRuleGroup
+	var newRuleGroups []*models.ModelsCreateRuleGroup
 	for _, tfRG := range ruleGroups {
 		// The default rule group is always created when creating a new KAC policy
 		// Do not create a new rule group if ID already exists
@@ -1172,7 +1173,7 @@ func (r *cloudSecurityKacPolicyResource) createNewRuleGroups(
 			continue
 		}
 
-		apiRuleGroup := &models.APICreateRuleGroup{
+		apiRuleGroup := &models.ModelsCreateRuleGroup{
 			Name:        tfRG.Name.ValueStringPointer(),
 			Description: tfRG.Description.ValueStringPointer(),
 		}
@@ -1184,7 +1185,7 @@ func (r *cloudSecurityKacPolicyResource) createNewRuleGroups(
 		return nil
 	}
 
-	createRequest := &models.APICreatePolicyRuleGroupRequest{
+	createRequest := &models.ModelsCreatePolicyRuleGroupRequest{
 		ID:         &policyID,
 		RuleGroups: newRuleGroups,
 	}
@@ -1216,10 +1217,10 @@ func (r *cloudSecurityKacPolicyResource) updateRuleGroupPrecedence(
 	diags *diag.Diagnostics,
 	policyID string,
 	ruleGroups []ruleGroupTFModel,
-) *models.PolicyhandlerKACPolicy {
-	ruleGroupPrecedence := make([]*models.APIChangeRuleGroupPrecedence, 0, len(ruleGroups))
+) *models.ModelsKACPolicy {
+	ruleGroupPrecedence := make([]*models.ModelsChangeRuleGroupPrecedence, 0, len(ruleGroups))
 	for _, tfRG := range ruleGroups {
-		ruleGroupPrecedence = append(ruleGroupPrecedence, &models.APIChangeRuleGroupPrecedence{ID: tfRG.ID.ValueStringPointer()})
+		ruleGroupPrecedence = append(ruleGroupPrecedence, &models.ModelsChangeRuleGroupPrecedence{ID: tfRG.ID.ValueStringPointer()})
 	}
 
 	// If there are 2 or less rule groups, updating precedence is unnecessary.
@@ -1227,7 +1228,7 @@ func (r *cloudSecurityKacPolicyResource) updateRuleGroupPrecedence(
 		return nil
 	}
 
-	changePrecedenceRequest := &models.APIChangePolicyRuleGroupPrecedenceRequest{
+	changePrecedenceRequest := &models.ModelsChangePolicyRuleGroupPrecedenceRequest{
 		ID:         &policyID,
 		RuleGroups: ruleGroupPrecedence,
 	}
@@ -1258,13 +1259,13 @@ func (r *cloudSecurityKacPolicyResource) updateRuleGroupAttributesAndRules(
 	ctx context.Context,
 	diags *diag.Diagnostics,
 	policyID string,
-	apiUpdateRuleGroups []*models.APIUpdateRuleGroup,
-) *models.PolicyhandlerKACPolicy {
+	apiUpdateRuleGroups []*models.ModelsUpdateRuleGroup,
+) *models.ModelsKACPolicy {
 	if len(apiUpdateRuleGroups) == 0 {
 		return nil
 	}
 
-	updateRequest := &models.APIUpdatePolicyRuleGroupRequest{
+	updateRequest := &models.ModelsUpdatePolicyRuleGroupRequest{
 		ID:         &policyID,
 		RuleGroups: apiUpdateRuleGroups,
 	}
@@ -1295,13 +1296,13 @@ func (r *cloudSecurityKacPolicyResource) replaceRuleGroupSelectors(
 	ctx context.Context,
 	diags *diag.Diagnostics,
 	policyID string,
-	apiReplaceRuleGroupSelectors []*models.APIReplaceRuleGroupSelectors,
-) *models.PolicyhandlerKACPolicy {
+	apiReplaceRuleGroupSelectors []*models.ModelsReplaceRuleGroupSelectors,
+) *models.ModelsKACPolicy {
 	if len(apiReplaceRuleGroupSelectors) == 0 {
 		return nil
 	}
 
-	replaceSelectorRequest := &models.APIReplacePolicyRuleGroupSelectorsRequest{
+	replaceSelectorRequest := &models.ModelsReplacePolicyRuleGroupSelectorsRequest{
 		ID:         &policyID,
 		RuleGroups: apiReplaceRuleGroupSelectors,
 	}

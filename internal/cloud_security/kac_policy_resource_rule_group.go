@@ -42,8 +42,8 @@ var ruleGroupAttrMap = map[string]attr.Type{
 }
 
 type ruleGroupUpdates struct {
-	updateRuleGroupParams          *models.APIUpdateRuleGroup
-	replaceRuleGroupSelectorParams *models.APIReplaceRuleGroupSelectors
+	updateRuleGroupParams          *models.ModelsUpdateRuleGroup
+	replaceRuleGroupSelectorParams *models.ModelsReplaceRuleGroupSelectors
 }
 
 func (m *cloudSecurityKacPolicyResourceModel) getRuleGroupIds(ctx context.Context) ([]string, diag.Diagnostics) {
@@ -67,7 +67,7 @@ func (m *cloudSecurityKacPolicyResourceModel) getRuleGroupIds(ctx context.Contex
 	return ruleGroupIds, diags
 }
 
-func (m *ruleGroupTFModel) wrapRuleGroup(ctx context.Context, rg *models.PolicyhandlerKACPolicyRuleGroup) diag.Diagnostics {
+func (m *ruleGroupTFModel) wrapRuleGroup(ctx context.Context, rg *models.ModelsKACPolicyRuleGroup) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	m.ID = types.StringValue(*rg.ID)
@@ -145,9 +145,9 @@ func (m *ruleGroupTFModel) wrapRuleGroup(ctx context.Context, rg *models.Policyh
 	return diags
 }
 
-func (m *ruleGroupTFModel) toApiModel(ctx context.Context) (models.PolicyhandlerKACPolicyRuleGroup, diag.Diagnostics) {
+func (m *ruleGroupTFModel) toApiModel(ctx context.Context) (models.ModelsKACPolicyRuleGroup, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	apiModel := models.PolicyhandlerKACPolicyRuleGroup{}
+	apiModel := models.ModelsKACPolicyRuleGroup{}
 
 	if m.Name.ValueString() == defaultRuleGroupName {
 		isDefault := true
@@ -163,7 +163,7 @@ func (m *ruleGroupTFModel) toApiModel(ctx context.Context) (models.Policyhandler
 	apiModel.Description = m.Description.ValueStringPointer()
 
 	if !m.DenyOnError.IsUnknown() {
-		apiModel.DenyOnError = &models.PolicyhandlerKACPolicyRuleGroupDenyOnError{
+		apiModel.DenyOnError = &models.ModelsKACPolicyRuleGroupDenyOnError{
 			Deny: m.DenyOnError.ValueBoolPointer(),
 		}
 	}
@@ -172,7 +172,7 @@ func (m *ruleGroupTFModel) toApiModel(ctx context.Context) (models.Policyhandler
 		var tfImageAssessment imageAssessmentTFModel
 		diags.Append(m.ImageAssessment.As(ctx, &tfImageAssessment, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
-			apiModel.ImageAssessment = &models.PolicyhandlerKACPolicyRuleGroupImageAssessment{
+			apiModel.ImageAssessment = &models.ModelsKACPolicyRuleGroupImageAssessment{
 				Enabled:            tfImageAssessment.Enabled.ValueBoolPointer(),
 				UnassessedHandling: tfImageAssessment.UnassessedHandling.ValueStringPointer(),
 			}
@@ -182,9 +182,9 @@ func (m *ruleGroupTFModel) toApiModel(ctx context.Context) (models.Policyhandler
 	if !m.Namespaces.IsUnknown() {
 		namespaces := flex.ExpandSetAs[string](ctx, m.Namespaces, &diags)
 		if !diags.HasError() {
-			apiModel.Namespaces = make([]*models.PolicyhandlerKACPolicyRuleGroupNamespace, len(namespaces))
+			apiModel.Namespaces = make([]*models.ModelsKACPolicyRuleGroupNamespace, len(namespaces))
 			for i, ns := range namespaces {
-				apiModel.Namespaces[i] = &models.PolicyhandlerKACPolicyRuleGroupNamespace{Value: &ns}
+				apiModel.Namespaces[i] = &models.ModelsKACPolicyRuleGroupNamespace{Value: &ns}
 			}
 		}
 	}
@@ -192,9 +192,9 @@ func (m *ruleGroupTFModel) toApiModel(ctx context.Context) (models.Policyhandler
 	if !m.Labels.IsUnknown() {
 		tfLabels := flex.ExpandSetAs[labelTFModel](ctx, m.Labels, &diags)
 		if !diags.HasError() {
-			apiModel.Labels = make([]*models.PolicyhandlerKACPolicyRuleGroupLabel, len(tfLabels))
+			apiModel.Labels = make([]*models.ModelsKACPolicyRuleGroupLabel, len(tfLabels))
 			for i, tfLabel := range tfLabels {
-				apiModel.Labels[i] = &models.PolicyhandlerKACPolicyRuleGroupLabel{
+				apiModel.Labels[i] = &models.ModelsKACPolicyRuleGroupLabel{
 					Key:      tfLabel.Key.ValueStringPointer(),
 					Value:    tfLabel.Value.ValueStringPointer(),
 					Operator: tfLabel.Operator.ValueStringPointer(),
@@ -209,9 +209,9 @@ func (m *ruleGroupTFModel) toApiModel(ctx context.Context) (models.Policyhandler
 		apiDefaultRuleActions, defaultRuleDiags := tfDefaultRules.toApiDefaultRuleActions(ctx, ruleGroupTFModel{DefaultRules: m.DefaultRules})
 		diags.Append(defaultRuleDiags...)
 		if !diags.HasError() {
-			apiModel.DefaultRules = make([]*models.PolicyhandlerKACDefaultPolicyRule, len(apiDefaultRuleActions))
+			apiModel.DefaultRules = make([]*models.ModelsKACDefaultPolicyRule, len(apiDefaultRuleActions))
 			for i, apiAction := range apiDefaultRuleActions {
-				apiModel.DefaultRules[i] = &models.PolicyhandlerKACDefaultPolicyRule{
+				apiModel.DefaultRules[i] = &models.ModelsKACDefaultPolicyRule{
 					Code:   apiAction.Code,
 					Action: apiAction.Action,
 				}
@@ -237,10 +237,10 @@ func findRuleGroupsToDelete(stateIds, planIds []string) []string {
 	return toDelete
 }
 
-func buildRuleGroupUpdates(plan, state *models.PolicyhandlerKACPolicyRuleGroup) ruleGroupUpdates {
+func buildRuleGroupUpdates(plan, state *models.ModelsKACPolicyRuleGroup) ruleGroupUpdates {
 	updates := ruleGroupUpdates{}
-	var updateRuleGroupParams models.APIUpdateRuleGroup
-	var replaceSelectorsParams models.APIReplaceRuleGroupSelectors
+	var updateRuleGroupParams models.ModelsUpdateRuleGroup
+	var replaceSelectorsParams models.ModelsReplaceRuleGroupSelectors
 
 	// Compare basic fields
 	if !*plan.IsDefault && (!nameEqual(plan, state) || !descriptionEqual(plan, state)) {
@@ -279,9 +279,9 @@ func buildRuleGroupUpdates(plan, state *models.PolicyhandlerKACPolicyRuleGroup) 
 			replaceSelectorsParams.ID = plan.ID
 		}
 
-		apiReplaceNamespaces := make([]*models.APIReplacePolicyRuleGroupNamespace, len(plan.Namespaces))
+		apiReplaceNamespaces := make([]*models.ModelsReplacePolicyRuleGroupNamespace, len(plan.Namespaces))
 		for i, namespace := range plan.Namespaces {
-			apiReplaceNamespaces[i] = &models.APIReplacePolicyRuleGroupNamespace{Value: namespace.Value}
+			apiReplaceNamespaces[i] = &models.ModelsReplacePolicyRuleGroupNamespace{Value: namespace.Value}
 		}
 
 		replaceSelectorsParams.Namespaces = apiReplaceNamespaces
@@ -294,9 +294,9 @@ func buildRuleGroupUpdates(plan, state *models.PolicyhandlerKACPolicyRuleGroup) 
 			replaceSelectorsParams.ID = plan.ID
 		}
 
-		apiReplaceLabels := make([]*models.APIReplacePolicyRuleGroupLabel, len(plan.Labels))
+		apiReplaceLabels := make([]*models.ModelsReplacePolicyRuleGroupLabel, len(plan.Labels))
 		for i, label := range plan.Labels {
-			apiReplaceLabels[i] = &models.APIReplacePolicyRuleGroupLabel{
+			apiReplaceLabels[i] = &models.ModelsReplacePolicyRuleGroupLabel{
 				Key:      label.Key,
 				Value:    label.Value,
 				Operator: label.Operator,
@@ -313,9 +313,9 @@ func buildRuleGroupUpdates(plan, state *models.PolicyhandlerKACPolicyRuleGroup) 
 			updates.updateRuleGroupParams.ID = plan.ID
 		}
 
-		apiUpdateDefaultRules := make([]*models.APIUpdateDefaultRuleAction, len(plan.DefaultRules))
+		apiUpdateDefaultRules := make([]*models.ModelsUpdateDefaultRuleAction, len(plan.DefaultRules))
 		for i, defaultRule := range plan.DefaultRules {
-			apiUpdateDefaultRules[i] = &models.APIUpdateDefaultRuleAction{
+			apiUpdateDefaultRules[i] = &models.ModelsUpdateDefaultRuleAction{
 				Action: defaultRule.Action,
 				Code:   defaultRule.Code,
 			}
@@ -327,7 +327,7 @@ func buildRuleGroupUpdates(plan, state *models.PolicyhandlerKACPolicyRuleGroup) 
 	return updates
 }
 
-func nameEqual(plan, state *models.PolicyhandlerKACPolicyRuleGroup) bool {
+func nameEqual(plan, state *models.ModelsKACPolicyRuleGroup) bool {
 	if plan.Name == nil && (state == nil || state.Name == nil) {
 		return true
 	}
@@ -335,7 +335,7 @@ func nameEqual(plan, state *models.PolicyhandlerKACPolicyRuleGroup) bool {
 	return plan.Name != nil && state.Name != nil && *plan.Name == *state.Name
 }
 
-func descriptionEqual(plan, state *models.PolicyhandlerKACPolicyRuleGroup) bool {
+func descriptionEqual(plan, state *models.ModelsKACPolicyRuleGroup) bool {
 	if plan.Description == nil && (state == nil || state.Description == nil) {
 		return true
 	}
@@ -343,7 +343,7 @@ func descriptionEqual(plan, state *models.PolicyhandlerKACPolicyRuleGroup) bool 
 	return plan.Description != nil && state.Description != nil && *plan.Description == *state.Description
 }
 
-func denyOnErrorUnchanged(plan, state *models.PolicyhandlerKACPolicyRuleGroup) bool {
+func denyOnErrorUnchanged(plan, state *models.ModelsKACPolicyRuleGroup) bool {
 	if plan.DenyOnError == nil {
 		return true
 	}
@@ -351,7 +351,7 @@ func denyOnErrorUnchanged(plan, state *models.PolicyhandlerKACPolicyRuleGroup) b
 	return state.DenyOnError != nil && *plan.DenyOnError.Deny == *state.DenyOnError.Deny
 }
 
-func imageAssessmentUnchanged(plan, state *models.PolicyhandlerKACPolicyRuleGroup) bool {
+func imageAssessmentUnchanged(plan, state *models.ModelsKACPolicyRuleGroup) bool {
 	if plan.ImageAssessment == nil {
 		return true
 	}
@@ -361,7 +361,7 @@ func imageAssessmentUnchanged(plan, state *models.PolicyhandlerKACPolicyRuleGrou
 		*plan.ImageAssessment.UnassessedHandling == *state.ImageAssessment.UnassessedHandling
 }
 
-func namespacesUnchanged(plan, state *models.PolicyhandlerKACPolicyRuleGroup) bool {
+func namespacesUnchanged(plan, state *models.ModelsKACPolicyRuleGroup) bool {
 	if plan.Namespaces == nil || *plan.IsDefault {
 		return true
 	}
@@ -383,7 +383,7 @@ func namespacesUnchanged(plan, state *models.PolicyhandlerKACPolicyRuleGroup) bo
 	return true
 }
 
-func labelsUnchanged(plan, state *models.PolicyhandlerKACPolicyRuleGroup) bool {
+func labelsUnchanged(plan, state *models.ModelsKACPolicyRuleGroup) bool {
 	if plan.Labels == nil || *plan.IsDefault {
 		return true
 	}
@@ -392,7 +392,7 @@ func labelsUnchanged(plan, state *models.PolicyhandlerKACPolicyRuleGroup) bool {
 		return false
 	}
 
-	planLabelMap := make(map[string]models.PolicyhandlerKACPolicyRuleGroupLabel)
+	planLabelMap := make(map[string]models.ModelsKACPolicyRuleGroupLabel)
 	for _, label := range plan.Labels {
 		key := *label.Key + "|" + *label.Value + "|" + *label.Operator
 		planLabelMap[key] = *label
@@ -408,7 +408,7 @@ func labelsUnchanged(plan, state *models.PolicyhandlerKACPolicyRuleGroup) bool {
 	return true
 }
 
-func defaultRulesUnchanged(plan, state *models.PolicyhandlerKACPolicyRuleGroup) bool {
+func defaultRulesUnchanged(plan, state *models.ModelsKACPolicyRuleGroup) bool {
 	if plan.DefaultRules == nil {
 		return true
 	}
