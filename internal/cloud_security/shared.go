@@ -90,10 +90,15 @@ func convertAlertRemediationInfoToTerraformState(input *string) basetypes.ListVa
 	return types.ListValueMust(types.StringType, values)
 }
 
-func convertAlertInfoToAPIFormat(ctx context.Context, alertInfo basetypes.ListValue, includeNumbering bool) (string, diag.Diagnostics) {
+func convertAlertInfoToAPIFormat(ctx context.Context, alertInfo basetypes.ListValue, includeNumbering ...bool) (string, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var alertInfoStrings []string
 	var convertedAlertInfo string
+
+	includeNum := false
+	if len(includeNumbering) > 0 {
+		includeNum = includeNumbering[0]
+	}
 
 	if alertInfo.IsNull() || alertInfo.IsUnknown() || len(alertInfo.Elements()) == 0 {
 		return "", diags
@@ -102,7 +107,7 @@ func convertAlertInfoToAPIFormat(ctx context.Context, alertInfo basetypes.ListVa
 	// Duplicate rules require the numbering with |\n delimiters
 	// for Alert Info while custom rules only require | without
 	// newlines or numbering
-	if includeNumbering {
+	if includeNum {
 		for i, elem := range alertInfo.Elements() {
 			str, ok := elem.(types.String)
 			if !ok {
@@ -123,7 +128,7 @@ func convertAlertInfoToAPIFormat(ctx context.Context, alertInfo basetypes.ListVa
 	return convertedAlertInfo, diags
 }
 
-func convertRemediationInfoToAPIFormat(ctx context.Context, info basetypes.ListValue, includeNumbering bool) (string, diag.Diagnostics) {
+func convertRemediationInfoToAPIFormat(ctx context.Context, info basetypes.ListValue, includeNumbering ...bool) (string, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var infoStrings []string
 	var convertedInfo string
@@ -132,10 +137,15 @@ func convertRemediationInfoToAPIFormat(ctx context.Context, info basetypes.ListV
 		return "", diags
 	}
 
+	includeNum := false
+	if len(includeNumbering) > 0 {
+		includeNum = includeNumbering[0]
+	}
+
 	// Duplicate rules require the numbering with |\n delimiters
 	// for Remediation info while custom rules only require | without
 	// newlines or numbering
-	if includeNumbering {
+	if includeNum {
 		for i, elem := range info.Elements() {
 			str, ok := elem.(types.String)
 			if !ok {
