@@ -3,7 +3,7 @@ module github.com/crowdstrike/terraform-provider-crowdstrike
 go 1.24.3
 
 require (
-	github.com/crowdstrike/gofalcon v0.18.1-0.20260105224132-bbb40ba0f906
+	github.com/crowdstrike/gofalcon v0.19.1-0.20260126193419-5ae2a501524e
 	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/go-version v1.7.0
@@ -18,8 +18,6 @@ require (
 	golang.org/x/exp v0.0.0-20250210185358-939b2ce775ac
 	golang.org/x/text v0.22.0
 )
-
-replace github.com/crowdstrike/gofalcon => github.com/mr-jungchoi/gofalcon v0.0.0-20260123181926-356a6afdede2
 
 require (
 	github.com/BurntSushi/toml v1.2.1 // indirect
