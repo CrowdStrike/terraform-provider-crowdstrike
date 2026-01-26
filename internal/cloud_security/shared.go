@@ -35,7 +35,37 @@ var (
 		2: SeverityMedium,
 		3: SeverityInformational,
 	}
+	severityToString = map[string]string{
+		SeverityCritical:      "0",
+		SeverityHigh:          "1",
+		SeverityMedium:        "2",
+		SeverityInformational: "3",
+	}
+	stringToSeverity = map[string]string{
+		"0": SeverityCritical,
+		"1": SeverityHigh,
+		"2": SeverityMedium,
+		"3": SeverityInformational,
+	}
+	iomRuleDomainConfig = cloudSecurityDomainConfig{
+		Domain:    "CSPM",
+		Subdomain: "IOM",
+	}
 )
+
+type cloudSecurityDomainConfig struct {
+	Domain    string
+	Subdomain string
+}
+
+func getDomainConfig(ruleType string) cloudSecurityDomainConfig {
+	switch ruleType {
+	case "IOM":
+		return iomRuleDomainConfig
+	default:
+		return iomRuleDomainConfig
+	}
+}
 
 func convertAlertRemediationInfoToTerraformState(input *string) basetypes.ListValue {
 	if input == nil || *input == "" {

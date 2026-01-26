@@ -104,3 +104,65 @@ func TestOptionalStringList(t *testing.T) {
 		})
 	}
 }
+
+func TestOptionalStringSet(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name          string
+		input         []string
+		expectNull    bool
+		expectError   bool
+		expectedValue []string
+	}{
+		{
+			name:       "empty slice returns null",
+			input:      []string{},
+			expectNull: true,
+		},
+		{
+			name:       "nil slice returns null",
+			input:      nil,
+			expectNull: true,
+		},
+		{
+			name:          "single element returns value",
+			input:         []string{"test"},
+			expectNull:    false,
+			expectedValue: []string{"test"},
+		},
+		{
+			name:          "multiple elements returns value",
+			input:         []string{"test1", "test2", "test3"},
+			expectNull:    false,
+			expectedValue: []string{"test1", "test2", "test3"},
+		},
+		{
+			name:        "duplicate elements return error",
+			input:       []string{"test1", "test2", "test1"},
+			expectNull:  false,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, diags := OptionalStringSet(ctx, tt.input)
+
+			if tt.expectError {
+				assert.True(t, diags.HasError(), "expected error but got none")
+			} else {
+				assert.False(t, diags.HasError(), "unexpected error: %v", diags)
+			}
+
+			assert.Equal(t, tt.expectNull, result.IsNull())
+
+			if !tt.expectNull && !diags.HasError() {
+				var actualValue []string
+				diags := result.ElementsAs(ctx, &actualValue, false)
+				require.False(t, diags.HasError(), "ElementsAs() error: %v", diags)
+				assert.ElementsMatch(t, tt.expectedValue, actualValue)
+			}
+		})
+	}
+}
