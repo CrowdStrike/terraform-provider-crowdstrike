@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/admission_control_policies"
@@ -46,6 +47,12 @@ var (
 	kacPolicyDocumentationSection        = "Falcon Cloud Security"
 	kacPolicyResourceMarkdownDescription = "This resource manages an Admission Control policy, which provides instructions to the Falcon Kubernetes Admission Controller (KAC) about what actions to take on objects at runtime."
 	kacPolicyRequiredScopes              = cloudSecurityKacPolicyScopes
+)
+
+// Mutex for create and delete operations.
+var (
+	kacPolicyCreateMutex sync.Mutex
+	kacPolicyDeleteMutex sync.Mutex
 )
 
 func NewCloudSecurityKacPolicyResource() resource.Resource {
@@ -490,6 +497,16 @@ func (r *cloudSecurityKacPolicyResource) Create(
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
+	// Concurrent create operations are not thread safe.
+	tflog.Debug(ctx, "[DEBUG] locking create operations for KAC policies")
+	kacPolicyCreateMutex.Lock()
+	tflog.Debug(ctx, "[DEBUG] locked create operations for KAC policies")
+	defer func() {
+		tflog.Debug(ctx, "[DEBUG] unlocking create operations for KAC policies")
+		kacPolicyCreateMutex.Unlock()
+		tflog.Debug(ctx, "[DEBUG] unlocked create operations for KAC policies")
+	}()
+
 	var plan cloudSecurityKacPolicyResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -713,6 +730,16 @@ func (r *cloudSecurityKacPolicyResource) Delete(
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
+	// Concurrent delete operations are not thread safe.
+	tflog.Debug(ctx, "[DEBUG] locking delete operations for KAC policies")
+	kacPolicyDeleteMutex.Lock()
+	tflog.Debug(ctx, "[DEBUG] locked delete operations for KAC policies")
+	defer func() {
+		tflog.Debug(ctx, "[DEBUG] unlocking delete operations for KAC policies")
+		kacPolicyDeleteMutex.Unlock()
+		tflog.Debug(ctx, "[DEBUG] unlocked delete operations for KAC policies")
+	}()
+
 	var state cloudSecurityKacPolicyResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
