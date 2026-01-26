@@ -61,6 +61,13 @@ func TestCloudSecurityKacCustomRuleResource_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "description", "This is an updated test KAC custom rule"),
 					resource.TestCheckResourceAttr(resourceName, "severity", "high"),
 					resource.TestCheckResourceAttr(resourceName, "logic", "import rego.v1\n\ndefault result := \"fail\"\n\nresult := \"pass\" if {\n\tinput.metadata.name == \"updated-test-pod\"\n}\n"),
+					resource.TestCheckResourceAttr(resourceName, "remediation_info.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "remediation_info.0", "Review and update pod security policies"),
+					resource.TestCheckResourceAttr(resourceName, "remediation_info.1", "Implement network segmentation"),
+					resource.TestCheckResourceAttr(resourceName, "attack_types.#", "1"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "attack_types.*", "data-exfiltration"),
+					resource.TestCheckResourceAttr(resourceName, "alert_info.#", "1"),
+					resource.TestCheckResourceAttr(resourceName, "alert_info.0", "Updated alert - Monitor for pod privilege escalation attempts"),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
@@ -154,6 +161,92 @@ func TestCloudSecurityKacCustomRuleResource_AllSeverities(t *testing.T) {
 	}
 }
 
+// TestCloudSecurityKacCustomRuleResource_WithAllFields tests a rule with all optional fields populated.
+func TestCloudSecurityKacCustomRuleResource_WithAllFields(t *testing.T) {
+	skipIfRegoNotEnabled(t)
+	randomSuffix := sdkacctest.RandString(8)
+	resourceName := fmt.Sprintf("crowdstrike_cloud_security_kac_custom_rule.test_%s", randomSuffix)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testCloudSecurityKacCustomRuleResourceConfig_withAllFields(randomSuffix),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("Complete KAC Rule %s", randomSuffix)),
+					resource.TestCheckResourceAttr(resourceName, "description", "A comprehensive test rule with all fields"),
+					resource.TestCheckResourceAttr(resourceName, "severity", "high"),
+					resource.TestCheckResourceAttr(resourceName, "remediation_info.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "remediation_info.0", "Check pod security policy configuration"),
+					resource.TestCheckResourceAttr(resourceName, "remediation_info.1", "Ensure proper RBAC permissions are set"),
+					resource.TestCheckResourceAttr(resourceName, "attack_types.#", "2"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "attack_types.*", "privilege-escalation"),
+					resource.TestCheckTypeSetElemAttr(resourceName, "attack_types.*", "lateral-movement"),
+					resource.TestCheckResourceAttr(resourceName, "alert_info.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "alert_info.0", "Alert triggered when pod has high privileges"),
+					resource.TestCheckResourceAttr(resourceName, "alert_info.1", "Monitor for container behavior issues"),
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+				),
+			},
+		},
+	})
+}
+
+// TestCloudSecurityKacCustomRuleResource_AttackTypesValidation tests attack_types field validation.
+func TestCloudSecurityKacCustomRuleResource_AttackTypesValidation(t *testing.T) {
+	skipIfRegoNotEnabled(t)
+	randomSuffix := sdkacctest.RandString(8)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config:      testCloudSecurityKacCustomRuleResourceConfig_invalidAttackTypes(randomSuffix),
+				ExpectError: regexp.MustCompile("string length must be at least 1"),
+				PlanOnly:    true,
+			},
+		},
+	})
+}
+
+// TestCloudSecurityKacCustomRuleResource_RemediationInfoValidation tests remediation_info field validation.
+func TestCloudSecurityKacCustomRuleResource_RemediationInfoValidation(t *testing.T) {
+	skipIfRegoNotEnabled(t)
+	randomSuffix := sdkacctest.RandString(8)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config:      testCloudSecurityKacCustomRuleResourceConfig_invalidRemediationInfo(randomSuffix),
+				ExpectError: regexp.MustCompile("Attribute remediation_info list element value must be at least 1 characters"),
+				PlanOnly:    true,
+			},
+		},
+	})
+}
+
+// TestCloudSecurityKacCustomRuleResource_AlertInfoValidation tests alert_info field validation.
+func TestCloudSecurityKacCustomRuleResource_AlertInfoValidation(t *testing.T) {
+	skipIfRegoNotEnabled(t)
+	randomSuffix := sdkacctest.RandString(8)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config:      testCloudSecurityKacCustomRuleResourceConfig_invalidAlertInfo(randomSuffix),
+				ExpectError: regexp.MustCompile("Attribute alert_info list element value must be at least 1 characters"),
+				PlanOnly:    true,
+			},
+		},
+	})
+}
+
 // TestCloudSecurityKacCustomRuleResource_NameRequiresReplace tests that name changes require replacement.
 func TestCloudSecurityKacCustomRuleResource_NameRequiresReplace(t *testing.T) {
 	skipIfRegoNotEnabled(t)
@@ -214,6 +307,20 @@ resource "crowdstrike_cloud_security_kac_custom_rule" "test_%s" {
   name        = "Terraform Test KAC Rule %s"
   description = "This is an updated test KAC custom rule"
   severity    = "high"
+
+  remediation_info = [
+    "Review and update pod security policies",
+    "Implement network segmentation"
+  ]
+
+  attack_types = [
+    "data-exfiltration"
+  ]
+
+  alert_info = [
+    "Updated alert - Monitor for pod privilege escalation attempts"
+  ]
+
   logic = <<EOF
 import rego.v1
 
@@ -295,6 +402,105 @@ default result := "fail"
 result := "pass" if {
 	input.metadata.name == "test-pod"
 }
+EOF
+}
+`, suffix, suffix)
+}
+
+func testCloudSecurityKacCustomRuleResourceConfig_withAllFields(suffix string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_security_kac_custom_rule" "test_%s" {
+  name        = "Complete KAC Rule %s"
+  description = "A comprehensive test rule with all fields"
+  severity    = "high"
+
+  remediation_info = [
+    "Check pod security policy configuration",
+    "Ensure proper RBAC permissions are set"
+  ]
+
+  attack_types = [
+    "privilege-escalation",
+    "lateral-movement"
+  ]
+
+  alert_info = [
+    "Alert triggered when pod has high privileges",
+    "Monitor for container behavior issues"
+  ]
+
+  logic = <<EOF
+import rego.v1
+
+default result := "fail"
+
+result := "pass" if {
+	input.metadata.name == "secure-pod"
+	not input.spec.securityContext.privileged
+}
+EOF
+}
+`, suffix, suffix)
+}
+
+func testCloudSecurityKacCustomRuleResourceConfig_invalidAttackTypes(suffix string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_security_kac_custom_rule" "test_%s" {
+  name        = "Invalid Attack Types Rule %s"
+  description = "Rule with invalid attack types"
+  severity    = "high"
+
+  attack_types = [
+    "valid-attack-type",
+    ""  # This empty string should cause validation error
+  ]
+
+  logic = <<EOF
+import rego.v1
+
+default result := "pass"
+EOF
+}
+`, suffix, suffix)
+}
+
+func testCloudSecurityKacCustomRuleResourceConfig_invalidRemediationInfo(suffix string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_security_kac_custom_rule" "test_%s" {
+  name        = "Invalid Remediation Info Rule %s"
+  description = "Rule with invalid remediation info"
+  severity    = "high"
+
+  remediation_info = [
+    "Valid remediation step",
+    ""  # This empty string should cause validation error
+  ]
+
+  logic = <<EOF
+import rego.v1
+
+default result := "pass"
+EOF
+}
+`, suffix, suffix)
+}
+
+func testCloudSecurityKacCustomRuleResourceConfig_invalidAlertInfo(suffix string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_security_kac_custom_rule" "test_%s" {
+  name        = "Invalid Alert Info Rule %s"
+  description = "Rule with invalid alert info"
+  severity    = "high"
+
+  alert_info = [
+    "Valid alert information",
+    ""  # This empty string should cause validation error
+  ]
+
+  logic = <<EOF
+import rego.v1
+
+default result := "pass"
 EOF
 }
 `, suffix, suffix)
