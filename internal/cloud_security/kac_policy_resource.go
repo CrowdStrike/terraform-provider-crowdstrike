@@ -2,9 +2,9 @@ package cloudsecurity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
-	"strings"
 	"sync"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
@@ -522,7 +522,8 @@ func (r *cloudSecurityKacPolicyResource) Create(
 		WithBody(createRequest)
 	createResponse, err := r.client.AdmissionControlPolicies.AdmissionControlCreatePolicy(params)
 	if err != nil {
-		if strings.Contains(err.Error(), "403") {
+		var forbiddenError *admission_control_policies.AdmissionControlCreatePolicyForbidden
+		if errors.As(err, &forbiddenError) {
 			resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Create, cloudSecurityKacPolicyScopes))
 			return
 		}
@@ -609,7 +610,8 @@ func (r *cloudSecurityKacPolicyResource) Read(
 
 	getResponse, err := r.client.AdmissionControlPolicies.AdmissionControlGetPolicies(params)
 	if err != nil {
-		if strings.Contains(err.Error(), "status 404") {
+		var notFoundError *admission_control_policies.AdmissionControlGetPoliciesNotFound
+		if errors.As(err, &notFoundError) {
 			tflog.Warn(
 				ctx,
 				fmt.Sprintf(
@@ -621,7 +623,8 @@ func (r *cloudSecurityKacPolicyResource) Read(
 			return
 		}
 
-		if strings.Contains(err.Error(), "status 403") {
+		var forbiddenError *admission_control_policies.AdmissionControlGetPoliciesForbidden
+		if errors.As(err, &forbiddenError) {
 			resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Read, cloudSecurityKacPolicyScopes))
 			return
 		}
@@ -670,7 +673,8 @@ func (r *cloudSecurityKacPolicyResource) Update(
 
 		updateResponse, err := r.client.AdmissionControlPolicies.AdmissionControlUpdatePolicy(params)
 		if err != nil {
-			if strings.Contains(err.Error(), "403") {
+			var forbiddenError *admission_control_policies.AdmissionControlUpdatePolicyForbidden
+			if errors.As(err, &forbiddenError) {
 				resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
 				return
 			}
@@ -769,6 +773,12 @@ func (r *cloudSecurityKacPolicyResource) Delete(
 
 	_, err := r.client.AdmissionControlPolicies.AdmissionControlDeletePolicies(params)
 	if err != nil {
+		var forbiddenError *admission_control_policies.AdmissionControlDeletePoliciesForbidden
+		if errors.As(err, &forbiddenError) {
+			resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Delete, cloudSecurityKacPolicyScopes))
+			return
+		}
+
 		resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Delete, err))
 		return
 	}
@@ -949,7 +959,8 @@ func (r *cloudSecurityKacPolicyResource) updateHostGroups(
 
 		removeResponse, err := r.client.AdmissionControlPolicies.AdmissionControlRemoveHostGroups(removeParams)
 		if err != nil {
-			if strings.Contains(err.Error(), "403") {
+			var forbiddenError *admission_control_policies.AdmissionControlRemoveHostGroupsForbidden
+			if errors.As(err, &forbiddenError) {
 				diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
 				return nil, diags
 			}
@@ -978,7 +989,8 @@ func (r *cloudSecurityKacPolicyResource) updateHostGroups(
 
 		addResponse, err := r.client.AdmissionControlPolicies.AdmissionControlAddHostGroups(addParams)
 		if err != nil {
-			if strings.Contains(err.Error(), "403") {
+			var forbiddenError *admission_control_policies.AdmissionControlAddHostGroupsForbidden
+			if errors.As(err, &forbiddenError) {
 				diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
 				return nil, diags
 			}
@@ -1032,7 +1044,8 @@ func (r *cloudSecurityKacPolicyResource) deleteRemovedRuleGroups(
 
 	deleteResponse, err := r.client.AdmissionControlPolicies.AdmissionControlDeleteRuleGroups(deleteParams)
 	if err != nil {
-		if strings.Contains(err.Error(), "403") {
+		var forbiddenError *admission_control_policies.AdmissionControlDeleteRuleGroupsForbidden
+		if errors.As(err, &forbiddenError) {
 			diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
 			return nil, diags
 		}
@@ -1064,18 +1077,18 @@ func (r *cloudSecurityKacPolicyResource) reconcileRuleGroupUpdates(
 			WithIds([]string{plan.ID.ValueString()})
 		getResponse, err := r.client.AdmissionControlPolicies.AdmissionControlGetPolicies(params)
 		if err != nil {
-			diags.AddError(
-				"Error getting KAC policy",
-				fmt.Sprintf("Could not get KAC policy: %s", err.Error()),
-			)
+			var forbiddenError *admission_control_policies.AdmissionControlGetPoliciesForbidden
+			if errors.As(err, &forbiddenError) {
+				diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
+				return nil, diags
+			}
+
+			diags.Append(tferrors.NewOperationError(tferrors.Update, err))
 			return nil, diags
 		}
 
-		if len(getResponse.Payload.Resources) == 0 {
-			diags.AddError(
-				"Error getting KAC policy",
-				"No policy returned in get policy response",
-			)
+		if getResponse == nil || getResponse.Payload == nil || len(getResponse.Payload.Resources) == 0 {
+			diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
 			return nil, diags
 		}
 
@@ -1222,7 +1235,8 @@ func (r *cloudSecurityKacPolicyResource) createNewRuleGroups(
 
 	createResponse, err := r.client.AdmissionControlPolicies.AdmissionControlCreateRuleGroups(params)
 	if err != nil {
-		if strings.Contains(err.Error(), "403") {
+		var forbiddenError *admission_control_policies.AdmissionControlCreateRuleGroupsForbidden
+		if errors.As(err, &forbiddenError) {
 			diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
 			return nil
 		}
@@ -1265,7 +1279,8 @@ func (r *cloudSecurityKacPolicyResource) updateRuleGroupPrecedence(
 
 	changePrecedenceResponse, err := r.client.AdmissionControlPolicies.AdmissionControlSetRuleGroupPrecedence(params)
 	if err != nil {
-		if strings.Contains(err.Error(), "403") {
+		var forbiddenError *admission_control_policies.AdmissionControlSetRuleGroupPrecedenceForbidden
+		if errors.As(err, &forbiddenError) {
 			diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
 			return nil
 		}
@@ -1302,7 +1317,8 @@ func (r *cloudSecurityKacPolicyResource) updateRuleGroupAttributesAndRules(
 
 	updateResponse, err := r.client.AdmissionControlPolicies.AdmissionControlUpdateRuleGroups(params)
 	if err != nil {
-		if strings.Contains(err.Error(), "403") {
+		var forbiddenError *admission_control_policies.AdmissionControlUpdateRuleGroupsForbidden
+		if errors.As(err, &forbiddenError) {
 			diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
 			return nil
 		}
@@ -1339,7 +1355,8 @@ func (r *cloudSecurityKacPolicyResource) replaceRuleGroupSelectors(
 
 	replaceSelectorsResponse, err := r.client.AdmissionControlPolicies.AdmissionControlReplaceRuleGroupSelectors(params)
 	if err != nil {
-		if strings.Contains(err.Error(), "403") {
+		var forbiddenError *admission_control_policies.AdmissionControlReplaceRuleGroupSelectorsForbidden
+		if errors.As(err, &forbiddenError) {
 			diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
 			return nil
 		}
