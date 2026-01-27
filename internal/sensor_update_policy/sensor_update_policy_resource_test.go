@@ -26,6 +26,7 @@ type sensorUpdatePolicyConfig struct {
 	Build               string
 	BuildArm64          string
 	UninstallProtection *bool
+	BulkMaintenanceMode *bool
 	Schedule            scheduleConfig
 	HostGroupCount      int
 }
@@ -55,6 +56,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   build                = {{.BuildValue}}
   {{if eq .PlatformName "Linux"}}build_arm64          = {{.BuildArm64Value}}{{end}}
   uninstall_protection = {{if .UninstallProtection}}{{.UninstallProtection}}{{else}}false{{end}}
+  {{if .BulkMaintenanceMode}}bulk_maintenance_mode = {{.BulkMaintenanceMode}}{{end}}
   host_groups          = [{{range $i, $ref := .HostGroupRefs}}{{if $i}}, {{end}}{{$ref}}{{end}}]
   {{.ScheduleBlock}}
 }
@@ -1344,6 +1346,149 @@ resource "crowdstrike_sensor_update_policy" "test" {
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"last_updated"},
+			},
+		},
+	})
+}
+
+func TestAccSensorUpdatePolicyResourceWithBulkMaintenanceMode(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
+data "crowdstrike_sensor_update_policy_builds" "all" {}
+resource "crowdstrike_sensor_update_policy" "test" {
+  name                  = "%s"
+  enabled               = true
+  description           = "policy with build and bulk maintenance mode off"
+  host_groups           = []
+  platform_name         = "Windows"
+  build                 = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
+  uninstall_protection  = false
+  bulk_maintenance_mode = false
+  schedule = {
+    enabled = false
+  }
+}
+`, rName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"crowdstrike_sensor_update_policy.test",
+						"name",
+						rName,
+					),
+					resource.TestCheckResourceAttrSet(
+						"crowdstrike_sensor_update_policy.test",
+						"build",
+					),
+					resource.TestCheckResourceAttr(
+						"crowdstrike_sensor_update_policy.test",
+						"uninstall_protection",
+						"false",
+					),
+					resource.TestCheckResourceAttr(
+						"crowdstrike_sensor_update_policy.test",
+						"bulk_maintenance_mode",
+						"false",
+					),
+					resource.TestCheckResourceAttrSet(
+						"crowdstrike_sensor_update_policy.test",
+						"id",
+					),
+				),
+			},
+			{
+				ResourceName:            "crowdstrike_sensor_update_policy.test",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"last_updated"},
+			},
+			{
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_sensor_update_policy" "test" {
+  name                  = "%s-updated"
+  enabled               = true
+  description           = "policy with bulk maintenance mode enabled"
+  host_groups           = []
+  platform_name         = "Windows"
+  build                 = ""
+  uninstall_protection  = true
+  bulk_maintenance_mode = true
+  schedule = {
+    enabled = false
+  }
+}
+`, rName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"crowdstrike_sensor_update_policy.test",
+						"name",
+						rName+"-updated",
+					),
+					resource.TestCheckResourceAttr(
+						"crowdstrike_sensor_update_policy.test",
+						"build",
+						"",
+					),
+					resource.TestCheckResourceAttr(
+						"crowdstrike_sensor_update_policy.test",
+						"uninstall_protection",
+						"true",
+					),
+					resource.TestCheckResourceAttr(
+						"crowdstrike_sensor_update_policy.test",
+						"bulk_maintenance_mode",
+						"true",
+					),
+				),
+			},
+		},
+	})
+}
+
+func TestAccSensorUpdatePolicyResourceWithBulkMaintenanceMode_Validation(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_sensor_update_policy" "test" {
+  name                  = "%s"
+  enabled               = true
+  description           = "invalid config"
+  platform_name         = "Windows"
+  build                 = ""
+  uninstall_protection  = false
+  bulk_maintenance_mode = true
+  schedule = {
+    enabled = false
+  }
+}
+`, rName),
+				ExpectError: regexp.MustCompile("bulk_maintenance_mode is set to true"),
+			},
+			{
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
+data "crowdstrike_sensor_update_policy_builds" "all" {}
+resource "crowdstrike_sensor_update_policy" "test" {
+  name                  = "%s"
+  enabled               = true
+  description           = "invalid config with build"
+  platform_name         = "Windows"
+  build                 = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
+  uninstall_protection  = true
+  bulk_maintenance_mode = true
+  schedule = {
+    enabled = false
+  }
+}
+`, rName),
+				ExpectError: regexp.MustCompile(`disable sensor version updates`),
 			},
 		},
 	})
