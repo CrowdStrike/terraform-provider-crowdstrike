@@ -9,3 +9,11 @@ var cloudSecurityRuleScopes = []scopes.Scope{
 		Write: true,
 	},
 }
+
+var cloudSecurityKacPolicyScopes = []scopes.Scope{
+	{
+		Name:  "Falcon Container Policies",
+		Read:  true,
+		Write: true,
+	},
+}
