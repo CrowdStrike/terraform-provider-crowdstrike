@@ -612,13 +612,7 @@ func (r *cloudSecurityKacPolicyResource) Read(
 	if err != nil {
 		var notFoundError *admission_control_policies.AdmissionControlGetPoliciesNotFound
 		if errors.As(err, &notFoundError) {
-			tflog.Warn(
-				ctx,
-				fmt.Sprintf(
-					"KAC policy with ID %s not found, removing from state",
-					state.ID.ValueString(),
-				),
-			)
+			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 			resp.State.RemoveResource(ctx)
 			return
 		}
