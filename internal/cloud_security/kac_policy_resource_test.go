@@ -246,9 +246,8 @@ func (drg *defaultRuleGroupConfig) render() string {
 }
 
 func TestCloudSecurityKacPolicyResource_Minimal(t *testing.T) {
-	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
-	policyName := fmt.Sprintf("tfacc-kac-policy-minimal-%s", randomSuffix)
+	policyName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -268,10 +267,9 @@ func TestCloudSecurityKacPolicyResource_Minimal(t *testing.T) {
 }
 
 func TestCloudSecurityKacPolicyResource_Basic(t *testing.T) {
-	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
-	policyName := fmt.Sprintf("tfacc-kac-policy-%s", randomSuffix)
-	updatedPolicyName := fmt.Sprintf("tfacc-kac-policy-updated-%s", randomSuffix)
+	policyName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	updatedPolicyName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -315,9 +313,8 @@ func TestCloudSecurityKacPolicyResource_Basic(t *testing.T) {
 }
 
 func TestCloudSecurityKacPolicyResource_EnabledToggle(t *testing.T) {
-	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
-	policyName := fmt.Sprintf("tfacc-kac-policy-enabled-%s", randomSuffix)
+	policyName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -361,9 +358,8 @@ func TestCloudSecurityKacPolicyResource_EnabledToggle(t *testing.T) {
 }
 
 func TestCloudSecurityKacPolicyResource_HostGroups(t *testing.T) {
-	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
-	policyName := fmt.Sprintf("tfacc-kac-policy-hostgroups-%s", randomSuffix)
+	policyName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	hostGroupsConfig := `
 resource "crowdstrike_host_group" "test-hg-1" {
@@ -474,9 +470,8 @@ func TestCloudSecurityKacPolicyResource_NameValidation(t *testing.T) {
 }
 
 func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
-	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
-	policyName := fmt.Sprintf("tfacc-kac-policy-defaultrulegroup-%s", randomSuffix)
+	policyName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -567,9 +562,8 @@ func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
 }
 
 func TestCloudSecurityKacPolicyResource_RuleGroupsMinimal(t *testing.T) {
-	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
-	policyName := fmt.Sprintf("tfacc-kac-policy-minimal-rulegroups-%s", randomSuffix)
+	policyName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -610,9 +604,8 @@ func TestCloudSecurityKacPolicyResource_RuleGroupsMinimal(t *testing.T) {
 }
 
 func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
-	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
-	policyName := fmt.Sprintf("tfacc-kac-policy-rulegroups-%s", randomSuffix)
+	policyName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	capturedState := make(map[string]string)
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -771,9 +764,8 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 }
 
 func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
-	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
-	policyName := fmt.Sprintf("tfacc-kac-policy-multiplerulegroups-%s", randomSuffix)
+	policyName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	capturedState := make(map[string]string)
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -952,9 +944,8 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 }
 
 func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.T) {
-	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
-	policyName := fmt.Sprintf("tfacc-kac-policy-complex-%s", randomSuffix)
+	policyName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	capturedState := make(map[string]string)
 
 	resource.ParallelTest(t, resource.TestCase{
