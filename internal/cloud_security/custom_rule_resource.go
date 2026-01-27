@@ -28,7 +28,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
@@ -908,70 +907,4 @@ func (r *cloudSecurityCustomRuleResource) deleteCloudPolicyRule(ctx context.Cont
 	}
 
 	return diags
-}
-
-func convertAlertInfoToAPIFormat(ctx context.Context, alertInfo basetypes.ListValue, includeNumbering bool) (string, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	var alertInfoStrings []string
-	var convertedAlertInfo string
-
-	if alertInfo.IsNull() || alertInfo.IsUnknown() || len(alertInfo.Elements()) == 0 {
-		return "", diags
-	}
-
-	// Duplicate rules require the numbering with |\n delimiters
-	// for Alert Info while custom rules only require | without
-	// newlines or numbering
-	if includeNumbering {
-		for i, elem := range alertInfo.Elements() {
-			str, ok := elem.(types.String)
-			if !ok {
-				diags.AddError(
-					"Error converting AlertInfo",
-					fmt.Sprintf("Failed to convert element %d to string", i),
-				)
-				return "", diags
-			}
-			alertInfoStrings = append(alertInfoStrings, fmt.Sprintf("%d. %s", i+1, str.ValueString()))
-		}
-
-		convertedAlertInfo = strings.Join(alertInfoStrings, "|\n")
-	} else {
-		diags = alertInfo.ElementsAs(ctx, &alertInfoStrings, false)
-		convertedAlertInfo = strings.Join(alertInfoStrings, "|")
-	}
-	return convertedAlertInfo, diags
-}
-
-func convertRemediationInfoToAPIFormat(ctx context.Context, info basetypes.ListValue, includeNumbering bool) (string, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	var infoStrings []string
-	var convertedInfo string
-
-	if info.IsNull() || info.IsUnknown() || len(info.Elements()) == 0 {
-		return "", diags
-	}
-
-	// Duplicate rules require the numbering with |\n delimiters
-	// for Remediation info while custom rules only require | without
-	// newlines or numbering
-	if includeNumbering {
-		for i, elem := range info.Elements() {
-			str, ok := elem.(types.String)
-			if !ok {
-				diags.AddError(
-					"Error converting RemediationInfo",
-					fmt.Sprintf("Failed to convert element %d to string", i),
-				)
-				return "", diags
-			}
-			infoStrings = append(infoStrings, fmt.Sprintf("Step %d. %s", i+1, str.ValueString()))
-		}
-		convertedInfo = strings.Join(infoStrings, "|\n")
-	} else {
-		diags = info.ElementsAs(ctx, &infoStrings, false)
-		convertedInfo = strings.Join(infoStrings, "|")
-	}
-
-	return convertedInfo, diags
 }

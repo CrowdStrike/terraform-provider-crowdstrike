@@ -11,8 +11,8 @@ type dataRuleConfig struct {
 
 var awsConfig = dataRuleConfig{
 	cloudProvider: "AWS",
-	ruleName:      "NLB/ALB configured publicly with TLS/SSL disabled",
-	resourceType:  "AWS::ElasticLoadBalancingV2::LoadBalancer",
+	ruleName:      "Auto Scaling group launch configuration not configured with a customer created IAM role",
+	resourceType:  "AWS::AutoScaling::LaunchConfiguration",
 	benchmark:     "CIS*",
 	framework:     "CIS",
 	service:       "ELB",
