@@ -1,12 +1,19 @@
 package fcs_test
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"testing"
 
+	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 )
@@ -272,10 +279,13 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_arn"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "false"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "false"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm_role_name", "CrowdStrikeAgentlessScanningIntegrationRole"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", "CrowdStrikeAgentlessScanningIntegrationRole"),
+					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", "CrowdStrikeAgentlessScanningIntegrationRole"),
 				),
 			},
 			// Import testing
@@ -285,17 +295,6 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 				ImportStateId:                        accountID,
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "account_id",
-				ImportStateVerifyIgnore: []string{
-					"id",
-					"deployment_method",
-					"target_ous",
-					"asset_inventory",
-					"realtime_visibility",
-					"idp",
-					"sensor_management",
-					"dspm",
-					"vulnerability_scanning",
-				},
 			},
 			// Update testing
 			{
@@ -316,10 +315,14 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_arn"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.role_name", "mydspmrole"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm_role_name", "mydspmrole"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "false"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", "CrowdStrikeAgentlessScanningIntegrationRole"),
+					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", "mydspmrole"),
 				),
 			},
 			// Test minimal configuration
@@ -339,10 +342,13 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_arn"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "false"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "false"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm_role_name", "CrowdStrikeAgentlessScanningIntegrationRole"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", "CrowdStrikeAgentlessScanningIntegrationRole"),
+					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", "CrowdStrikeAgentlessScanningIntegrationRole"),
 				),
 			},
 		},
@@ -374,10 +380,13 @@ func TestAccCloudAwsAccountResourceMinimal(t *testing.T) {
 					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_arn"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "false"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "false"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm_role_name", "CrowdStrikeAgentlessScanningIntegrationRole"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", "CrowdStrikeAgentlessScanningIntegrationRole"),
+					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", "CrowdStrikeAgentlessScanningIntegrationRole"),
 				),
 			},
 		},
@@ -486,8 +495,6 @@ func TestAccCloudAwsAccountResourceAgentlessRoleUpdates(t *testing.T) {
 					// Computed fields
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
 					resource.TestCheckResourceAttr(fullResourceName, "dspm_role_name", testDSPMRoleName),
-					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
 					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", testDSPMRoleName),
 				),
 			},
@@ -523,7 +530,7 @@ func TestAccCloudAwsAccountResourceAgentlessRoleUpdates(t *testing.T) {
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.role_name", testVulnRoleName),
 					// Computed fields
 					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
-					resource.TestCheckResourceAttr(fullResourceName, "dspm_role_name", testDSPMRoleName),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm_role_name", "CrowdStrikeAgentlessScanningIntegrationRole"),
 					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
 					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning_role_name", testVulnRoleName),
 					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", testVulnRoleName),
@@ -607,7 +614,7 @@ func TestAccCloudAWSAccount_RealtimeVisibility(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "us-east-1"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
-					resource.TestCheckResourceAttrSet(resourceName, "cloudtrail_bucket_name"),
+					resource.TestCheckResourceAttrSet(resourceName, "eventbus_arn"),
 				),
 			},
 			{
@@ -618,6 +625,7 @@ func TestAccCloudAWSAccount_RealtimeVisibility(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "us-west-2"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
+					resource.TestCheckResourceAttrSet(resourceName, "eventbus_arn"),
 					resource.TestCheckResourceAttrSet(resourceName, "cloudtrail_bucket_name"),
 				),
 			},
@@ -629,6 +637,7 @@ func TestAccCloudAWSAccount_RealtimeVisibility(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "false"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "us-east-1"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
+					resource.TestCheckResourceAttrSet(resourceName, "eventbus_arn"),
 					resource.TestCheckResourceAttrSet(resourceName, "cloudtrail_bucket_name"),
 				),
 			},
@@ -640,6 +649,7 @@ func TestAccCloudAWSAccount_RealtimeVisibility(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "eu-west-1"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
+					resource.TestCheckResourceAttrSet(resourceName, "eventbus_arn"),
 					resource.TestCheckResourceAttrSet(resourceName, "cloudtrail_bucket_name"),
 				),
 			},
@@ -651,6 +661,7 @@ func TestAccCloudAWSAccount_RealtimeVisibility(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "false"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "us-east-1"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
+					resource.TestCheckResourceAttrSet(resourceName, "eventbus_arn"),
 					resource.TestCheckResourceAttrSet(resourceName, "cloudtrail_bucket_name"),
 				),
 			},
@@ -660,15 +671,6 @@ func TestAccCloudAWSAccount_RealtimeVisibility(t *testing.T) {
 				ImportStateId:                        accountID,
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "account_id",
-				ImportStateVerifyIgnore: []string{
-					"id",
-					"deployment_method",
-					"target_ous",
-					"asset_inventory",
-					"idp",
-					"sensor_management",
-					"dspm",
-				},
 			},
 		},
 	})
@@ -864,16 +866,6 @@ func TestAccCloudAWSAccount_S3LogIngestion(t *testing.T) {
 				ImportStateId:                        accountID,
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "account_id",
-				ImportStateVerifyIgnore: []string{
-					"id",
-					"deployment_method",
-					"target_ous",
-					"asset_inventory",
-					"idp",
-					"sensor_management",
-					"dspm",
-					"vulnerability_scanning",
-				},
 			},
 		},
 	})
@@ -1192,4 +1184,330 @@ func TestAccCloudAwsAccountResourceRegions(t *testing.T) {
 			},
 		},
 	})
+}
+
+func testAccCloudAwsAccountConfig_allFeaturesEnabled(account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  asset_inventory = {
+    enabled = true
+  }
+  realtime_visibility = {
+    enabled           = true
+    cloudtrail_region = "us-east-1"
+  }
+  idp = {
+    enabled = true
+  }
+  sensor_management = {
+    enabled = true
+  }
+  dspm = {
+    enabled = true
+  }
+  vulnerability_scanning = {
+    enabled = true
+  }
+}
+`, account)
+}
+
+func testAccCloudAwsAccountConfig_dspmDisabled(account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  asset_inventory = {
+    enabled = true
+  }
+  realtime_visibility = {
+    enabled           = true
+    cloudtrail_region = "us-east-1"
+  }
+  idp = {
+    enabled = true
+  }
+  sensor_management = {
+    enabled = true
+  }
+  dspm = {
+    enabled = false
+  }
+  vulnerability_scanning = {
+    enabled = true
+  }
+}
+`, account)
+}
+
+func testAccCloudAwsAccountConfig_dspmAndVulnDisabled(account string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id = "%s"
+  asset_inventory = {
+    enabled = true
+  }
+  realtime_visibility = {
+    enabled           = true
+    cloudtrail_region = "us-east-1"
+  }
+  idp = {
+    enabled = true
+  }
+  sensor_management = {
+    enabled = true
+  }
+  dspm = {
+    enabled = false
+  }
+  vulnerability_scanning = {
+    enabled = false
+  }
+}
+`, account)
+}
+
+func TestAccCloudAwsAccountResource_RegressionDisableDSPMThenVulnScanning(t *testing.T) {
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
+	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAwsAccountConfig_allFeaturesEnabled(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(fullResourceName, "asset_inventory.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.cloudtrail_region", "us-east-1"),
+					resource.TestCheckResourceAttr(fullResourceName, "idp.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "sensor_management.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "true"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "external_id"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "intermediate_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
+				),
+			},
+			{
+				Config: testAccCloudAwsAccountConfig_dspmDisabled(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(fullResourceName, "asset_inventory.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.cloudtrail_region", "us-east-1"),
+					resource.TestCheckResourceAttr(fullResourceName, "idp.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "sensor_management.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "false"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "true"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "external_id"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "intermediate_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
+				),
+			},
+			{
+				Config: testAccCloudAwsAccountConfig_dspmAndVulnDisabled(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(fullResourceName, "asset_inventory.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "realtime_visibility.cloudtrail_region", "us-east-1"),
+					resource.TestCheckResourceAttr(fullResourceName, "idp.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "sensor_management.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "false"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "false"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "external_id"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "intermediate_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "iam_role_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "eventbus_arn"),
+				),
+			},
+		},
+	})
+}
+
+func TestBuildProductsFromModel(t *testing.T) {
+	tests := []struct {
+		name     string
+		model    fcs.CloudAWSAccountModel
+		expected []*models.RestAccountProductRequestExtV1
+	}{
+		{
+			name:  "nil features defaults to asset inventory only",
+			model: fcs.CloudAWSAccountModel{},
+			expected: []*models.RestAccountProductRequestExtV1{
+				{
+					Product:  utils.Addr("cspm"),
+					Features: []string{"iom"},
+				},
+			},
+		},
+		{
+			name: "all features enabled",
+			model: fcs.CloudAWSAccountModel{
+				AssetInventory:        &fcs.AssetInventoryOptions{Enabled: types.BoolValue(true)},
+				RealtimeVisibility:    &fcs.RealtimeVisibilityOptions{Enabled: types.BoolValue(true)},
+				SensorManagement:      &fcs.SensorManagementOptions{Enabled: types.BoolValue(true)},
+				DSPM:                  &fcs.DSPMOptions{Enabled: types.BoolValue(true)},
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{Enabled: types.BoolValue(true)},
+				IDP:                   &fcs.IDPOptions{Enabled: types.BoolValue(true)},
+			},
+			expected: []*models.RestAccountProductRequestExtV1{
+				{
+					Product:  utils.Addr("cspm"),
+					Features: []string{"iom", "ioa", "sensormgmt", "dspm", "vulnerability_scanning"},
+				},
+				{
+					Product:  utils.Addr("idp"),
+					Features: []string{"default"},
+				},
+			},
+		},
+		{
+			name: "IDP separate from cspm features",
+			model: fcs.CloudAWSAccountModel{
+				IDP: &fcs.IDPOptions{Enabled: types.BoolValue(true)},
+			},
+			expected: []*models.RestAccountProductRequestExtV1{
+				{
+					Product:  utils.Addr("cspm"),
+					Features: []string{"iom"},
+				},
+				{
+					Product:  utils.Addr("idp"),
+					Features: []string{"default"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &fcs.CloudAWSAccountResource{}
+			result := fcs.BuildProductsFromModel(r, tt.model)
+
+			require.Equal(t, len(tt.expected), len(result))
+
+			for i, expectedProduct := range tt.expected {
+				assert.Equal(t, *expectedProduct.Product, *result[i].Product)
+				assert.ElementsMatch(t, expectedProduct.Features, result[i].Features)
+			}
+		})
+	}
+}
+
+func TestUpdateFeatureStatesFromProducts(t *testing.T) {
+	tests := []struct {
+		name          string
+		initialModel  fcs.CloudAWSAccountModel
+		products      []*models.DomainProductFeatures
+		cloudAccount  *models.DomainCloudAWSAccountV1
+		expectedModel fcs.CloudAWSAccountModel
+	}{
+		{
+			name: "update from products with all features",
+			initialModel: fcs.CloudAWSAccountModel{
+				RealtimeVisibility:    &fcs.RealtimeVisibilityOptions{Enabled: types.BoolValue(false)},
+				SensorManagement:      &fcs.SensorManagementOptions{Enabled: types.BoolValue(false)},
+				DSPM:                  &fcs.DSPMOptions{Enabled: types.BoolValue(false)},
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{Enabled: types.BoolValue(false)},
+				IDP:                   &fcs.IDPOptions{Enabled: types.BoolValue(false)},
+			},
+			products: []*models.DomainProductFeatures{
+				{
+					Product:  utils.Addr("cspm"),
+					Features: []string{"iom", "ioa", "sensormgmt", "dspm", "vulnerability_scanning"},
+				},
+				{
+					Product:  utils.Addr("idp"),
+					Features: []string{"default"},
+				},
+			},
+			cloudAccount: &models.DomainCloudAWSAccountV1{
+				ResourceMetadata: &models.DomainAWSAccountResourceMetadata{
+					AwsCloudtrailRegion: "us-east-1",
+				},
+			},
+			expectedModel: fcs.CloudAWSAccountModel{
+				RealtimeVisibility: &fcs.RealtimeVisibilityOptions{
+					Enabled:          types.BoolValue(true),
+					CloudTrailRegion: types.StringValue("us-east-1"),
+				},
+				SensorManagement:      &fcs.SensorManagementOptions{Enabled: types.BoolValue(true)},
+				DSPM:                  &fcs.DSPMOptions{Enabled: types.BoolValue(true)},
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{Enabled: types.BoolValue(true)},
+				IDP: &fcs.IDPOptions{
+					Enabled: types.BoolValue(true),
+					Status:  types.StringValue("configured"),
+				},
+			},
+		},
+		{
+			name: "nil IDP remains nil",
+			initialModel: fcs.CloudAWSAccountModel{
+				IDP: nil,
+			},
+			products: []*models.DomainProductFeatures{
+				{
+					Product:  utils.Addr("cspm"),
+					Features: []string{"iom"},
+				},
+			},
+			cloudAccount: &models.DomainCloudAWSAccountV1{
+				ResourceMetadata: &models.DomainAWSAccountResourceMetadata{},
+			},
+			expectedModel: fcs.CloudAWSAccountModel{
+				IDP: nil,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			fcs.UpdateFeatureStatesFromProducts(ctx, &tt.initialModel, tt.products, tt.cloudAccount)
+
+			if tt.expectedModel.RealtimeVisibility != nil {
+				require.NotNil(t, tt.initialModel.RealtimeVisibility)
+				assert.Equal(t, tt.expectedModel.RealtimeVisibility.Enabled, tt.initialModel.RealtimeVisibility.Enabled)
+				if !tt.expectedModel.RealtimeVisibility.CloudTrailRegion.IsNull() {
+					assert.Equal(t, tt.expectedModel.RealtimeVisibility.CloudTrailRegion, tt.initialModel.RealtimeVisibility.CloudTrailRegion)
+				}
+			}
+
+			if tt.expectedModel.SensorManagement != nil {
+				require.NotNil(t, tt.initialModel.SensorManagement)
+				assert.Equal(t, tt.expectedModel.SensorManagement.Enabled, tt.initialModel.SensorManagement.Enabled)
+			}
+
+			if tt.expectedModel.DSPM != nil {
+				require.NotNil(t, tt.initialModel.DSPM)
+				assert.Equal(t, tt.expectedModel.DSPM.Enabled, tt.initialModel.DSPM.Enabled)
+			}
+
+			if tt.expectedModel.VulnerabilityScanning != nil {
+				require.NotNil(t, tt.initialModel.VulnerabilityScanning)
+				assert.Equal(t, tt.expectedModel.VulnerabilityScanning.Enabled, tt.initialModel.VulnerabilityScanning.Enabled)
+			}
+
+			if tt.expectedModel.IDP != nil {
+				require.NotNil(t, tt.initialModel.IDP)
+				assert.Equal(t, tt.expectedModel.IDP.Enabled, tt.initialModel.IDP.Enabled)
+				assert.Equal(t, tt.expectedModel.IDP.Status, tt.initialModel.IDP.Status)
+			} else {
+				assert.Nil(t, tt.initialModel.IDP)
+			}
+		})
+	}
 }
