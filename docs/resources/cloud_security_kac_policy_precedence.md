@@ -1,6 +1,6 @@
 ---
 page_title: "crowdstrike_cloud_security_kac_policy_precedence Resource - crowdstrike"
-subcategory: "Cloud Security"
+subcategory: "Falcon Cloud Security"
 description: |-
   This resource manages the precedence for Admission Control policies.
   API Scopes
@@ -36,7 +36,7 @@ provider "crowdstrike" {
 
 
 resource "crowdstrike_cloud_security_kac_policy_precedence" "example" {
-  policy_ids = [
+  ids = [
     "a1j09y3yq0wnrpb5o6jlij9e4f40k6lq",
     "2asia54xti93bg0jbr5hfpqqbhxbyeoa",
     "xuzq8hs1uyc2s7zdar3fli0shiyl22vc",
