@@ -11,6 +11,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -23,7 +24,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -37,6 +37,18 @@ var (
 	attachmentResourceMarkdownDescription string         = "This resource allows managing the host groups attached to a content update policy. By default (when `exclusive` is true), this resource takes exclusive ownership over the host groups assigned to a content update policy. When `exclusive` is false, this resource only manages the specific host groups defined in the configuration. If you want to fully create or manage a content update policy please use the `content_update_policy` resource."
 	attachmentRequiredScopes              []scopes.Scope = apiScopesReadWrite
 )
+
+func newPolicyNotFoundError(policyID string) diag.ErrorDiagnostic {
+	return diag.NewErrorDiagnostic(
+		"Content Update Policy Not Found",
+		fmt.Sprintf(
+			"Content update policy with ID %q does not exist. "+
+				"This resource manages attachments to an existing policy and does not create a policy. "+
+				"Ensure the correct policy ID was provided or use the crowdstrike_content_update_policy resource to create a policy.",
+			policyID,
+		),
+	)
+}
 
 func NewContentUpdatePolicyAttachmentResource() resource.Resource {
 	return &contentUpdatePolicyAttachmentResource{}
@@ -197,8 +209,12 @@ func (r *contentUpdatePolicyAttachmentResource) Create(
 	}
 
 	policy, diags := getContentUpdatePolicy(ctx, r.client, plan.ID.ValueString())
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(newPolicyNotFoundError(plan.ID.ValueString()))
+			return
+		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -224,8 +240,12 @@ func (r *contentUpdatePolicyAttachmentResource) Create(
 	}
 
 	policy, diags = getContentUpdatePolicy(ctx, r.client, plan.ID.ValueString())
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(newPolicyNotFoundError(plan.ID.ValueString()))
+			return
+		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -246,20 +266,13 @@ func (r *contentUpdatePolicyAttachmentResource) Read(
 	}
 
 	policy, diags := getContentUpdatePolicy(ctx, r.client, state.ID.ValueString())
-	for _, err := range diags.Errors() {
-		if err.Summary() == "Content update policy not found" {
-			tflog.Warn(
-				ctx,
-				fmt.Sprintf("content update policy %s not found, removing from state", state.ID),
-			)
-
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 			resp.State.RemoveResource(ctx)
 			return
 		}
-	}
-
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -291,8 +304,12 @@ func (r *contentUpdatePolicyAttachmentResource) Update(
 		}
 
 		policy, diags := getContentUpdatePolicy(ctx, r.client, plan.ID.ValueString())
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
+		if diags.HasError() {
+			if tferrors.HasNotFoundError(diags) {
+				resp.Diagnostics.Append(newPolicyNotFoundError(plan.ID.ValueString()))
+				return
+			}
+			resp.Diagnostics.Append(diags...)
 			return
 		}
 
@@ -327,8 +344,12 @@ func (r *contentUpdatePolicyAttachmentResource) Update(
 	}
 
 	policy, diags := getContentUpdatePolicy(ctx, r.client, plan.ID.ValueString())
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(newPolicyNotFoundError(plan.ID.ValueString()))
+			return
+		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 

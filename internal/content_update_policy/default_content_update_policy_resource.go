@@ -3,7 +3,6 @@ package contentupdatepolicy
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
@@ -11,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -481,11 +481,10 @@ func (r *defaultContentUpdatePolicyResource) Read(
 	})
 	policy, diags := getContentUpdatePolicy(ctx, r.client, state.ID.ValueString())
 	if diags.HasError() {
-		for _, diag := range diags {
-			if strings.Contains(diag.Summary(), "not found") {
-				resp.State.RemoveResource(ctx)
-				return
-			}
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
+			resp.State.RemoveResource(ctx)
+			return
 		}
 		resp.Diagnostics.Append(diags...)
 		return
