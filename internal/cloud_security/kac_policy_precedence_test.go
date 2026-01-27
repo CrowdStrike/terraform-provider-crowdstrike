@@ -16,7 +16,7 @@ type kacPolicyPrecedenceConfig struct {
 func (c kacPolicyPrecedenceConfig) String() string {
 	config := `
 resource "crowdstrike_cloud_security_kac_policy_precedence" "test" {
-  policy_ids = [`
+  ids = [`
 
 	for i, id := range c.policyIds {
 		if i > 0 {
@@ -80,11 +80,11 @@ resource "crowdstrike_cloud_security_kac_policy" "test_policy_4" {
 					}.String(),
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "policy_ids.#", "4"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "policy_ids.0", policy1ResourceName, "id"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "policy_ids.1", policy2ResourceName, "id"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "policy_ids.2", policy3ResourceName, "id"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "policy_ids.3", policy4ResourceName, "id"),
+					resource.TestCheckResourceAttr(resourceName, "ids.#", "4"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "ids.0", policy1ResourceName, "id"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "ids.1", policy2ResourceName, "id"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "ids.2", policy3ResourceName, "id"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "ids.3", policy4ResourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
 				),
 			},
@@ -102,11 +102,11 @@ resource "crowdstrike_cloud_security_kac_policy" "test_policy_4" {
 					}.String(),
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "policy_ids.#", "4"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "policy_ids.0", policy4ResourceName, "id"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "policy_ids.1", policy3ResourceName, "id"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "policy_ids.2", policy2ResourceName, "id"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "policy_ids.3", policy1ResourceName, "id"),
+					resource.TestCheckResourceAttr(resourceName, "ids.#", "4"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "ids.0", policy4ResourceName, "id"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "ids.1", policy3ResourceName, "id"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "ids.2", policy2ResourceName, "id"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "ids.3", policy1ResourceName, "id"),
 				),
 			},
 			{
@@ -123,11 +123,11 @@ resource "crowdstrike_cloud_security_kac_policy" "test_policy_4" {
 					}.String(),
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "policy_ids.#", "4"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "policy_ids.0", policy1ResourceName, "id"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "policy_ids.1", policy3ResourceName, "id"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "policy_ids.2", policy2ResourceName, "id"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "policy_ids.3", policy4ResourceName, "id"),
+					resource.TestCheckResourceAttr(resourceName, "ids.#", "4"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "ids.0", policy1ResourceName, "id"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "ids.1", policy3ResourceName, "id"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "ids.2", policy2ResourceName, "id"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "ids.3", policy4ResourceName, "id"),
 				),
 			},
 		},

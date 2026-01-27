@@ -42,7 +42,7 @@ type cloudSecurityKacPolicyPrecedenceResource struct {
 }
 
 type cloudSecurityKacPolicyPrecedenceResourceModel struct {
-	PolicyIds   types.List   `tfsdk:"policy_ids"`
+	PolicyIds   types.List   `tfsdk:"ids"`
 	LastUpdated types.String `tfsdk:"last_updated"`
 }
 
@@ -107,7 +107,7 @@ func (r *cloudSecurityKacPolicyPrecedenceResource) Schema(
 			kacPolicyPrecedenceRequiredScopes,
 		),
 		Attributes: map[string]schema.Attribute{
-			"policy_ids": schema.ListAttribute{
+			"ids": schema.ListAttribute{
 				Required:    true,
 				ElementType: types.StringType,
 				Description: "The policy ids in order. The first ID specified will have the highest precedence and the last ID specified will have the lowest.",
