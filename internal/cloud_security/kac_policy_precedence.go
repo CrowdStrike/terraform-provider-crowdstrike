@@ -28,7 +28,7 @@ var (
 )
 
 var (
-	kacPolicyPrecedenceDocumentationSection        string         = "Cloud Security"
+	kacPolicyPrecedenceDocumentationSection        string         = "Falcon Cloud Security"
 	kacPolicyPrecedenceResourceMarkdownDescription string         = "This resource manages the precedence for Admission Control policies."
 	kacPolicyPrecedenceRequiredScopes              []scopes.Scope = cloudSecurityKacPolicyScopes
 )
