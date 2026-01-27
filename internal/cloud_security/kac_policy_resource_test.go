@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
@@ -167,13 +168,6 @@ resource "crowdstrike_cloud_security_kac_policy" "test" {
 	return config
 }
 
-func boolPtr(b bool) *bool       { return &b }
-func stringPtr(s string) *string { return &s }
-
-func defaultRulePtr(action string) *string {
-	return &action
-}
-
 func (dr *defaultRulesConfig) renderRules(indent string) string {
 	if dr == nil {
 		return ""
@@ -278,8 +272,8 @@ func TestCloudSecurityKacPolicyResource_Basic(t *testing.T) {
 			{
 				Config: kacPolicyConfig{
 					name:        policyName,
-					description: stringPtr("Test KAC policy created by Terraform"),
-					enabled:     boolPtr(false),
+					description: utils.Addr("Test KAC policy created by Terraform"),
+					enabled:     utils.Addr(false),
 				}.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
@@ -291,8 +285,8 @@ func TestCloudSecurityKacPolicyResource_Basic(t *testing.T) {
 			{
 				Config: kacPolicyConfig{
 					name:        updatedPolicyName,
-					description: stringPtr("Updated KAC policy description"),
-					enabled:     boolPtr(true),
+					description: utils.Addr("Updated KAC policy description"),
+					enabled:     utils.Addr(true),
 				}.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", updatedPolicyName),
@@ -323,7 +317,7 @@ func TestCloudSecurityKacPolicyResource_EnabledToggle(t *testing.T) {
 			{
 				Config: kacPolicyConfig{
 					name:    policyName,
-					enabled: boolPtr(true),
+					enabled: utils.Addr(true),
 				}.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
@@ -334,7 +328,7 @@ func TestCloudSecurityKacPolicyResource_EnabledToggle(t *testing.T) {
 			{
 				Config: kacPolicyConfig{
 					name:    policyName,
-					enabled: boolPtr(false),
+					enabled: utils.Addr(false),
 				}.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
@@ -345,7 +339,7 @@ func TestCloudSecurityKacPolicyResource_EnabledToggle(t *testing.T) {
 			{
 				Config: kacPolicyConfig{
 					name:    policyName,
-					enabled: boolPtr(true),
+					enabled: utils.Addr(true),
 				}.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
@@ -361,28 +355,28 @@ func TestCloudSecurityKacPolicyResource_HostGroups(t *testing.T) {
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
 	policyName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
-	hostGroupsConfig := `
+	hostGroupsConfig := fmt.Sprintf(`
 resource "crowdstrike_host_group" "test-hg-1" {
-  name        = "tfacc-kac-policy-hg-1"
+  name        = "%[1]s-1"
   description = "test host group for kac policy tf acceptance tests"
   type        = "staticByID"
   host_ids    = []
 }
 
 resource "crowdstrike_host_group" "test-hg-2" {
-  name        = "tfacc-kac-policy-hg-2"
+  name        = "%[1]s-2"
   description = "test host group for kac policy tf acceptance tests"
   type        = "staticByID"
   host_ids    = []
 }
 
 resource "crowdstrike_host_group" "test-hg-3" {
-  name        = "tfacc-kac-policy-hg-3"
+  name        = "%[1]s-3"
   description = "test host group for kac policy tf acceptance tests"
   type        = "staticByID"
   host_ids    = []
 }
-`
+`, policyName)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -393,8 +387,8 @@ resource "crowdstrike_host_group" "test-hg-3" {
 					hostGroupsConfig,
 					kacPolicyConfig{
 						name:        policyName,
-						description: stringPtr("Test KAC policy with host groups"),
-						enabled:     boolPtr(false),
+						description: utils.Addr("Test KAC policy with host groups"),
+						enabled:     utils.Addr(false),
 						hostGroups:  []string{"crowdstrike_host_group.test-hg-1.id", "crowdstrike_host_group.test-hg-2.id"},
 					}.String(),
 				),
@@ -413,8 +407,8 @@ resource "crowdstrike_host_group" "test-hg-3" {
 					hostGroupsConfig,
 					kacPolicyConfig{
 						name:        policyName,
-						description: stringPtr("Test KAC policy with updated host groups"),
-						enabled:     boolPtr(false),
+						description: utils.Addr("Test KAC policy with updated host groups"),
+						enabled:     utils.Addr(false),
 						hostGroups:  []string{"crowdstrike_host_group.test-hg-2.id", "crowdstrike_host_group.test-hg-3.id"}, // Remove hostGroup1, add hostGroup3
 					}.String(),
 				),
@@ -433,8 +427,8 @@ resource "crowdstrike_host_group" "test-hg-3" {
 					hostGroupsConfig,
 					kacPolicyConfig{
 						name:        policyName,
-						description: stringPtr("Test KAC policy with no host groups"),
-						enabled:     boolPtr(false),
+						description: utils.Addr("Test KAC policy with no host groups"),
+						enabled:     utils.Addr(false),
 						hostGroups:  []string{}, // Remove all host groups
 					}.String(),
 				),
@@ -480,17 +474,17 @@ func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
 			{
 				Config: kacPolicyConfig{
 					name:        policyName,
-					description: stringPtr("Test KAC policy with default rule group"),
-					enabled:     boolPtr(false),
+					description: utils.Addr("Test KAC policy with default rule group"),
+					enabled:     utils.Addr(false),
 					defaultRuleGroup: &defaultRuleGroupConfig{
-						denyOnError: boolPtr(false),
+						denyOnError: utils.Addr(false),
 						imageAssessment: &imageAssessmentConfig{
 							enabled:            true,
 							unassessedHandling: "Alert",
 						},
 						defaultRules: &defaultRulesConfig{
-							workloadInDefaultNamespace: defaultRulePtr("Prevent"),
-							runtimeSocketInContainer:   defaultRulePtr("Alert"),
+							workloadInDefaultNamespace: utils.Addr("Prevent"),
+							runtimeSocketInContainer:   utils.Addr("Alert"),
 						},
 					},
 				}.String(),
@@ -510,17 +504,17 @@ func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
 			{
 				Config: kacPolicyConfig{
 					name:        policyName,
-					description: stringPtr("Test KAC policy with default rule group"),
-					enabled:     boolPtr(false),
+					description: utils.Addr("Test KAC policy with default rule group"),
+					enabled:     utils.Addr(false),
 					defaultRuleGroup: &defaultRuleGroupConfig{
-						denyOnError: boolPtr(true),
+						denyOnError: utils.Addr(true),
 						imageAssessment: &imageAssessmentConfig{
 							enabled:            true,
 							unassessedHandling: "Prevent",
 						},
 						defaultRules: &defaultRulesConfig{
-							workloadInDefaultNamespace: defaultRulePtr("Alert"),
-							runtimeSocketInContainer:   defaultRulePtr("Disabled"),
+							workloadInDefaultNamespace: utils.Addr("Alert"),
+							runtimeSocketInContainer:   utils.Addr("Disabled"),
 						},
 					},
 				}.String(),
@@ -540,8 +534,8 @@ func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
 			{
 				Config: kacPolicyConfig{
 					name:        policyName,
-					description: stringPtr("Test KAC policy with default rule group"),
-					enabled:     boolPtr(false),
+					description: utils.Addr("Test KAC policy with default rule group"),
+					enabled:     utils.Addr(false),
 				}.String(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", policyName),
@@ -615,13 +609,13 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 			{
 				Config: kacPolicyConfig{
 					name:        policyName,
-					description: stringPtr("Test KAC policy with rule groups"),
-					enabled:     boolPtr(false),
+					description: utils.Addr("Test KAC policy with rule groups"),
+					enabled:     utils.Addr(false),
 					ruleGroups: []ruleGroupConfig{
 						{
 							name:        "test-rule-group-1",
-							description: stringPtr("First test rule group"),
-							denyOnError: boolPtr(false),
+							description: utils.Addr("First test rule group"),
+							denyOnError: utils.Addr(false),
 							imageAssessment: &imageAssessmentConfig{
 								enabled:            true,
 								unassessedHandling: "Alert",
@@ -635,8 +629,8 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 								},
 							},
 							defaultRules: &defaultRulesConfig{
-								privilegedContainer:        defaultRulePtr("Disabled"),
-								sensitiveDataInEnvironment: defaultRulePtr("Prevent"),
+								privilegedContainer:        utils.Addr("Disabled"),
+								sensitiveDataInEnvironment: utils.Addr("Prevent"),
 							},
 						},
 					},
@@ -675,13 +669,13 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 			{
 				Config: kacPolicyConfig{
 					name:        policyName,
-					description: stringPtr("Test KAC policy with updated rule groups"),
-					enabled:     boolPtr(false),
+					description: utils.Addr("Test KAC policy with updated rule groups"),
+					enabled:     utils.Addr(false),
 					ruleGroups: []ruleGroupConfig{
 						{
 							name:        "test-rule-group-1-updated",
-							description: stringPtr("Updated first test rule group"),
-							denyOnError: boolPtr(true),
+							description: utils.Addr("Updated first test rule group"),
+							denyOnError: utils.Addr(true),
 							imageAssessment: &imageAssessmentConfig{
 								enabled:            false,
 								unassessedHandling: "Prevent",
@@ -700,7 +694,7 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 								},
 							},
 							defaultRules: &defaultRulesConfig{
-								privilegedContainer: defaultRulePtr("Prevent"),
+								privilegedContainer: utils.Addr("Prevent"),
 							},
 						},
 					},
@@ -728,12 +722,12 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 			{
 				Config: kacPolicyConfig{
 					name:        policyName,
-					description: stringPtr("Test KAC policy with updated rule groups"),
-					enabled:     boolPtr(false),
+					description: utils.Addr("Test KAC policy with updated rule groups"),
+					enabled:     utils.Addr(false),
 					ruleGroups: []ruleGroupConfig{
 						{
 							name:        "test-rule-group-1-updated",
-							description: stringPtr("Updated first test rule group - optional attributes removed"),
+							description: utils.Addr("Updated first test rule group - optional attributes removed"),
 						},
 					},
 				}.String(),
@@ -775,13 +769,13 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 			{
 				Config: kacPolicyConfig{
 					name:        policyName,
-					description: stringPtr("Test KAC policy with multiple rule groups"),
-					enabled:     boolPtr(false),
+					description: utils.Addr("Test KAC policy with multiple rule groups"),
+					enabled:     utils.Addr(false),
 					ruleGroups: []ruleGroupConfig{
 						{
 							name:        "production-rule-group",
-							description: stringPtr("Production environment rule group"),
-							denyOnError: boolPtr(true),
+							description: utils.Addr("Production environment rule group"),
+							denyOnError: utils.Addr(true),
 							imageAssessment: &imageAssessmentConfig{
 								enabled:            true,
 								unassessedHandling: "Prevent",
@@ -797,8 +791,8 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 						},
 						{
 							name:        "development-rule-group",
-							description: stringPtr("Development environment rule group"),
-							denyOnError: boolPtr(false),
+							description: utils.Addr("Development environment rule group"),
+							denyOnError: utils.Addr(false),
 							imageAssessment: &imageAssessmentConfig{
 								enabled:            false,
 								unassessedHandling: "Allow Without Alert",
@@ -812,8 +806,8 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 								},
 							},
 							defaultRules: &defaultRulesConfig{
-								containerRunAsRoot:             defaultRulePtr("Disabled"),
-								containerWithoutResourceLimits: defaultRulePtr("Disabled"),
+								containerRunAsRoot:             utils.Addr("Disabled"),
+								containerWithoutResourceLimits: utils.Addr("Disabled"),
 							},
 						},
 					},
@@ -859,13 +853,13 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 			{
 				Config: kacPolicyConfig{
 					name:        policyName,
-					description: stringPtr("Test KAC policy with updated multiple rule groups"),
-					enabled:     boolPtr(false),
+					description: utils.Addr("Test KAC policy with updated multiple rule groups"),
+					enabled:     utils.Addr(false),
 					ruleGroups: []ruleGroupConfig{
 						{
 							name:        "production-rule-group-updated",
-							description: stringPtr("Updated production environment rule group"),
-							denyOnError: boolPtr(false), // Changed from true to false
+							description: utils.Addr("Updated production environment rule group"),
+							denyOnError: utils.Addr(false), // Changed from true to false
 							imageAssessment: &imageAssessmentConfig{
 								enabled:            false,   // Changed from true to false
 								unassessedHandling: "Alert", // Changed from "Prevent" to "Alert"
@@ -884,13 +878,13 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 								},
 							},
 							defaultRules: &defaultRulesConfig{
-								sensitiveHostDirectories: defaultRulePtr("Prevent"),
+								sensitiveHostDirectories: utils.Addr("Prevent"),
 							},
 						},
 						{
 							name:        "development-rule-group-updated",
-							description: stringPtr("Updated development environment rule group"),
-							denyOnError: boolPtr(true), // Changed from false to true
+							description: utils.Addr("Updated development environment rule group"),
+							denyOnError: utils.Addr(true), // Changed from false to true
 							imageAssessment: &imageAssessmentConfig{
 								enabled:            true,      // Changed from false to true
 								unassessedHandling: "Prevent", // Changed from "Allow Without Alert" to "Prevent"
@@ -904,8 +898,8 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 								},
 							},
 							defaultRules: &defaultRulesConfig{
-								containerRunAsRoot:             defaultRulePtr("Alert"),
-								containerWithoutResourceLimits: defaultRulePtr("Prevent"),
+								containerRunAsRoot:             utils.Addr("Alert"),
+								containerWithoutResourceLimits: utils.Addr("Prevent"),
 							},
 						},
 					},
@@ -955,13 +949,13 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 			{
 				Config: kacPolicyConfig{
 					name:        policyName,
-					description: stringPtr("Test KAC policy with multiple rule groups and default rule group"),
-					enabled:     boolPtr(false),
+					description: utils.Addr("Test KAC policy with multiple rule groups and default rule group"),
+					enabled:     utils.Addr(false),
 					ruleGroups: []ruleGroupConfig{
 						{
 							name:        "rule-group-1",
-							description: stringPtr("Rule group 1"),
-							denyOnError: boolPtr(true),
+							description: utils.Addr("Rule group 1"),
+							denyOnError: utils.Addr(true),
 							imageAssessment: &imageAssessmentConfig{
 								enabled:            true,
 								unassessedHandling: "Prevent",
@@ -975,13 +969,13 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 								},
 							},
 							defaultRules: &defaultRulesConfig{
-								privilegedContainer: defaultRulePtr("Prevent"),
+								privilegedContainer: utils.Addr("Prevent"),
 							},
 						},
 						{
 							name:        "rule-group-2",
-							description: stringPtr("Rule group 2"),
-							denyOnError: boolPtr(false),
+							description: utils.Addr("Rule group 2"),
+							denyOnError: utils.Addr(false),
 							imageAssessment: &imageAssessmentConfig{
 								enabled:            true,
 								unassessedHandling: "Alert",
@@ -995,20 +989,20 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 								},
 							},
 							defaultRules: &defaultRulesConfig{
-								containerRunAsRoot: defaultRulePtr("Alert"),
+								containerRunAsRoot: utils.Addr("Alert"),
 							},
 						},
 					},
 					defaultRuleGroup: &defaultRuleGroupConfig{
-						denyOnError: boolPtr(false),
+						denyOnError: utils.Addr(false),
 						imageAssessment: &imageAssessmentConfig{
 							enabled:            true,
 							unassessedHandling: "Alert",
 						},
 						defaultRules: &defaultRulesConfig{
-							workloadInDefaultNamespace: defaultRulePtr("Prevent"),
-							runtimeSocketInContainer:   defaultRulePtr("Disabled"),
-							sensitiveHostDirectories:   defaultRulePtr("Prevent"),
+							workloadInDefaultNamespace: utils.Addr("Prevent"),
+							runtimeSocketInContainer:   utils.Addr("Disabled"),
+							sensitiveHostDirectories:   utils.Addr("Prevent"),
 						},
 					},
 				}.String(),
@@ -1056,19 +1050,19 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 				// Reorder rule groups and update default rule group
 				Config: kacPolicyConfig{
 					name:        policyName,
-					description: stringPtr("Test KAC policy with reordered rule groups and updated default rule group"),
-					enabled:     boolPtr(false),
+					description: utils.Addr("Test KAC policy with reordered rule groups and updated default rule group"),
+					enabled:     utils.Addr(false),
 					ruleGroups: []ruleGroupConfig{
 						{
 							// new rule group in position 1
 							name:        "new-rule-group",
-							description: stringPtr("New rule group"),
+							description: utils.Addr("New rule group"),
 						},
 						{
 							// rule-group-2 stays in position 2
 							name:        "rule-group-2-renamed",
-							description: stringPtr("Updated rule group 2"),
-							denyOnError: boolPtr(true), // Changed from false to true
+							description: utils.Addr("Updated rule group 2"),
+							denyOnError: utils.Addr(true), // Changed from false to true
 							imageAssessment: &imageAssessmentConfig{
 								enabled:            false,     // Changed from true to false
 								unassessedHandling: "Prevent", // Changed from "Alert" to "Prevent"
@@ -1087,15 +1081,15 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 								},
 							},
 							defaultRules: &defaultRulesConfig{
-								containerRunAsRoot:             defaultRulePtr("Prevent"),  // Changed from "Alert" to "Prevent"
-								containerWithoutResourceLimits: defaultRulePtr("Disabled"), // New rule
+								containerRunAsRoot:             utils.Addr("Prevent"),  // Changed from "Alert" to "Prevent"
+								containerWithoutResourceLimits: utils.Addr("Disabled"), // New rule
 							},
 						},
 						{
 							// rule-group-1 moves to position 3
 							name:        "rule-group-1",
-							description: stringPtr("Reordered rule group 1"),
-							denyOnError: boolPtr(false),
+							description: utils.Addr("Reordered rule group 1"),
+							denyOnError: utils.Addr(false),
 							imageAssessment: &imageAssessmentConfig{
 								enabled:            true,
 								unassessedHandling: "Alert",
@@ -1109,22 +1103,22 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 								},
 							},
 							defaultRules: &defaultRulesConfig{
-								privilegedContainer:        defaultRulePtr("Prevent"), // Changed from "Prevent" to "Alert"
-								sensitiveDataInEnvironment: defaultRulePtr("Prevent"), // New rule
+								privilegedContainer:        utils.Addr("Prevent"), // Changed from "Prevent" to "Alert"
+								sensitiveDataInEnvironment: utils.Addr("Prevent"), // New rule
 							},
 						},
 					},
 					defaultRuleGroup: &defaultRuleGroupConfig{
-						denyOnError: boolPtr(true), // Changed from false to true
+						denyOnError: utils.Addr(true), // Changed from false to true
 						imageAssessment: &imageAssessmentConfig{
 							enabled:            true,
 							unassessedHandling: "Prevent", // Changed from "Alert" to "Prevent"
 						},
 						defaultRules: &defaultRulesConfig{
-							workloadInDefaultNamespace:     defaultRulePtr("Alert"),   // Changed from "Prevent" to "Alert"
-							runtimeSocketInContainer:       defaultRulePtr("Prevent"), // Changed from "Alert" to "Prevent"
-							sensitiveHostDirectories:       defaultRulePtr("Alert"),   // Changed from "Prevent" to "Alert"
-							containerWithoutResourceLimits: defaultRulePtr("Prevent"), // New rule
+							workloadInDefaultNamespace:     utils.Addr("Alert"),   // Changed from "Prevent" to "Alert"
+							runtimeSocketInContainer:       utils.Addr("Prevent"), // Changed from "Alert" to "Prevent"
+							sensitiveHostDirectories:       utils.Addr("Alert"),   // Changed from "Prevent" to "Alert"
+							containerWithoutResourceLimits: utils.Addr("Prevent"), // New rule
 						},
 					},
 				}.String(),
