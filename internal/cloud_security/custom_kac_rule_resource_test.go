@@ -204,7 +204,7 @@ func TestCloudSecurityKacCustomRuleResource_AttackTypesValidation(t *testing.T) 
 		Steps: []resource.TestStep{
 			{
 				Config:      testCloudSecurityKacCustomRuleResourceConfig_invalidAttackTypes(randomSuffix),
-				ExpectError: regexp.MustCompile("string length must be at least 1"),
+				ExpectError: regexp.MustCompile(`Attribute attack_types\[Value\(""\)\] string length must be at least 1, got: 0`),
 				PlanOnly:    true,
 			},
 		},
@@ -222,7 +222,7 @@ func TestCloudSecurityKacCustomRuleResource_RemediationInfoValidation(t *testing
 		Steps: []resource.TestStep{
 			{
 				Config:      testCloudSecurityKacCustomRuleResourceConfig_invalidRemediationInfo(randomSuffix),
-				ExpectError: regexp.MustCompile("Attribute remediation_info list element value must be at least 1 characters"),
+				ExpectError: regexp.MustCompile(`Attribute remediation_info\[1\] string length must be at least 1, got: 0`),
 				PlanOnly:    true,
 			},
 		},
@@ -240,7 +240,7 @@ func TestCloudSecurityKacCustomRuleResource_AlertInfoValidation(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      testCloudSecurityKacCustomRuleResourceConfig_invalidAlertInfo(randomSuffix),
-				ExpectError: regexp.MustCompile("Attribute alert_info list element value must be at least 1 characters"),
+				ExpectError: regexp.MustCompile(`Attribute alert_info\[1\] string length must be at least 1, got: 0`),
 				PlanOnly:    true,
 			},
 		},
