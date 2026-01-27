@@ -129,7 +129,6 @@ func (m *ruleGroupTFModel) wrapRuleGroup(ctx context.Context, rg *models.ModelsK
 		}
 	}
 
-	// Convert DefaultRules from API response to TF model structure
 	defaultRules := defaultRulesTFModel{}
 	for _, apiRule := range rg.DefaultRules {
 		defaultRules.wrapDefaultRule(apiRule)
@@ -157,7 +156,6 @@ func (m *ruleGroupTFModel) toApiModel(ctx context.Context) (models.ModelsKACPoli
 		apiModel.IsDefault = &isNotDefault
 	}
 
-	// Basic fields
 	apiModel.ID = m.ID.ValueStringPointer()
 	apiModel.Name = m.Name.ValueStringPointer()
 	apiModel.Description = m.Description.ValueStringPointer()
@@ -203,7 +201,6 @@ func (m *ruleGroupTFModel) toApiModel(ctx context.Context) (models.ModelsKACPoli
 		}
 	}
 
-	// Default rules
 	if !m.DefaultRules.IsUnknown() {
 		var tfDefaultRules defaultRulesTFModel
 		apiDefaultRuleActions, defaultRuleDiags := tfDefaultRules.toApiDefaultRuleActions(ctx, ruleGroupTFModel{DefaultRules: m.DefaultRules})
@@ -242,7 +239,6 @@ func buildRuleGroupUpdates(plan, state *models.ModelsKACPolicyRuleGroup) ruleGro
 	var updateRuleGroupParams models.ModelsUpdateRuleGroup
 	var replaceSelectorsParams models.ModelsReplaceRuleGroupSelectors
 
-	// Compare basic fields
 	if !*plan.IsDefault && (!nameEqual(plan, state) || !descriptionEqual(plan, state)) {
 		updates.updateRuleGroupParams = &updateRuleGroupParams
 		updateRuleGroupParams.ID = plan.ID
@@ -252,7 +248,6 @@ func buildRuleGroupUpdates(plan, state *models.ModelsKACPolicyRuleGroup) ruleGro
 		updates.updateRuleGroupParams = &updateRuleGroupParams
 	}
 
-	// Compare deny on error
 	if !denyOnErrorUnchanged(plan, state) {
 		if updates.updateRuleGroupParams == nil {
 			updates.updateRuleGroupParams = &updateRuleGroupParams
@@ -262,7 +257,6 @@ func buildRuleGroupUpdates(plan, state *models.ModelsKACPolicyRuleGroup) ruleGro
 		updates.updateRuleGroupParams.DenyOnError = plan.DenyOnError
 	}
 
-	// Compare image assessment
 	if !imageAssessmentUnchanged(plan, state) {
 		if updates.updateRuleGroupParams == nil {
 			updates.updateRuleGroupParams = &updateRuleGroupParams
@@ -272,7 +266,6 @@ func buildRuleGroupUpdates(plan, state *models.ModelsKACPolicyRuleGroup) ruleGro
 		updates.updateRuleGroupParams.ImageAssessment = plan.ImageAssessment
 	}
 
-	// Compare namespaces
 	if !*plan.IsDefault && !namespacesUnchanged(plan, state) {
 		if updates.replaceRuleGroupSelectorParams == nil {
 			updates.replaceRuleGroupSelectorParams = &replaceSelectorsParams
@@ -287,7 +280,6 @@ func buildRuleGroupUpdates(plan, state *models.ModelsKACPolicyRuleGroup) ruleGro
 		replaceSelectorsParams.Namespaces = apiReplaceNamespaces
 	}
 
-	// Compare labels
 	if !*plan.IsDefault && !labelsUnchanged(plan, state) {
 		if updates.replaceRuleGroupSelectorParams == nil {
 			updates.replaceRuleGroupSelectorParams = &replaceSelectorsParams
@@ -306,7 +298,6 @@ func buildRuleGroupUpdates(plan, state *models.ModelsKACPolicyRuleGroup) ruleGro
 		replaceSelectorsParams.Labels = apiReplaceLabels
 	}
 
-	// Compare default rules
 	if state == nil || !defaultRulesUnchanged(plan, state) {
 		if updates.updateRuleGroupParams == nil {
 			updates.updateRuleGroupParams = &updateRuleGroupParams

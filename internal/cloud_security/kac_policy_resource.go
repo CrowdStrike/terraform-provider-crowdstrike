@@ -497,7 +497,7 @@ func (r *cloudSecurityKacPolicyResource) Create(
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-	// Concurrent create operations are not thread safe.
+	// Concurrent create operations are not thread safe. Force serialization with mutex.
 	tflog.Debug(ctx, "[DEBUG] locking create operations for KAC policies")
 	kacPolicyCreateMutex.Lock()
 	tflog.Debug(ctx, "[DEBUG] locked create operations for KAC policies")
@@ -567,7 +567,6 @@ func (r *cloudSecurityKacPolicyResource) Create(
 		policy = updateResponse.Payload.Resources[0]
 	}
 
-	// Handle host groups
 	updatedPolicy, hostGroupDiags := r.updateHostGroups(ctx, plan.ID.ValueString(), plan.HostGroups, basetypes.SetValue{})
 	resp.Diagnostics.Append(hostGroupDiags...)
 	if resp.Diagnostics.HasError() {
@@ -578,7 +577,6 @@ func (r *cloudSecurityKacPolicyResource) Create(
 		policy = updatedPolicy
 	}
 
-	// Handle rule groups
 	policyWithRuleGroups, updateRuleGroupDiags := r.reconcileRuleGroupUpdates(ctx, plan, policy)
 	resp.Diagnostics.Append(updateRuleGroupDiags...)
 	if resp.Diagnostics.HasError() {
@@ -685,7 +683,6 @@ func (r *cloudSecurityKacPolicyResource) Update(
 		policy = updateResponse.Payload.Resources[0]
 	}
 
-	// Handle host groups updates - removes all host groups if plan.HostGroups is null
 	updatedPolicy, hostGroupDiags := r.updateHostGroups(ctx, plan.ID.ValueString(), plan.HostGroups, state.HostGroups)
 	resp.Diagnostics.Append(hostGroupDiags...)
 	if resp.Diagnostics.HasError() {
@@ -696,8 +693,6 @@ func (r *cloudSecurityKacPolicyResource) Update(
 		policy = updatedPolicy
 	}
 
-	// Handle rule groups updates
-	// Delete removed rule groups first
 	policyWithDeletedRuleGroups, deleteRuleGroupDiags := r.deleteRemovedRuleGroups(ctx, plan.ID.ValueString(), plan, state)
 	resp.Diagnostics.Append(deleteRuleGroupDiags...)
 	if resp.Diagnostics.HasError() {
@@ -728,7 +723,7 @@ func (r *cloudSecurityKacPolicyResource) Delete(
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-	// Concurrent delete operations are not thread safe.
+	// Concurrent delete operations are not thread safe. Force serialization with mutex.
 	tflog.Debug(ctx, "[DEBUG] locking delete operations for KAC policies")
 	kacPolicyDeleteMutex.Lock()
 	tflog.Debug(ctx, "[DEBUG] locked delete operations for KAC policies")
@@ -800,12 +795,10 @@ func (r *cloudSecurityKacPolicyResource) ModifyPlan(
 	req resource.ModifyPlanRequest,
 	resp *resource.ModifyPlanResponse,
 ) {
-	// Skip modification on resource change or creation
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
 		return
 	}
 
-	// Skip modification when there are no changes
 	if req.Plan.Raw.Equal(req.State.Raw) {
 		return
 	}
@@ -821,7 +814,7 @@ func (r *cloudSecurityKacPolicyResource) ModifyPlan(
 
 	// Computed+Optional object attributes (default_rule_group) cause constant plan diffs
 	// This causes computed values that need to be set on update (LastUpdated) to be marked
-	// as UnKnown, resulting in constant plan diffs.
+	// as Unknown, resulting in constant plan diffs.
 	// When there are no plan changes and LastUpdated is Unknown revert it to prior state value.
 	if plan.LastUpdated.IsUnknown() {
 		plan.LastUpdated = state.LastUpdated
@@ -855,22 +848,19 @@ func (r *cloudSecurityKacPolicyResource) matchRuleGroupIDsByName(
 	var diags diag.Diagnostics
 	modifiedPlan := plan
 
-	// If there are no rule groups in plan or state, nothing to match
 	if plan.RuleGroups.IsNull() || plan.RuleGroups.IsUnknown() ||
 		state.RuleGroups.IsNull() || state.RuleGroups.IsUnknown() {
 		return modifiedPlan, diags
 	}
 
-	// Convert state rule groups to maps for matching
 	stateRuleGroups := flex.ExpandListAs[ruleGroupTFModel](ctx, state.RuleGroups, &diags)
 	if diags.HasError() {
 		return modifiedPlan, diags
 	}
 
-	// Create maps for tracking state rule groups
 	stateRGNameToRG := make(map[string]ruleGroupTFModel)
 	stateRGIndexToRG := make(map[int]ruleGroupTFModel)
-	matchedIDs := make(map[string]bool) // Track which IDs have been matched
+	matchedIDs := make(map[string]bool)
 
 	for i, stateRG := range stateRuleGroups {
 		stateRGName := stateRG.Name.ValueString()
@@ -886,8 +876,6 @@ func (r *cloudSecurityKacPolicyResource) matchRuleGroupIDsByName(
 	}
 
 	var modifiedRuleGroups []ruleGroupTFModel
-
-	// First pass: match by name
 	for _, planRG := range planRuleGroups {
 		modifiedRG := planRG
 		planRGName := planRG.Name.ValueString()
@@ -924,7 +912,6 @@ func (r *cloudSecurityKacPolicyResource) matchRuleGroupIDsByName(
 		}
 	}
 
-	// Convert back to types.List
 	modifiedRuleGroupsList, listDiags := types.ListValueFrom(ctx, plan.RuleGroups.ElementType(ctx), modifiedRuleGroups)
 	diags.Append(listDiags...)
 	if diags.HasError() {
@@ -945,7 +932,6 @@ func (r *cloudSecurityKacPolicyResource) updateHostGroups(
 
 	hostGroupsToAdd, hostGroupsToRemove, diags := utils.SetIDsToModify(ctx, planHostGroups, stateHostGroups)
 
-	// Remove host groups that are no longer needed
 	if len(hostGroupsToRemove) > 0 {
 		removeParams := admission_control_policies.NewAdmissionControlRemoveHostGroupsParamsWithContext(ctx).
 			WithPolicyID(policyID).
@@ -971,7 +957,6 @@ func (r *cloudSecurityKacPolicyResource) updateHostGroups(
 		updatedPolicy = removeResponse.Payload.Resources[0]
 	}
 
-	// Add new host groups
 	if len(hostGroupsToAdd) > 0 {
 		addHostGroupRequest := &models.ModelsAddHostGroupRequest{
 			ID:         &policyID,
@@ -1011,21 +996,18 @@ func (r *cloudSecurityKacPolicyResource) deleteRemovedRuleGroups(
 ) (*models.ModelsKACPolicy, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	// Get state rule group IDs for comparison
 	stateRuleGroupIds, stateIdsDiags := state.getRuleGroupIds(ctx)
 	diags.Append(stateIdsDiags...)
 	if diags.HasError() {
 		return nil, diags
 	}
 
-	// Get plan rule group IDs for comparison
 	planRuleGroupIds, planIdsDiags := plan.getRuleGroupIds(ctx)
 	diags.Append(planIdsDiags...)
 	if diags.HasError() {
 		return nil, diags
 	}
 
-	// Delete rule groups that are no longer in the plan
 	ruleGroupsToDelete := findRuleGroupsToDelete(stateRuleGroupIds, planRuleGroupIds)
 
 	if len(ruleGroupsToDelete) == 0 {
@@ -1065,7 +1047,6 @@ func (r *cloudSecurityKacPolicyResource) reconcileRuleGroupUpdates(
 ) (*models.ModelsKACPolicy, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	// On Update operations, the API policy may not have been populated yet.
 	if apiKacPolicy == nil {
 		params := admission_control_policies.NewAdmissionControlGetPoliciesParamsWithContext(ctx).
 			WithIds([]string{plan.ID.ValueString()})
@@ -1099,8 +1080,6 @@ func (r *cloudSecurityKacPolicyResource) reconcileRuleGroupUpdates(
 		return nil, diags
 	}
 
-	// If plan default rule group is null or unknown,
-	// use the api default rule group to simulate there hasn't been any changes
 	var defaultRuleGroup ruleGroupTFModel
 	if plan.DefaultRuleGroup.IsNull() || plan.DefaultRuleGroup.IsUnknown() {
 		diags.Append(defaultRuleGroup.wrapRuleGroup(ctx, apiDefaultRuleGroup)...)
@@ -1113,7 +1092,6 @@ func (r *cloudSecurityKacPolicyResource) reconcileRuleGroupUpdates(
 			return nil, diags
 		}
 
-		// Populate ID and name for mapping
 		if defaultRuleGroup.ID.IsUnknown() {
 			defaultRuleGroup.ID = types.StringValue(*apiDefaultRuleGroup.ID)
 			defaultRuleGroup.Name = types.StringValue(*apiDefaultRuleGroup.Name)
@@ -1151,7 +1129,6 @@ func (r *cloudSecurityKacPolicyResource) reconcileRuleGroupUpdates(
 		apiKacPolicy = updatedApiKacPolicy
 	}
 
-	// Convert plan rule groups to api models
 	var planApiRuleGroups []models.ModelsKACPolicyRuleGroup
 	for _, tfRG := range planTFRuleGroups {
 		apiRG, convertDiags := tfRG.toApiModel(ctx)
@@ -1162,11 +1139,9 @@ func (r *cloudSecurityKacPolicyResource) reconcileRuleGroupUpdates(
 		planApiRuleGroups = append(planApiRuleGroups, apiRG)
 	}
 
-	// Reconcile plan against actual state of API response to find what needs updating
 	var updateParams []*models.ModelsUpdateRuleGroup
 	var replaceSelectorParams []*models.ModelsReplaceRuleGroupSelectors
 	for _, planRG := range planApiRuleGroups {
-		// Check if this rule group exists in state
 		stateRG := idToApiRuleGroupPointerMap[*planRG.ID]
 		rgUpdates := buildRuleGroupUpdates(&planRG, stateRG)
 
@@ -1198,7 +1173,6 @@ func (r *cloudSecurityKacPolicyResource) createNewRuleGroups(
 	policyID string,
 	ruleGroups []ruleGroupTFModel,
 ) *models.ModelsKACPolicy {
-	// Convert TF models to API create requests
 	var newRuleGroups []*models.ModelsCreateRuleGroup
 	for _, tfRG := range ruleGroups {
 		// The default rule group is always created when creating a new KAC policy
@@ -1214,7 +1188,6 @@ func (r *cloudSecurityKacPolicyResource) createNewRuleGroups(
 		newRuleGroups = append(newRuleGroups, apiRuleGroup)
 	}
 
-	// Skip create if there aren't any new rule groups
 	if len(newRuleGroups) == 0 {
 		return nil
 	}
@@ -1258,7 +1231,7 @@ func (r *cloudSecurityKacPolicyResource) updateRuleGroupPrecedence(
 		ruleGroupPrecedence = append(ruleGroupPrecedence, &models.ModelsChangeRuleGroupPrecedence{ID: tfRG.ID.ValueStringPointer()})
 	}
 
-	// If there are 2 or less rule groups, updating precedence is unnecessary.
+	// If there are 2 or less rule groups (1 custom and/or 1 default), updating precedence is unnecessary.
 	if len(ruleGroupPrecedence) <= 2 {
 		return nil
 	}

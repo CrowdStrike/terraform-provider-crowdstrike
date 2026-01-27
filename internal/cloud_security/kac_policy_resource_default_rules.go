@@ -265,13 +265,11 @@ func defaultRuleSchema(ruleDescription string) schema.StringAttribute {
 func (m *defaultRulesTFModel) wrapDefaultRule(apiRule *models.ModelsKACDefaultPolicyRule) {
 	action := types.StringValue(*apiRule.Action)
 
-	// Get the field name from the rule code
 	fieldName, exists := ruleCodeToFieldNameMap[*apiRule.Code]
 	if !exists {
 		return
 	}
 
-	// Use reflection to set the field
 	v := reflect.ValueOf(m).Elem()
 	field := v.FieldByName(fieldName)
 	if field.IsValid() && field.CanSet() {
@@ -292,7 +290,6 @@ func (m *defaultRulesTFModel) toApiDefaultRuleActions(
 
 	var apiDefaultRuleActions []*models.ModelsUpdateDefaultRuleAction
 
-	// Use reflection to iterate through all fields in the struct
 	v := reflect.ValueOf(m).Elem()
 	t := reflect.TypeOf(m).Elem()
 
