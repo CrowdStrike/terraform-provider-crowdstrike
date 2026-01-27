@@ -6,9 +6,7 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
-	"github.com/crowdstrike/gofalcon/falcon/client/admission_control_policies"
-	"github.com/crowdstrike/gofalcon/falcon/models"
-	"github.com/go-openapi/runtime"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_security/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -93,10 +91,10 @@ func TestSetKACPolicyPrecedence(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock client with initial state
-			mockClient := &mockAdmissionControlPoliciesClient{
-				policies: make([]string, len(tt.apiPolicyIDs)),
+			mockClient := &mocks.MockAdmissionControlPoliciesClient{
+				Policies: make([]string, len(tt.apiPolicyIDs)),
 			}
-			copy(mockClient.policies, tt.apiPolicyIDs)
+			copy(mockClient.Policies, tt.apiPolicyIDs)
 
 			// Set up mock expectations
 			mockClient.On("AdmissionControlQueryPolicies", mock.AnythingOfType("*admission_control_policies.AdmissionControlQueryPoliciesParams")).Return(nil, nil).Times(tt.expectedUpdateCount + 1)
@@ -141,176 +139,4 @@ func TestSetKACPolicyPrecedence(t *testing.T) {
 			mockClient.AssertExpectations(t)
 		})
 	}
-}
-
-// mockAdmissionControlPoliciesClient implements the ClientService interface using testify/mock
-type mockAdmissionControlPoliciesClient struct {
-	mock.Mock
-	policies []string // In-memory policy list to simulate API state
-}
-
-// Implement the required ClientService interface methods
-// Mock implementation of AdmissionControlQueryPolicies with testify mock
-func (m *mockAdmissionControlPoliciesClient) AdmissionControlQueryPolicies(params *admission_control_policies.AdmissionControlQueryPoliciesParams, opts ...admission_control_policies.ClientOption) (*admission_control_policies.AdmissionControlQueryPoliciesOK, error) {
-	args := m.Called(params)
-
-	// Return a copy of the in-memory policies
-	resources := make([]string, len(m.policies))
-	copy(resources, m.policies)
-
-	response := &admission_control_policies.AdmissionControlQueryPoliciesOK{
-		Payload: &models.MsaspecQueryResponse{
-			Resources: resources,
-		},
-	}
-
-	return response, args.Error(1)
-}
-
-// Mock implementation of AdmissionControlUpdatePolicyPrecedence with testify mock and state management
-func (m *mockAdmissionControlPoliciesClient) AdmissionControlUpdatePolicyPrecedence(params *admission_control_policies.AdmissionControlUpdatePolicyPrecedenceParams, opts ...admission_control_policies.ClientOption) (*admission_control_policies.AdmissionControlUpdatePolicyPrecedenceOK, error) {
-	args := m.Called(params)
-
-	if params.Body == nil || params.Body.ID == nil {
-		return nil, args.Error(1)
-	}
-
-	policyID := *params.Body.ID
-	precedence := int(params.Body.Precedence)
-
-	// Find the policy in the current list
-	currentIndex := -1
-	for i, id := range m.policies {
-		if id == policyID {
-			currentIndex = i
-			break
-		}
-	}
-
-	if currentIndex == -1 {
-		return nil, args.Error(1)
-	}
-
-	// Convert 1-based precedence to 0-based index
-	targetIndex := precedence - 1
-	if targetIndex < 0 || targetIndex >= len(m.policies) {
-		return nil, args.Error(1)
-	}
-
-	// Remove the policy from current position
-	policy := m.policies[currentIndex]
-	m.policies = append(m.policies[:currentIndex], m.policies[currentIndex+1:]...)
-
-	// Insert the policy at the new position
-	m.policies = append(m.policies[:targetIndex], append([]string{policy}, m.policies[targetIndex:]...)...)
-
-	return &admission_control_policies.AdmissionControlUpdatePolicyPrecedenceOK{}, args.Error(1)
-}
-
-func (m *mockAdmissionControlPoliciesClient) AdmissionControlAddHostGroups(params *admission_control_policies.AdmissionControlAddHostGroupsParams, opts ...admission_control_policies.ClientOption) (*admission_control_policies.AdmissionControlAddHostGroupsOK, error) {
-	args := m.Called(params)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*admission_control_policies.AdmissionControlAddHostGroupsOK), args.Error(1) //nolint:forcetypeassert
-}
-
-func (m *mockAdmissionControlPoliciesClient) AdmissionControlAddRuleGroupCustomRule(params *admission_control_policies.AdmissionControlAddRuleGroupCustomRuleParams, opts ...admission_control_policies.ClientOption) (*admission_control_policies.AdmissionControlAddRuleGroupCustomRuleOK, error) {
-	args := m.Called(params)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*admission_control_policies.AdmissionControlAddRuleGroupCustomRuleOK), args.Error(1) //nolint:forcetypeassert
-}
-
-func (m *mockAdmissionControlPoliciesClient) AdmissionControlCreatePolicy(params *admission_control_policies.AdmissionControlCreatePolicyParams, opts ...admission_control_policies.ClientOption) (*admission_control_policies.AdmissionControlCreatePolicyOK, error) {
-	args := m.Called(params)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*admission_control_policies.AdmissionControlCreatePolicyOK), args.Error(1) //nolint:forcetypeassert
-}
-
-func (m *mockAdmissionControlPoliciesClient) AdmissionControlReplaceRuleGroupSelectors(params *admission_control_policies.AdmissionControlReplaceRuleGroupSelectorsParams, opts ...admission_control_policies.ClientOption) (*admission_control_policies.AdmissionControlReplaceRuleGroupSelectorsOK, error) {
-	args := m.Called(params)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*admission_control_policies.AdmissionControlReplaceRuleGroupSelectorsOK), args.Error(1) //nolint:forcetypeassert
-}
-
-func (m *mockAdmissionControlPoliciesClient) AdmissionControlSetRuleGroupPrecedence(params *admission_control_policies.AdmissionControlSetRuleGroupPrecedenceParams, opts ...admission_control_policies.ClientOption) (*admission_control_policies.AdmissionControlSetRuleGroupPrecedenceOK, error) {
-	args := m.Called(params)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*admission_control_policies.AdmissionControlSetRuleGroupPrecedenceOK), args.Error(1) //nolint:forcetypeassert
-}
-
-func (m *mockAdmissionControlPoliciesClient) AdmissionControlCreateRuleGroups(params *admission_control_policies.AdmissionControlCreateRuleGroupsParams, opts ...admission_control_policies.ClientOption) (*admission_control_policies.AdmissionControlCreateRuleGroupsOK, error) {
-	args := m.Called(params)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*admission_control_policies.AdmissionControlCreateRuleGroupsOK), args.Error(1) //nolint:forcetypeassert
-}
-
-func (m *mockAdmissionControlPoliciesClient) AdmissionControlDeletePolicies(params *admission_control_policies.AdmissionControlDeletePoliciesParams, opts ...admission_control_policies.ClientOption) (*admission_control_policies.AdmissionControlDeletePoliciesOK, error) {
-	args := m.Called(params)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*admission_control_policies.AdmissionControlDeletePoliciesOK), args.Error(1) //nolint:forcetypeassert
-}
-
-func (m *mockAdmissionControlPoliciesClient) AdmissionControlDeleteRuleGroups(params *admission_control_policies.AdmissionControlDeleteRuleGroupsParams, opts ...admission_control_policies.ClientOption) (*admission_control_policies.AdmissionControlDeleteRuleGroupsOK, error) {
-	args := m.Called(params)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*admission_control_policies.AdmissionControlDeleteRuleGroupsOK), args.Error(1) //nolint:forcetypeassert
-}
-
-func (m *mockAdmissionControlPoliciesClient) AdmissionControlGetPolicies(params *admission_control_policies.AdmissionControlGetPoliciesParams, opts ...admission_control_policies.ClientOption) (*admission_control_policies.AdmissionControlGetPoliciesOK, error) {
-	args := m.Called(params)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*admission_control_policies.AdmissionControlGetPoliciesOK), args.Error(1) //nolint:forcetypeassert
-}
-
-func (m *mockAdmissionControlPoliciesClient) AdmissionControlRemoveHostGroups(params *admission_control_policies.AdmissionControlRemoveHostGroupsParams, opts ...admission_control_policies.ClientOption) (*admission_control_policies.AdmissionControlRemoveHostGroupsOK, error) {
-	args := m.Called(params)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*admission_control_policies.AdmissionControlRemoveHostGroupsOK), args.Error(1) //nolint:forcetypeassert
-}
-
-func (m *mockAdmissionControlPoliciesClient) AdmissionControlRemoveRuleGroupCustomRule(params *admission_control_policies.AdmissionControlRemoveRuleGroupCustomRuleParams, opts ...admission_control_policies.ClientOption) (*admission_control_policies.AdmissionControlRemoveRuleGroupCustomRuleOK, error) {
-	args := m.Called(params)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*admission_control_policies.AdmissionControlRemoveRuleGroupCustomRuleOK), args.Error(1) //nolint:forcetypeassert
-}
-
-func (m *mockAdmissionControlPoliciesClient) AdmissionControlUpdatePolicy(params *admission_control_policies.AdmissionControlUpdatePolicyParams, opts ...admission_control_policies.ClientOption) (*admission_control_policies.AdmissionControlUpdatePolicyOK, error) {
-	args := m.Called(params)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*admission_control_policies.AdmissionControlUpdatePolicyOK), args.Error(1) //nolint:forcetypeassert
-}
-
-func (m *mockAdmissionControlPoliciesClient) AdmissionControlUpdateRuleGroups(params *admission_control_policies.AdmissionControlUpdateRuleGroupsParams, opts ...admission_control_policies.ClientOption) (*admission_control_policies.AdmissionControlUpdateRuleGroupsOK, error) {
-	args := m.Called(params)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*admission_control_policies.AdmissionControlUpdateRuleGroupsOK), args.Error(1) //nolint:forcetypeassert
-}
-
-func (m *mockAdmissionControlPoliciesClient) SetTransport(transport runtime.ClientTransport) {
-	m.Called(transport)
 }
