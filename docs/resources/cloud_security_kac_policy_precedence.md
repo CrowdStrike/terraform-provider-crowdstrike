@@ -53,7 +53,7 @@ output "cloud_security_kac_policy_precedence" {
 
 ### Required
 
-- `policy_ids` (List of String) The policy ids in order. The first ID specified will have the highest precedence and the last ID specified will have the lowest.
+- `ids` (List of String) The policy ids in order. The first ID specified will have the highest precedence and the last ID specified will have the lowest.
 
 ### Read-Only
 
