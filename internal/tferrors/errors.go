@@ -64,3 +64,11 @@ func NewOperationError(operation Operation, err error) diag.ErrorDiagnostic {
 		err.Error(),
 	)
 }
+
+// NewConflictError creates a diagnostic error for 409 Conflict responses.
+func NewConflictError(operation Operation, detail string) diag.ErrorDiagnostic {
+	return diag.NewErrorDiagnostic(
+		fmt.Sprintf("Failed to %s: 409 Conflict", operation),
+		detail,
+	)
+}
