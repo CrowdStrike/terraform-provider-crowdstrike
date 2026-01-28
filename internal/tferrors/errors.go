@@ -122,12 +122,10 @@ func WithDetail(detail string) ErrorOption {
 	}
 }
 
-// HandleAPIError converts a gofalcon API error into Terraform diagnostics.
-func HandleAPIError(operation Operation, err error, apiScopes []scopes.Scope, options ...ErrorOption) diag.Diagnostics {
-	var diags diag.Diagnostics
-
+// HandleAPIError converts a gofalcon API error into a Terraform diagnostic.
+func HandleAPIError(operation Operation, err error, apiScopes []scopes.Scope, options ...ErrorOption) diag.Diagnostic {
 	if err == nil {
-		return diags
+		return nil
 	}
 
 	cfg := &errorConfig{}
@@ -142,38 +140,34 @@ func HandleAPIError(operation Operation, err error, apiScopes []scopes.Scope, op
 			if detail == "" {
 				detail = scopes.GenerateScopeDescription(apiScopes)
 			}
-			diags.Append(diag.NewErrorDiagnostic(
+			return diag.NewErrorDiagnostic(
 				fmt.Sprintf("Failed to %s: 403 Forbidden", operation),
 				detail,
-			))
-			return diags
+			)
 
 		case statusErr.IsCode(404):
 			detail := cfg.notFoundDetail
 			if detail == "" {
 				detail = err.Error()
 			}
-			diags.Append(NewNotFoundError(detail))
-			return diags
+			return NewNotFoundError(detail)
 
 		case statusErr.IsCode(409):
 			detail := cfg.conflictDetail
 			if detail == "" {
 				detail = err.Error()
 			}
-			diags.Append(NewConflictError(operation, detail))
-			return diags
+			return NewConflictError(operation, detail)
 
 		case statusErr.IsServerError():
 			detail := cfg.serverErrorDetail
 			if detail == "" {
 				detail = err.Error()
 			}
-			diags.Append(diag.NewErrorDiagnostic(
+			return diag.NewErrorDiagnostic(
 				fmt.Sprintf("Failed to %s", operation),
 				detail,
-			))
-			return diags
+			)
 		}
 	}
 
@@ -181,9 +175,8 @@ func HandleAPIError(operation Operation, err error, apiScopes []scopes.Scope, op
 	if detail == "" {
 		detail = err.Error()
 	}
-	diags.Append(diag.NewErrorDiagnostic(
+	return diag.NewErrorDiagnostic(
 		fmt.Sprintf("Failed to %s", operation),
 		detail,
-	))
-	return diags
+	)
 }
