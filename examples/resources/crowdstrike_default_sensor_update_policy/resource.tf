@@ -13,9 +13,10 @@ provider "crowdstrike" {
 data "crowdstrike_sensor_update_policy_builds" "all" {}
 
 resource "crowdstrike_default_sensor_update_policy" "default" {
-  platform_name        = "windows"
-  build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
-  uninstall_protection = true
+  platform_name         = "windows"
+  build                 = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
+  uninstall_protection  = true
+  bulk_maintenance_mode = false
   schedule = {
     enabled  = true
     timezone = "Etc/UTC"

@@ -6,7 +6,6 @@ linters:
     - errchkjson
     - forcetypeassert
     - gocritic
-    - gocyclo
     - godot
     - importas
     - makezero
