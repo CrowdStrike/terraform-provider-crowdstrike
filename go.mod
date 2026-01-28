@@ -4,6 +4,7 @@ go 1.24.3
 
 require (
 	github.com/crowdstrike/gofalcon v0.19.1-0.20260126193419-5ae2a501524e
+	github.com/go-openapi/runtime v0.27.1
 	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/go-version v1.7.0
@@ -43,7 +44,6 @@ require (
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/loads v0.22.0 // indirect
-	github.com/go-openapi/runtime v0.27.1 // indirect
 	github.com/go-openapi/spec v0.21.0 // indirect
 	github.com/go-openapi/strfmt v0.23.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
