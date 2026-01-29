@@ -250,6 +250,10 @@ func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 				"Allows the sensor to get more data from a user-mode component it loads into all eligible processes, which augments online machine learning and turns on additional detections. Recommend testing with critical applications before full deployment.",
 				withPrevention(false),
 			),
+			"cloud_based_anomalous_process_execution": mlSLiderAttribute(
+				"Use AI-powered IOAs to identify and detect potentially malicious behaviors from Living Off the Land binaries (LOLbins) on your online hosts.",
+				withPrevention(false),
+			),
 			"cloud_anti_malware": mlSLiderAttribute(
 				"Use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware for your online hosts.",
 			),

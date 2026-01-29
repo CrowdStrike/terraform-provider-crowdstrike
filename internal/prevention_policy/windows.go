@@ -46,6 +46,7 @@ type preventionPolicyWindowsResourceModel struct {
 	LastUpdated                                types.String `tfsdk:"last_updated"`
 	CloudAntiMalwareForMicrosoftOfficeFiles    types.Object `tfsdk:"cloud_anti_malware_microsoft_office_files"`
 	ExtendedUserModeDataSlider                 types.Object `tfsdk:"extended_user_mode_data"`
+	CloudBasedAnomalousProcessExecution        types.Object `tfsdk:"cloud_based_anomalous_process_execution"`
 	CloudAntiMalware                           types.Object `tfsdk:"cloud_anti_malware"`
 	AdwarePUP                                  types.Object `tfsdk:"adware_and_pup"`
 	OnSensorMLSlider                           types.Object `tfsdk:"sensor_anti_malware"`
@@ -836,6 +837,19 @@ func (r *preventionPolicyWindowsResource) assignPreventionSettings(
 		state.ExtendedUserModeDataSlider = extendedUserModeData
 	}
 
+	if detectionSlider, ok := detectionMlSliderSettings["CloudBasedAnomalousProcessExecution"]; ok {
+		cloudBasedAnomalousProcessExecution, diagsCloud := types.ObjectValueFrom(
+			ctx,
+			detectionMlSlider{}.AttributeTypes(),
+			detectionSlider,
+		)
+		diags.Append(diagsCloud...)
+		if diags.HasError() {
+			return diags
+		}
+		state.CloudBasedAnomalousProcessExecution = cloudBasedAnomalousProcessExecution
+	}
+
 	if slider, ok := mlSliderSettings["CloudAntiMalwareForMicrosoftOfficeFiles"]; ok {
 		objValue, diagsObj := types.ObjectValueFrom(ctx, mlSlider{}.AttributeTypes(), slider)
 		diags.Append(diagsObj...)
@@ -1056,6 +1070,16 @@ func (r *preventionPolicyWindowsResource) generatePreventionSettings(
 			return preventionSettings, diags
 		}
 		detectionMlSliderSettings["ExtendedUserModeDataSlider"] = extendedSlider
+	}
+
+	if !config.CloudBasedAnomalousProcessExecution.IsNull() {
+		var cloudAnomalousSlider detectionMlSlider
+		diagsCloud := config.CloudBasedAnomalousProcessExecution.As(ctx, &cloudAnomalousSlider, basetypes.ObjectAsOptions{})
+		diags.Append(diagsCloud...)
+		if diags.HasError() {
+			return preventionSettings, diags
+		}
+		detectionMlSliderSettings["CloudBasedAnomalousProcessExecution"] = cloudAnomalousSlider
 	}
 
 	for k, v := range toggleSettings {

@@ -296,8 +296,8 @@ func mapPreventionSettings(
 			sID := *s.ID
 			sValue := s.Value
 			sType := *s.Type
-			// the only slider that only supports detection instead of both prevention and detection.
-			if sID == "ExtendedUserModeDataSlider" {
+			// sliders that only support detection instead of both prevention and detection.
+			if sID == "ExtendedUserModeDataSlider" || sID == "CloudBasedAnomalousProcessExecution" {
 				v, _ := sValue.(map[string]interface{})
 				detection, _ := v["detection"].(string)
 				detectionMlSliderSettings[sID] = &detectionMlSlider{
