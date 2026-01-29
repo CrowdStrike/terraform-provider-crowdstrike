@@ -74,7 +74,7 @@ func NewConflictError(operation Operation, detail string) diag.ErrorDiagnostic {
 	)
 }
 
-// ErrorOption configures optional behavior for HandleAPIError.
+// ErrorOption configures optional behavior for NewDiagnosticFromAPIError.
 type ErrorOption func(*errorConfig)
 
 // errorConfig holds optional configuration for error handling.
@@ -122,8 +122,8 @@ func WithDetail(detail string) ErrorOption {
 	}
 }
 
-// HandleAPIError converts a gofalcon API error into a Terraform diagnostic.
-func HandleAPIError(operation Operation, err error, apiScopes []scopes.Scope, options ...ErrorOption) diag.Diagnostic {
+// NewDiagnosticFromAPIError converts a gofalcon API error into a Terraform diagnostic.
+func NewDiagnosticFromAPIError(operation Operation, err error, apiScopes []scopes.Scope, options ...ErrorOption) diag.Diagnostic {
 	if err == nil {
 		return nil
 	}
