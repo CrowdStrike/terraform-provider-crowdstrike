@@ -28,25 +28,32 @@ resource "crowdstrike_cloud_security_suppression_rule" "example" {
 }
 
 # Example 2: More complex suppression rule with multiple filters
+# Demonstrates AND logic between attributes and OR logic within each attribute
 resource "crowdstrike_cloud_security_suppression_rule" "multi_filter" {
   name        = "Multi-filter Suppression Rule"
   type        = "IOM"
   reason      = "accept-risk"
   description = "Suppress high and critical findings for specific cloud providers and regions"
 
+  # Rules match if they are (critical OR high) AND (AWS OR Azure provider)
   rule_selection_filter = {
     severities = ["critical", "high"]
     providers  = ["AWS", "Azure"]
   }
 
+  # Assets match if they are (aws OR azure) AND (us-west-1 OR eastus) AND (environment=dev OR team=security tags)
   asset_filter = {
     cloud_providers = ["aws", "azure"]
     regions         = ["us-west-1", "eastus"]
-    tags            = ["environment=dev", "team=security"]
+    tags = {
+      environment = "dev"
+      team        = "security"
+    }
   }
 }
 
 # Example 3: Temporary suppression with expiration
+# Shows single-attribute filters and expiration date usage
 resource "crowdstrike_cloud_security_suppression_rule" "temporary" {
   name            = "Temporary Suppression"
   type            = "IOM"

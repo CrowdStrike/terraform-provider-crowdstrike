@@ -3,7 +3,7 @@ package cloudsecurity
 import (
 	"context"
 	"fmt"
-	"regexp"
+	"strings"
 	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon"
@@ -12,12 +12,13 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
-	fwmodifiers "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/modifiers"
 	fwtypes "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/types"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
+	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -26,7 +27,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -34,19 +34,19 @@ import (
 )
 
 var (
-	ruleSelectionTypeDefault   = "all_rules"
-	ruleSelectionTypeFilter    = "rule_selection_filter"
-	scopeTypeDefault           = "all_assets"
-	scopeTypeFilter            = "asset_filter"
-	suppressionRuleTypeDefault = "IOM"
+	ruleSelectionTypeDefault        = "all_rules"
+	ruleSelectionTypeFilter         = "rule_selection_filter"
+	scopeTypeDefault                = "all_assets"
+	scopeTypeFilter                 = "asset_filter"
+	suppressionRuleSubdomainDefault = "IOM"
+	suppressionRuleDomainDefault    = "CSPM"
 )
 
 var (
-	_ resource.Resource                   = &cloudSecuritySuppressionRuleResource{}
-	_ resource.ResourceWithConfigure      = &cloudSecuritySuppressionRuleResource{}
-	_ resource.ResourceWithImportState    = &cloudSecuritySuppressionRuleResource{}
-	_ resource.ResourceWithValidateConfig = &cloudSecuritySuppressionRuleResource{}
-	_ resource.ResourceWithModifyPlan     = &cloudSecuritySuppressionRuleResource{}
+	_ resource.Resource                = &cloudSecuritySuppressionRuleResource{}
+	_ resource.ResourceWithConfigure   = &cloudSecuritySuppressionRuleResource{}
+	_ resource.ResourceWithImportState = &cloudSecuritySuppressionRuleResource{}
+	_ resource.ResourceWithModifyPlan  = &cloudSecuritySuppressionRuleResource{}
 )
 
 var (
@@ -65,15 +65,15 @@ type cloudSecuritySuppressionRuleResource struct {
 }
 
 type cloudSecuritySuppressionRuleResourceModel struct {
-	ID                  types.String `tfsdk:"id"`
-	Type                types.String `tfsdk:"type"`
-	Description         types.String `tfsdk:"description"`
-	Name                types.String `tfsdk:"name"`
-	RuleSelectionFilter types.Object `tfsdk:"rule_selection_filter"`
-	AssetFilter         types.Object `tfsdk:"asset_filter"`
-	Comment             types.String `tfsdk:"comment"`
-	ExpirationDate      types.String `tfsdk:"expiration_date"`
-	Reason              types.String `tfsdk:"reason"`
+	ID                  types.String      `tfsdk:"id"`
+	Type                types.String      `tfsdk:"type"`
+	Description         types.String      `tfsdk:"description"`
+	Name                types.String      `tfsdk:"name"`
+	RuleSelectionFilter types.Object      `tfsdk:"rule_selection_filter"`
+	AssetFilter         types.Object      `tfsdk:"asset_filter"`
+	Comment             types.String      `tfsdk:"comment"`
+	ExpirationDate      timetypes.RFC3339 `tfsdk:"expiration_date"`
+	Reason              types.String      `tfsdk:"reason"`
 }
 
 type ruleSelectionFilterModel struct {
@@ -105,7 +105,7 @@ type scopeAssetFilterModel struct {
 	ResourceNames     types.Set `tfsdk:"resource_names"`
 	ResourceTypes     types.Set `tfsdk:"resource_types"`
 	ServiceCategories types.Set `tfsdk:"service_categories"`
-	Tags              types.Set `tfsdk:"tags"`
+	Tags              types.Map `tfsdk:"tags"`
 }
 
 func (m scopeAssetFilterModel) AttributeTypes() map[string]attr.Type {
@@ -118,7 +118,7 @@ func (m scopeAssetFilterModel) AttributeTypes() map[string]attr.Type {
 		"resource_names":     types.SetType{ElemType: types.StringType},
 		"resource_types":     types.SetType{ElemType: types.StringType},
 		"service_categories": types.SetType{ElemType: types.StringType},
-		"tags":               types.SetType{ElemType: types.StringType},
+		"tags":               types.MapType{ElemType: types.StringType},
 	}
 }
 
@@ -184,18 +184,17 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 			},
 			"type": schema.StringAttribute{
 				Description: "Type of suppression rule. Defaults to IOM.",
-				Optional:    true,
-				Computed:    true,
-				Default:     stringdefault.StaticString(suppressionRuleTypeDefault),
+				Required:    true,
 				Validators: []validator.String{
-					stringvalidator.OneOf(suppressionRuleTypeDefault),
+					stringvalidator.OneOf(suppressionRuleSubdomainDefault),
 				},
 			},
 			"description": schema.StringAttribute{
 				Description: "Description of the suppression rule.",
 				Optional:    true,
-				Computed:    true,
-				Default:     stringdefault.StaticString(""),
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
+				},
 			},
 			"name": schema.StringAttribute{
 				Description: "Name of the suppression rule",
@@ -207,20 +206,36 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 			"comment": schema.StringAttribute{
 				Description: "Comment for suppression. This will be attached to the findings suppressed by this rule.",
 				Optional:    true,
-				Computed:    true,
 				Validators: []validator.String{
 					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"expiration_date": schema.StringAttribute{
-				MarkdownDescription: "Expiration date for suppression. If defined, must be in RFC3339 format (e.g., `2025-08-11T10:00:00Z`). Once set, this field cannot be cleared. The suppression rule will still exist after expiration and can be reset by updating the expiration date.",
+				CustomType:          timetypes.RFC3339Type{},
+				MarkdownDescription: "Expiration date for suppression. If defined, must be in RFC3339 format (e.g., `2025-08-11T10:00:00Z`). Once set, clearing this field requires resource replacement. The suppression rule will still exist after expiration and can be reset by updating the expiration date.",
 				Optional:            true,
 				Validators: []validator.String{
-					fwvalidators.ValidateRFC3339(),
 					fwvalidators.StringNotWhitespace(),
 				},
 				PlanModifiers: []planmodifier.String{
-					fwmodifiers.PreventStringClearing("Suppression Expiration Date"),
+					stringplanmodifier.RequiresReplaceIf(func(ctx context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
+						if req.State.Raw.IsNull() {
+							return
+						}
+
+						var stateValue timetypes.RFC3339
+						diags := req.State.GetAttribute(ctx, req.Path, &stateValue)
+						if diags.HasError() {
+							return
+						}
+
+						// If the field was previously set and is now being cleared, require replacement
+						if !stateValue.IsNull() && stateValue.ValueString() != "" {
+							if req.ConfigValue.IsNull() || req.ConfigValue.ValueString() == "" {
+								resp.RequiresReplace = true
+							}
+						}
+					}, "Requires replacement if Suppression Expiration Date is cleared once set", "Requires replacement if `Suppression Expiration Date` is cleared once set"),
 				},
 			},
 			"reason": schema.StringAttribute{
@@ -235,8 +250,14 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 				},
 			},
 			"rule_selection_filter": schema.SingleNestedAttribute{
-				MarkdownDescription: "Filter criteria for rule selection.",
-				Optional:            true,
+				MarkdownDescription: "Filter criteria for rule selection. Within each attribute, rules match if they contain ANY of the specified values (OR logic). " +
+					"Between different attributes, rules must match ALL specified attributes (AND logic). " +
+					"For example: `ids = [\"rule1\", \"rule2\"]` AND `severities = [\"high\", \"critical\"]` will select rules that are (rule1 OR rule2) AND (high OR critical severity).",
+				Optional: true,
+				Validators: []validator.Object{
+					objectvalidator.AtLeastOneOf(path.MatchRoot("asset_filter")),
+					fwvalidators.AtLeastOneNonEmptyAttribute("ids", "names", "origins", "providers", "services", "severities"),
+				},
 				Attributes: map[string]schema.Attribute{
 					"ids": schema.SetAttribute{
 						Description: "Set of rule IDs. A rule will match if its ID is included in this set.",
@@ -244,9 +265,9 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 						Optional:    true,
 						Validators: []validator.Set{
 							setvalidator.ValueStringsAre(
-								stringvalidator.LengthAtLeast(1),
 								fwvalidators.StringNotWhitespace(),
 							),
+							setvalidator.SizeAtLeast(1),
 						},
 					},
 					"names": schema.SetAttribute{
@@ -255,9 +276,9 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 						Optional:    true,
 						Validators: []validator.Set{
 							setvalidator.ValueStringsAre(
-								stringvalidator.LengthAtLeast(1),
 								fwvalidators.StringNotWhitespace(),
 							),
+							setvalidator.SizeAtLeast(1),
 						},
 					},
 					"origins": schema.SetAttribute{
@@ -268,6 +289,7 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 							setvalidator.ValueStringsAre(
 								stringvalidator.OneOf("Custom", "Default"),
 							),
+							setvalidator.SizeAtLeast(1),
 						},
 					},
 					"providers": schema.SetAttribute{
@@ -276,9 +298,9 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 						Optional:            true,
 						Validators: []validator.Set{
 							setvalidator.ValueStringsAre(
-								stringvalidator.LengthAtLeast(1),
 								fwvalidators.StringNotWhitespace(),
 							),
+							setvalidator.SizeAtLeast(1),
 						},
 					},
 					"services": schema.SetAttribute{
@@ -287,9 +309,9 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 						Optional:            true,
 						Validators: []validator.Set{
 							setvalidator.ValueStringsAre(
-								stringvalidator.LengthAtLeast(1),
 								fwvalidators.StringNotWhitespace(),
 							),
+							setvalidator.SizeAtLeast(1),
 						},
 					},
 					"severities": schema.SetAttribute{
@@ -300,13 +322,19 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 							setvalidator.ValueStringsAre(
 								stringvalidator.OneOf("critical", "high", "medium", "informational"),
 							),
+							setvalidator.SizeAtLeast(1),
 						},
 					},
 				},
 			},
 			"asset_filter": schema.SingleNestedAttribute{
-				MarkdownDescription: "Filter criteria for scope assets.",
-				Optional:            true,
+				MarkdownDescription: "Filter criteria for scope assets. Within each attribute, assets match if they contain ANY of the specified values (OR logic). " +
+					"Between different attributes, assets must match ALL specified attributes (AND logic). " +
+					"For example: `account_ids = [\"acc1\", \"acc2\"]` AND `regions = [\"us-east-1\", \"us-west-2\"]` will select assets that are in (acc1 OR acc2) AND (us-east-1 OR us-west-2).",
+				Optional: true,
+				Validators: []validator.Object{
+					fwvalidators.AtLeastOneNonEmptyAttribute("account_ids", "cloud_group_ids", "cloud_providers", "regions", "resource_ids", "resource_names", "resource_types", "service_categories", "tags"),
+				},
 				Attributes: map[string]schema.Attribute{
 					"account_ids": schema.SetAttribute{
 						Description: "Set of cloud account IDs. An Asset will match if it belongs to an account included in this set.",
@@ -314,9 +342,9 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 						Optional:    true,
 						Validators: []validator.Set{
 							setvalidator.ValueStringsAre(
-								stringvalidator.LengthAtLeast(1),
 								fwvalidators.StringNotWhitespace(),
 							),
+							setvalidator.SizeAtLeast(1),
 						},
 					},
 					"cloud_group_ids": schema.SetAttribute{
@@ -325,9 +353,9 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 						Optional:    true,
 						Validators: []validator.Set{
 							setvalidator.ValueStringsAre(
-								stringvalidator.LengthAtLeast(1),
 								fwvalidators.StringNotWhitespace(),
 							),
+							setvalidator.SizeAtLeast(1),
 						},
 					},
 					"cloud_providers": schema.SetAttribute{
@@ -336,9 +364,9 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 						Optional:            true,
 						Validators: []validator.Set{
 							setvalidator.ValueStringsAre(
-								stringvalidator.LengthAtLeast(1),
 								fwvalidators.StringNotWhitespace(),
 							),
+							setvalidator.SizeAtLeast(1),
 						},
 					},
 					"regions": schema.SetAttribute{
@@ -347,9 +375,9 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 						Optional:            true,
 						Validators: []validator.Set{
 							setvalidator.ValueStringsAre(
-								stringvalidator.LengthAtLeast(1),
 								fwvalidators.StringNotWhitespace(),
 							),
+							setvalidator.SizeAtLeast(1),
 						},
 					},
 					"resource_ids": schema.SetAttribute{
@@ -358,9 +386,9 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 						Optional:    true,
 						Validators: []validator.Set{
 							setvalidator.ValueStringsAre(
-								stringvalidator.LengthAtLeast(1),
 								fwvalidators.StringNotWhitespace(),
 							),
+							setvalidator.SizeAtLeast(1),
 						},
 					},
 					"resource_names": schema.SetAttribute{
@@ -369,9 +397,9 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 						Optional:    true,
 						Validators: []validator.Set{
 							setvalidator.ValueStringsAre(
-								stringvalidator.LengthAtLeast(1),
 								fwvalidators.StringNotWhitespace(),
 							),
+							setvalidator.SizeAtLeast(1),
 						},
 					},
 					"resource_types": schema.SetAttribute{
@@ -380,9 +408,9 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 						Optional:            true,
 						Validators: []validator.Set{
 							setvalidator.ValueStringsAre(
-								stringvalidator.LengthAtLeast(1),
 								fwvalidators.StringNotWhitespace(),
 							),
+							setvalidator.SizeAtLeast(1),
 						},
 					},
 					"service_categories": schema.SetAttribute{
@@ -391,23 +419,15 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 						Optional:            true,
 						Validators: []validator.Set{
 							setvalidator.ValueStringsAre(
-								stringvalidator.LengthAtLeast(1),
 								fwvalidators.StringNotWhitespace(),
 							),
+							setvalidator.SizeAtLeast(1),
 						},
 					},
-					"tags": schema.SetAttribute{
-						Description: "Set of tags. These must match the k=v format. An Asset will match if at least one of its tags is included in this set. ",
+					"tags": schema.MapAttribute{
+						Description: "Map of tags. These must match the k=v format. An Asset will match if any of its tag key-value pairs match those specified in this map.",
 						ElementType: types.StringType,
 						Optional:    true,
-						Validators: []validator.Set{
-							setvalidator.ValueStringsAre(
-								stringvalidator.RegexMatches(
-									regexp.MustCompile(`^[^=]+=.+$`),
-									"must be in the format 'key=value'",
-								),
-							),
-						},
 					},
 				},
 			},
@@ -422,6 +442,11 @@ func (r *cloudSecuritySuppressionRuleResource) Create(
 ) {
 	var plan cloudSecuritySuppressionRuleResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(r.validateExpirationDateFormat(plan.ExpirationDate)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -456,7 +481,7 @@ func (r *cloudSecuritySuppressionRuleResource) Read(
 	resp.Diagnostics.Append(state.wrap(ctx, *rule)...)
 
 	if state.ExpirationDate.ValueString() != "" {
-		if expired, diags := isTimestampExpired(state.ExpirationDate.ValueString()); diags.HasError() {
+		if expired, diags := isTimestampExpired(state.ExpirationDate); diags.HasError() {
 			resp.Diagnostics.AddWarning(
 				"Timestamp Parsing Warning",
 				fmt.Sprintf("Could not parse suppression expiration date: %s", diags.Errors()[0].Summary()),
@@ -479,6 +504,14 @@ func (r *cloudSecuritySuppressionRuleResource) Update(
 ) {
 	var plan cloudSecuritySuppressionRuleResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(r.validateExpirationDateFormat(plan.ExpirationDate)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	rule, diags := r.updateSuppressionRule(ctx, plan)
 	if diags.HasError() {
@@ -504,34 +537,21 @@ func (r *cloudSecuritySuppressionRuleResource) Delete(
 	resp.Diagnostics.Append(r.deleteSuppressionRule(ctx, state.ID.ValueString())...)
 }
 
-func (r *cloudSecuritySuppressionRuleResource) ValidateConfig(
-	ctx context.Context,
-	req resource.ValidateConfigRequest,
-	resp *resource.ValidateConfigResponse,
-) {
-	var requestConfig cloudSecuritySuppressionRuleResourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &requestConfig)...)
+func (r *cloudSecuritySuppressionRuleResource) validateExpirationDateFormat(expirationDate timetypes.RFC3339) diag.Diagnostics {
+	var diags diag.Diagnostics
 
-	if resp.Diagnostics.HasError() {
-		return
+	if expirationDate.ValueString() != "" {
+		_, diags := expirationDate.ValueRFC3339Time()
+		if diags.HasError() {
+			diags.AddAttributeError(
+				path.Root("expiration_date"),
+				"Invalid Date Format",
+				"The expiration_date must be in RFC3339 format (e.g., '2025-08-11T10:00:00Z').",
+			)
+		}
 	}
 
-	r.validateSuppressionExpirationDate(requestConfig, resp)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	r.validateRequiredFilters(requestConfig, resp)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	r.validateRuleSelectionFilter(ctx, requestConfig, resp)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	r.validateAssetFilter(ctx, requestConfig, resp)
+	return diags
 }
 
 func (r *cloudSecuritySuppressionRuleResource) ModifyPlan(
@@ -550,9 +570,8 @@ func (r *cloudSecuritySuppressionRuleResource) ModifyPlan(
 		return
 	}
 
-	// Validate suppression expiration date for all operations (including destroy)
 	if utils.IsKnown(planConfig.ExpirationDate) && planConfig.ExpirationDate.ValueString() != "" {
-		expired, diags := isTimestampExpired(planConfig.ExpirationDate.ValueString())
+		expired, diags := isTimestampExpired(planConfig.ExpirationDate)
 		if diags.HasError() {
 			resp.Diagnostics.Append(diags...)
 		} else if expired {
@@ -565,120 +584,10 @@ func (r *cloudSecuritySuppressionRuleResource) ModifyPlan(
 	}
 }
 
-// validateSuppressionExpirationDate validates the suppression expiration date format.
-func (r *cloudSecuritySuppressionRuleResource) validateSuppressionExpirationDate(
-	requestConfig cloudSecuritySuppressionRuleResourceModel,
-	resp *resource.ValidateConfigResponse,
-) {
-	if utils.IsKnown(requestConfig.ExpirationDate) && requestConfig.ExpirationDate.ValueString() != "" {
-		_, err := time.Parse(time.RFC3339, requestConfig.ExpirationDate.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("expiration_date"),
-				"Invalid Date Format",
-				"The expiration_date must be in RFC3339 format (e.g., '2006-01-02T15:04:05Z').",
-			)
-		}
-	}
-}
-
-// validateRequiredFilters validates that at least one filter is defined.
-func (r *cloudSecuritySuppressionRuleResource) validateRequiredFilters(
-	requestConfig cloudSecuritySuppressionRuleResourceModel,
-	resp *resource.ValidateConfigResponse,
-) {
-	if requestConfig.RuleSelectionFilter.IsNull() && requestConfig.AssetFilter.IsNull() {
-		resp.Diagnostics.AddError(
-			"Missing Required Filter",
-			"At least one of 'rule_selection_filter' or 'asset_filter' must be defined.",
-		)
-	}
-}
-
-// validateRuleSelectionFilter validates the rule selection filter is not empty when defined.
-func (r *cloudSecuritySuppressionRuleResource) validateRuleSelectionFilter(
-	ctx context.Context,
-	requestConfig cloudSecuritySuppressionRuleResourceModel,
-	resp *resource.ValidateConfigResponse,
-) {
-	if !utils.IsKnown(requestConfig.RuleSelectionFilter) {
-		return
-	}
-
-	var ruleSelectionFilter ruleSelectionFilterModel
-	diags := requestConfig.RuleSelectionFilter.As(ctx, &ruleSelectionFilter, basetypes.ObjectAsOptions{})
-	if diags.HasError() {
-		return
-	}
-
-	if isRuleSelectionFilterEmpty(ruleSelectionFilter) {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("rule_selection_filter"),
-			"Empty Rule Selection Filter",
-			"When rule_selection_filter is defined, at least one filter criterion must be specified (ids, names, origins, providers, services, or severities).",
-		)
-	}
-}
-
-// validateAssetFilter validates the scope asset filter is not empty when defined.
-func (r *cloudSecuritySuppressionRuleResource) validateAssetFilter(
-	ctx context.Context,
-	requestConfig cloudSecuritySuppressionRuleResourceModel,
-	resp *resource.ValidateConfigResponse,
-) {
-	if !utils.IsKnown(requestConfig.AssetFilter) {
-		return
-	}
-
-	var scopeAssetFilter scopeAssetFilterModel
-	diags := requestConfig.AssetFilter.As(ctx, &scopeAssetFilter, basetypes.ObjectAsOptions{})
-	if diags.HasError() {
-		return
-	}
-
-	if isAssetFilterEmpty(scopeAssetFilter) {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("asset_filter"),
-			"Empty Asset Filter",
-			"When asset_filter is defined, at least one filter criterion must be specified (account_ids, cloud_group_ids, cloud_providers, regions, resource_ids, resource_names, resource_types, service_categories, or tags).",
-		)
-	}
-}
-
-// isRuleSelectionFilterEmpty checks if all rule selection filter fields are empty.
-func isRuleSelectionFilterEmpty(filter ruleSelectionFilterModel) bool {
-	// Check each filter field - all must be null or empty for the filter to be considered empty
-	return isSetFieldEmpty(filter.Ids) &&
-		isSetFieldEmpty(filter.Names) &&
-		isSetFieldEmpty(filter.Origins) &&
-		isSetFieldEmpty(filter.Providers) &&
-		isSetFieldEmpty(filter.Services) &&
-		isSetFieldEmpty(filter.Severities)
-}
-
-// isAssetFilterEmpty checks if all scope asset filter fields are empty.
-func isAssetFilterEmpty(filter scopeAssetFilterModel) bool {
-	// Check each filter field - all must be null or empty for the filter to be considered empty
-	return isSetFieldEmpty(filter.AccountIds) &&
-		isSetFieldEmpty(filter.CloudGroupIds) &&
-		isSetFieldEmpty(filter.CloudProviders) &&
-		isSetFieldEmpty(filter.Regions) &&
-		isSetFieldEmpty(filter.ResourceIds) &&
-		isSetFieldEmpty(filter.ResourceNames) &&
-		isSetFieldEmpty(filter.ResourceTypes) &&
-		isSetFieldEmpty(filter.ServiceCategories) &&
-		isSetFieldEmpty(filter.Tags)
-}
-
-// isSetFieldEmpty checks if a set field is null or has no elements.
-func isSetFieldEmpty(field types.Set) bool {
-	return field.IsNull() || len(field.Elements()) == 0
-}
-
-func isTimestampExpired(timestampStr string) (bool, diag.Diagnostics) {
+func isTimestampExpired(timestampStr timetypes.RFC3339) (bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	timestamp, err := time.Parse(time.RFC3339, timestampStr)
+	timestamp, err := timestampStr.ValueRFC3339Time()
 	if err != nil {
 		diags.AddError(
 			"Error Parsing Timestamp",
@@ -747,16 +656,12 @@ func (r *cloudSecuritySuppressionRuleResource) getSuppressionRule(ctx context.Co
 func (r *cloudSecuritySuppressionRuleResource) createSuppressionRule(ctx context.Context, rule cloudSecuritySuppressionRuleResourceModel) (*models.ApimodelsSuppressionRule, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	// Get domain configuration based on type
-	domainConfig := getDomainConfig(rule.Type.ValueString())
-
-	// Required Params
 	body := &models.SuppressionrulesCreateSuppressionRuleRequest{
 		Name:                      rule.Name.ValueStringPointer(),
-		Domain:                    &domainConfig.Domain,
+		Domain:                    utils.Addr(suppressionRuleDomainDefault),
 		RuleSelectionType:         &ruleSelectionTypeDefault,
 		ScopeType:                 &scopeTypeDefault,
-		Subdomain:                 &domainConfig.Subdomain,
+		Subdomain:                 rule.Type.ValueStringPointer(),
 		SuppressionReason:         rule.Reason.ValueStringPointer(),
 		Description:               rule.Description.ValueString(),
 		SuppressionComment:        rule.Comment.ValueString(),
@@ -967,12 +872,19 @@ func (m *cloudSecuritySuppressionRuleResourceModel) wrap(
 	var diags diag.Diagnostics
 
 	m.ID = flex.StringPointerToFramework(rule.ID)
-	m.Description = types.StringValue(rule.Description)
+	m.Description = flex.StringValueToFramework(rule.Description)
 	m.Name = flex.StringPointerToFramework(rule.Name)
-	m.Comment = types.StringValue(rule.SuppressionComment)
-	m.ExpirationDate = flex.StringValueToFramework(rule.SuppressionExpirationDate)
+	m.Comment = flex.StringValueToFramework(rule.SuppressionComment)
 	m.Reason = flex.StringPointerToFramework(rule.SuppressionReason)
 	m.Type = flex.StringPointerToFramework(rule.Subdomain)
+
+	m.ExpirationDate = timetypes.NewRFC3339Null()
+	if rule.SuppressionExpirationDate != "" {
+		m.ExpirationDate, diags = timetypes.NewRFC3339Value(rule.SuppressionExpirationDate)
+		if diags.HasError() {
+			return diags
+		}
+	}
 
 	diags.Append(m.setRuleSelectionFilter(ctx, rule)...)
 	if diags.HasError() {
@@ -1064,14 +976,27 @@ func (c scopeAssetFilterModel) Expand(ctx context.Context) (*models.Suppressionr
 		return nil, diags
 	}
 
-	if diags = c.Tags.ElementsAs(ctx, &scopeAssetFilter.Tags, false); diags.HasError() {
-		return nil, diags
+	if !c.Tags.IsNull() {
+		tagsMap := make(map[string]string)
+		if diags = c.Tags.ElementsAs(ctx, &tagsMap, false); diags.HasError() {
+			return nil, diags
+		}
+
+		tags := make([]string, 0, len(tagsMap))
+		for key, value := range tagsMap {
+			tags = append(tags, fmt.Sprintf("%s=%s", key, value))
+		}
+		scopeAssetFilter.Tags = tags
 	}
 
 	return &scopeAssetFilter, diags
 }
 
 func (m *cloudSecuritySuppressionRuleResourceModel) setAssetFilter(ctx context.Context, rule models.ApimodelsSuppressionRule) (diags diag.Diagnostics) {
+	if rule.ScopeAssetFilter == nil {
+		return diags
+	}
+
 	cloudGroupIDs := make([]string, 0)
 	if rule.ScopeAssetFilter != nil && len(rule.ScopeAssetFilter.CloudGroups) != 0 {
 		for _, cloudGroup := range rule.ScopeAssetFilter.CloudGroups {
@@ -1087,37 +1012,55 @@ func (m *cloudSecuritySuppressionRuleResourceModel) setAssetFilter(ctx context.C
 		if diags.HasError() {
 			return diags
 		}
+
 		scopeAssetFilter["cloud_group_ids"], diags = fwtypes.OptionalStringSet(ctx, cloudGroupIDs)
 		if diags.HasError() {
 			return diags
 		}
+
 		scopeAssetFilter["cloud_providers"], diags = fwtypes.OptionalStringSet(ctx, rule.ScopeAssetFilter.CloudProviders)
 		if diags.HasError() {
 			return diags
 		}
+
 		scopeAssetFilter["regions"], diags = fwtypes.OptionalStringSet(ctx, rule.ScopeAssetFilter.Regions)
 		if diags.HasError() {
 			return diags
 		}
+
 		scopeAssetFilter["resource_ids"], diags = fwtypes.OptionalStringSet(ctx, rule.ScopeAssetFilter.ResourceIds)
 		if diags.HasError() {
 			return diags
 		}
+
 		scopeAssetFilter["resource_names"], diags = fwtypes.OptionalStringSet(ctx, rule.ScopeAssetFilter.ResourceNames)
 		if diags.HasError() {
 			return diags
 		}
+
 		scopeAssetFilter["resource_types"], diags = fwtypes.OptionalStringSet(ctx, rule.ScopeAssetFilter.ResourceTypes)
 		if diags.HasError() {
 			return diags
 		}
+
 		scopeAssetFilter["service_categories"], diags = fwtypes.OptionalStringSet(ctx, rule.ScopeAssetFilter.ServiceCategories)
 		if diags.HasError() {
 			return diags
 		}
-		scopeAssetFilter["tags"], diags = fwtypes.OptionalStringSet(ctx, rule.ScopeAssetFilter.Tags)
-		if diags.HasError() {
-			return diags
+
+		tagsMap := make(map[string]attr.Value)
+		if rule.ScopeAssetFilter.Tags != nil {
+			for _, tag := range rule.ScopeAssetFilter.Tags {
+				if parts := strings.SplitN(tag, "=", 2); len(parts) == 2 {
+					tagsMap[parts[0]] = types.StringValue(parts[1])
+				}
+			}
+		}
+
+		if len(tagsMap) == 0 {
+			scopeAssetFilter["tags"] = types.MapNull(types.StringType)
+		} else {
+			scopeAssetFilter["tags"] = types.MapValueMust(types.StringType, tagsMap)
 		}
 	}
 
@@ -1130,6 +1073,10 @@ func (m *cloudSecuritySuppressionRuleResourceModel) setAssetFilter(ctx context.C
 }
 
 func (m *cloudSecuritySuppressionRuleResourceModel) setRuleSelectionFilter(ctx context.Context, rule models.ApimodelsSuppressionRule) (diags diag.Diagnostics) {
+	if rule.RuleSelectionFilter == nil {
+		return diags
+	}
+
 	ruleSelectionFilter := make(map[string]attr.Value)
 
 	if rule.RuleSelectionFilter != nil {
@@ -1146,22 +1093,27 @@ func (m *cloudSecuritySuppressionRuleResourceModel) setRuleSelectionFilter(ctx c
 		if diags.HasError() {
 			return diags
 		}
+
 		ruleSelectionFilter["names"], diags = fwtypes.OptionalStringSet(ctx, rule.RuleSelectionFilter.RuleNames)
 		if diags.HasError() {
 			return diags
 		}
+
 		ruleSelectionFilter["origins"], diags = fwtypes.OptionalStringSet(ctx, rule.RuleSelectionFilter.RuleOrigins)
 		if diags.HasError() {
 			return diags
 		}
+
 		ruleSelectionFilter["providers"], diags = fwtypes.OptionalStringSet(ctx, rule.RuleSelectionFilter.RuleProviders)
 		if diags.HasError() {
 			return diags
 		}
+
 		ruleSelectionFilter["services"], diags = fwtypes.OptionalStringSet(ctx, rule.RuleSelectionFilter.RuleServices)
 		if diags.HasError() {
 			return diags
 		}
+
 		ruleSelectionFilter["severities"], diags = fwtypes.OptionalStringSet(ctx, convertedRuleSeverities)
 		if diags.HasError() {
 			return diags
@@ -1171,22 +1123,27 @@ func (m *cloudSecuritySuppressionRuleResourceModel) setRuleSelectionFilter(ctx c
 		if diags.HasError() {
 			return diags
 		}
+
 		ruleSelectionFilter["names"], diags = fwtypes.OptionalStringSet(ctx, nil)
 		if diags.HasError() {
 			return diags
 		}
+
 		ruleSelectionFilter["origins"], diags = fwtypes.OptionalStringSet(ctx, nil)
 		if diags.HasError() {
 			return diags
 		}
+
 		ruleSelectionFilter["providers"], diags = fwtypes.OptionalStringSet(ctx, nil)
 		if diags.HasError() {
 			return diags
 		}
+
 		ruleSelectionFilter["services"], diags = fwtypes.OptionalStringSet(ctx, nil)
 		if diags.HasError() {
 			return diags
 		}
+
 		ruleSelectionFilter["severities"], diags = fwtypes.OptionalStringSet(ctx, nil)
 		if diags.HasError() {
 			return diags
