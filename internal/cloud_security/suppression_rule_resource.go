@@ -541,8 +541,8 @@ func (r *cloudSecuritySuppressionRuleResource) validateExpirationDateFormat(expi
 	var diags diag.Diagnostics
 
 	if expirationDate.ValueString() != "" {
-		_, diags := expirationDate.ValueRFC3339Time()
-		if diags.HasError() {
+		_, validationDiags := expirationDate.ValueRFC3339Time()
+		if validationDiags.HasError() {
 			diags.AddAttributeError(
 				path.Root("expiration_date"),
 				"Invalid Date Format",

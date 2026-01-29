@@ -52,25 +52,32 @@ resource "crowdstrike_cloud_security_suppression_rule" "example" {
 }
 
 # Example 2: More complex suppression rule with multiple filters
+# Demonstrates AND logic between attributes and OR logic within each attribute
 resource "crowdstrike_cloud_security_suppression_rule" "multi_filter" {
   name        = "Multi-filter Suppression Rule"
   type        = "IOM"
   reason      = "accept-risk"
   description = "Suppress high and critical findings for specific cloud providers and regions"
 
+  # Rules match if they are (critical OR high) AND (AWS OR Azure provider)
   rule_selection_filter = {
     severities = ["critical", "high"]
     providers  = ["AWS", "Azure"]
   }
 
+  # Assets match if they are (aws OR azure) AND (us-west-1 OR eastus) AND (environment=dev OR team=security tags)
   asset_filter = {
     cloud_providers = ["aws", "azure"]
     regions         = ["us-west-1", "eastus"]
-    tags            = ["environment=dev", "team=security"]
+    tags = {
+      environment = "dev"
+      team        = "security"
+    }
   }
 }
 
 # Example 3: Temporary suppression with expiration
+# Shows single-attribute filters and expiration date usage
 resource "crowdstrike_cloud_security_suppression_rule" "temporary" {
   name            = "Temporary Suppression"
   type            = "IOM"
@@ -98,15 +105,15 @@ output "suppression_rule" {
 
 - `name` (String) Name of the suppression rule
 - `reason` (String) Reason for suppression. One of: accept-risk, compensating-control, false-positive.
+- `type` (String) Type of suppression rule. Defaults to IOM.
 
 ### Optional
 
-- `asset_filter` (Attributes) Filter criteria for scope assets. (see [below for nested schema](#nestedatt--asset_filter))
+- `asset_filter` (Attributes) Filter criteria for scope assets. Within each attribute, assets match if they contain ANY of the specified values (OR logic). Between different attributes, assets must match ALL specified attributes (AND logic). For example: `account_ids = ["acc1", "acc2"]` AND `regions = ["us-east-1", "us-west-2"]` will select assets that are in (acc1 OR acc2) AND (us-east-1 OR us-west-2). (see [below for nested schema](#nestedatt--asset_filter))
 - `comment` (String) Comment for suppression. This will be attached to the findings suppressed by this rule.
 - `description` (String) Description of the suppression rule.
-- `expiration_date` (String) Expiration date for suppression. If defined, must be in RFC3339 format (e.g., `2025-08-11T10:00:00Z`). Once set, this field cannot be cleared. The suppression rule will still exist after expiration and can be reset by updating the expiration date.
-- `rule_selection_filter` (Attributes) Filter criteria for rule selection. (see [below for nested schema](#nestedatt--rule_selection_filter))
-- `type` (String) Type of suppression rule. Defaults to IOM.
+- `expiration_date` (String) Expiration date for suppression. If defined, must be in RFC3339 format (e.g., `2025-08-11T10:00:00Z`). Once set, clearing this field requires resource replacement. The suppression rule will still exist after expiration and can be reset by updating the expiration date.
+- `rule_selection_filter` (Attributes) Filter criteria for rule selection. Within each attribute, rules match if they contain ANY of the specified values (OR logic). Between different attributes, rules must match ALL specified attributes (AND logic). For example: `ids = ["rule1", "rule2"]` AND `severities = ["high", "critical"]` will select rules that are (rule1 OR rule2) AND (high OR critical severity). (see [below for nested schema](#nestedatt--rule_selection_filter))
 
 ### Read-Only
 
@@ -125,7 +132,7 @@ Optional:
 - `resource_names` (Set of String) Set of resource names.  An Asset will match if its resource name is included in this set.
 - `resource_types` (Set of String) Set of resource types. Examples: `AWS::S3::Bucket`, `compute.googleapis.com/Instance`, `Microsoft.ContainerService/managedClusters`. An Asset will match if its resource type is included in this set.
 - `service_categories` (Set of String) Set of service categories. Examples: `Compute`, `Identity`, `Networking`.  An Asset will match if its cloud service category is included in this set.
-- `tags` (Set of String) Set of tags. These must match the k=v format. An Asset will match if at least one of its tags is included in this set.
+- `tags` (Map of String) Map of tags. These must match the k=v format. An Asset will match if any of its tag key-value pairs match those specified in this map.
 
 
 <a id="nestedatt--rule_selection_filter"></a>
