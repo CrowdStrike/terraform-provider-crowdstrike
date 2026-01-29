@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/go-openapi/runtime"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
 
@@ -69,6 +70,113 @@ func NewOperationError(operation Operation, err error) diag.ErrorDiagnostic {
 func NewConflictError(operation Operation, detail string) diag.ErrorDiagnostic {
 	return diag.NewErrorDiagnostic(
 		fmt.Sprintf("Failed to %s: 409 Conflict", operation),
+		detail,
+	)
+}
+
+// ErrorOption configures optional behavior for NewDiagnosticFromAPIError.
+type ErrorOption func(*errorConfig)
+
+// errorConfig holds optional configuration for error handling.
+type errorConfig struct {
+	forbiddenDetail   string
+	notFoundDetail    string
+	conflictDetail    string
+	serverErrorDetail string
+	detail            string
+}
+
+// WithForbiddenDetail provides a custom detail message for 403 Forbidden errors.
+// If not provided, defaults to the API scope requirements.
+func WithForbiddenDetail(detail string) ErrorOption {
+	return func(cfg *errorConfig) {
+		cfg.forbiddenDetail = detail
+	}
+}
+
+// WithNotFoundDetail provides a custom detail message for 404 Not Found errors.
+func WithNotFoundDetail(detail string) ErrorOption {
+	return func(cfg *errorConfig) {
+		cfg.notFoundDetail = detail
+	}
+}
+
+// WithConflictDetail provides a custom detail message for 409 Conflict errors.
+func WithConflictDetail(detail string) ErrorOption {
+	return func(cfg *errorConfig) {
+		cfg.conflictDetail = detail
+	}
+}
+
+// WithServerErrorDetail provides a custom detail message for 5xx server errors.
+func WithServerErrorDetail(detail string) ErrorOption {
+	return func(cfg *errorConfig) {
+		cfg.serverErrorDetail = detail
+	}
+}
+
+// WithDetail provides a custom detail message for all other errors.
+func WithDetail(detail string) ErrorOption {
+	return func(cfg *errorConfig) {
+		cfg.detail = detail
+	}
+}
+
+// NewDiagnosticFromAPIError converts a gofalcon API error into a Terraform diagnostic.
+func NewDiagnosticFromAPIError(operation Operation, err error, apiScopes []scopes.Scope, options ...ErrorOption) diag.Diagnostic {
+	if err == nil {
+		return nil
+	}
+
+	cfg := &errorConfig{}
+	for _, opt := range options {
+		opt(cfg)
+	}
+
+	if statusErr, ok := err.(runtime.ClientResponseStatus); ok {
+		switch {
+		case statusErr.IsCode(403):
+			detail := cfg.forbiddenDetail
+			if detail == "" {
+				detail = scopes.GenerateScopeDescription(apiScopes)
+			}
+			return diag.NewErrorDiagnostic(
+				fmt.Sprintf("Failed to %s: 403 Forbidden", operation),
+				detail,
+			)
+
+		case statusErr.IsCode(404):
+			detail := cfg.notFoundDetail
+			if detail == "" {
+				detail = err.Error()
+			}
+			return NewNotFoundError(detail)
+
+		case statusErr.IsCode(409):
+			detail := cfg.conflictDetail
+			if detail == "" {
+				detail = err.Error()
+			}
+			return NewConflictError(operation, detail)
+
+		case statusErr.IsServerError():
+			detail := cfg.serverErrorDetail
+			if detail == "" {
+				detail = err.Error()
+			}
+			return diag.NewErrorDiagnostic(
+				fmt.Sprintf("Failed to %s", operation),
+				detail,
+			)
+		}
+	}
+
+	detail := cfg.detail
+	if detail == "" {
+		detail = err.Error()
+	}
+	return diag.NewErrorDiagnostic(
+		fmt.Sprintf("Failed to %s", operation),
 		detail,
 	)
 }
