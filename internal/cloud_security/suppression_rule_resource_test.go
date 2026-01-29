@@ -2,7 +2,9 @@ package cloudsecurity_test
 
 import (
 	"fmt"
+	"os"
 	"regexp"
+	"strconv"
 	"testing"
 	"time"
 
@@ -12,13 +14,54 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
+// apiThrottleDelay adds a configurable delay to prevent API throttling
+// Can be controlled via TEST_DELAY_SECONDS environment variable (default: 0 seconds).
+func apiThrottleDelay() {
+	delaySeconds := 0 // default delay
+	if envDelay := os.Getenv("TEST_DELAY_SECONDS"); envDelay != "" {
+		if parsed, err := strconv.Atoi(envDelay); err == nil && parsed >= 0 {
+			delaySeconds = parsed
+		}
+	}
+	if delaySeconds > 0 {
+		time.Sleep(time.Duration(delaySeconds) * time.Second)
+	}
+}
+
+// runTest executes a test case using either parallel or sequential mode based on environment variables
+// TEST_PARALLEL=true  -> resource.ParallelTest
+// TEST_PARALLEL=false -> resource.Test
+// If not set, defaults to sequential when delays are configured, parallel when no delays.
+func runTest(t *testing.T, testCase resource.TestCase) {
+	useParallel := shouldUseParallel()
+
+	if useParallel {
+		resource.ParallelTest(t, testCase)
+	} else {
+		resource.Test(t, testCase)
+	}
+}
+
+func shouldUseParallel() bool {
+	if envParallel := os.Getenv("TEST_PARALLEL"); envParallel != "" {
+		return envParallel == "true" || envParallel == "1"
+	}
+
+	if envDelay := os.Getenv("TEST_DELAY_SECONDS"); envDelay != "" && envDelay != "0" {
+		return false
+	}
+
+	return true
+}
+
 func TestCloudSecuritySuppressionRuleResource_Basic(t *testing.T) {
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testSuppressionRuleBasicConfig(),
+				PreConfig: func() { apiThrottleDelay() },
+				Config:    testSuppressionRuleBasicConfig(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("crowdstrike_cloud_security_suppression_rule.test", "name", "TF Test Basic Suppression Rule"),
 					resource.TestCheckResourceAttr("crowdstrike_cloud_security_suppression_rule.test", "description", "Basic test suppression rule"),
@@ -32,12 +75,13 @@ func TestCloudSecuritySuppressionRuleResource_Basic(t *testing.T) {
 }
 
 func TestCloudSecuritySuppressionRuleResource_Defaults(t *testing.T) {
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testSuppressionRuleDefaultsConfig(),
+				PreConfig: func() { apiThrottleDelay() },
+				Config:    testSuppressionRuleDefaultsConfig(),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("crowdstrike_cloud_security_suppression_rule.defaults_test", "name", "TF Test Defaults Suppression Rule"),
 					resource.TestCheckResourceAttr("crowdstrike_cloud_security_suppression_rule.defaults_test", "reason", "false-positive"),
@@ -61,12 +105,13 @@ func TestCloudSecuritySuppressionRuleResource_EC2Scenario(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_suppression_rule.ec2_test"
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testSuppressionRuleEC2ScenarioConfig(randomSuffix),
+				PreConfig: func() { apiThrottleDelay() },
+				Config:    testSuppressionRuleEC2ScenarioConfig(randomSuffix),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test EC2 Suppression %s", randomSuffix)),
 					resource.TestCheckResourceAttr(resourceName, "description", "Suppress EC2 instance excessive response hop limit rule for specific instances"),
@@ -94,12 +139,13 @@ func TestCloudSecuritySuppressionRuleResource_AccountLevelMultiRule(t *testing.T
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_suppression_rule.account_test"
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testSuppressionRuleAccountLevelConfig(randomSuffix),
+				PreConfig: func() { apiThrottleDelay() },
+				Config:    testSuppressionRuleAccountLevelConfig(randomSuffix),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Account Level Suppression %s", randomSuffix)),
 					resource.TestCheckResourceAttr(resourceName, "description", "Suppress multiple backup and monitoring rules for test account"),
@@ -124,12 +170,13 @@ func TestCloudSecuritySuppressionRuleResource_WithExpiration(t *testing.T) {
 	// Set expiration to 1 week from now
 	expirationDate := time.Now().Add(7 * 24 * time.Hour).UTC().Format(time.RFC3339)
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testSuppressionRuleWithExpirationConfig(randomSuffix, expirationDate),
+				PreConfig: func() { apiThrottleDelay() },
+				Config:    testSuppressionRuleWithExpirationConfig(randomSuffix, expirationDate),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Expiration Suppression %s", randomSuffix)),
 					resource.TestCheckResourceAttr(resourceName, "expiration_date", expirationDate),
@@ -144,7 +191,7 @@ func TestCloudSecuritySuppressionRuleResource_Update(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_suppression_rule.update_test"
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -179,7 +226,7 @@ func TestCloudSecuritySuppressionRuleResource_ExpirationDateRequiresReplacement(
 
 	initialExpiration := time.Now().Add(14 * 24 * time.Hour).UTC().Format(time.RFC3339)
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -230,7 +277,7 @@ func TestCloudSecuritySuppressionRuleResource_ExpirationDateCanBeUpdated(t *test
 	initialExpiration := time.Now().Add(14 * 24 * time.Hour).UTC().Format(time.RFC3339)
 	updatedExpiration := time.Now().Add(30 * 24 * time.Hour).UTC().Format(time.RFC3339)
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -259,7 +306,7 @@ func TestCloudSecuritySuppressionRuleResource_ExpirationDateCanBeUpdated(t *test
 func TestCloudSecuritySuppressionRuleResource_ValidationErrors(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -289,7 +336,7 @@ func TestCloudSecuritySuppressionRuleResource_RuleSeverityFilters(t *testing.T) 
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_suppression_rule.severity_test"
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -309,7 +356,7 @@ func TestCloudSecuritySuppressionRuleResource_TagFilters(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_suppression_rule.tag_test"
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -328,7 +375,7 @@ func TestCloudSecuritySuppressionRuleResource_TagFilters(t *testing.T) {
 func TestCloudSecuritySuppressionRuleResource_EmptyFilterValidation(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -352,7 +399,7 @@ func TestCloudSecuritySuppressionRuleResource_AllRuleSelectionFilters(t *testing
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_suppression_rule.rule_filters_test"
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -377,7 +424,7 @@ func TestCloudSecuritySuppressionRuleResource_AllScopeAssetFilters(t *testing.T)
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_suppression_rule.scope_filters_test"
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -404,7 +451,7 @@ func TestCloudSecuritySuppressionRuleResource_ComplexFilterCombinations(t *testi
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_suppression_rule.complex_test"
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -431,7 +478,7 @@ func TestCloudSecuritySuppressionRuleResource_TagConfiguration(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_suppression_rule.tag_config_test"
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -455,7 +502,7 @@ func TestCloudSecuritySuppressionRuleResource_ComprehensiveImportState(t *testin
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_suppression_rule.import_test"
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -486,7 +533,7 @@ func TestCloudSecuritySuppressionRuleResource_AdvancedUpdateScenarios(t *testing
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_suppression_rule.advanced_update_test"
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -1006,7 +1053,7 @@ func TestCloudSecuritySuppressionRuleResource_ExpirationDateValidationBehavior(t
 	// Set expiration to future date for successful operations
 	futureDate := time.Now().Add(7 * 24 * time.Hour).UTC().Format(time.RFC3339)
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -1047,7 +1094,7 @@ func TestCloudSecuritySuppressionRuleResource_ExpiredRuleWarningOnRead(t *testin
 	// Create with future date, then test read behavior when date expires
 	futureDate := time.Now().Add(1 * time.Hour).UTC().Format(time.RFC3339)
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -1131,7 +1178,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "expired_warning_test" {
 func TestCloudSecuritySuppressionRuleResource_BadRequestErrorHandling(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -1139,7 +1186,7 @@ func TestCloudSecuritySuppressionRuleResource_BadRequestErrorHandling(t *testing
 			// This will test that GetPayloadErrorMessage correctly extracts error messages from API responses
 			{
 				Config:      testSuppressionRuleBadRequestConfig(randomSuffix),
-				ExpectError: regexp.MustCompile(`Failed to create suppression rule \(400\).*`),
+				ExpectError: regexp.MustCompile(`(?s)Failed to create: 400 Bad Request.*`),
 			},
 		},
 	})
@@ -1234,7 +1281,7 @@ func TestCloudSecuritySuppressionRuleResource_DeleteWithExpiredDate(t *testing.T
 	// Create with a short expiration (5 seconds in future) to ensure it expires before delete
 	shortExpiration := time.Now().Add(10 * time.Second).UTC().Format(time.RFC3339)
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -1266,7 +1313,7 @@ func TestCloudSecuritySuppressionRuleResource_ReadWithExpiredDate(t *testing.T) 
 	// Create with future date initially
 	futureDate := time.Now().Add(1 * time.Hour).UTC().Format(time.RFC3339)
 
-	resource.ParallelTest(t, resource.TestCase{
+	runTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{

@@ -33,8 +33,6 @@ github.com/bufbuild/protocompile v0.4.0 h1:LbFKd2XowZvQ/kajzguUp2DC9UEIQhIq77fZZ
 github.com/bufbuild/protocompile v0.4.0/go.mod h1:3v93+mbWn/v3xzN+31nwkJfrEpAUwp+BagBSZWx+TP8=
 github.com/cloudflare/circl v1.3.7 h1:qlCDlTPz2n9fu58M0Nh1J/JzcFpfgkFHHX3O35r5vcU=
 github.com/cloudflare/circl v1.3.7/go.mod h1:sRTcRWXGLrKw6yIGJ+l7amYJFfAXbZG0kBSc8r4zxgA=
-github.com/crowdstrike/gofalcon v0.19.1-0.20260126193419-5ae2a501524e h1:6crFjffVRCWN6IK+c1bh8LP3ekRHLXYHo3vQK0H28XE=
-github.com/crowdstrike/gofalcon v0.19.1-0.20260126193419-5ae2a501524e/go.mod h1:a12GB+md+hRSgVCb3Pv6CakeTIsDIUCIVWRlJelIhY0=
 github.com/cyphar/filepath-securejoin v0.2.4 h1:Ugdm7cg7i6ZK6x3xDF1oEu1nfkyfH53EtKeQYTC3kyg=
 github.com/cyphar/filepath-securejoin v0.2.4/go.mod h1:aPGpWjXOXUn2NCNjFvBE6aRxGGx79pTxQpKOJNYHHl4=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -96,8 +94,8 @@ github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeN
 github.com/google/uuid v1.1.1/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
-github.com/gpontejos-cs/gofalcon v0.0.0-20260126180917-258d07dfe558 h1:Ld/jpjH1puKV6MpXImnoEF22Bi2E06SCQYneVHT7tnY=
-github.com/gpontejos-cs/gofalcon v0.0.0-20260126180917-258d07dfe558/go.mod h1:a12GB+md+hRSgVCb3Pv6CakeTIsDIUCIVWRlJelIhY0=
+github.com/gpontejos-cs/gofalcon v0.0.0-20260126203634-fd3452877860 h1:+g+z8HjerGh41i4jTPvrG66aJ2G0ATELvXn3Mts67KI=
+github.com/gpontejos-cs/gofalcon v0.0.0-20260126203634-fd3452877860/go.mod h1:a12GB+md+hRSgVCb3Pv6CakeTIsDIUCIVWRlJelIhY0=
 github.com/hashicorp/cli v1.1.6 h1:CMOV+/LJfL1tXCOKrgAX0uRKnzjj/mpmqNXloRSy2K8=
 github.com/hashicorp/cli v1.1.6/go.mod h1:MPon5QYlgjjo0BSoAiN0ESeT5fRzDjVRp+uioJ0piz4=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=

@@ -474,6 +474,11 @@ func (r *cloudSecuritySuppressionRuleResource) Read(
 
 	rule, diags := r.getSuppressionRule(ctx, state.ID.ValueString())
 	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.Append(diags...)
 		return
 	}
@@ -607,35 +612,17 @@ func (r *cloudSecuritySuppressionRuleResource) getSuppressionRule(ctx context.Co
 	}
 
 	resp, err := r.client.CloudPolicies.GetSuppressionRules(&params)
-	if err != nil {
-		if badRequest, ok := err.(*cloud_policies.GetSuppressionRulesBadRequest); ok {
-			diags.AddError(
-				"Error Retrieving Suppression Rule",
-				fmt.Sprintf("Failed to retrieve suppression rule (400): %s, %s", id, tferrors.GetPayloadErrorMessage(badRequest.Payload)),
-			)
-			return nil, diags
-		}
 
-		if internalServerError, ok := err.(*cloud_policies.GetSuppressionRulesInternalServerError); ok {
-			diags.AddError(
-				"Error Retrieving Suppression Rule",
-				fmt.Sprintf("Failed to retrieve suppression rule (500): %s, %s", id, tferrors.GetPayloadErrorMessage(internalServerError.Payload)),
-			)
-			return nil, diags
-		}
-
-		diags.AddError(
-			"Error Retrieving Suppression Rule",
-			fmt.Sprintf("Failed to retrieve rule %s: %+v", id, err),
-		)
-
+	diag := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, suppressionRuleResourceRequiredScopes)
+	if diag != nil {
+		diags.Append(diag)
 		return nil, diags
 	}
 
 	if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 {
 		diags.AddError(
 			"Error Retrieving Suppression Rule",
-			fmt.Sprintf("Failed to retrieve suppression rule %s: API returned an empty response", id),
+			fmt.Sprintf("Failed to update rule %s: API returned an empty response", id),
 		)
 		return nil, diags
 	}
@@ -704,28 +691,9 @@ func (r *cloudSecuritySuppressionRuleResource) createSuppressionRule(ctx context
 	}
 
 	resp, err := r.client.CloudPolicies.CreateSuppressionRule(&params)
-	if err != nil {
-		if badRequest, ok := err.(*cloud_policies.CreateSuppressionRuleBadRequest); ok {
-			diags.AddError(
-				"Error Creating Suppression Rule",
-				fmt.Sprintf("Failed to create suppression rule (400): %s, %s", rule.Name.ValueString(), tferrors.GetPayloadErrorMessage(badRequest.Payload)),
-			)
-			return nil, diags
-		}
-
-		if internalServerError, ok := err.(*cloud_policies.CreateSuppressionRuleInternalServerError); ok {
-			diags.AddError(
-				"Error Creating Suppression Rule",
-				fmt.Sprintf("Failed to create suppression rule (500): %s, %s", rule.Name.ValueString(), tferrors.GetPayloadErrorMessage(internalServerError.Payload)),
-			)
-			return nil, diags
-		}
-
-		diags.AddError(
-			"Error Creating Suppression Rule",
-			fmt.Sprintf("Failed to create suppression rule %s: %+v", rule.Name.ValueString(), err),
-		)
-
+	diag := tferrors.NewDiagnosticFromAPIError(tferrors.Create, err, suppressionRuleResourceRequiredScopes)
+	if diag != nil {
+		diags.Append(diag)
 		return nil, diags
 	}
 
@@ -800,34 +768,15 @@ func (r *cloudSecuritySuppressionRuleResource) updateSuppressionRule(ctx context
 	}
 
 	resp, err := r.client.CloudPolicies.UpdateSuppressionRule(&params)
-	if err != nil {
-		if badRequest, ok := err.(*cloud_policies.UpdateSuppressionRuleBadRequest); ok {
-			diags.AddError(
-				"Error Updating Suppression Rule",
-				fmt.Sprintf("Failed to update suppression rule (400): %s, %s", rule.ID.ValueString(), tferrors.GetPayloadErrorMessage(badRequest.Payload)),
-			)
-			return nil, diags
-		}
-
-		if internalServerError, ok := err.(*cloud_policies.UpdateSuppressionRuleInternalServerError); ok {
-			diags.AddError(
-				"Error Updating Suppression Rule",
-				fmt.Sprintf("Failed to update suppression rule (500): %s, %s", rule.ID.ValueString(), tferrors.GetPayloadErrorMessage(internalServerError.Payload)),
-			)
-			return nil, diags
-		}
-
-		diags.AddError(
-			"Error Updating Suppression Rule",
-			fmt.Sprintf("Failed to update suppression rule %s: %+v", rule.ID.ValueString(), err),
-		)
-
+	diag := tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, suppressionRuleResourceRequiredScopes)
+	if diag != nil {
+		diags.Append(diag)
 		return nil, diags
 	}
 
 	if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 {
 		diags.AddError(
-			"Error Updating Rule",
+			"Error Updating Suppression Rule",
 			fmt.Sprintf("Failed to update rule %s: API returned an empty response", rule.ID.ValueString()),
 		)
 		return nil, diags
@@ -855,11 +804,10 @@ func (r *cloudSecuritySuppressionRuleResource) deleteSuppressionRule(ctx context
 	}
 
 	_, err := r.client.CloudPolicies.DeleteSuppressionRules(&params)
-	if err != nil {
-		diags.AddError(
-			"Error Deleting Rule",
-			fmt.Sprintf("Failed to delete rule %s: \n\n %s", id, err.Error()),
-		)
+	diag := tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, suppressionRuleResourceRequiredScopes)
+	if diag != nil {
+		diags.Append(diag)
+		return diags
 	}
 
 	return diags
@@ -877,14 +825,7 @@ func (m *cloudSecuritySuppressionRuleResourceModel) wrap(
 	m.Comment = flex.StringValueToFramework(rule.SuppressionComment)
 	m.Reason = flex.StringPointerToFramework(rule.SuppressionReason)
 	m.Type = flex.StringPointerToFramework(rule.Subdomain)
-
-	m.ExpirationDate = timetypes.NewRFC3339Null()
-	if rule.SuppressionExpirationDate != "" {
-		m.ExpirationDate, diags = timetypes.NewRFC3339Value(rule.SuppressionExpirationDate)
-		if diags.HasError() {
-			return diags
-		}
-	}
+	m.ExpirationDate = flex.RFC3339ValueToFramework(rule.SuppressionExpirationDate)
 
 	diags.Append(m.setRuleSelectionFilter(ctx, rule)...)
 	if diags.HasError() {
