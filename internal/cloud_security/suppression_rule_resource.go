@@ -620,20 +620,14 @@ func (r *cloudSecuritySuppressionRuleResource) getSuppressionRule(ctx context.Co
 	}
 
 	if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 {
-		diags.AddError(
-			"Error Retrieving Suppression Rule",
-			fmt.Sprintf("Failed to update rule %s: API returned an empty response", id),
-		)
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Read))
 		return nil, diags
 	}
 
 	payload := resp.GetPayload()
 
 	if err = falcon.AssertNoError(payload.Errors); err != nil {
-		diags.AddError(
-			"Error Retrieving Suppression Rule",
-			fmt.Sprintf("Failed to retrieve suppression rule: %s", err.Error()),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Read, err))
 		return nil, diags
 	}
 
@@ -698,20 +692,14 @@ func (r *cloudSecuritySuppressionRuleResource) createSuppressionRule(ctx context
 	}
 
 	if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 {
-		diags.AddError(
-			"Error Creating Suppression Rule",
-			fmt.Sprintf("Failed to create suppression rule %s: API returned an empty response", rule.Name.ValueString()),
-		)
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Create))
 		return nil, diags
 	}
 
 	payload := resp.GetPayload()
 
 	if err = falcon.AssertNoError(payload.Errors); err != nil {
-		diags.AddError(
-			"Error Creating Suppression Rule",
-			fmt.Sprintf("Failed to create suppression rule: %s", err.Error()),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Create, err))
 		return nil, diags
 	}
 
@@ -775,20 +763,14 @@ func (r *cloudSecuritySuppressionRuleResource) updateSuppressionRule(ctx context
 	}
 
 	if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 {
-		diags.AddError(
-			"Error Updating Suppression Rule",
-			fmt.Sprintf("Failed to update rule %s: API returned an empty response", rule.ID.ValueString()),
-		)
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
 		return nil, diags
 	}
 
 	payload := resp.GetPayload()
 
 	if err = falcon.AssertNoError(payload.Errors); err != nil {
-		diags.AddError(
-			"Error Updating Suppression Rule",
-			fmt.Sprintf("Failed to update suppression rule: %s", err.Error()),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Update, err))
 		return nil, diags
 	}
 
