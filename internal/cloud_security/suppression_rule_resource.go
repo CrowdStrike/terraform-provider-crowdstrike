@@ -494,7 +494,7 @@ func (r *cloudSecuritySuppressionRuleResource) Read(
 		} else if expired {
 			resp.Diagnostics.AddWarning(
 				"Rule Suppression Expired",
-				fmt.Sprintf("The suppression rule with ID %s has expired but still exists in the backend. You can either update the expiration date to a future date or use 'terraform destroy' to remove it.", state.ID.ValueString()),
+				fmt.Sprintf("The suppression rule with ID %s has expired. You can either update the expiration date to a future date or remove the resource from your configuration to mark it for deletion on the next terraform run.", state.ID.ValueString()),
 			)
 		}
 	}
