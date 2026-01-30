@@ -183,7 +183,7 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 				},
 			},
 			"type": schema.StringAttribute{
-				Description: "Type of suppression rule. Defaults to IOM.",
+				Description: "Type of suppression rule. Valid values: IOM.",
 				Required:    true,
 				Validators: []validator.String{
 					stringvalidator.OneOf(suppressionRuleSubdomainDefault),
