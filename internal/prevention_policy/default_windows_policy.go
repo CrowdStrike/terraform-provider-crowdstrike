@@ -40,6 +40,7 @@ type defaultPreventionPolicyWindowsResourceModel struct {
 	RuleGroups                                 types.Set    `tfsdk:"ioa_rule_groups"`
 	CloudAntiMalwareForMicrosoftOfficeFiles    types.Object `tfsdk:"cloud_anti_malware_microsoft_office_files"`
 	ExtendedUserModeDataSlider                 types.Object `tfsdk:"extended_user_mode_data"`
+	CloudBasedAnomalousProcessExecution        types.Object `tfsdk:"cloud_based_anomalous_process_execution"`
 	CloudAntiMalware                           types.Object `tfsdk:"cloud_anti_malware"`
 	AdwarePUP                                  types.Object `tfsdk:"adware_and_pup"`
 	OnSensorMLSlider                           types.Object `tfsdk:"sensor_anti_malware"`
@@ -269,6 +270,16 @@ func (m *defaultPreventionPolicyWindowsResourceModel) generatePreventionSettings
 		detectionMlSliderSettings["ExtendedUserModeDataSlider"] = extendedSlider
 	}
 
+	if !m.CloudBasedAnomalousProcessExecution.IsNull() {
+		var cloudAnomalousSlider detectionMlSlider
+		diagsCloud := m.CloudBasedAnomalousProcessExecution.As(ctx, &cloudAnomalousSlider, basetypes.ObjectAsOptions{})
+		diags.Append(diagsCloud...)
+		if diags.HasError() {
+			return preventionSettings, diags
+		}
+		detectionMlSliderSettings["CloudBasedAnomalousProcessExecution"] = cloudAnomalousSlider
+	}
+
 	for k, v := range toggleSettings {
 		kCopy := k
 		vCopy := v
@@ -412,6 +423,18 @@ func (m *defaultPreventionPolicyWindowsResourceModel) assignPreventionSettings(
 			return diags
 		}
 		m.ExtendedUserModeDataSlider = extendedUserModeData
+	}
+
+	if detectionSlider, ok := detectionMlSliderSettings["CloudBasedAnomalousProcessExecution"]; ok {
+		cloudBasedAnomalousProcessExecution, diagsCloud := types.ObjectValueFrom(
+			ctx,
+			detectionMlSlider{}.AttributeTypes(),
+			detectionSlider,
+		)
+		if diagsCloud.HasError() {
+			return diagsCloud
+		}
+		m.CloudBasedAnomalousProcessExecution = cloudBasedAnomalousProcessExecution
 	}
 
 	if slider, ok := mlSliderSettings["CloudAntiMalwareForMicrosoftOfficeFiles"]; ok {
