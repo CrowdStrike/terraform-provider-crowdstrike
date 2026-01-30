@@ -1,25 +1,28 @@
 package flex
 
-import "github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
+import (
+	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+)
 
 // RFC3339ValueToFramework converts a string to a Terraform framework timetypes.RFC3339.
 // An empty string returns a null timetypes.RFC3339.
-func RFC3339ValueToFramework[T ~string](v T) timetypes.RFC3339 {
+func RFC3339ValueToFramework[T ~string](v T) (timetypes.RFC3339, diag.Diagnostics) {
 	if v == "" {
-		return timetypes.NewRFC3339Null()
+		return timetypes.NewRFC3339Null(), nil
 	}
-	rfc3339Value, _ := timetypes.NewRFC3339Value(string(v))
-	return rfc3339Value
+
+	return timetypes.NewRFC3339Value(string(v))
 }
 
 // RFC3339PointerToFramework converts a string pointer to a Terraform framework timetypes.RFC3339.
 // A nil pointer or empty string returns a null timetypes.RFC3339.
-func RFC3339PointerToFramework(v *string) timetypes.RFC3339 {
+func RFC3339PointerToFramework(v *string) (timetypes.RFC3339, diag.Diagnostics) {
 	if v == nil || *v == "" {
-		return timetypes.NewRFC3339Null()
+		return timetypes.NewRFC3339Null(), nil
 	}
-	rfc3339Value, _ := timetypes.NewRFC3339Value(*v)
-	return rfc3339Value
+
+	return timetypes.NewRFC3339Value(*v)
 }
 
 // FrameworkToRFC3339Pointer converts a Terraform framework timetypes.RFC3339 to a string pointer.

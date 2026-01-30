@@ -18,6 +18,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -250,7 +251,7 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 				},
 			},
 			"rule_selection_filter": schema.SingleNestedAttribute{
-				MarkdownDescription: "Filter criteria for rule selection. Within each attribute, rules match if they contain ANY of the specified values (OR logic). " +
+				MarkdownDescription: "Filter criteria for rule selection. At least one of `rule_selection_filter` or `asset_filter` must be specified. If not assigned, defaults to all rules. Within each attribute, rules match if they contain ANY of the specified values (OR logic). " +
 					"Between different attributes, rules must match ALL specified attributes (AND logic). " +
 					"For example: `ids = [\"rule1\", \"rule2\"]` AND `severities = [\"high\", \"critical\"]` will select rules that are (rule1 OR rule2) AND (high OR critical severity).",
 				Optional: true,
@@ -328,7 +329,7 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 				},
 			},
 			"asset_filter": schema.SingleNestedAttribute{
-				MarkdownDescription: "Filter criteria for scope assets. Within each attribute, assets match if they contain ANY of the specified values (OR logic). " +
+				MarkdownDescription: "Filter criteria for scope assets. At least one of `rule_selection_filter` or `asset_filter` must be specified. If not assigned, defaults to all assets. Within each attribute, assets match if they contain ANY of the specified values (OR logic). " +
 					"Between different attributes, assets must match ALL specified attributes (AND logic). " +
 					"For example: `account_ids = [\"acc1\", \"acc2\"]` AND `regions = [\"us-east-1\", \"us-west-2\"]` will select assets that are in (acc1 OR acc2) AND (us-east-1 OR us-west-2).",
 				Optional: true,
@@ -428,6 +429,10 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 						Description: "Map of tags. These must match the k=v format. An Asset will match if any of its tag key-value pairs match those specified in this map.",
 						ElementType: types.StringType,
 						Optional:    true,
+						Validators: []validator.Map{
+							mapvalidator.KeysAre(fwvalidators.StringNotWhitespace()),
+							mapvalidator.ValueStringsAre(fwvalidators.StringNotWhitespace()),
+						},
 					},
 				},
 			},
@@ -442,11 +447,6 @@ func (r *cloudSecuritySuppressionRuleResource) Create(
 ) {
 	var plan cloudSecuritySuppressionRuleResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	resp.Diagnostics.Append(r.validateExpirationDateFormat(plan.ExpirationDate)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -507,15 +507,45 @@ func (r *cloudSecuritySuppressionRuleResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	var plan cloudSecuritySuppressionRuleResourceModel
+	var plan, state cloudSecuritySuppressionRuleResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(r.validateExpirationDateFormat(plan.ExpirationDate)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	if plan.ExpirationDate.Equal(state.ExpirationDate) {
+		if plan.ExpirationDate.ValueString() != "" {
+			if expired, diags := isTimestampExpired(plan.ExpirationDate); diags.HasError() {
+				resp.Diagnostics.AddWarning(
+					"Timestamp Parsing Warning",
+					fmt.Sprintf("Could not parse suppression expiration date: %s", diags.Errors()[0].Summary()),
+				)
+			} else if expired {
+				resp.Diagnostics.AddWarning(
+					"Rule Suppression Expired",
+					fmt.Sprintf("The suppression rule with ID %s has an expired expiration date but the date is not being changed. The rule is no longer suppressing findings. Consider updating the expiration date to a future date.", state.ID.ValueString()),
+				)
+			}
+		}
+		// Don't send expiration date to API if it hasn't changed, even if it's expired.
+		plan.ExpirationDate = timetypes.NewRFC3339Null()
+	} else if plan.ExpirationDate.ValueString() != "" {
+		if expired, diags := isTimestampExpired(plan.ExpirationDate); diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			return
+		} else if expired {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("expiration_date"),
+				"Expired Date",
+				"The expiration_date has already passed.",
+			)
+			return
+		}
 	}
 
 	rule, diags := r.updateSuppressionRule(ctx, plan)
@@ -539,24 +569,12 @@ func (r *cloudSecuritySuppressionRuleResource) Delete(
 		return
 	}
 
-	resp.Diagnostics.Append(r.deleteSuppressionRule(ctx, state.ID.ValueString())...)
-}
-
-func (r *cloudSecuritySuppressionRuleResource) validateExpirationDateFormat(expirationDate timetypes.RFC3339) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	if expirationDate.ValueString() != "" {
-		_, validationDiags := expirationDate.ValueRFC3339Time()
-		if validationDiags.HasError() {
-			diags.AddAttributeError(
-				path.Root("expiration_date"),
-				"Invalid Date Format",
-				"The expiration_date must be in RFC3339 format (e.g., '2025-08-11T10:00:00Z').",
-			)
-		}
+	diags := r.deleteSuppressionRule(ctx, state.ID.ValueString())
+	if tferrors.HasNotFoundError(diags) {
+		return
 	}
 
-	return diags
+	resp.Diagnostics.Append(diags...)
 }
 
 func (r *cloudSecuritySuppressionRuleResource) ModifyPlan(
@@ -564,8 +582,8 @@ func (r *cloudSecuritySuppressionRuleResource) ModifyPlan(
 	req resource.ModifyPlanRequest,
 	resp *resource.ModifyPlanResponse,
 ) {
-	// Skip validation for destroy operations
-	if req.Plan.Raw.IsNull() {
+	// Run only on create operations
+	if req.Plan.Raw.IsNull() || !req.State.Raw.IsNull() {
 		return
 	}
 
@@ -583,7 +601,7 @@ func (r *cloudSecuritySuppressionRuleResource) ModifyPlan(
 			resp.Diagnostics.AddAttributeError(
 				path.Root("expiration_date"),
 				"Expired Date",
-				"The expiration_date has already passed. If you are attempting to run a destroy operation, use 'terraform destroy -refresh=false' to skip the expiration check.",
+				"The expiration_date has already passed.",
 			)
 		}
 	}
@@ -807,7 +825,11 @@ func (m *cloudSecuritySuppressionRuleResourceModel) wrap(
 	m.Comment = flex.StringValueToFramework(rule.SuppressionComment)
 	m.Reason = flex.StringPointerToFramework(rule.SuppressionReason)
 	m.Type = flex.StringPointerToFramework(rule.Subdomain)
-	m.ExpirationDate = flex.RFC3339ValueToFramework(rule.SuppressionExpirationDate)
+
+	m.ExpirationDate, diags = flex.RFC3339ValueToFramework(rule.SuppressionExpirationDate)
+	if diags.HasError() {
+		return diags
+	}
 
 	diags.Append(m.setRuleSelectionFilter(ctx, rule)...)
 	if diags.HasError() {
@@ -827,28 +849,52 @@ func (c ruleSelectionFilterModel) Expand(ctx context.Context) (*models.Suppressi
 	var ruleSelectionFilter models.SuppressionrulesRuleSelectionFilter
 	var diags diag.Diagnostics
 
-	if diags = c.Ids.ElementsAs(ctx, &ruleSelectionFilter.RuleIds, false); diags.HasError() {
-		return nil, diags
+	if c.Ids.IsNull() {
+		ruleSelectionFilter.RuleIds = []string{}
+	} else {
+		if diags = c.Ids.ElementsAs(ctx, &ruleSelectionFilter.RuleIds, false); diags.HasError() {
+			return nil, diags
+		}
 	}
 
-	if diags = c.Names.ElementsAs(ctx, &ruleSelectionFilter.RuleNames, false); diags.HasError() {
-		return nil, diags
+	if c.Names.IsNull() {
+		ruleSelectionFilter.RuleNames = []string{}
+	} else {
+		if diags = c.Names.ElementsAs(ctx, &ruleSelectionFilter.RuleNames, false); diags.HasError() {
+			return nil, diags
+		}
 	}
 
-	if diags = c.Origins.ElementsAs(ctx, &ruleSelectionFilter.RuleOrigins, false); diags.HasError() {
-		return nil, diags
+	if c.Origins.IsNull() {
+		ruleSelectionFilter.RuleOrigins = []string{}
+	} else {
+		if diags = c.Origins.ElementsAs(ctx, &ruleSelectionFilter.RuleOrigins, false); diags.HasError() {
+			return nil, diags
+		}
 	}
 
-	if diags = c.Providers.ElementsAs(ctx, &ruleSelectionFilter.RuleProviders, false); diags.HasError() {
-		return nil, diags
+	if c.Providers.IsNull() {
+		ruleSelectionFilter.RuleProviders = []string{}
+	} else {
+		if diags = c.Providers.ElementsAs(ctx, &ruleSelectionFilter.RuleProviders, false); diags.HasError() {
+			return nil, diags
+		}
 	}
 
-	if diags = c.Services.ElementsAs(ctx, &ruleSelectionFilter.RuleServices, false); diags.HasError() {
-		return nil, diags
+	if c.Services.IsNull() {
+		ruleSelectionFilter.RuleServices = []string{}
+	} else {
+		if diags = c.Services.ElementsAs(ctx, &ruleSelectionFilter.RuleServices, false); diags.HasError() {
+			return nil, diags
+		}
 	}
 
-	if diags = c.Severities.ElementsAs(ctx, &ruleSelectionFilter.RuleSeverities, false); diags.HasError() {
-		return nil, diags
+	if c.Severities.IsNull() {
+		ruleSelectionFilter.RuleSeverities = []string{}
+	} else {
+		if diags = c.Severities.ElementsAs(ctx, &ruleSelectionFilter.RuleSeverities, false); diags.HasError() {
+			return nil, diags
+		}
 	}
 
 	convertedRuleSeverities := make([]string, 0, len(ruleSelectionFilter.RuleSeverities))
@@ -867,36 +913,68 @@ func (c scopeAssetFilterModel) Expand(ctx context.Context) (*models.Suppressionr
 	var scopeAssetFilter models.SuppressionrulesScopeAssetFilter
 	var diags diag.Diagnostics
 
-	if diags = c.AccountIds.ElementsAs(ctx, &scopeAssetFilter.AccountIds, false); diags.HasError() {
-		return nil, diags
+	if c.AccountIds.IsNull() {
+		scopeAssetFilter.AccountIds = []string{}
+	} else {
+		if diags = c.AccountIds.ElementsAs(ctx, &scopeAssetFilter.AccountIds, false); diags.HasError() {
+			return nil, diags
+		}
 	}
 
-	if diags = c.CloudGroupIds.ElementsAs(ctx, &scopeAssetFilter.CloudGroupIds, false); diags.HasError() {
-		return nil, diags
+	if c.CloudGroupIds.IsNull() {
+		scopeAssetFilter.CloudGroupIds = []string{}
+	} else {
+		if diags = c.CloudGroupIds.ElementsAs(ctx, &scopeAssetFilter.CloudGroupIds, false); diags.HasError() {
+			return nil, diags
+		}
 	}
 
-	if diags = c.CloudProviders.ElementsAs(ctx, &scopeAssetFilter.CloudProviders, false); diags.HasError() {
-		return nil, diags
+	if c.CloudProviders.IsNull() {
+		scopeAssetFilter.CloudProviders = []string{}
+	} else {
+		if diags = c.CloudProviders.ElementsAs(ctx, &scopeAssetFilter.CloudProviders, false); diags.HasError() {
+			return nil, diags
+		}
 	}
 
-	if diags = c.Regions.ElementsAs(ctx, &scopeAssetFilter.Regions, false); diags.HasError() {
-		return nil, diags
+	if c.Regions.IsNull() {
+		scopeAssetFilter.Regions = []string{}
+	} else {
+		if diags = c.Regions.ElementsAs(ctx, &scopeAssetFilter.Regions, false); diags.HasError() {
+			return nil, diags
+		}
 	}
 
-	if diags = c.ResourceIds.ElementsAs(ctx, &scopeAssetFilter.ResourceIds, false); diags.HasError() {
-		return nil, diags
+	if c.ResourceIds.IsNull() {
+		scopeAssetFilter.ResourceIds = []string{}
+	} else {
+		if diags = c.ResourceIds.ElementsAs(ctx, &scopeAssetFilter.ResourceIds, false); diags.HasError() {
+			return nil, diags
+		}
 	}
 
-	if diags = c.ResourceNames.ElementsAs(ctx, &scopeAssetFilter.ResourceNames, false); diags.HasError() {
-		return nil, diags
+	if c.ResourceNames.IsNull() {
+		scopeAssetFilter.ResourceNames = []string{}
+	} else {
+		if diags = c.ResourceNames.ElementsAs(ctx, &scopeAssetFilter.ResourceNames, false); diags.HasError() {
+			return nil, diags
+		}
 	}
 
-	if diags = c.ResourceTypes.ElementsAs(ctx, &scopeAssetFilter.ResourceTypes, false); diags.HasError() {
-		return nil, diags
+	if c.ResourceTypes.IsNull() {
+		scopeAssetFilter.ResourceTypes = []string{}
+	} else {
+		if diags = c.ResourceTypes.ElementsAs(ctx, &scopeAssetFilter.ResourceTypes, false); diags.HasError() {
+			return nil, diags
+		}
 	}
 
-	if diags = c.ServiceCategories.ElementsAs(ctx, &scopeAssetFilter.ServiceCategories, false); diags.HasError() {
-		return nil, diags
+	if c.ServiceCategories.IsNull() {
+		scopeAssetFilter.ServiceCategories = []string{}
+	} else {
+		if diags = c.ServiceCategories.ElementsAs(ctx, &scopeAssetFilter.ServiceCategories, false); diags.HasError() {
+			return nil, diags
+		}
 	}
 
 	if !c.Tags.IsNull() {

@@ -37,8 +37,12 @@ func TestRFC3339ValueToFramework(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := RFC3339ValueToFramework(tt.input)
+			result, diags := RFC3339ValueToFramework(tt.input)
 			expected := tt.expected()
+
+			if diags.HasError() {
+				t.Errorf("Unexpected diagnostics errors: %v", diags)
+			}
 
 			if result.IsNull() != expected.IsNull() {
 				t.Errorf("IsNull() mismatch: got %v, want %v", result.IsNull(), expected.IsNull())
@@ -84,8 +88,12 @@ func TestRFC3339PointerToFramework(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := RFC3339PointerToFramework(tt.input)
+			result, diags := RFC3339PointerToFramework(tt.input)
 			expected := tt.expected()
+
+			if diags.HasError() {
+				t.Errorf("Unexpected diagnostics errors: %v", diags)
+			}
 
 			if result.IsNull() != expected.IsNull() {
 				t.Errorf("IsNull() mismatch: got %v, want %v", result.IsNull(), expected.IsNull())
@@ -155,7 +163,11 @@ func TestRFC3339ValueToFramework_Generic(t *testing.T) {
 	type customString string
 
 	customTime := customString("2025-01-29T10:30:45Z")
-	result := RFC3339ValueToFramework(customTime)
+	result, diags := RFC3339ValueToFramework(customTime)
+
+	if diags.HasError() {
+		t.Errorf("Unexpected diagnostics errors: %v", diags)
+	}
 
 	if result.IsNull() {
 		t.Errorf("Expected non-null value for custom string type")

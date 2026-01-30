@@ -91,6 +91,7 @@ type errorConfig struct {
 	notFoundDetail    string
 	conflictDetail    string
 	serverErrorDetail string
+	badRequestDetail  string
 	detail            string
 }
 
@@ -120,6 +121,13 @@ func WithConflictDetail(detail string) ErrorOption {
 func WithServerErrorDetail(detail string) ErrorOption {
 	return func(cfg *errorConfig) {
 		cfg.serverErrorDetail = detail
+	}
+}
+
+// WithBadRequestDetail provides a custom detail message for 400 Bad Request errors.
+func WithBadRequestDetail(detail string) ErrorOption {
+	return func(cfg *errorConfig) {
+		cfg.badRequestDetail = detail
 	}
 }
 
@@ -168,7 +176,7 @@ func NewDiagnosticFromAPIError(operation Operation, err error, apiScopes []scope
 			return NewConflictError(operation, detail)
 
 		case statusErr.IsCode(400):
-			detail := cfg.conflictDetail
+			detail := cfg.badRequestDetail
 			if detail == "" {
 				detail = err.Error()
 			}
