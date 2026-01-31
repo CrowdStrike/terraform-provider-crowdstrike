@@ -522,18 +522,6 @@ func (r *cloudSecuritySuppressionRuleResource) Update(
 		// Don't send expiration date to API if it hasn't changed, even if it's expired.
 		// A warning for the expired date is already in Read()
 		plan.ExpirationDate = timetypes.NewRFC3339Null()
-	} else if plan.ExpirationDate.ValueString() != "" {
-		if expired, diags := isTimestampExpired(plan.ExpirationDate); diags.HasError() {
-			resp.Diagnostics.Append(diags...)
-			return
-		} else if expired {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("expiration_date"),
-				"Expired Date",
-				"The expiration_date has already passed.",
-			)
-			return
-		}
 	}
 
 	rule, diags := r.updateSuppressionRule(ctx, plan)

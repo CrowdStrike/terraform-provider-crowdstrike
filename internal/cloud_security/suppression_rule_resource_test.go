@@ -1207,7 +1207,7 @@ func TestCloudSecuritySuppressionRuleResource_ExpirationDateValidationBehavior(t
 			// Test 3: Update operation should fail when trying to set expired date
 			{
 				Config:      testSuppressionRuleExpirationValidationConfig(randomSuffix, expiredDate),
-				ExpectError: regexp.MustCompile("has already passed"),
+				ExpectError: regexp.MustCompile("suppression_expiration_date value: must be in the future"),
 			},
 			// Test 4: Import state should succeed even with expired date (simulates Read behavior)
 			{
@@ -1483,37 +1483,6 @@ func TestCloudSecuritySuppressionRuleResource_ExpirationDateCreateValidation(t *
 	})
 }
 
-func TestCloudSecuritySuppressionRuleResource_ExpirationDateUpdateValidation(t *testing.T) {
-	randomSuffix := sdkacctest.RandString(8)
-	resourceName := "crowdstrike_cloud_security_suppression_rule.update_expiration_test"
-
-	// Set initial expiration to future date
-	futureDate := time.Now().Add(7 * 24 * time.Hour).UTC().Format(time.RFC3339)
-	// Set expired date for testing
-	expiredDate := time.Now().Add(-24 * time.Hour).UTC().Format(time.RFC3339)
-
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			// Step 1: Create with future expiration date
-			{
-				Config: testSuppressionRuleUpdateExpirationValidationStep1(randomSuffix, futureDate),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test Update Expiration %s", randomSuffix)),
-					resource.TestCheckResourceAttr(resourceName, "expiration_date", futureDate),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-				),
-			},
-			// Step 2: Try to update with expired date - should fail since config is changing
-			{
-				Config:      testSuppressionRuleUpdateExpirationValidationStep2(randomSuffix, expiredDate),
-				ExpectError: regexp.MustCompile("has already passed"),
-			},
-		},
-	})
-}
-
 func TestCloudSecuritySuppressionRuleResource_ExpirationDateUpdateWarningOnly(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_suppression_rule.update_expiration_warning_test"
@@ -1610,48 +1579,6 @@ resource "crowdstrike_cloud_security_suppression_rule" "expired_create_validatio
 
   rule_selection_filter = {
     names = ["Test Expired Create Validation Rule"]
-  }
-
-  asset_filter = {
-    cloud_providers = ["aws"]
-    regions        = ["us-east-1"]
-  }
-}
-`, suffix, expiredDate)
-}
-
-func testSuppressionRuleUpdateExpirationValidationStep1(suffix, futureDate string) string {
-	return fmt.Sprintf(`
-resource "crowdstrike_cloud_security_suppression_rule" "update_expiration_test" {
-  name                       = "TF Test Update Expiration %s"
-  type                       = "IOM"
-  description                = "Test update expiration validation - initial"
-  reason         = "false-positive"
-  expiration_date = "%s"
-
-  rule_selection_filter = {
-    names = ["Test Update Expiration Rule"]
-  }
-
-  asset_filter = {
-    cloud_providers = ["aws"]
-    regions        = ["us-east-1"]
-  }
-}
-`, suffix, futureDate)
-}
-
-func testSuppressionRuleUpdateExpirationValidationStep2(suffix, expiredDate string) string {
-	return fmt.Sprintf(`
-resource "crowdstrike_cloud_security_suppression_rule" "update_expiration_test" {
-  name                       = "TF Test Update Expiration %s"
-  type                       = "IOM"
-  description                = "Test update expiration validation - updated with expired date"
-  reason         = "false-positive"
-  expiration_date = "%s"
-
-  rule_selection_filter = {
-    names = ["Test Update Expiration Rule"]
   }
 
   asset_filter = {
