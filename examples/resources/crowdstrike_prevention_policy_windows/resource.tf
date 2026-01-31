@@ -48,6 +48,9 @@ resource "crowdstrike_prevention_policy_windows" "example" {
   extended_user_mode_data = {
     "detection" = "MODERATE"
   }
+  cloud_based_anomalous_process_execution = {
+    "detection" = "EXTRA_AGGRESSIVE"
+  }
   usb_insertion_triggered_scan                   = true
   application_exploitation_activity              = true
   additional_user_mode_data                      = true
@@ -102,7 +105,7 @@ resource "crowdstrike_prevention_policy_windows" "example" {
   file_system_containment                        = true
   wsl2_visibility                                = true
   boot_configuration_database_protection         = true
-  suspicious_file_analysis                       = false
+  suspicious_file_analysis                       = true
 }
 
 output "prevention_policy_windows" {
