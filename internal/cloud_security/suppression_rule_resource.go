@@ -519,20 +519,8 @@ func (r *cloudSecuritySuppressionRuleResource) Update(
 	}
 
 	if plan.ExpirationDate.Equal(state.ExpirationDate) {
-		if plan.ExpirationDate.ValueString() != "" {
-			if expired, diags := isTimestampExpired(plan.ExpirationDate); diags.HasError() {
-				resp.Diagnostics.AddWarning(
-					"Timestamp Parsing Warning",
-					fmt.Sprintf("Could not parse suppression expiration date: %s", diags.Errors()[0].Summary()),
-				)
-			} else if expired {
-				resp.Diagnostics.AddWarning(
-					"Rule Suppression Expired",
-					fmt.Sprintf("The suppression rule with ID %s has an expired expiration date but the date is not being changed. The rule is no longer suppressing findings. Consider updating the expiration date to a future date.", state.ID.ValueString()),
-				)
-			}
-		}
 		// Don't send expiration date to API if it hasn't changed, even if it's expired.
+		// A warning for the expired date is already in Read()
 		plan.ExpirationDate = timetypes.NewRFC3339Null()
 	} else if plan.ExpirationDate.ValueString() != "" {
 		if expired, diags := isTimestampExpired(plan.ExpirationDate); diags.HasError() {

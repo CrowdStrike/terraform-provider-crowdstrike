@@ -420,6 +420,20 @@ func TestCloudSecuritySuppressionRuleResource_AllRuleSelectionFilters(t *testing
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 				),
 			},
+			// Update to set some fields to null
+			{
+				Config: testSuppressionRuleAllRuleSelectionFiltersPartialConfig(randomSuffix),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "name", fmt.Sprintf("TF Test All Rule Filters %s", randomSuffix)),
+					resource.TestCheckNoResourceAttr(resourceName, "rule_selection_filter.ids"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.names.#", "1"),
+					resource.TestCheckNoResourceAttr(resourceName, "rule_selection_filter.origins"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.providers.#", "1"),
+					resource.TestCheckNoResourceAttr(resourceName, "rule_selection_filter.services"),
+					resource.TestCheckResourceAttr(resourceName, "rule_selection_filter.severities.#", "2"),
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+				),
+			},
 		},
 	})
 }
@@ -956,6 +970,31 @@ resource "crowdstrike_cloud_security_suppression_rule" "rule_filters_test" {
     origins    = ["Custom", "Default"]
     providers  = ["AWS", "Azure"]
     services   = ["EC2", "S3"]
+    severities = ["critical", "high"]
+  }
+
+  asset_filter = {
+    cloud_providers = ["aws"]
+    regions        = ["us-east-1"]
+  }
+}
+`, suffix)
+}
+
+func testSuppressionRuleAllRuleSelectionFiltersPartialConfig(suffix string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_security_suppression_rule" "rule_filters_test" {
+  name              = "TF Test All Rule Filters %s"
+  type              = "IOM"
+  description       = "Test partial rule selection filter types after setting some to null"
+  reason = "false-positive"
+
+  rule_selection_filter = {
+    # ids omitted (set to null)
+    names      = ["IAM root user has an active access key"]
+    # origins omitted (set to null)
+    providers  = ["AWS"]
+    # services omitted (set to null)
     severities = ["critical", "high"]
   }
 

@@ -105,15 +105,15 @@ output "suppression_rule" {
 
 - `name` (String) Name of the suppression rule
 - `reason` (String) Reason for suppression. One of: accept-risk, compensating-control, false-positive.
-- `type` (String) Type of suppression rule. Defaults to IOM.
+- `type` (String) Type of suppression rule. One of: IOM.
 
 ### Optional
 
-- `asset_filter` (Attributes) Filter criteria for scope assets. Within each attribute, assets match if they contain ANY of the specified values (OR logic). Between different attributes, assets must match ALL specified attributes (AND logic). For example: `account_ids = ["acc1", "acc2"]` AND `regions = ["us-east-1", "us-west-2"]` will select assets that are in (acc1 OR acc2) AND (us-east-1 OR us-west-2). (see [below for nested schema](#nestedatt--asset_filter))
+- `asset_filter` (Attributes) Filter criteria for scope assets. At least one of `rule_selection_filter` or `asset_filter` must be specified. If not assigned, defaults to all assets. Within each attribute, assets match if they contain ANY of the specified values (OR logic). Between different attributes, assets must match ALL specified attributes (AND logic). For example: `account_ids = ["acc1", "acc2"]` AND `regions = ["us-east-1", "us-west-2"]` will select assets that are in (acc1 OR acc2) AND (us-east-1 OR us-west-2). (see [below for nested schema](#nestedatt--asset_filter))
 - `comment` (String) Comment for suppression. This will be attached to the findings suppressed by this rule.
 - `description` (String) Description of the suppression rule.
 - `expiration_date` (String) Expiration date for suppression. If defined, must be in RFC3339 format (e.g., `2025-08-11T10:00:00Z`). Once set, clearing this field requires resource replacement. The suppression rule will still exist after expiration and can be reset by updating the expiration date.
-- `rule_selection_filter` (Attributes) Filter criteria for rule selection. Within each attribute, rules match if they contain ANY of the specified values (OR logic). Between different attributes, rules must match ALL specified attributes (AND logic). For example: `ids = ["rule1", "rule2"]` AND `severities = ["high", "critical"]` will select rules that are (rule1 OR rule2) AND (high OR critical severity). (see [below for nested schema](#nestedatt--rule_selection_filter))
+- `rule_selection_filter` (Attributes) Filter criteria for rule selection. At least one of `rule_selection_filter` or `asset_filter` must be specified. If not assigned, defaults to all rules. Within each attribute, rules match if they contain ANY of the specified values (OR logic). Between different attributes, rules must match ALL specified attributes (AND logic). For example: `ids = ["rule1", "rule2"]` AND `severities = ["high", "critical"]` will select rules that are (rule1 OR rule2) AND (high OR critical severity). (see [below for nested schema](#nestedatt--rule_selection_filter))
 
 ### Read-Only
 
