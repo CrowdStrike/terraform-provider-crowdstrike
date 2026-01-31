@@ -74,6 +74,14 @@ func NewConflictError(operation Operation, detail string) diag.ErrorDiagnostic {
 	)
 }
 
+// NewBadRequestError creates a diagnostic error for 400 Conflict responses.
+func NewBadRequestError(operation Operation, detail string) diag.ErrorDiagnostic {
+	return diag.NewErrorDiagnostic(
+		fmt.Sprintf("Failed to %s: 400 Bad Request", operation),
+		detail,
+	)
+}
+
 // ErrorOption configures optional behavior for NewDiagnosticFromAPIError.
 type ErrorOption func(*errorConfig)
 
@@ -83,6 +91,7 @@ type errorConfig struct {
 	notFoundDetail    string
 	conflictDetail    string
 	serverErrorDetail string
+	badRequestDetail  string
 	detail            string
 }
 
@@ -112,6 +121,13 @@ func WithConflictDetail(detail string) ErrorOption {
 func WithServerErrorDetail(detail string) ErrorOption {
 	return func(cfg *errorConfig) {
 		cfg.serverErrorDetail = detail
+	}
+}
+
+// WithBadRequestDetail provides a custom detail message for 400 Bad Request errors.
+func WithBadRequestDetail(detail string) ErrorOption {
+	return func(cfg *errorConfig) {
+		cfg.badRequestDetail = detail
 	}
 }
 
@@ -158,6 +174,13 @@ func NewDiagnosticFromAPIError(operation Operation, err error, apiScopes []scope
 				detail = err.Error()
 			}
 			return NewConflictError(operation, detail)
+
+		case statusErr.IsCode(400):
+			detail := cfg.badRequestDetail
+			if detail == "" {
+				detail = err.Error()
+			}
+			return NewBadRequestError(operation, detail)
 
 		case statusErr.IsServerError():
 			detail := cfg.serverErrorDetail

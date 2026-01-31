@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
 	"github.com/crowdstrike/gofalcon/falcon/client/d4c_registration"
 	"github.com/crowdstrike/gofalcon/falcon/client/host_group"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
@@ -63,6 +64,19 @@ func TestNewDiagnosticFromAPIError(t *testing.T) {
 			wantDiag:  NewConflictError(Create, d4c_registration.NewCreateDiscoverCloudAzureAccountConflict().Error()),
 		},
 		{
+			name:      "bad request error with custom detail",
+			err:       cloud_policies.NewCreateSuppressionRuleBadRequest(),
+			operation: Create,
+			options:   []ErrorOption{WithBadRequestDetail("Custom bad request message")},
+			wantDiag:  NewBadRequestError(Create, "Custom bad request message"),
+		},
+		{
+			name:      "bad request error with default detail",
+			err:       cloud_policies.NewCreateSuppressionRuleBadRequest(),
+			operation: Create,
+			wantDiag:  NewBadRequestError(Create, cloud_policies.NewCreateSuppressionRuleBadRequest().Error()),
+		},
+		{
 			name:      "server error",
 			err:       host_group.NewGetHostGroupsInternalServerError(),
 			operation: Update,
@@ -87,6 +101,7 @@ func TestNewDiagnosticFromAPIError(t *testing.T) {
 			options: []ErrorOption{
 				WithNotFoundDetail("Not found detail"),
 				WithConflictDetail("Conflict detail"),
+				WithBadRequestDetail("Bad request detail"),
 			},
 			wantDiag: NewConflictError(Create, "Conflict detail"),
 		},
