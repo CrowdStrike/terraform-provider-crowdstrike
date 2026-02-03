@@ -38,6 +38,7 @@ type cloudSecurityRulesDataSource struct {
 type cloudSecurityRulesDataSourceModel struct {
 	CloudProvider types.String `tfsdk:"cloud_provider"`
 	RuleName      types.String `tfsdk:"rule_name"`
+	Type          types.String `tfsdk:"type"`
 	ResourceType  types.String `tfsdk:"resource_type"`
 	Benchmark     types.String `tfsdk:"benchmark"`
 	Framework     types.String `tfsdk:"framework"`
@@ -48,6 +49,7 @@ type cloudSecurityRulesDataSourceModel struct {
 
 type cloudSecurityRulesDataSourceRuleModel struct {
 	ID              types.String `tfsdk:"id"`
+	Type            types.String `tfsdk:"type"`
 	AlertInfo       types.List   `tfsdk:"alert_info"`
 	Controls        types.Set    `tfsdk:"controls"`
 	Description     types.String `tfsdk:"description"`
@@ -72,7 +74,8 @@ type fqlFilters struct {
 
 func (m cloudSecurityRulesDataSourceRuleModel) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"id": types.StringType,
+		"id":   types.StringType,
+		"type": types.StringType,
 		"alert_info": types.ListType{
 			ElemType: types.StringType,
 		},
@@ -156,6 +159,14 @@ func (r *cloudSecurityRulesDataSource) Schema(
 					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
 				},
 			},
+			"type": schema.StringAttribute{
+				Optional:    true,
+				Description: "Rule type to filter by. Valid values are 'Default' or 'Custom'.",
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
+					stringvalidator.OneOf("Default", "Custom"),
+				},
+			},
 			"rule_name": schema.StringAttribute{
 				Optional:    true,
 				Description: "Name of the rule to search for.",
@@ -209,6 +220,10 @@ func (r *cloudSecurityRulesDataSource) Schema(
 									"must be a valid ID in the format of 7c86a274-c04b-4292-9f03-dafae42bde97",
 								),
 							},
+						},
+						"type": schema.StringAttribute{
+							Computed:    true,
+							Description: "Rule type indicating whether this is a Default or Custom rule.",
 						},
 						"alert_info": schema.ListAttribute{
 							Computed:    true,
@@ -318,6 +333,10 @@ func (r *cloudSecurityRulesDataSource) Read(
 		{
 			property: "rule_provider",
 			value:    data.CloudProvider.ValueString(),
+		},
+		{
+			property: "rule_origin",
+			value:    data.Type.ValueString(),
 		},
 		{
 			property: "rule_name",
@@ -489,6 +508,7 @@ func (r *cloudSecurityRulesDataSource) getRules(
 				CloudPlatform:  types.StringValue(resource.Platform),
 				CloudProvider:  types.StringPointerValue(resource.Provider),
 				Subdomain:      types.StringPointerValue(resource.Subdomain),
+				Type:           types.StringPointerValue(resource.Origin),
 			}
 
 			var policyControls []policyControl

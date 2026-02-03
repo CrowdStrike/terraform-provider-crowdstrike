@@ -78,6 +78,7 @@ data "crowdstrike_cloud_security_rules" "%[1]s" {
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.attack_types.#"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.resource_type"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.subdomain"),
+				resource.TestCheckResourceAttrSet(resourceName, "rules.0.type"),
 			),
 		},
 		{
@@ -103,6 +104,7 @@ data "crowdstrike_cloud_security_rules" "%[1]s" {
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.attack_types.#"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.resource_type"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.subdomain"),
+				resource.TestCheckResourceAttrSet(resourceName, "rules.0.type"),
 			),
 		},
 		{
@@ -124,6 +126,60 @@ data "crowdstrike_cloud_security_rules" "%s" {
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.attack_types.#"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.resource_type"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.subdomain"),
+				resource.TestCheckResourceAttrSet(resourceName, "rules.0.type"),
+			),
+		},
+		{
+			Config: fmt.Sprintf(`
+data "crowdstrike_cloud_security_rules" "%s" {
+  type = "Default"
+}
+`, config.cloudProvider),
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttrSet(resourceName, "rules.#"),
+				resource.TestMatchResourceAttr(resourceName, "rules.#", regexp.MustCompile(`^[1-9]\d*$`)),
+				func(s *terraform.State) error {
+					rs, ok := s.RootModule().Resources[resourceName]
+					if !ok {
+						return fmt.Errorf("Not found: %s", resourceName)
+					}
+					// Verify that all returned rules have type "Default"
+					for i := 0; ; i++ {
+						typeKey := fmt.Sprintf("rules.%d.type", i)
+						if typeVal, ok := rs.Primary.Attributes[typeKey]; !ok {
+							break
+						} else if typeVal != "Default" {
+							return fmt.Errorf("Expected rule %d to have type 'Default', got '%s'", i, typeVal)
+						}
+					}
+					return nil
+				},
+			),
+		},
+		{
+			Config: fmt.Sprintf(`
+data "crowdstrike_cloud_security_rules" "%s" {
+  type = "Custom"
+}
+`, config.cloudProvider),
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttrSet(resourceName, "rules.#"),
+				func(s *terraform.State) error {
+					rs, ok := s.RootModule().Resources[resourceName]
+					if !ok {
+						return fmt.Errorf("Not found: %s", resourceName)
+					}
+					// Verify that all returned rules have type "Custom"
+					for i := 0; ; i++ {
+						typeKey := fmt.Sprintf("rules.%d.type", i)
+						if typeVal, ok := rs.Primary.Attributes[typeKey]; !ok {
+							break
+						} else if typeVal != "Custom" {
+							return fmt.Errorf("Expected rule %d to have type 'Custom', got '%s'", i, typeVal)
+						}
+					}
+					return nil
+				},
 			),
 		},
 	}
@@ -186,6 +242,23 @@ data "crowdstrike_cloud_security_rules" "test" {
 }
 			`,
 			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		{
+			Config: `
+data "crowdstrike_cloud_security_rules" "test" {
+	fql  = "test"
+	type = "Default"
+}
+			`,
+			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		{
+			Config: `
+data "crowdstrike_cloud_security_rules" "test" {
+	type = "Invalid"
+}
+			`,
+			ExpectError: regexp.MustCompile("Invalid Attribute Value"),
 		},
 	}
 }
