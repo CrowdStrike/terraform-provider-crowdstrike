@@ -11,8 +11,8 @@ type dataRuleConfig struct {
 
 var awsConfig = dataRuleConfig{
 	cloudProvider: "AWS",
-	ruleName:      "NLB/ALB configured publicly with TLS/SSL disabled",
-	resourceType:  "AWS::ElasticLoadBalancingV2::LoadBalancer",
+	ruleName:      "ELB configured publicly with TLS/SSL disabled",
+	resourceType:  "AWS::ElasticLoadBalancing::LoadBalancer",
 	benchmark:     "CIS*",
 	framework:     "CIS",
 	service:       "ELB",
