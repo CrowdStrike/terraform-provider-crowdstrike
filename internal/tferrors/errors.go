@@ -3,6 +3,8 @@ package tferrors
 import (
 	"fmt"
 
+	"github.com/crowdstrike/gofalcon/falcon"
+	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/go-openapi/runtime"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -202,4 +204,16 @@ func NewDiagnosticFromAPIError(operation Operation, err error, apiScopes []scope
 		fmt.Sprintf("Failed to %s", operation),
 		detail,
 	)
+}
+
+// NewDiagnosticFromPayloadErrors converts API payload errors to a Terraform diagnostic.
+// This function checks for application-level errors within the API response payload
+// using falcon.AssertNoError to convert MsaAPIError list to golang errors.
+// Returns nil if there are no payload errors.
+func NewDiagnosticFromPayloadErrors(operation Operation, payloadErrors []*models.MsaAPIError) diag.Diagnostic {
+	// todo: in goFalcon implement a better error check that returns a better format
+	if err := falcon.AssertNoError(payloadErrors); err != nil {
+		return NewOperationError(operation, err)
+	}
+	return nil
 }
