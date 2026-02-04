@@ -124,7 +124,7 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.attack_types.#"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.resource_type"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.subdomain"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.type"),
+				resource.TestCheckResourceAttrSet(resourceName, "rules.0.rule_origin"),
 			),
 		},
 		{
@@ -150,7 +150,7 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.attack_types.#"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.resource_type"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.subdomain"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.type"),
+				resource.TestCheckResourceAttrSet(resourceName, "rules.0.rule_origin"),
 			),
 		},
 		{
@@ -172,7 +172,7 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.attack_types.#"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.resource_type"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.subdomain"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.type"),
+				resource.TestCheckResourceAttrSet(resourceName, "rules.0.rule_origin"),
 			),
 		},
 		{
@@ -190,7 +190,7 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 		 benchmark = "%[4]s"
 		}
 		data "crowdstrike_cloud_security_rules" "%[1]s" {
-		  type = "Custom"
+		  rule_origin = "Custom"
 		}
 		`, config.cloudProvider, config.cloudProvider, config.ruleName, config.benchmark, config.resourceType),
 			Check: resource.ComposeAggregateTestCheckFunc(
@@ -200,13 +200,13 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 					if !ok {
 						return fmt.Errorf("Not found: %s", resourceName)
 					}
-					// Verify that all returned rules have type "Custom"
+					// Verify that all returned rules have rule_origin "Custom"
 					for i := 0; ; i++ {
-						typeKey := fmt.Sprintf("rules.%d.type", i)
+						typeKey := fmt.Sprintf("rules.%d.rule_origin", i)
 						if typeVal, ok := rs.Primary.Attributes[typeKey]; !ok {
 							break
 						} else if typeVal != "Custom" {
-							return fmt.Errorf("Expected rule %d to have type 'Custom', got '%s'", i, typeVal)
+							return fmt.Errorf("Expected rule %d to have rule_origin 'Custom', got '%s'", i, typeVal)
 						}
 					}
 					return nil
@@ -278,7 +278,7 @@ data "crowdstrike_cloud_security_rules" "test" {
 			Config: `
 data "crowdstrike_cloud_security_rules" "test" {
 	fql  = "test"
-	type = "Default"
+	rule_origin = "Default"
 }
 			`,
 			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
@@ -286,7 +286,7 @@ data "crowdstrike_cloud_security_rules" "test" {
 		{
 			Config: `
 data "crowdstrike_cloud_security_rules" "test" {
-	type = "Invalid"
+	rule_origin = "Invalid"
 }
 			`,
 			ExpectError: regexp.MustCompile("Invalid Attribute Value"),
