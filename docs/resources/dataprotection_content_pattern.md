@@ -1,5 +1,5 @@
 ---
-page_title: "crowdstrike_data_protection_content_pattern Resource - crowdstrike"
+page_title: "crowdstrike_dataprotection_content_pattern Resource - crowdstrike"
 subcategory: "Data Protection"
 description: |-
   A content pattern defines custom regex-based patterns to detect sensitive data.
@@ -8,7 +8,7 @@ description: |-
   Data Protection | Read & Write
 ---
 
-# crowdstrike_data_protection_content_pattern (Resource)
+# crowdstrike_dataprotection_content_pattern (Resource)
 
 A content pattern defines custom regex-based patterns to detect sensitive data.
 
@@ -22,7 +22,7 @@ The following API scopes are required:
 ## Example Usage
 
 ```terraform
-resource "crowdstrike_data_protection_content_pattern" "api_key" {
+resource "crowdstrike_dataprotection_content_pattern" "api_key" {
   name                = "API Key Pattern"
   description         = "Internal API Key pattern"
   regex               = "api[_-]?key[_-]?[a-zA-Z0-9]{32}"
@@ -55,5 +55,5 @@ Import is supported using the following syntax:
 ```shell
 #!/bin/bash
 # Import an existing data protection content pattern by ID
-terraform import crowdstrike_data_protection_content_pattern.example <pattern-id>
+terraform import crowdstrike_dataprotection_content_pattern.example <pattern-id>
 ```

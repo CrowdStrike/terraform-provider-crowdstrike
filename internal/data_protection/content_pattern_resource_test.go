@@ -12,7 +12,7 @@ import (
 
 func TestAccDataProtectionContentPatternResource_Basic(t *testing.T) {
 	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
-	resourceName := "crowdstrike_data_protection_content_pattern.test"
+	resourceName := "crowdstrike_dataprotection_content_pattern.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -66,7 +66,7 @@ func TestAccDataProtectionContentPatternResource_InvalidRegex(t *testing.T) {
 
 func testAccDataProtectionContentPatternBasic(name string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_data_protection_content_pattern" "test" {
+resource "crowdstrike_dataprotection_content_pattern" "test" {
   name                = %[1]q
   description         = "SSN pattern"
   regex               = "\\b\\d{3}-\\d{2}-\\d{4}\\b"
@@ -77,7 +77,7 @@ resource "crowdstrike_data_protection_content_pattern" "test" {
 
 func testAccDataProtectionContentPatternUpdated(name string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_data_protection_content_pattern" "test" {
+resource "crowdstrike_dataprotection_content_pattern" "test" {
   name                = "%s-updated"
   description         = "Updated email pattern"
   regex               = "\\b[A-Za-z0-9._%%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b"
@@ -88,7 +88,7 @@ resource "crowdstrike_data_protection_content_pattern" "test" {
 
 func testAccDataProtectionContentPatternInvalidRegex() string {
 	return acctest.ProviderConfig + `
-resource "crowdstrike_data_protection_content_pattern" "test" {
+resource "crowdstrike_dataprotection_content_pattern" "test" {
   name                = "test-invalid-regex"
   regex               = "[invalid(regex"
   min_match_threshold = 1

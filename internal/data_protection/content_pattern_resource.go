@@ -57,7 +57,7 @@ func (r *dataProtectionContentPatternResource) Metadata(
 	req resource.MetadataRequest,
 	resp *resource.MetadataResponse,
 ) {
-	resp.TypeName = req.ProviderTypeName + "_data_protection_content_pattern"
+	resp.TypeName = req.ProviderTypeName + "_dataprotection_content_pattern"
 }
 
 func (r *dataProtectionContentPatternResource) Configure(
