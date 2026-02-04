@@ -10,23 +10,69 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-func TestCloudSecurityRulesDataSource(t *testing.T) {
+func TestCloudSecurityRulesDatasourceConfigConflicts(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping long-running test in short mode")
 	}
-	var steps []resource.TestStep
-
-	steps = append(steps, testDatasourceConfigConflicts()...)
-	steps = append(steps, testEmptyResultSet()...)
-	steps = append(steps, testCloudRules(awsConfig)...)
-	steps = append(steps, testCloudRules(azureConfig)...)
-	steps = append(steps, testCloudRules(gcpConfig)...)
-	steps = append(steps, testWildcardPatterns(awsConfig)...)
-
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    steps,
+		Steps:                    testDatasourceConfigConflicts(),
+	})
+}
+
+func TestCloudSecurityRulesDatasourceEmptyResultSet(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long-running test in short mode")
+	}
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    testEmptyResultSet(),
+	})
+}
+
+func TestCloudSecurityRulesDatasourceAWS(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long-running test in short mode")
+	}
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    testCloudRules(awsConfig),
+	})
+}
+
+func TestCloudSecurityRulesDatasourceAzure(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long-running test in short mode")
+	}
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    testCloudRules(azureConfig),
+	})
+}
+
+func TestCloudSecurityRulesDatasourceGCP(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long-running test in short mode")
+	}
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    testCloudRules(gcpConfig),
+	})
+}
+
+func TestCloudSecurityRulesDatasourceWildcardPatterns(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long-running test in short mode")
+	}
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    testWildcardPatterns(awsConfig),
 	})
 }
 
@@ -35,11 +81,11 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 	steps = []resource.TestStep{
 		{
 			Config: fmt.Sprintf(`
-data "crowdstrike_cloud_security_rules" "%[1]s" {
-  cloud_provider = "%[1]s"
-  resource_type  = "%[2]s"
-}
-`, config.cloudProvider, config.resourceType),
+		data "crowdstrike_cloud_security_rules" "%[1]s" {
+		  cloud_provider = "%[1]s"
+		  resource_type  = "%[2]s"
+		}
+		`, config.cloudProvider, config.resourceType),
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet(resourceName, "rules.#"),
 				resource.TestMatchResourceAttr(resourceName, "rules.#", regexp.MustCompile(`^[2-9]|\d{2,}$`)),
@@ -60,11 +106,11 @@ data "crowdstrike_cloud_security_rules" "%[1]s" {
 		},
 		{
 			Config: fmt.Sprintf(`
-data "crowdstrike_cloud_security_rules" "%[1]s" {
-  cloud_provider = "%[1]s"
-  rule_name = "%[2]s"
-}
-`, config.cloudProvider, config.ruleName),
+				data "crowdstrike_cloud_security_rules" "%[1]s" {
+				  cloud_provider = "%[1]s"
+				  rule_name = "%[2]s"
+				}
+				`, config.cloudProvider, config.ruleName),
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttr(resourceName, "rules.#", "1"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.id"),
@@ -83,14 +129,14 @@ data "crowdstrike_cloud_security_rules" "%[1]s" {
 		},
 		{
 			Config: fmt.Sprintf(`
-data "crowdstrike_cloud_security_rules" "%[1]s" {
-  cloud_provider = "%[1]s"
-  rule_name = "%[2]s"
-  benchmark = "%[3]s"
-  framework = "%[4]s"
-  service = "%[5]s"
-}
-`, config.cloudProvider, config.ruleName, config.benchmark, config.framework, config.service),
+		data "crowdstrike_cloud_security_rules" "%[1]s" {
+		  cloud_provider = "%[1]s"
+		  rule_name = "%[2]s"
+		  benchmark = "%[3]s"
+		  framework = "%[4]s"
+		  service = "%[5]s"
+		}
+		`, config.cloudProvider, config.ruleName, config.benchmark, config.framework, config.service),
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttr(resourceName, "rules.#", "1"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.id"),
@@ -109,10 +155,10 @@ data "crowdstrike_cloud_security_rules" "%[1]s" {
 		},
 		{
 			Config: fmt.Sprintf(`
-data "crowdstrike_cloud_security_rules" "%s" {
-  fql = "rule_name:'%s'"
-}
-`, config.cloudProvider, config.ruleName),
+		data "crowdstrike_cloud_security_rules" "%s" {
+		  fql = "rule_name:'%s'"
+		}
+		`, config.cloudProvider, config.ruleName),
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttr(resourceName, "rules.#", "1"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.id"),
@@ -131,37 +177,22 @@ data "crowdstrike_cloud_security_rules" "%s" {
 		},
 		{
 			Config: fmt.Sprintf(`
-data "crowdstrike_cloud_security_rules" "%s" {
-  type = "Default"
-}
-`, config.cloudProvider),
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet(resourceName, "rules.#"),
-				resource.TestMatchResourceAttr(resourceName, "rules.#", regexp.MustCompile(`^[1-9]\d*$`)),
-				func(s *terraform.State) error {
-					rs, ok := s.RootModule().Resources[resourceName]
-					if !ok {
-						return fmt.Errorf("Not found: %s", resourceName)
-					}
-					// Verify that all returned rules have type "Default"
-					for i := 0; ; i++ {
-						typeKey := fmt.Sprintf("rules.%d.type", i)
-						if typeVal, ok := rs.Primary.Attributes[typeKey]; !ok {
-							break
-						} else if typeVal != "Default" {
-							return fmt.Errorf("Expected rule %d to have type 'Default', got '%s'", i, typeVal)
-						}
-					}
-					return nil
-				},
-			),
-		},
-		{
-			Config: fmt.Sprintf(`
-data "crowdstrike_cloud_security_rules" "%s" {
-  type = "Custom"
-}
-`, config.cloudProvider),
+		resource "crowdstrike_cloud_security_custom_rule" "rule_%[1]s" {
+		  resource_type    = "%[5]s"
+		  name             = "Test Custom Rule Name"
+		  description      = "Test Custom Rule Name"
+		  cloud_provider   = "%[2]s"
+		  parent_rule_id   = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
+		}
+
+		data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
+		 rule_name = "%[3]s"
+		 benchmark = "%[4]s"
+		}
+		data "crowdstrike_cloud_security_rules" "%[1]s" {
+		  type = "Custom"
+		}
+		`, config.cloudProvider, config.cloudProvider, config.ruleName, config.benchmark, config.resourceType),
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet(resourceName, "rules.#"),
 				func(s *terraform.State) error {

@@ -160,8 +160,8 @@ func (r *cloudSecurityRulesDataSource) Schema(
 				},
 			},
 			"type": schema.StringAttribute{
-				Optional:    true,
-				Description: "Rule type to filter by. Valid values are 'Default' or 'Custom'.",
+				Optional:            true,
+				MarkdownDescription: "Rule type to filter by. Valid values are 'Default' or 'Custom'.",
 				Validators: []validator.String{
 					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
 					stringvalidator.OneOf("Default", "Custom"),
@@ -402,7 +402,11 @@ func (r *cloudSecurityRulesDataSource) getRules(
 		for _, f := range fqlFilters {
 			if f.value != "" {
 				value := strings.ReplaceAll(f.value, "\\", "\\\\\\\\")
-				filters = append(filters, fmt.Sprintf("%s:*'%s'", f.property, value))
+				if f.property == "rule_origin" {
+					filters = append(filters, fmt.Sprintf("%s:'%s'", f.property, value))
+				} else {
+					filters = append(filters, fmt.Sprintf("%s:*'%s'", f.property, value))
+				}
 			}
 		}
 

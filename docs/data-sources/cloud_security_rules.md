@@ -70,6 +70,7 @@ data "crowdstrike_cloud_security_rules" "original" {
 - `resource_type` (String) Name of the resource type to search for. Examples: `AWS::IAM::CredentialReport`, `Microsoft.Compute/virtualMachines`, `container.googleapis.com/Cluster`.
 - `rule_name` (String) Name of the rule to search for.
 - `service` (String) Name of the service within the cloud provider that rule is for. Examples: IAM, S3, Microsoft.Compute
+- `type` (String) Rule type to filter by. Valid values are 'Default' or 'Custom'.
 
 ### Read-Only
 
@@ -96,6 +97,7 @@ Read-Only:
 - `resource_type` (String) The full resource type. Format examples: `AWS::IAM::CredentialReport`, `Microsoft.Compute/virtualMachines`, `container.googleapis.com/Cluster`
 - `severity` (String) Severity of the rule. Valid values are `critical`, `high`, `medium`, `informational`.
 - `subdomain` (String) Subdomain for the policy rule. Valid values are 'IOM' (Indicators of Misconfiguration) or 'IAC' (Infrastructure as Code).
+- `type` (String) Rule type indicating whether this is a Default or Custom rule.
 
 <a id="nestedatt--rules--controls"></a>
 ### Nested Schema for `rules.controls`
