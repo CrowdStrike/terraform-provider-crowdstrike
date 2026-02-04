@@ -7,7 +7,9 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
 	"github.com/crowdstrike/gofalcon/falcon/client/d4c_registration"
 	"github.com/crowdstrike/gofalcon/falcon/client/host_group"
+	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/stretchr/testify/assert"
 )
@@ -110,6 +112,95 @@ func TestNewDiagnosticFromAPIError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gotDiag := NewDiagnosticFromAPIError(tt.operation, tt.err, testScopes, tt.options...)
+			assert.Equal(t, tt.wantDiag, gotDiag)
+		})
+	}
+}
+
+func TestNewDiagnosticFromPayloadErrors(t *testing.T) {
+	tests := []struct {
+		name          string
+		operation     Operation
+		payloadErrors []*models.MsaAPIError
+		wantDiag      diag.Diagnostic
+	}{
+		{
+			name:          "nil errors",
+			operation:     Create,
+			payloadErrors: nil,
+			wantDiag:      nil,
+		},
+		{
+			name:          "empty errors",
+			operation:     Create,
+			payloadErrors: []*models.MsaAPIError{},
+			wantDiag:      nil,
+		},
+		{
+			name:      "single error",
+			operation: Create,
+			payloadErrors: []*models.MsaAPIError{
+				{
+					Code:    utils.Addr(int32(400)),
+					Message: utils.Addr("Invalid parameter"),
+				},
+			},
+			wantDiag: NewOperationError(
+				Create,
+				errors.New("API Error : Invalid parameter"),
+			),
+		},
+		{
+			name:      "multiple errors",
+			operation: Update,
+			payloadErrors: []*models.MsaAPIError{
+				{
+					Code:    utils.Addr(int32(400)),
+					Message: utils.Addr("First error"),
+				},
+				{
+					Code:    utils.Addr(int32(400)),
+					Message: utils.Addr("Second error"),
+				},
+			},
+			wantDiag: NewOperationError(
+				Update,
+				errors.New("API Error : First errorAPI Error : Second error"),
+			),
+		},
+		{
+			name:      "read operation",
+			operation: Read,
+			payloadErrors: []*models.MsaAPIError{
+				{
+					Code:    utils.Addr(int32(404)),
+					Message: utils.Addr("Resource not found"),
+				},
+			},
+			wantDiag: NewOperationError(
+				Read,
+				errors.New("API Error : Resource not found"),
+			),
+		},
+		{
+			name:      "delete operation",
+			operation: Delete,
+			payloadErrors: []*models.MsaAPIError{
+				{
+					Code:    utils.Addr(int32(500)),
+					Message: utils.Addr("Internal server error"),
+				},
+			},
+			wantDiag: NewOperationError(
+				Delete,
+				errors.New("API Error : Internal server error"),
+			),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotDiag := NewDiagnosticFromPayloadErrors(tt.operation, tt.payloadErrors)
 			assert.Equal(t, tt.wantDiag, gotDiag)
 		})
 	}
