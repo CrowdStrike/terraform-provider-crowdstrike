@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon"
@@ -35,7 +36,7 @@ var (
 	suppressionRulesDataSourceDocumentationSection string = "Falcon Cloud Security"
 	suppressionRulesDataSourceMarkdownDescription  string = "This data source retrieves detailed information about cloud security suppression rules. " +
 		"Suppression rules define criteria for automatically suppressing findings, such as IOMs, across your environment. " +
-		"All non-FQL fields can accept wildcards `*` and query Falcon using logical AND. If FQL is defined, all other fields will be ignored. " +
+		"Text-based fields (`name`, `description`) accept wildcards `*`. All fields query Falcon using logical AND. If FQL is defined, all other fields will be ignored. " +
 		"For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter."
 )
 
@@ -52,7 +53,7 @@ type cloudSecuritySuppressionRulesDataSourceModel struct {
 	Name        types.String `tfsdk:"name"`
 	Description types.String `tfsdk:"description"`
 	Reason      types.String `tfsdk:"reason"`
-	Comment     types.String `tfsdk:"comment"`
+	Disabled    types.Bool   `tfsdk:"disabled"`
 	FQL         types.String `tfsdk:"fql"`
 	Rules       types.Set    `tfsdk:"rules"`
 }
@@ -67,9 +68,6 @@ type cloudSecuritySuppressionRulesDataSourceRuleModel struct {
 	Comment             types.String      `tfsdk:"comment"`
 	ExpirationDate      timetypes.RFC3339 `tfsdk:"expiration_date"`
 	Reason              types.String      `tfsdk:"reason"`
-	CreatedBy           types.String      `tfsdk:"created_by"`
-	CreatedAt           timetypes.RFC3339 `tfsdk:"created_at"`
-	UpdatedAt           timetypes.RFC3339 `tfsdk:"updated_at"`
 }
 
 type suppressionRulesFqlFilters struct {
@@ -92,9 +90,6 @@ func (m cloudSecuritySuppressionRulesDataSourceRuleModel) AttributeTypes() map[s
 		"comment":         types.StringType,
 		"expiration_date": timetypes.RFC3339Type{},
 		"reason":          types.StringType,
-		"created_by":      types.StringType,
-		"created_at":      timetypes.RFC3339Type{},
-		"updated_at":      timetypes.RFC3339Type{},
 	}
 }
 
@@ -145,7 +140,7 @@ func (r *cloudSecuritySuppressionRulesDataSource) Schema(
 		Attributes: map[string]schema.Attribute{
 			"type": schema.StringAttribute{
 				Optional:    true,
-				Description: "Type of suppression rule to filter by. One of: IOM.",
+				Description: "Type of suppression rule to filter by. This corresponds to the subdomain field in the API. One of: IOM.",
 				Validators: []validator.String{
 					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
 					stringvalidator.OneOf(suppressionRuleSubdomainDefault),
@@ -153,14 +148,14 @@ func (r *cloudSecuritySuppressionRulesDataSource) Schema(
 			},
 			"name": schema.StringAttribute{
 				Optional:    true,
-				Description: "Name of the suppression rule to search for.",
+				Description: "Name of the suppression rule to search for. Wildcards are accepted (e.g., *suppression rule*).",
 				Validators: []validator.String{
 					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
 				},
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
-				Description: "Description of the suppression rule to search for.",
+				Description: "Description of the suppression rule to search for. Wildcards are accepted (e.g., *suppression rule*).",
 				Validators: []validator.String{
 					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
 				},
@@ -170,23 +165,16 @@ func (r *cloudSecuritySuppressionRulesDataSource) Schema(
 				Description: "Suppression reason to filter by. One of: accept-risk, compensating-control, false-positive.",
 				Validators: []validator.String{
 					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
-					stringvalidator.OneOf(
-						"accept-risk",
-						"compensating-control",
-						"false-positive",
-					),
+					stringvalidator.OneOf(suppressionRuleReasonValues...),
 				},
 			},
-			"comment": schema.StringAttribute{
+			"disabled": schema.BoolAttribute{
 				Optional:    true,
-				Description: "Comment text to search for in suppression rules.",
-				Validators: []validator.String{
-					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
-				},
+				Description: "Filter suppression rules by disabled status. When false, shows only active rules (non-expired). When true, shows all rules including expired ones. If not specified, shows all rules.",
 			},
 			"fql": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "Falcon Query Language (FQL) filter for advanced suppression rule searches. FQL filter, allowed props: `name`, `description`, `subdomain`, `suppression_reason`, `suppression_comment`, `created_by`, `created_on`, `last_modified`",
+				MarkdownDescription: "Falcon Query Language (FQL) filter for advanced suppression rule searches. FQL filter, allowed props: `name`, `description`, `subdomain`, `suppression_reason`, `disabled`",
 			},
 			"rules": schema.SetNestedAttribute{
 				Computed:    true,
@@ -227,20 +215,6 @@ func (r *cloudSecuritySuppressionRulesDataSource) Schema(
 						"reason": schema.StringAttribute{
 							Computed:    true,
 							Description: "Reason for suppression. One of: accept-risk, compensating-control, false-positive.",
-						},
-						"created_by": schema.StringAttribute{
-							Computed:    true,
-							Description: "User who created the suppression rule.",
-						},
-						"created_at": schema.StringAttribute{
-							CustomType:  timetypes.RFC3339Type{},
-							Computed:    true,
-							Description: "Creation date of the suppression rule in RFC3339 format.",
-						},
-						"updated_at": schema.StringAttribute{
-							CustomType:  timetypes.RFC3339Type{},
-							Computed:    true,
-							Description: "Last update date of the suppression rule in RFC3339 format.",
 						},
 						"rule_selection_filter": schema.SingleNestedAttribute{
 							Computed:            true,
@@ -367,8 +341,16 @@ func (r *cloudSecuritySuppressionRulesDataSource) Read(
 			value:    data.Reason.ValueString(),
 		},
 		{
-			property: "suppression_comment",
-			value:    data.Comment.ValueString(),
+			property: "disabled",
+			value: func() string {
+				if data.Disabled.IsNull() {
+					return ""
+				}
+				if data.Disabled.ValueBool() {
+					return "true"
+				}
+				return "false"
+			}(),
 		},
 	}
 
@@ -398,7 +380,7 @@ func (r *cloudSecuritySuppressionRulesDataSource) getSuppressionRules(
 	var rules []cloudSecuritySuppressionRulesDataSourceRuleModel
 	var diags diag.Diagnostics
 	var filter string
-	limit := int64(100)
+	limit := GetPageLimit()
 	offset := int64(0)
 	defaultResponse := types.SetValueMust(types.ObjectType{AttrTypes: cloudSecuritySuppressionRulesDataSourceRuleModel{}.AttributeTypes()}, []attr.Value{})
 
@@ -410,10 +392,16 @@ func (r *cloudSecuritySuppressionRulesDataSource) getSuppressionRules(
 
 	if fql == "" {
 		var filters []string
+		exactMatchFields := []string{"subdomain", "suppression_reason", "disabled"}
+
 		for _, f := range fqlFilters {
 			if f.value != "" {
 				value := strings.ReplaceAll(f.value, "\\", "\\\\\\\\")
-				filters = append(filters, fmt.Sprintf("%s:*'%s'", f.property, value))
+				if slices.Contains(exactMatchFields, f.property) {
+					filters = append(filters, fmt.Sprintf("%s:'%s'", f.property, value))
+				} else {
+					filters = append(filters, fmt.Sprintf("%s:*'%s'", f.property, value))
+				}
 			}
 		}
 
@@ -443,10 +431,7 @@ func (r *cloudSecuritySuppressionRulesDataSource) getSuppressionRules(
 		queryPayload := queryResp.GetPayload()
 
 		if err = falcon.AssertNoError(queryPayload.Errors); err != nil {
-			diags.AddError(
-				"Error Querying Suppression Rules",
-				fmt.Sprintf("Failed to query suppression rules: %s", err.Error()),
-			)
+			diags.Append(tferrors.NewOperationError(tferrors.Read, err))
 			return defaultResponse, diags
 		}
 
@@ -467,20 +452,14 @@ func (r *cloudSecuritySuppressionRulesDataSource) getSuppressionRules(
 		}
 
 		if getSuppressionRulesResp == nil || getSuppressionRulesResp.Payload == nil || len(getSuppressionRulesResp.Payload.Resources) == 0 {
-			diags.AddError(
-				"Error Fetching Suppression Rule Information",
-				"Failed to fetch suppression rule information: The API returned an empty payload.",
-			)
+			diags.Append(tferrors.NewEmptyResponseError(tferrors.Read))
 			return defaultResponse, diags
 		}
 
 		getSuppressionRulesPayload := getSuppressionRulesResp.GetPayload()
 
 		if err = falcon.AssertNoError(getSuppressionRulesPayload.Errors); err != nil {
-			diags.AddError(
-				"Error Fetching Suppression Rule Information",
-				fmt.Sprintf("Failed to fetch suppression rule information: %s", err.Error()),
-			)
+			diags.Append(tferrors.NewOperationError(tferrors.Read, err))
 			return defaultResponse, diags
 		}
 
@@ -492,24 +471,9 @@ func (r *cloudSecuritySuppressionRulesDataSource) getSuppressionRules(
 				Comment:     flex.StringValueToFramework(resource.SuppressionComment),
 				Reason:      flex.StringPointerToFramework(resource.SuppressionReason),
 				Type:        flex.StringPointerToFramework(resource.Subdomain),
-				CreatedBy:   flex.StringPointerToFramework(resource.CreatedBy),
 			}
 
 			rule.ExpirationDate, diags = flex.RFC3339ValueToFramework(resource.SuppressionExpirationDate)
-			if diags.HasError() {
-				return defaultResponse, diags
-			}
-
-			var createdAtStr string
-			if resource.CreatedAt != nil {
-				createdAtStr = resource.CreatedAt.String()
-			}
-			rule.CreatedAt, diags = flex.RFC3339ValueToFramework(createdAtStr)
-			if diags.HasError() {
-				return defaultResponse, diags
-			}
-
-			rule.UpdatedAt, diags = flex.RFC3339ValueToFramework(resource.UpdatedAt.String())
 			if diags.HasError() {
 				return defaultResponse, diags
 			}
