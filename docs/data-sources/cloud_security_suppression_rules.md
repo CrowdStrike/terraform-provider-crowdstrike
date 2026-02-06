@@ -2,7 +2,7 @@
 page_title: "crowdstrike_cloud_security_suppression_rules Data Source - crowdstrike"
 subcategory: "Falcon Cloud Security"
 description: |-
-  This data source retrieves detailed information about cloud security suppression rules. Suppression rules define criteria for automatically suppressing findings, such as IOMs, across your environment. All non-FQL fields can accept wildcards * and query Falcon using logical AND. If FQL is defined, all other fields will be ignored. For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter.
+  This data source retrieves detailed information about cloud security suppression rules. Suppression rules define criteria for automatically suppressing findings, such as IOMs, across your environment. Text-based fields (name, description) accept wildcards *. All fields query Falcon using logical AND. If FQL is defined, all other fields will be ignored. For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter.
   API Scopes
   The following API scopes are required:
   Cloud Security Policies | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_cloud_security_suppression_rules (Data Source)
 
-This data source retrieves detailed information about cloud security suppression rules. Suppression rules define criteria for automatically suppressing findings, such as IOMs, across your environment. All non-FQL fields can accept wildcards `*` and query Falcon using logical AND. If FQL is defined, all other fields will be ignored. For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter.
+This data source retrieves detailed information about cloud security suppression rules. Suppression rules define criteria for automatically suppressing findings, such as IOMs, across your environment. Text-based fields (`name`, `description`) accept wildcards `*`. All fields query Falcon using logical AND. If FQL is defined, all other fields will be ignored. For advanced queries to further narrow your search, please use a Falcon Query Language (FQL) filter.
 
 ## API Scopes
 
@@ -35,33 +35,7 @@ provider "crowdstrike" {
 }
 
 # Get all suppression rules
-data "crowdstrike_cloud_security_suppression_rules" "all" {
-}
-
-# Filter by suppression rule type
-data "crowdstrike_cloud_security_suppression_rules" "by_type" {
-  type = "IOM"
-}
-
-# Filter by suppression reason
-data "crowdstrike_cloud_security_suppression_rules" "by_reason" {
-  reason = "false-positive"
-}
-
-# Filter by name with wildcard pattern
-data "crowdstrike_cloud_security_suppression_rules" "by_name" {
-  name = "Production*"
-}
-
-# Filter by description
-data "crowdstrike_cloud_security_suppression_rules" "by_description" {
-  description = "*load balancer*"
-}
-
-# Filter by comment text
-data "crowdstrike_cloud_security_suppression_rules" "by_comment" {
-  comment = "*approved by security team*"
-}
+data "crowdstrike_cloud_security_suppression_rules" "all" {}
 
 # Use FQL for advanced filtering
 data "crowdstrike_cloud_security_suppression_rules" "fql_advanced" {
@@ -81,12 +55,12 @@ data "crowdstrike_cloud_security_suppression_rules" "combined" {
 
 ### Optional
 
-- `comment` (String) Comment text to search for in suppression rules.
-- `description` (String) Description of the suppression rule to search for.
-- `fql` (String) Falcon Query Language (FQL) filter for advanced suppression rule searches. FQL filter, allowed props: `name`, `description`, `subdomain`, `suppression_reason`, `suppression_comment`, `created_by`, `created_on`, `last_modified`
-- `name` (String) Name of the suppression rule to search for.
+- `description` (String) Description of the suppression rule to search for. Wildcards are accepted (e.g., *suppression rule*).
+- `disabled` (Boolean) Filter suppression rules by disabled status. When false, shows only active rules (non-expired). When true, shows all rules including expired ones. If not specified, shows all rules.
+- `fql` (String) Falcon Query Language (FQL) filter for advanced suppression rule searches. FQL filter, allowed props: `name`, `description`, `subdomain`, `suppression_reason`, `disabled`
+- `name` (String) Name of the suppression rule to search for. Wildcards are accepted (e.g., *suppression rule*).
 - `reason` (String) Suppression reason to filter by. One of: accept-risk, compensating-control, false-positive.
-- `type` (String) Type of suppression rule to filter by. One of: IOM.
+- `type` (String) Type of suppression rule to filter by. This corresponds to the subdomain field in the API. One of: IOM.
 
 ### Read-Only
 
@@ -99,8 +73,6 @@ Read-Only:
 
 - `asset_filter` (Attributes) Filter criteria for scope assets. Within each attribute, assets match if they contain ANY of the specified values (OR logic). Between different attributes, assets must match ALL specified attributes (AND logic). (see [below for nested schema](#nestedatt--rules--asset_filter))
 - `comment` (String) Comment for suppression. This will be attached to the findings suppressed by this rule.
-- `created_at` (String) Creation date of the suppression rule in RFC3339 format.
-- `created_by` (String) User who created the suppression rule.
 - `description` (String) Description of the suppression rule.
 - `expiration_date` (String) Expiration date for suppression in RFC3339 format.
 - `id` (String) Unique identifier of the suppression rule.
@@ -108,7 +80,6 @@ Read-Only:
 - `reason` (String) Reason for suppression. One of: accept-risk, compensating-control, false-positive.
 - `rule_selection_filter` (Attributes) Filter criteria for rule selection. Within each attribute, rules match if they contain ANY of the specified values (OR logic). Between different attributes, rules must match ALL specified attributes (AND logic). (see [below for nested schema](#nestedatt--rules--rule_selection_filter))
 - `type` (String) Type of suppression rule. One of: IOM.
-- `updated_at` (String) Last update date of the suppression rule in RFC3339 format.
 
 <a id="nestedatt--rules--asset_filter"></a>
 ### Nested Schema for `rules.asset_filter`
@@ -124,6 +95,7 @@ Read-Only:
 - `resource_types` (Set of String) Set of resource types. Examples: `AWS::S3::Bucket`, `compute.googleapis.com/Instance`, `Microsoft.ContainerService/managedClusters`. An Asset will match if its resource type is included in this set.
 - `service_categories` (Set of String) Set of service categories. Examples: `Compute`, `Identity`, `Networking`. An Asset will match if its cloud service category is included in this set.
 - `tags` (Map of String) Map of tags. These must match the k=v format. An Asset will match if any of its tag key-value pairs match those specified in this map.
+
 
 <a id="nestedatt--rules--rule_selection_filter"></a>
 ### Nested Schema for `rules.rule_selection_filter`
