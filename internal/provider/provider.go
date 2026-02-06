@@ -20,6 +20,7 @@ import (
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
+	responsepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/response_policy"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
@@ -305,6 +306,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		cloudgroup.NewCloudGroupResource,
 		cloudsecurity.NewCloudSecuritySuppressionRuleResource,
 		dataprotection.NewDataProtectionContentPatternResource,
+		responsepolicy.NewResponsePolicyPrecedenceResource,
 	}
 }
 
