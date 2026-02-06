@@ -23,3 +23,16 @@ func ExpandListAs[T any](
 	diags.Append(list.ElementsAs(ctx, &elements, false)...)
 	return elements
 }
+
+// FlattenStringValueList converts a slice of strings to a Terraform list of strings.
+// Returns null if the slice is empty or nil.
+func FlattenStringValueList(
+	ctx context.Context,
+	values []string,
+) (types.List, diag.Diagnostics) {
+	if len(values) == 0 {
+		return types.ListNull(types.StringType), nil
+	}
+
+	return types.ListValueFrom(ctx, types.StringType, values)
+}

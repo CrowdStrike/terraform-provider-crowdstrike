@@ -316,3 +316,38 @@ func convertToStrings(items []types.String) []string {
 	}
 	return result
 }
+
+func TestFlattenStringValueSet(t *testing.T) {
+	t.Parallel()
+
+	testcases := []struct {
+		name     string
+		values   []string
+		expected types.Set
+	}{
+		{
+			name:     "nil slice returns null",
+			values:   nil,
+			expected: acctest.StringSetOrNull(),
+		},
+		{
+			name:     "empty slice returns null",
+			values:   []string{},
+			expected: acctest.StringSetOrNull(),
+		},
+		{
+			name:     "slice with valid values returns set",
+			values:   []string{"group1", "group2", "group3"},
+			expected: acctest.StringSetOrNull("group1", "group2", "group3"),
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, diags := flex.FlattenStringValueSet(t.Context(), tc.values)
+
+			assert.False(t, diags.HasError(), "unexpected diagnostics errors: %v", diags.Errors())
+			assert.True(t, result.Equal(tc.expected), "expected %v, got %v", tc.expected, result)
+		})
+	}
+}
