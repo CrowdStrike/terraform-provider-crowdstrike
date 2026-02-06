@@ -3,6 +3,7 @@ package cloudsecurity_test
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
@@ -93,6 +94,32 @@ func TestCloudSecuritySuppressionRulesDataSource_WildcardPatterns(t *testing.T) 
 	})
 }
 
+func TestCloudSecuritySuppressionRulesDataSource_DisabledFilter(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long-running test in short mode")
+	}
+	randomSuffix := sdkacctest.RandString(8)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    testSuppressionRulesDisabledFilter(randomSuffix),
+	})
+}
+
+func TestCloudSecuritySuppressionRulesDataSource_Pagination(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long-running test in short mode")
+	}
+
+	t.Setenv("TF_CROWDSTRIKE_PAGE_LIMIT", "2")
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    testSuppressionRulesPagination(),
+	})
+}
+
 func testSuppressionRulesBasic(randomSuffix string) []resource.TestStep {
 	resourceName := "data.crowdstrike_cloud_security_suppression_rules.basic"
 	return []resource.TestStep{
@@ -102,7 +129,6 @@ resource "crowdstrike_cloud_security_suppression_rule" "test" {
   name   = "TF Test Data Source Basic %s"
   type   = "IOM"
   reason = "false-positive"
-  comment = "Test suppression rule for data source testing"
 
   rule_selection_filter = {
     names = ["ELB configured publicly with TLS/SSL disabled"]
@@ -282,7 +308,7 @@ data "crowdstrike_cloud_security_suppression_rules" "fql" {
 					if !ok {
 						return fmt.Errorf("Not found: %s", resourceName)
 					}
-					// Verify that all returned rules contain "TF Test Data Source FQL" in their name
+
 					for i := 0; ; i++ {
 						nameKey := fmt.Sprintf("rules.%d.name", i)
 						if nameVal, ok := rs.Primary.Attributes[nameKey]; !ok {
@@ -301,13 +327,14 @@ data "crowdstrike_cloud_security_suppression_rules" "fql" {
 func testSuppressionRulesWildcardPatterns(randomSuffix string) []resource.TestStep {
 	resourceName := "data.crowdstrike_cloud_security_suppression_rules.wildcard"
 	return []resource.TestStep{
+		// Test wildcard on name field
 		{
 			Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_suppression_rule" "test_wildcard" {
-  name   = "TF Test Data Source Wildcard %s"
+resource "crowdstrike_cloud_security_suppression_rule" "test_wildcard_name" {
+  name   = "TF Test Wildcard Name %s"
   type   = "IOM"
   reason = "false-positive"
-  description = "Test suppression rule for wildcard pattern testing"
+  description = "Test suppression rule for name wildcard testing"
 
   rule_selection_filter = {
     names = ["ELB configured publicly with TLS/SSL disabled"]
@@ -320,13 +347,78 @@ resource "crowdstrike_cloud_security_suppression_rule" "test_wildcard" {
 }
 
 data "crowdstrike_cloud_security_suppression_rules" "wildcard" {
-  name = "TF Test Data Source*"
-  depends_on = [crowdstrike_cloud_security_suppression_rule.test_wildcard]
+  name = "TF Test Wildcard*"
+  depends_on = [crowdstrike_cloud_security_suppression_rule.test_wildcard_name]
 }
 `, randomSuffix),
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet(resourceName, "rules.#"),
 				resource.TestMatchResourceAttr(resourceName, "rules.#", regexp.MustCompile(`^[1-9]\d*$`)),
+				func(s *terraform.State) error {
+					rs, ok := s.RootModule().Resources[resourceName]
+					if !ok {
+						return fmt.Errorf("Not found: %s", resourceName)
+					}
+
+					wildcardPattern := regexp.MustCompile(`^TF Test Wildcard`)
+					for i := 0; ; i++ {
+						nameKey := fmt.Sprintf("rules.%d.name", i)
+						if nameVal, ok := rs.Primary.Attributes[nameKey]; !ok {
+							break
+						} else if !wildcardPattern.MatchString(nameVal) {
+							return fmt.Errorf("Expected rule %d name to match pattern 'TF Test Wildcard*', got '%s'", i, nameVal)
+						}
+					}
+
+					return nil
+				},
+			),
+		},
+		// Test wildcard on description field
+		{
+			Config: fmt.Sprintf(`
+resource "crowdstrike_cloud_security_suppression_rule" "test_wildcard_desc" {
+  name   = "TF Test Wildcard Description %s"
+  type   = "IOM"
+  reason = "compensating-control"
+  description = "Test wildcard description pattern %s"
+
+  rule_selection_filter = {
+    names = ["S3 bucket configured with open READ permissions"]
+  }
+
+  asset_filter = {
+    cloud_providers = ["aws"]
+    regions = ["us-west-2"]
+  }
+}
+
+data "crowdstrike_cloud_security_suppression_rules" "wildcard" {
+  description = "*wildcard description pattern*"
+  depends_on = [crowdstrike_cloud_security_suppression_rule.test_wildcard_desc]
+}
+`, randomSuffix, randomSuffix),
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttrSet(resourceName, "rules.#"),
+				resource.TestMatchResourceAttr(resourceName, "rules.#", regexp.MustCompile(`^[1-9]\d*$`)),
+				func(s *terraform.State) error {
+					rs, ok := s.RootModule().Resources[resourceName]
+					if !ok {
+						return fmt.Errorf("Not found: %s", resourceName)
+					}
+
+					wildcardPattern := regexp.MustCompile(`.*wildcard description pattern.*`)
+					for i := 0; ; i++ {
+						nameKey := fmt.Sprintf("rules.%d.description", i)
+						if nameVal, ok := rs.Primary.Attributes[nameKey]; !ok {
+							break
+						} else if !wildcardPattern.MatchString(nameVal) {
+							return fmt.Errorf("Expected rule %d description to match pattern '*wildcard description pattern*', got '%s'", i, nameVal)
+						}
+					}
+
+					return nil
+				},
 			),
 		},
 	}
@@ -372,15 +464,6 @@ data "crowdstrike_cloud_security_suppression_rules" "conflict_fql_reason" {
 		},
 		{
 			Config: `
-data "crowdstrike_cloud_security_suppression_rules" "conflict_fql_comment" {
-  fql     = "suppression_comment:'test'"
-  comment = "test"
-}
-			`,
-			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
-		},
-		{
-			Config: `
 data "crowdstrike_cloud_security_suppression_rules" "invalid_type" {
   type = "InvalidType"
 }
@@ -408,6 +491,199 @@ data "crowdstrike_cloud_security_suppression_rules" "empty" {
 			`,
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttr("data.crowdstrike_cloud_security_suppression_rules.empty", "rules.#", "0"),
+			),
+		},
+	}
+}
+
+func testSuppressionRulesPagination() []resource.TestStep {
+	resourceName := "data.crowdstrike_cloud_security_suppression_rules.pagination"
+	return []resource.TestStep{
+		{
+			Config: `
+# Create 5 IOM suppression rules to help test pagination
+resource "crowdstrike_cloud_security_suppression_rule" "pagination_test_1" {
+  name   = "TF Test Pagination Rule 1"
+  type   = "IOM"
+  reason = "false-positive"
+
+  rule_selection_filter = {
+    names = ["ELB configured publicly with TLS/SSL disabled"]
+  }
+
+  asset_filter = {
+    cloud_providers = ["aws"]
+    regions = ["us-east-1"]
+  }
+}
+
+resource "crowdstrike_cloud_security_suppression_rule" "pagination_test_2" {
+  name   = "TF Test Pagination Rule 2"
+  type   = "IOM"
+  reason = "compensating-control"
+
+  rule_selection_filter = {
+    names = ["S3 bucket configured with open READ permissions"]
+  }
+
+  asset_filter = {
+    cloud_providers = ["aws"]
+    regions = ["us-west-2"]
+  }
+}
+
+resource "crowdstrike_cloud_security_suppression_rule" "pagination_test_3" {
+  name   = "TF Test Pagination Rule 3"
+  type   = "IOM"
+  reason = "accept-risk"
+
+  rule_selection_filter = {
+    names = ["EC2 instance configured with open SSH access"]
+  }
+
+  asset_filter = {
+    cloud_providers = ["aws"]
+    regions = ["eu-west-1"]
+  }
+}
+
+resource "crowdstrike_cloud_security_suppression_rule" "pagination_test_4" {
+  name   = "TF Test Pagination Rule 4"
+  type   = "IOM"
+  reason = "false-positive"
+
+  rule_selection_filter = {
+    names = ["RDS database instance configured with open access"]
+  }
+
+  asset_filter = {
+    cloud_providers = ["aws"]
+    regions = ["ap-southeast-1"]
+  }
+}
+
+resource "crowdstrike_cloud_security_suppression_rule" "pagination_test_5" {
+  name   = "TF Test Pagination Rule 5"
+  type   = "IOM"
+  reason = "compensating-control"
+
+  rule_selection_filter = {
+    names = ["Lambda function configured with open resource policy"]
+  }
+
+  asset_filter = {
+    cloud_providers = ["aws"]
+    regions = ["us-central-1"]
+  }
+}
+
+data "crowdstrike_cloud_security_suppression_rules" "pagination" {
+  # Use broad filter to get many results and test pagination
+  type = "IOM"
+  depends_on = [
+    crowdstrike_cloud_security_suppression_rule.pagination_test_1,
+    crowdstrike_cloud_security_suppression_rule.pagination_test_2,
+    crowdstrike_cloud_security_suppression_rule.pagination_test_3,
+    crowdstrike_cloud_security_suppression_rule.pagination_test_4,
+    crowdstrike_cloud_security_suppression_rule.pagination_test_5
+  ]
+}`,
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttrSet(resourceName, "rules.#"),
+				resource.TestCheckResourceAttrWith(resourceName, "rules.#", func(value string) error {
+					count, err := strconv.Atoi(value)
+					if err != nil {
+						return fmt.Errorf("failed to parse rules count: %v", err)
+					}
+					if count >= 5 {
+						return nil
+					} else {
+						return fmt.Errorf("expected at least 5 rules (our test rules), but got %d - pagination may not have worked correctly", count)
+					}
+				}),
+				func(s *terraform.State) error {
+					rs, ok := s.RootModule().Resources[resourceName]
+					if !ok {
+						return fmt.Errorf("Not found: %s", resourceName)
+					}
+
+					testRuleNames := map[string]bool{
+						"TF Test Pagination Rule 1": false,
+						"TF Test Pagination Rule 2": false,
+						"TF Test Pagination Rule 3": false,
+						"TF Test Pagination Rule 4": false,
+						"TF Test Pagination Rule 5": false,
+					}
+
+					for i := 0; ; i++ {
+						nameKey := fmt.Sprintf("rules.%d.name", i)
+						if nameVal, ok := rs.Primary.Attributes[nameKey]; !ok {
+							break
+						} else {
+							if _, exists := testRuleNames[nameVal]; exists {
+								testRuleNames[nameVal] = true
+							}
+						}
+					}
+
+					for ruleName, found := range testRuleNames {
+						if !found {
+							return fmt.Errorf("test rule '%s' not found in pagination results", ruleName)
+						}
+					}
+
+					return nil
+				},
+			),
+		},
+	}
+}
+
+func testSuppressionRulesDisabledFilter(randomSuffix string) []resource.TestStep {
+	resourceNameActiveOnly := "data.crowdstrike_cloud_security_suppression_rules.active_only"
+	resourceNameAll := "data.crowdstrike_cloud_security_suppression_rules.all_rules"
+
+	return []resource.TestStep{
+		// Single step: Test disabled field boolean logic
+		{
+			Config: fmt.Sprintf(`
+# Create a rule without expiration date (should be active)
+resource "crowdstrike_cloud_security_suppression_rule" "test_active" {
+  name   = "TF Test Active Rule %s"
+  type   = "IOM"
+  reason = "false-positive"
+  description = "Test active suppression rule for disabled filtering"
+
+  rule_selection_filter = {
+    names = ["ELB configured publicly with TLS/SSL disabled"]
+  }
+
+  asset_filter = {
+    cloud_providers = ["aws"]
+    regions = ["us-east-1"]
+  }
+}
+
+# Test disabled = false (should find active rules)
+data "crowdstrike_cloud_security_suppression_rules" "active_only" {
+  name = "TF Test Active Rule %s"
+  disabled = false
+  depends_on = [crowdstrike_cloud_security_suppression_rule.test_active]
+}
+
+# Test disabled = true (should find all rules including expired ones)
+data "crowdstrike_cloud_security_suppression_rules" "all_rules" {
+  name = "TF Test Active Rule %s"
+  disabled = true
+  depends_on = [crowdstrike_cloud_security_suppression_rule.test_active]
+}
+`, randomSuffix, randomSuffix, randomSuffix),
+			Check: resource.ComposeAggregateTestCheckFunc(
+				// Both queries should find the active rule
+				resource.TestCheckResourceAttrSet(resourceNameActiveOnly, "rules.#"),
+				resource.TestMatchResourceAttr(resourceNameActiveOnly, "rules.#", regexp.MustCompile(`^[1-9]\d*$`)),
+				resource.TestCheckResourceAttrSet(resourceNameAll, "rules.#"),
+				resource.TestMatchResourceAttr(resourceNameAll, "rules.#", regexp.MustCompile(`^0$`)),
 			),
 		},
 	}

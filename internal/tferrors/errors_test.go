@@ -79,6 +79,19 @@ func TestNewDiagnosticFromAPIError(t *testing.T) {
 			wantDiag:  NewBadRequestError(Create, cloud_policies.NewCreateSuppressionRuleBadRequest().Error()),
 		},
 		{
+			name:      "too many requests error with custom detail",
+			err:       host_group.NewGetHostGroupsTooManyRequests(),
+			operation: Read,
+			options:   []ErrorOption{WithTooManyRequestsDetail("Custom rate limit message")},
+			wantDiag:  NewTooManyRequestsError(Read, "Custom rate limit message"),
+		},
+		{
+			name:      "too many requests error with default detail",
+			err:       host_group.NewGetHostGroupsTooManyRequests(),
+			operation: Read,
+			wantDiag:  NewTooManyRequestsError(Read, host_group.NewGetHostGroupsTooManyRequests().Error()),
+		},
+		{
 			name:      "server error",
 			err:       host_group.NewGetHostGroupsInternalServerError(),
 			operation: Update,
