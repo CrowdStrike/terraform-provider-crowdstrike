@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/crowdstrike/gofalcon/falcon"
+	"github.com/crowdstrike/gofalcon/falcon/client"
 	cloudcompliance "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_compliance"
 	cloudgoogleregistration "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_google_registration"
 	cloudgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_group"
@@ -21,6 +22,7 @@ import (
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/function"
@@ -203,37 +205,57 @@ func (p *CrowdStrikeProvider) Configure(
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "crowdstrike_client_id")
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "crowdstrike_client_secret")
 
-	tflog.Debug(ctx, "Creating CrowdStrike client")
+	tflog.Debug(ctx, "Configuring CrowdStrike client")
 
-	apiConfig := falcon.ApiConfig{
-		Cloud:             falcon.Cloud(cloud),
-		ClientId:          clientId,
-		ClientSecret:      clientSecret,
-		UserAgentOverride: fmt.Sprintf("terraform-provider-crowdstrike/%s", p.version),
-		Context:           context.Background(),
-		HostOverride:      os.Getenv("HOST_OVERRIDE"),
-		TransportDecorator: falcon.TransportDecorator(func(r http.RoundTripper) http.RoundTripper {
-			return logging.NewLoggingHTTPTransport(r)
-		}),
+	var falconClient *client.CrowdStrikeAPISpecification
+	var err error
+
+	// During acceptance tests, use the cached client to avoid re-authentication
+	// Check if version is "test" AND a cached client exists
+	if p.version == "test" {
+		cachedClient := testconfig.GetTestClient()
+		if cachedClient != nil {
+			falconClient = cachedClient
+			tflog.Debug(ctx, "Using cached test client")
+		} else {
+			// Fall through to create a new client
+			tflog.Debug(ctx, "No cached test client available, creating new client")
+		}
 	}
 
-	if !model.MemberCID.IsNull() {
-		apiConfig.MemberCID = model.MemberCID.ValueString()
-	}
+	if falconClient == nil {
+		tflog.Debug(ctx, "Creating new CrowdStrike API client")
+		apiConfig := falcon.ApiConfig{
+			Cloud:             falcon.Cloud(cloud),
+			ClientId:          clientId,
+			ClientSecret:      clientSecret,
+			UserAgentOverride: fmt.Sprintf("terraform-provider-crowdstrike/%s", p.version),
+			Context:           context.Background(),
+			HostOverride:      os.Getenv("HOST_OVERRIDE"),
+			TransportDecorator: falcon.TransportDecorator(func(r http.RoundTripper) http.RoundTripper {
+				return logging.NewLoggingHTTPTransport(r)
+			}),
+		}
 
-	client, err := falcon.NewClient(&apiConfig)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to Create CrowdStrike API Client",
-			"An unexpected error occurred when creating the CrowdStrike API client. "+
-				"If the error is not clear, please open a issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike\n\n"+
-				"CrowdStrike Client Error: "+err.Error(),
-		)
+		if !model.MemberCID.IsNull() {
+			apiConfig.MemberCID = model.MemberCID.ValueString()
+		}
+
+		falconClient, err = falcon.NewClient(&apiConfig)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Unable to Create CrowdStrike API Client",
+				"An unexpected error occurred when creating the CrowdStrike API client. "+
+					"If the error is not clear, please open a issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike\n\n"+
+					"CrowdStrike Client Error: "+err.Error(),
+			)
+			return
+		}
 	}
 
 	providerConfig := config.ProviderConfig{
 		ClientId: clientId,
-		Client:   client,
+		Client:   falconClient,
 	}
 	resp.DataSourceData = providerConfig
 	resp.ResourceData = providerConfig
