@@ -153,6 +153,13 @@ func NewDiagnosticFromAPIError(operation Operation, err error, apiScopes []scope
 
 	if statusErr, ok := err.(runtime.ClientResponseStatus); ok {
 		switch {
+		case statusErr.IsCode(400):
+			detail := cfg.badRequestDetail
+			if detail == "" {
+				detail = err.Error()
+			}
+			return NewBadRequestError(operation, detail)
+
 		case statusErr.IsCode(403):
 			detail := cfg.forbiddenDetail
 			if detail == "" {
@@ -176,13 +183,6 @@ func NewDiagnosticFromAPIError(operation Operation, err error, apiScopes []scope
 				detail = err.Error()
 			}
 			return NewConflictError(operation, detail)
-
-		case statusErr.IsCode(400):
-			detail := cfg.badRequestDetail
-			if detail == "" {
-				detail = err.Error()
-			}
-			return NewBadRequestError(operation, detail)
 
 		case statusErr.IsServerError():
 			detail := cfg.serverErrorDetail

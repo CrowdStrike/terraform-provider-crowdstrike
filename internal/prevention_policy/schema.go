@@ -46,29 +46,6 @@ func validateMlSlider(attribute string, slider mlSlider) diag.Diagnostics {
 	return diags
 }
 
-// validateRequiredAttribute validates that a required attribute is set.
-func validateRequiredAttribute(
-	attrValue types.Bool,
-	otherAttrValue types.Bool,
-	attr string,
-	otherAttr string,
-) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	if !utils.IsKnown(attrValue) || !utils.IsKnown(otherAttrValue) {
-		return diags
-	}
-
-	if attrValue.ValueBool() && !otherAttrValue.ValueBool() {
-		diags.AddAttributeError(
-			path.Root(attr),
-			fmt.Sprint("requirements not met to enable ", attr),
-			fmt.Sprintf("%s requires %s to be enabled", attr, otherAttr),
-		)
-	}
-	return diags
-}
-
 // toggleOptions holds the options for toggleAttribute function.
 type toggleOptions struct {
 	enabled bool

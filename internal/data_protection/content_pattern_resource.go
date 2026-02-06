@@ -263,12 +263,10 @@ func (r *dataProtectionContentPatternResource) Update(
 
 	updateRequest := &models.APIContentPatternUpdateRequestV1{
 		ID:                utils.Addr(plan.ID.ValueString()),
-		Name:              plan.Name.ValueString(),
+		Name:              plan.Name.ValueStringPointer(),
 		Description:       flex.FrameworkToStringPointer(plan.Description),
 		MinMatchThreshold: plan.MinMatchThreshold.ValueInt32Pointer(),
 		Regexes:           []string{plan.Regex.ValueString()},
-		Category:          utils.Addr("Custom"),
-		Region:            utils.Addr("ALL"),
 	}
 
 	params := data_protection_configuration.NewEntitiesContentPatternPatchParams().

@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -444,7 +445,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 	resp.Diagnostics.Append(utils.ValidateEmptyIDs(ctx, config.RuleGroups, "ioa_rule_groups")...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.ProcessHollowing,
 			config.AdditionalUserModeData,
 			"code_injection",
@@ -452,7 +453,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.ForceASLR,
 			config.AdditionalUserModeData,
 			"force_aslr",
@@ -460,7 +461,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.ForceDEP,
 			config.AdditionalUserModeData,
 			"force_dep",
@@ -468,7 +469,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.HeapSprayPreallocation,
 			config.AdditionalUserModeData,
 			"heap_spray_preallocation",
@@ -476,7 +477,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.NullPageAllocation,
 			config.AdditionalUserModeData,
 			"null_page_allocation",
@@ -484,7 +485,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.CredentialDumping,
 			config.AdditionalUserModeData,
 			"credential_dumping",
@@ -492,7 +493,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.SEHOverwriteProtection,
 			config.AdditionalUserModeData,
 			"seh_overwrite_protection",
@@ -500,7 +501,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.EngineProtectionV2,
 			config.InterpreterProtection,
 			"engine_full_visibility",
@@ -508,7 +509,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.CPUMemoryScan,
 			config.MemoryScan,
 			"memory_scanning_scan_with_cpu",
@@ -516,7 +517,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.VolumeShadowCopyProtect,
 			config.VolumeShadowCopyAudit,
 			"volume_shadow_copy_protect",
@@ -524,7 +525,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.VulnerableDriverProtection,
 			config.SuspiciousKernelDrivers,
 			"vulnerable_driver_protection",
@@ -532,7 +533,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.QuarantineOnWrite,
 			config.NextGenAV,
 			"quarantine_on_write",
@@ -540,7 +541,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.QuarantineOnWrite,
 			config.DetectOnWrite,
 			"quarantine_on_write",
@@ -548,21 +549,21 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.ScriptBasedExecutionMonitoring,
 			config.NextGenAV,
 			"script_based_execution_monitoring",
 			"quarantine_and_security_center_registration",
 		)...)
 
-	interpDiags := validateRequiredAttribute(
+	interpDiags := fwvalidators.BoolRequiresBool(
 		config.MaliciousPowershell,
 		config.InterpreterProtection,
 		"suspicious_scripts_and_commands",
 		"interpreter_only",
 	)
 
-	scriptDiags := validateRequiredAttribute(
+	scriptDiags := fwvalidators.BoolRequiresBool(
 		config.MaliciousPowershell,
 		config.ScriptBasedExecutionMonitoring,
 		"suspicious_scripts_and_commands",
@@ -570,7 +571,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 	)
 
 	if interpDiags.HasError() && scriptDiags.HasError() {
-		resp.Diagnostics.Append(validateRequiredAttribute(
+		resp.Diagnostics.Append(fwvalidators.BoolRequiresBool(
 			config.MaliciousPowershell,
 			types.BoolValue(false),
 			"suspicious_scripts_and_commands",
@@ -606,7 +607,7 @@ func (r *preventionPolicyWindowsResource) ValidateConfig(
 	}
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.BootConfigurationDatabaseProtection,
 			config.SuspiciousRegistryOperations,
 			"boot_configuration_database_protection",
