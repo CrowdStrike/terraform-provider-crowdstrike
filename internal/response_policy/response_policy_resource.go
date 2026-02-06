@@ -10,7 +10,6 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
@@ -101,9 +100,10 @@ func (r *responsePolicyResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: fmt.Sprintf(
-			"Response Policy --- Manages CrowdStrike Real Time Response (RTR) policies that control endpoint response capabilities. RTR policies determine what remote response actions (commands, scripts, file operations) are available to responders on endpoints.\n\n%s",
-			scopes.GenerateScopeDescription(apiScopesReadWrite),
+		MarkdownDescription: utils.MarkdownDescription(
+			"Host Setup and Management",
+			"Manages CrowdStrike Real Time Response (RTR) policies that control endpoint response capabilities. RTR policies determine what remote response actions (commands, scripts, file operations) are available to responders on endpoints.",
+			apiScopesReadWrite,
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

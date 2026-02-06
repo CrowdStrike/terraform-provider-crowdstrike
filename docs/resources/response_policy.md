@@ -1,6 +1,6 @@
 ---
 page_title: "crowdstrike_response_policy Resource - crowdstrike"
-subcategory: "Response Policy"
+subcategory: "Host Setup and Management"
 description: |-
   Manages CrowdStrike Real Time Response (RTR) policies that control endpoint response capabilities. RTR policies determine what remote response actions (commands, scripts, file operations) are available to responders on endpoints.
   API Scopes
