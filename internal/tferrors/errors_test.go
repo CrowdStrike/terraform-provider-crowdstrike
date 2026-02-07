@@ -7,6 +7,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
 	"github.com/crowdstrike/gofalcon/falcon/client/d4c_registration"
 	"github.com/crowdstrike/gofalcon/falcon/client/host_group"
+	"github.com/crowdstrike/gofalcon/falcon/client/mssp"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
@@ -53,30 +54,24 @@ func TestNewDiagnosticFromAPIError(t *testing.T) {
 			wantDiag:  NewNotFoundError(host_group.NewGetHostGroupsNotFound().Error()),
 		},
 		{
-			name:      "conflict error with custom detail",
-			err:       d4c_registration.NewCreateDiscoverCloudAzureAccountConflict(),
-			operation: Create,
-			options:   []ErrorOption{WithConflictDetail("Custom conflict message")},
-			wantDiag:  NewConflictError(Create, "Custom conflict message"),
-		},
-		{
-			name:      "conflict error with default detail",
-			err:       d4c_registration.NewCreateDiscoverCloudAzureAccountConflict(),
-			operation: Create,
-			wantDiag:  NewConflictError(Create, d4c_registration.NewCreateDiscoverCloudAzureAccountConflict().Error()),
-		},
-		{
-			name:      "bad request error with custom detail",
-			err:       cloud_policies.NewCreateSuppressionRuleBadRequest(),
+			name:      "bad request with custom detail",
+			err:       cloud_policies.NewQueryRuleBadRequest(),
 			operation: Create,
 			options:   []ErrorOption{WithBadRequestDetail("Custom bad request message")},
 			wantDiag:  NewBadRequestError(Create, "Custom bad request message"),
 		},
 		{
-			name:      "bad request error with default detail",
-			err:       cloud_policies.NewCreateSuppressionRuleBadRequest(),
+			name:      "conflict error",
+			err:       d4c_registration.NewCreateDiscoverCloudAzureAccountConflict(),
 			operation: Create,
-			wantDiag:  NewBadRequestError(Create, cloud_policies.NewCreateSuppressionRuleBadRequest().Error()),
+			wantDiag:  NewConflictError(Create, d4c_registration.NewCreateDiscoverCloudAzureAccountConflict().Error()),
+		},
+		{
+			name:      "conflict error with custom detail",
+			err:       d4c_registration.NewCreateDiscoverCloudAzureAccountConflict(),
+			operation: Create,
+			options:   []ErrorOption{WithConflictDetail("Custom conflict message")},
+			wantDiag:  NewConflictError(Create, "Custom conflict message"),
 		},
 		{
 			name:      "server error",
@@ -106,6 +101,104 @@ func TestNewDiagnosticFromAPIError(t *testing.T) {
 				WithBadRequestDetail("Bad request detail"),
 			},
 			wantDiag: NewConflictError(Create, "Conflict detail"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotDiag := NewDiagnosticFromAPIError(tt.operation, tt.err, testScopes, tt.options...)
+			assert.Equal(t, tt.wantDiag, gotDiag)
+		})
+	}
+}
+
+func TestNewDiagnosticFromAPIError_207MultiStatus(t *testing.T) {
+	testScopes := []scopes.Scope{{Name: "test", Read: true}}
+
+	tests := []struct {
+		name      string
+		err       error
+		operation Operation
+		options   []ErrorOption
+		wantDiag  diag.Diagnostic
+	}{
+		{
+			name: "207 with 404 error in payload",
+			err: &mssp.GetCIDGroupByIDV2MultiStatus{
+				Payload: &models.DomainCIDGroupsResponseV1{
+					Errors: []*models.MsaAPIError{
+						{
+							Code:    utils.Addr(int32(404)),
+							Message: utils.Addr("No existing group with cid_group_id=123 found"),
+						},
+					},
+				},
+			},
+			operation: Read,
+			wantDiag:  NewNotFoundError("No existing group with cid_group_id=123 found"),
+		},
+		{
+			name: "207 with 404 and custom detail",
+			err: &mssp.GetCIDGroupByIDV2MultiStatus{
+				Payload: &models.DomainCIDGroupsResponseV1{
+					Errors: []*models.MsaAPIError{
+						{
+							Code:    utils.Addr(int32(404)),
+							Message: utils.Addr("Resource not found"),
+						},
+					},
+				},
+			},
+			operation: Read,
+			options:   []ErrorOption{WithNotFoundDetail("Custom 404 message")},
+			wantDiag:  NewNotFoundError("Custom 404 message"),
+		},
+		{
+			name: "207 with non-404 error",
+			err: &mssp.GetCIDGroupByIDV2MultiStatus{
+				Payload: &models.DomainCIDGroupsResponseV1{
+					Errors: []*models.MsaAPIError{
+						{
+							Code:    utils.Addr(int32(400)),
+							Message: utils.Addr("Bad request"),
+						},
+					},
+				},
+			},
+			operation: Create,
+			wantDiag: NewOperationError(
+				Create,
+				errors.New("API Error : Bad request"),
+			),
+		},
+		{
+			name: "207 with multiple errors including 404",
+			err: &mssp.GetCIDGroupByIDV2MultiStatus{
+				Payload: &models.DomainCIDGroupsResponseV1{
+					Errors: []*models.MsaAPIError{
+						{
+							Code:    utils.Addr(int32(400)),
+							Message: utils.Addr("Bad request"),
+						},
+						{
+							Code:    utils.Addr(int32(404)),
+							Message: utils.Addr("Not found"),
+						},
+					},
+				},
+			},
+			operation: Read,
+			wantDiag:  NewNotFoundError("Not found"),
+		},
+		{
+			name: "207 with empty errors",
+			err: &mssp.GetCIDGroupByIDV2MultiStatus{
+				Payload: &models.DomainCIDGroupsResponseV1{
+					Errors: []*models.MsaAPIError{},
+				},
+			},
+			operation: Read,
+			wantDiag:  nil,
 		},
 	}
 
