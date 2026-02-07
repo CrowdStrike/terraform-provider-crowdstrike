@@ -62,6 +62,18 @@ acctest: fmt ## Run acceptance tests (PKG: package name, TESTARGS: additional go
 	printf "Running acceptance tests on branch: %s\n" "$$branch"
 	TF_ACC=1 go test ./internal/$${PKG:-...} -v $(TESTARGS) -timeout 120m -parallel 10
 
+SWEEP_TIMEOUT ?= 60m
+
+.PHONY: sweep
+sweep: ## Run sweepers to clean up test resources
+	@echo "WARNING: This will destroy infrastructure. Use only in development accounts."
+	TF_ACC=1 go test ./internal/sweep -v -sweep=default -timeout $(SWEEP_TIMEOUT)
+
+.PHONY: sweeper
+sweeper: ## Run sweepers with failures allowed
+	@echo "WARNING: This will destroy infrastructure. Use only in development accounts."
+	TF_ACC=1 go test ./internal/sweep -v -sweep=default -sweep-allow-failures -timeout $(SWEEP_TIMEOUT)
+
 ##@ Development
 
 .PHONY: apply

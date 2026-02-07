@@ -42,7 +42,7 @@ func (config *policyConfig) String() string {
 	if config.HostGroupCount > 0 {
 		var hostGroupRefs []string
 		for i := 0; i < config.HostGroupCount; i++ {
-			hostGroupName := fmt.Sprintf("hg-%s-%d", randomSuffix, i)
+			hostGroupName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 			hostGroupResources += fmt.Sprintf(`
 resource "crowdstrike_host_group" "hg_%d" {

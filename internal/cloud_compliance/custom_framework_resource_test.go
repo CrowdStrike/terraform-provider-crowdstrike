@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"regexp"
 	"testing"
-	"time"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
@@ -191,6 +191,7 @@ func (config *minimalFrameworkConfig) TestChecks() resource.TestCheckFunc {
 }
 
 func TestAccCloudComplianceCustomFrameworkResource_Basic(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	testCases := []struct {
 		name   string
 		config minimalFrameworkConfig
@@ -198,14 +199,14 @@ func TestAccCloudComplianceCustomFrameworkResource_Basic(t *testing.T) {
 		{
 			name: "initial_framework",
 			config: minimalFrameworkConfig{
-				Name:        "Test Framework Basic Initial",
+				Name:        rName,
 				Description: "This is a test framework for basic functionality",
 			},
 		},
 		{
 			name: "updated_framework",
 			config: minimalFrameworkConfig{
-				Name:        "Test Framework Basic Updated",
+				Name:        rName,
 				Description: "This is an updated test framework description",
 			},
 		},
@@ -233,6 +234,7 @@ func TestAccCloudComplianceCustomFrameworkResource_Basic(t *testing.T) {
 }
 
 func TestAccCloudComplianceCustomFrameworkResource_Updates(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	testCases := []struct {
 		name   string
 		config minimalFrameworkConfig
@@ -240,28 +242,28 @@ func TestAccCloudComplianceCustomFrameworkResource_Updates(t *testing.T) {
 		{
 			name: "initial_state",
 			config: minimalFrameworkConfig{
-				Name:        "Test Framework Updates Initial",
+				Name:        rName,
 				Description: "Initial description for update testing",
 			},
 		},
 		{
 			name: "updated_name",
 			config: minimalFrameworkConfig{
-				Name:        "Test Framework Updates Modified Name",
+				Name:        rName + "-updated",
 				Description: "Initial description for update testing",
 			},
 		},
 		{
 			name: "updated_description",
 			config: minimalFrameworkConfig{
-				Name:        "Test Framework Updates Modified Name",
+				Name:        rName + "-updated",
 				Description: "Updated description after name change",
 			},
 		},
 		{
 			name: "updated_all_fields",
 			config: minimalFrameworkConfig{
-				Name:        "Test Framework Final State",
+				Name:        rName,
 				Description: "Final updated description",
 			},
 		},
@@ -284,8 +286,9 @@ func TestAccCloudComplianceCustomFrameworkResource_Updates(t *testing.T) {
 }
 
 func TestAccCloudComplianceCustomFrameworkResource_Minimal(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	minimalConfig := minimalFrameworkConfig{
-		Name:        "Test Framework Minimal",
+		Name:        rName,
 		Description: "Minimal test framework description",
 	}
 
@@ -364,8 +367,9 @@ resource "crowdstrike_cloud_compliance_custom_framework" "test" {
 }
 
 func TestAccCloudComplianceCustomFrameworkResource_Import(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	config := minimalFrameworkConfig{
-		Name:        "Test Framework Import",
+		Name:        rName,
 		Description: "Framework for testing import functionality",
 	}
 
@@ -395,8 +399,9 @@ func TestAccCloudComplianceCustomFrameworkResource_Import(t *testing.T) {
 }
 
 func TestAccCloudComplianceCustomFrameworkResource_CreateWithSections(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	initialConfig := completeFrameworkConfig{
-		Name:        "Test Framework With Sections",
+		Name:        rName,
 		Description: "Framework to test sections, controls, and rules",
 		Sections: map[string]sectionConfig{
 			"section-1": {
@@ -448,6 +453,7 @@ func TestAccCloudComplianceCustomFrameworkResource_CreateWithSections(t *testing
 }
 
 func TestAccCloudComplianceCustomFrameworkResource_RuleAssignment(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	testCases := []struct {
 		name   string
 		config completeFrameworkConfig
@@ -455,7 +461,7 @@ func TestAccCloudComplianceCustomFrameworkResource_RuleAssignment(t *testing.T) 
 		{
 			name: "control_with_rules",
 			config: completeFrameworkConfig{
-				Name:        "Test Framework Rule Assignment",
+				Name:        rName,
 				Description: "Framework to test rule assignments",
 				Sections: map[string]sectionConfig{
 					"test-section": {
@@ -479,7 +485,7 @@ func TestAccCloudComplianceCustomFrameworkResource_RuleAssignment(t *testing.T) 
 		{
 			name: "updated_rules",
 			config: completeFrameworkConfig{
-				Name:        "Test Framework Rule Assignment",
+				Name:        rName,
 				Description: "Framework to test rule assignments",
 				Sections: map[string]sectionConfig{
 					"test-section": {
@@ -503,7 +509,7 @@ func TestAccCloudComplianceCustomFrameworkResource_RuleAssignment(t *testing.T) 
 		{
 			name: "removed_rules",
 			config: completeFrameworkConfig{
-				Name:        "Test Framework Rule Assignment",
+				Name:        rName,
 				Description: "Framework to test rule assignments",
 				Sections: map[string]sectionConfig{
 					"test-section": {
@@ -543,9 +549,8 @@ func TestAccCloudComplianceCustomFrameworkResource_RuleAssignment(t *testing.T) 
 }
 
 func TestAccCloudComplianceCustomFrameworkResource_SimpleSectionRename(t *testing.T) {
-	// Use timestamp to ensure unique framework name
-	timestamp := fmt.Sprintf("%d", time.Now().Unix())
-	frameworkName := fmt.Sprintf("Test Framework Simple Section Rename %s", timestamp)
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	frameworkName := rName
 
 	initialConfig := completeFrameworkConfig{
 		Name:        frameworkName,
@@ -612,8 +617,9 @@ func TestAccCloudComplianceCustomFrameworkResource_SimpleSectionRename(t *testin
 }
 
 func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveRenaming(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	initialConfig := completeFrameworkConfig{
-		Name:        "Test Framework Comprehensive Renaming",
+		Name:        rName,
 		Description: "Framework to test comprehensive renaming operations",
 		Sections: map[string]sectionConfig{
 			"section-a": {
@@ -643,7 +649,7 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveRenaming(t *test
 
 	// Test 3: Rename both section and control simultaneously
 	renamedConfig := completeFrameworkConfig{
-		Name:        "Test Framework Comprehensive Renaming",
+		Name:        rName,
 		Description: "Framework to test comprehensive renaming operations",
 		Sections: map[string]sectionConfig{
 			"section-a": {
@@ -713,14 +719,15 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveRenaming(t *test
 }
 
 func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	initialConfig := completeFrameworkConfig{
-		Name:        "Test Framework Comprehensive CRUD",
+		Name:        rName,
 		Description: "Framework to test comprehensive CRUD operations",
 	}
 
 	// Test 1: Add a new section with controls and rules
 	addSectionConfig := completeFrameworkConfig{
-		Name:        "Test Framework Comprehensive CRUD",
+		Name:        rName,
 		Description: "Framework to test comprehensive CRUD operations",
 		Sections: map[string]sectionConfig{
 			"section-1": {
@@ -743,7 +750,7 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 
 	// Test 2: Add new section, and controls to existing section + delete control
 	addSectionAndControlsConfig := completeFrameworkConfig{
-		Name:        "Test Framework Comprehensive CRUD",
+		Name:        rName,
 		Description: "Framework to test comprehensive CRUD operations",
 		Sections: map[string]sectionConfig{
 			"section-1": {
@@ -782,7 +789,7 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 
 	// Test 3: Delete controls and sections
 	deleteConfig := completeFrameworkConfig{
-		Name:        "Test Framework Comprehensive CRUD",
+		Name:        rName,
 		Description: "Framework to test comprehensive CRUD operations",
 		Sections: map[string]sectionConfig{
 			// section-1 deleted entirely
@@ -862,8 +869,9 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 }
 
 func TestAccCloudComplianceCustomFrameworkResource_MixedOperations(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	initialConfig := completeFrameworkConfig{
-		Name:        "Test Framework Mixed Operations",
+		Name:        rName,
 		Description: "Framework to test mixed operations",
 		Sections: map[string]sectionConfig{
 			"section-to-delete": {
@@ -893,7 +901,7 @@ func TestAccCloudComplianceCustomFrameworkResource_MixedOperations(t *testing.T)
 
 	// Test: Delete one section while renaming another, and delete/rename controls
 	mixedOperationsConfig := completeFrameworkConfig{
-		Name:        "Test Framework Mixed Operations",
+		Name:        rName,
 		Description: "Framework to test mixed operations",
 		Sections: map[string]sectionConfig{
 			// "section-to-delete" - deleted entirely
@@ -957,8 +965,9 @@ func TestAccCloudComplianceCustomFrameworkResource_MixedOperations(t *testing.T)
 }
 
 func TestAccCloudComplianceCustomFrameworkResource_EmptySectionsValidation(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	emptyConfig := completeFrameworkConfig{
-		Name:        "Test Framework Empty Sections Validation",
+		Name:        rName,
 		Description: "Framework to test empty sections validation",
 		Sections: map[string]sectionConfig{
 			"empty-section": {

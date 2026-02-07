@@ -81,7 +81,7 @@ func (config *sensorUpdatePolicyConfig) String() string {
 	hostGroupRefs := []string{}
 
 	for i := 0; i < config.HostGroupCount; i++ {
-		hostGroupName := fmt.Sprintf("hg-%s-%d", randomSuffix, i)
+		hostGroupName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 		tmplData := struct {
 			Index int
@@ -336,7 +336,7 @@ func (config sensorUpdatePolicyConfig) TestChecks() resource.TestCheckFunc {
 }
 
 func TestAccSensorUpdatePolicyResourceBadBuildUpdate(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -737,7 +737,7 @@ func TestAccSensorUpdatePolicyResource_BuildTransitions(t *testing.T) {
 }
 
 func TestAccSensorUpdatePolicyResourceBadHostGroup(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -765,7 +765,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 }
 
 func TestAccSensorUpdatePolicyResource(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -901,7 +901,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 }
 
 func TestAccSensorUpdatePolicyResourceWithHostGroup(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	hostGroupID, _ := os.LookupEnv("HOST_GROUP_ID")
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1052,7 +1052,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 }
 
 func TestAccSensorUpdatePolicyResourceWithSchedule(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -1230,8 +1230,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 // regression test to handle unknown states https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues/136
 func TestAccSensorUpdatePolicyResourceWithSchedule_unknown(t *testing.T) {
 	resourceName := "crowdstrike_sensor_update_policy.test"
-	randomSuffix := sdkacctest.RandString(8)
-	rName := fmt.Sprintf("tf-acc-%s", randomSuffix)
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -1352,7 +1351,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 }
 
 func TestAccSensorUpdatePolicyResourceWithBulkMaintenanceMode(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -1450,7 +1449,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 }
 
 func TestAccSensorUpdatePolicyResourceWithBulkMaintenanceMode_Validation(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },

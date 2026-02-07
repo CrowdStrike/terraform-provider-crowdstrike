@@ -38,7 +38,7 @@ resource "crowdstrike_filevantage_policy" "test" {
 }
 
 func TestAccFilevantagePolicyResource(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resourceName := "crowdstrike_filevantage_policy.test"
 	hostGroupID, _ := os.LookupEnv("HOST_GROUP_ID")
 

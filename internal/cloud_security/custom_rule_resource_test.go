@@ -51,7 +51,7 @@ type control struct {
 }
 
 var commonConfig = ruleBaseConfig{
-	ruleNamePrefix: "Terraform Automated Test ",
+	ruleNamePrefix: acctest.ResourcePrefix,
 	description: []string{
 		"This is a description",
 		"This is an updated description",

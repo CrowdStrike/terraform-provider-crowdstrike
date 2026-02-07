@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
@@ -77,6 +78,7 @@ func TestCloudSecurityRulesDatasourceWildcardPatterns(t *testing.T) {
 }
 
 func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resourceName := fmt.Sprintf("data.crowdstrike_cloud_security_rules.%s", config.cloudProvider)
 	steps = []resource.TestStep{
 		{
@@ -179,7 +181,7 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 			Config: fmt.Sprintf(`
 		resource "crowdstrike_cloud_security_custom_rule" "rule_%[1]s" {
 		  resource_type    = "%[5]s"
-		  name             = "Test Custom Rule Name"
+		  name             = "%[6]s"
 		  description      = "Test Custom Rule Name"
 		  cloud_provider   = "%[2]s"
 		  parent_rule_id   = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
@@ -192,7 +194,7 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 		data "crowdstrike_cloud_security_rules" "%[1]s" {
 		  rule_origin = "Custom"
 		}
-		`, config.cloudProvider, config.cloudProvider, config.ruleName, config.benchmark, config.resourceType),
+		`, config.cloudProvider, config.cloudProvider, config.ruleName, config.benchmark, config.resourceType, rName),
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet(resourceName, "rules.#"),
 				func(s *terraform.State) error {

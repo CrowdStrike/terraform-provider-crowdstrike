@@ -32,8 +32,6 @@ func (config *exclusionConfig) String() string {
 	var hostGroupsBlock string
 	var applyGloballyBlock string
 
-	randomSuffix := sdkacctest.RandString(8)
-
 	// Validate configuration - either apply_globally should be true OR host groups should be provided
 	switch {
 	case config.ApplyGlobally != nil && *config.ApplyGlobally:
@@ -44,7 +42,7 @@ func (config *exclusionConfig) String() string {
 	case config.HostGroupCount > 0:
 		var hostGroupRefs []string
 		for i := 0; i < config.HostGroupCount; i++ {
-			hostGroupName := fmt.Sprintf("hg-%s-%d", randomSuffix, i)
+			hostGroupName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 			hostGroupResources += fmt.Sprintf(`
 resource "crowdstrike_host_group" "hg_%d" {

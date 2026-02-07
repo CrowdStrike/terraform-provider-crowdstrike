@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/provider"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/sweep"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
@@ -17,8 +18,10 @@ const (
 	ProviderConfig = `
 provider "crowdstrike" {}
 `
-	CharSetNum     = "0123456789"
-	ResourcePrefix = "tf-acc-test-"
+	CharSetNum = "0123456789"
+	// ResourcePrefix is imported from sweep package to maintain single source of truth
+	// and avoid import cycles.
+	ResourcePrefix = sweep.ResourcePrefix
 )
 
 type OptionalEnvVar string
