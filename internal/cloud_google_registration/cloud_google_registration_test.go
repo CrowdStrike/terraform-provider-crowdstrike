@@ -155,7 +155,7 @@ func TestAccCloudGoogleRegistrationResource_Project(t *testing.T) {
 }
 
 func TestAccCloudGoogleRegistrationResource_Organization(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acc-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	orgID := generateGoogleCloudOrgID()
 	orgIDUpdated := generateGoogleCloudOrgID()
 	infraProjectID := generateGoogleCloudProjectID()
@@ -203,7 +203,7 @@ func TestAccCloudGoogleRegistrationResource_Organization(t *testing.T) {
 }
 
 func TestAccCloudGoogleRegistrationResource_RealtimeVisibility(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acc-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	projectID := generateGoogleCloudProjectID()
 	infraProjectID := generateGoogleCloudProjectID()
 	wifProjectID := generateGoogleCloudProjectID()

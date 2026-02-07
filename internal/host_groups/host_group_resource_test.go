@@ -200,7 +200,7 @@ func TestAssignAssignmentRule(t *testing.T) {
 }
 
 func TestAccHostGroupResource(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },

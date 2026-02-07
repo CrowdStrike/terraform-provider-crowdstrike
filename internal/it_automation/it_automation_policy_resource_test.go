@@ -127,7 +127,7 @@ func (config *policyConfig) TestChecks() resource.TestCheckFunc {
 }
 
 func TestAccITAutomationPolicyResource_Windows(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	testCases := []struct {
 		name   string
@@ -206,7 +206,7 @@ func TestAccITAutomationPolicyResource_Windows(t *testing.T) {
 }
 
 func TestAccITAutomationPolicyResource_Linux(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	testCases := []struct {
 		name   string
@@ -285,7 +285,7 @@ func TestAccITAutomationPolicyResource_Linux(t *testing.T) {
 }
 
 func TestAccITAutomationPolicyResource_Mac(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	testCases := []struct {
 		name   string

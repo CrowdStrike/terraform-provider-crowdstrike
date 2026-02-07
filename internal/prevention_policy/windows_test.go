@@ -130,7 +130,7 @@ resource "crowdstrike_prevention_policy_windows" "test" {
 }
 
 func TestAccPreventionPolicyWindowsResource_unknown(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resourceName := "crowdstrike_prevention_policy_windows.test"
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -164,7 +164,7 @@ func TestAccPreventionPolicyWindowsResource_unknown(t *testing.T) {
 }
 
 func TestAccPreventionPolicyWindowsResource_validationError(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -179,7 +179,7 @@ func TestAccPreventionPolicyWindowsResource_validationError(t *testing.T) {
 }
 
 func TestAccPreventionPolicyWindowsResource(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resourceName := "crowdstrike_prevention_policy_windows.test"
 	hostGroupID, _ := os.LookupEnv("HOST_GROUP_ID")
 	ruleGroupID, _ := os.LookupEnv("IOA_RULE_GROUP_ID")
