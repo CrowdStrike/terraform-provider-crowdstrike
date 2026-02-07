@@ -15,13 +15,14 @@ Plan and create a GitHub issue for a new Terraform resource or data source in th
 
 ## Phase 1: Initial Questions
 
-### Step 1: Feature Description
-Ask the user (text prompt, not AskUserQuestion):
-**"What CrowdStrike feature or capability do you want to add to the provider?"**
+### Step 1: Initial Information Gathering
+Present this question as text output (do not use AskUserQuestion tool):
 
-Wait for the user to provide either:
-- An example name (e.g., "response_policy" or "real_time_response_policy")
-- A brief description (e.g., "manages real-time response policies that control endpoint response capabilities")
+**"What CrowdStrike feature or capability do you want to add to the provider? If you know the gofalcon package name, please include it."**
+
+Wait for the user to provide:
+- Feature name or description (e.g., "response_policy" or "manages real-time response policies")
+- Optionally: gofalcon package name (e.g., "response_policies")
 
 ### Step 2: Infer or Ask Resource Type
 Based on the user's description:
@@ -30,9 +31,49 @@ Based on the user's description:
   - Is this a **resource** or **data source**?
   - Options: "Resource" or "Data Source"
 
-### Step 3: Package Discovery
-Ask the user using AskUserQuestion:
-- Do you know the gofalcon package name?
+## Phase 1.5: Package Validation/Discovery
+
+**Always perform package validation or discovery**, regardless of whether the user provided a package name.
+
+### Scenario A: User Provided Package Name
+
+If the user provided a gofalcon package name in Phase 1, validate it:
+
+1. **Verify package exists**:
+```bash
+go doc github.com/crowdstrike/gofalcon/falcon/client/<package>
+```
+
+2. **Check for required CRUD operations**:
+Look for methods matching these patterns (at least Create and Get should exist):
+- Create operations: `*Create*`, `*Post*`
+- Read operations: `*Get*`, `*Query*`
+- Update operations: `*Update*`, `*Patch*`
+- Delete operations: `*Delete*`
+
+3. **If validation fails** (package doesn't exist or lacks critical operations):
+- Inform the user: "The package `<package>` doesn't exist or lacks required CRUD operations."
+- Proceed to Scenario B (discovery)
+
+4. **If validation passes**:
+- Proceed to Phase 2 (API Discovery)
+
+### Scenario B: User Did NOT Provide Package Name OR Validation Failed
+
+Help discover the correct package:
+
+1. **Search for relevant packages** using keywords from the feature description:
+```bash
+go list github.com/crowdstrike/gofalcon/... | grep <keyword>
+```
+
+2. **Show results** to the user with brief package descriptions (if available)
+
+3. **Ask user to choose** the correct package or provide additional search terms
+
+4. **Once package is identified**, validate it using Scenario A steps
+
+5. **After successful validation**, proceed to Phase 2 (API Discovery)
 
 ## Phase 2: API Discovery
 
@@ -61,6 +102,8 @@ Document:
 ## Phase 3: Intelligent Schema Design
 
 Use pattern-based heuristics to automatically design the complete schema, then present it to the user for feedback.
+
+**Note**: In this phase, present the schema design and questions as regular text output and wait for user responses. Do not use the AskUserQuestion tool.
 
 ### Step 1: Examine API Model Fields
 
@@ -104,7 +147,7 @@ For each field in the API model, apply these pattern-matching rules:
 1. **Primary source**: Use field description from gofalcon `go doc` output if available as a starting point. Reword to be a good description.
 2. **Fallback patterns** if gofalcon docs don't provide description:
    - Simple fields: `"The <field_name> of the <resource>."`
-   - Enum fields: `"The <field_name> of the <resource>. Valid values: <values>."`
+   - Enum fields: `"The <field_name> of the <resource>. One of: <values>."`
 3. Always use MarkdownDescription format with backticks for code values and enums
 
 ### Step 3: Present Complete Schema Design
@@ -147,20 +190,35 @@ I've analyzed the API model and designed the following schema using common patte
   - ValidateConfig requirements in the issue
 - Use proper display names in validation requirements
 
-Ask: **"I've designed the schema based on common patterns. Does this look correct? What would you like to change?"**
+Present the schema and say:
 
-Wait for user feedback. They can:
-- Approve the schema as-is
-- Request changes to specific fields
-- Ask questions about the patterns used
+**"I've designed the schema based on common patterns. Does this look correct? What would you like to change?"**
 
-Iterate on feedback until the schema is finalized.
+**STOP and wait for user response.**
+
+### Iteration Process:
+
+1. **User provides feedback** - They can:
+   - Approve the schema as-is (e.g., "looks good", "proceed", "that's correct") → Proceed to Phase 4
+   - Request changes to specific fields → Continue to step 2
+   - Ask questions about the patterns used → Clarify and continue to step 2
+
+2. **Apply requested changes** to the schema
+
+3. **Present the updated schema** (showing what changed)
+
+4. **Ask again**: **"Does this look correct now? Any other changes?"**
+
+5. **Repeat steps 1-4** until the user explicitly approves the schema
+
+6. **Only after user approval**, proceed to Phase 4 (Additional Information)
 
 ## Phase 4: Additional Information
 
 Ask the user:
 
-1. **"What are the required API scopes?"**
+1. **"What are the required API scopes?"** (ONLY if not already established during API discovery)
+   - If API scopes were already identified, skip this question
    - Example: "Data Protection | Read & Write"
    - Format: `<Scope Name> | Read & Write` or `<Scope Name> | Read` etc.
 
@@ -172,6 +230,40 @@ Ask the user:
 
 ## Phase 5: Issue Generation
 
+## CRITICAL: What NOT to Include in GitHub Issues
+
+GitHub issues are planning documents, NOT implementation guides. DO NOT include:
+
+- ❌ Code for `.Wrap()` method - No conversion logic
+- ❌ Code for CRUD methods (`.Create()`, `.Read()`, `.Update()`, `.Delete()`)
+- ❌ References to other resources as implementation examples
+- ❌ Helper function code or patterns
+- ❌ API client call examples or error handling code
+- ❌ Sections like "API Helper Functions" or "Error Handling Implementation"
+
+DO include:
+
+- ✅ Complete schema definition (with validators and plan modifiers) - This is critical
+- ✅ Realistic HCL examples showing how users will use the resource
+- ✅ WHAT needs to be done (checklist of tasks)
+- ✅ API caveats discovered during planning (character limits, field transformations, special behaviors)
+- ✅ High-level notes about special handling requirements
+
+**The schema definition IS implementation code and should be complete. Everything else should be guidance, not code.**
+
+### Reference Format
+
+Before generating the issue, review `examples/ioa-exclusion-issue.md` to understand the expected format and level of detail.
+
+**Key characteristics:**
+- Realistic HCL example (single scenario preferred, multiple only if fundamentally different usage patterns)
+- Complete schema Go code (validators, plan modifiers) without imports or package declaration
+- High-level checklist (what to do, not how)
+- Notes section for API quirks and discoveries
+- NO .Wrap() code, NO helper functions, NO method implementations
+
+### Issue Structure
+
 Generate a complete GitHub issue with the following structure:
 
 ### Title Format
@@ -181,12 +273,14 @@ Generate a complete GitHub issue with the following structure:
 ### Body Structure
 
 ```markdown
-<Brief description of what this resource/data source manages>
+<Brief description (1-2 sentences) of what this resource/data source manages>
 
 ## Example
 
 ```hcl
-<Generate realistic Terraform HCL based on the schema>
+<Generate a realistic, complete Terraform HCL example showing how users will use this resource>
+<Include inline comments only where they add clarity about non-obvious usage>
+<Only include multiple scenarios if there are fundamentally different ways to use the resource (e.g., specific vs global configurations)>
 ```
 
 ## API Details
@@ -194,11 +288,13 @@ Generate a complete GitHub issue with the following structure:
 **gofalcon package**: `github.com/crowdstrike/gofalcon/falcon/client/<package>`
 
 **Available operations**:
-- Operation1 - Description
-- Operation2 - Description
+- OperationName - Brief description
+- OperationName - Brief description
 - ...
 
-**Model**: `models.<ModelName>`
+**Models**:
+- Request: `models.<RequestModel>`
+- Response: `models.<ResponseModel>`
 
 ## Resource Schema
 
@@ -210,38 +306,37 @@ Generate a complete GitHub issue with the following structure:
 - `field_name` (type) - Description
 - ...
 
-**Hardcoded values** (not exposed to users):
-- `field_name` = "value" (set internally)
-- ...
-
 **Computed attributes** (read-only):
 - `field_name` (type) - Description
 - ...
 
 ## Schema Implementation
 
-
 ```go
-resp.Schema = schema.Schema{
-    MarkdownDescription: utils.MarkdownDescription(
-        "<Category>",
-        "<Description>",
-        apiScopesReadWrite,  // Reference the scope variable defined in the package
-    ),
-    Attributes: map[string]schema.Attribute{
-        "id": schema.StringAttribute{
-            Computed:    true,
-            Description: "The ID of the <resource>.",
-            PlanModifiers: []planmodifier.String{
-                stringplanmodifier.UseStateForUnknown(),
+func (r *<resource>Resource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+    resp.Schema = schema.Schema{
+        MarkdownDescription: utils.MarkdownDescription(
+            "<Category>",
+            "<Description>",
+            apiScopesReadWrite,
+        ),
+        Attributes: map[string]schema.Attribute{
+            "id": schema.StringAttribute{
+                Computed:    true,
+                Description: "The ID of the <resource>.",
+                PlanModifiers: []planmodifier.String{
+                    stringplanmodifier.UseStateForUnknown(),
+                },
             },
+            <Generate all other attributes with full validators and plan modifiers>
         },
-        <Generate all other attributes with full validators and plan modifiers>
-    },
+    }
 }
 ```
 
 ## Implementation Checklist
+
+Note: Checklist items and sub-bullets are high-level by default. Add indented sub-bullets under ANY item to document special handling requirements discovered during planning (e.g., "Pass `nil` for field X", "Validate Y cannot be combined with Z"). Do NOT include implementation code.
 
 **Resource implementation**:
 - [ ] Create package directory `internal/<package>/`
@@ -251,7 +346,7 @@ resp.Schema = schema.Schema{
 - [ ] Implement `Update()` method
 - [ ] Implement `Delete()` method
 - [ ] Implement `ImportState()` method
-- [ ] Add `ValidateConfig()` method (if validation needed)
+- [ ] Add `ValidateConfig()` method
 - [ ] Add `.Wrap()` method to convert API response to Terraform model
 - [ ] Register resource in `internal/provider/provider.go`
 
@@ -263,24 +358,21 @@ resp.Schema = schema.Schema{
 
 ## Required API Scopes
 
-- <Scope Name> | Read & Write
+- <Scope Name> | <Permissions>
 
 ## Testing Notes
 
 - Use `resource.ParallelTest()` for concurrent execution
 - Test full lifecycle: create, read, update, import, destroy
-
-## Questions to Resolve During Implementation
-
-<Only include this section if there are actual unknowable questions>
-
-1. Question here
+<Add specific test scenarios if applicable>
 
 ## Notes
 
-<Any API quirks or special handling notes>
+<Only include this section if there are API quirks, caveats, or special cases discovered during planning>
 
-Note: <Special handling description if applicable>
+**<Quirk Category>**: <Description of the quirk and how it should be handled>
+
+<Add additional notes as needed>
 ```
 
 ## Phase 6: User Review and Creation
@@ -327,16 +419,26 @@ Validators: []validator.String{
 
 ## Important Notes
 
+### Issue Philosophy
+- Issues define WHAT needs to be built, not HOW to build it 
+- The implementer already knows provider patterns - don't tell them how to code
+- Focus on the unique aspects of THIS resource (schema, API quirks, special cases)
+- The schema is the contract - make it complete and correct
+
+### What Makes a Good Issue
+- **Schema first**: The schema definition is the most important part - it sets up everything
+- **Document discoveries**: Note any API quirks found during planning (limits, transformations, unexpected behaviors)
+- **High-level checklist**: List what needs to be done, let implementer decide how
+- **No code examples**: Except the schema - everything else is prescriptive
+
+### Common Mistakes to Avoid
+- Showing how to implement `.Wrap()` - implementer knows this pattern
+- Referencing other resources - don't create dependencies on understanding other code
+- Including helper function pseudo-code - not needed in planning document
+- Being too specific about file organization - let implementer structure the package
+
 ### General Guidelines
-- **Never** reference existing resources as implementation examples unless asked
+- **Never** reference existing resources as implementation examples
 - **Always** explain the assumptions made when presenting the schema design
 - **Always** show issue content before creating
-- Questions to Resolve section is only for things unknowable until API testing
-- All optional strings automatically get `NotEmptyOrWhitespace()` validator
 - Use gofalcon documentation as the primary source for field descriptions
-
-### Issue Structure Guidelines
-- **Avoid file structure details**: Don't specify specific `.go` file names (schema.go, api.go, errors.go) - let implementer decide file organization
-- **Focus on WHAT, not HOW**: Document requirements and what needs to happen, not specific method names or implementation details
-- **No prescriptive sections**: Don't include sections like "API Helper Functions" or reference specific method names
-- Guide the implementation approach without being overly prescriptive about code organization
