@@ -1,12 +1,10 @@
 package responsepolicy
 
-import (
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
-)
+import "github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 
-var apiScopes = []scopes.Scope{
+var apiScopesReadWrite = []scopes.Scope{
 	{
-		Name:  "Response policies",
+		Name:  "Response Policies",
 		Read:  true,
 		Write: true,
 	},

@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 )
 
 const (
@@ -36,6 +37,11 @@ func ConfigCompose(config ...string) string {
 	}
 
 	return str.String()
+}
+
+// RandomResourceName generates a random resource name with the standard prefix.
+func RandomResourceName() string {
+	return sdkacctest.RandomWithPrefix(ResourcePrefix)
 }
 
 // ProtoV6ProviderFactories are used to instantiate a provider during

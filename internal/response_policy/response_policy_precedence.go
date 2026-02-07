@@ -33,7 +33,7 @@ var (
 var (
 	precedenceDocumentationSection string         = "Host Setup and Management"
 	precedenceMarkdownDescription  string         = "This resource allows you set the precedence of Response Policies based on the order of IDs."
-	precedenceRequiredScopes       []scopes.Scope = apiScopes
+	precedenceRequiredScopes       []scopes.Scope = apiScopesReadWrite
 
 	dynamicEnforcement = "dynamic"
 )
@@ -309,7 +309,7 @@ func (r *responsePolicyPrecedenceResource) getResponsePoliciesByPrecedence(
 		},
 	)
 	if err != nil {
-		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopes))
+		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopesReadWrite))
 		return policies, diags
 	}
 
@@ -384,7 +384,7 @@ func (r *responsePolicyPrecedenceResource) setResponsePolicyPrecedence(
 		diag := tferrors.NewDiagnosticFromAPIError(
 			tferrors.Update,
 			err,
-			apiScopes,
+			apiScopesReadWrite,
 			tferrors.WithNotFoundDetail(
 				"One or more response policy ids were not found. Verify all the response policy ids provided are valid for the platform you are targeting.",
 			),

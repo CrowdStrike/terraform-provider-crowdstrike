@@ -306,6 +306,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		cloudgroup.NewCloudGroupResource,
 		cloudsecurity.NewCloudSecuritySuppressionRuleResource,
 		dataprotection.NewDataProtectionContentPatternResource,
+		responsepolicy.NewResponsePolicyResource,
 		responsepolicy.NewResponsePolicyPrecedenceResource,
 	}
 }

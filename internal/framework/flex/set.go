@@ -91,3 +91,16 @@ func DiffStringSet(
 
 	return diff
 }
+
+// FlattenStringValueSet converts a slice of strings to a Terraform set of strings.
+// Returns null if the slice is empty or nil.
+func FlattenStringValueSet(
+	ctx context.Context,
+	values []string,
+) (types.Set, diag.Diagnostics) {
+	if len(values) == 0 {
+		return types.SetNull(types.StringType), nil
+	}
+
+	return types.SetValueFrom(ctx, types.StringType, values)
+}

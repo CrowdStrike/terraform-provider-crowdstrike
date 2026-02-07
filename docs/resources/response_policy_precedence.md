@@ -5,7 +5,7 @@ description: |-
   This resource allows you set the precedence of Response Policies based on the order of IDs.
   API Scopes
   The following API scopes are required:
-  Response policies | Read & Write
+  Response Policies | Read & Write
 ---
 
 # crowdstrike_response_policy_precedence (Resource)
@@ -16,7 +16,7 @@ This resource allows you set the precedence of Response Policies based on the or
 
 The following API scopes are required:
 
-- Response policies | Read & Write
+- Response Policies | Read & Write
 
 
 ## Example Usage

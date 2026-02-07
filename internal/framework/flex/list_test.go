@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -195,6 +196,41 @@ func TestExpandListAs_Objects(t *testing.T) {
 			} else {
 				assert.False(t, diags.HasError(), "unexpected diagnostics: %v", diags)
 			}
+		})
+	}
+}
+
+func TestFlattenStringValueList(t *testing.T) {
+	t.Parallel()
+
+	testcases := []struct {
+		name     string
+		values   []string
+		expected types.List
+	}{
+		{
+			name:     "nil slice returns null",
+			values:   nil,
+			expected: acctest.StringListOrNull(),
+		},
+		{
+			name:     "empty slice returns null",
+			values:   []string{},
+			expected: acctest.StringListOrNull(),
+		},
+		{
+			name:     "slice with valid values returns list",
+			values:   []string{"value1", "value2", "value3"},
+			expected: acctest.StringListOrNull("value1", "value2", "value3"),
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, diags := flex.FlattenStringValueList(t.Context(), tc.values)
+
+			assert.False(t, diags.HasError(), "unexpected diagnostics errors: %v", diags.Errors())
+			assert.True(t, result.Equal(tc.expected), "expected %v, got %v", tc.expected, result)
 		})
 	}
 }
