@@ -2,6 +2,7 @@ package tferrors
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/models"
@@ -177,6 +178,9 @@ func NewDiagnosticFromAPIError(operation Operation, err error, apiScopes []scope
 			}
 			return NewNotFoundError(detail)
 
+		case statusErr.IsCode(207):
+			return handle207PayloadErrors(operation, err, cfg)
+
 		case statusErr.IsCode(409):
 			detail := cfg.conflictDetail
 			if detail == "" {
@@ -204,6 +208,77 @@ func NewDiagnosticFromAPIError(operation Operation, err error, apiScopes []scope
 		fmt.Sprintf("Failed to %s", operation),
 		detail,
 	)
+}
+
+// handle207PayloadErrors extracts and processes payload errors from 207 Multi-Status responses.
+// Returns NotFoundError if any error has code 404, otherwise returns standard operation error.
+func handle207PayloadErrors(operation Operation, err error, cfg *errorConfig) diag.Diagnostic {
+	// Call GetPayload() method using reflection since return types vary by multi-status type
+	errVal := reflect.ValueOf(err)
+	getPayloadMethod := errVal.MethodByName("GetPayload")
+	if !getPayloadMethod.IsValid() {
+		return diag.NewErrorDiagnostic(
+			fmt.Sprintf("Failed to %s", operation),
+			err.Error(),
+		)
+	}
+
+	// Call GetPayload()
+	results := getPayloadMethod.Call(nil)
+	if len(results) == 0 || results[0].IsNil() {
+		return diag.NewErrorDiagnostic(
+			fmt.Sprintf("Failed to %s", operation),
+			err.Error(),
+		)
+	}
+
+	payload := results[0].Interface()
+	if payload == nil {
+		return diag.NewErrorDiagnostic(
+			fmt.Sprintf("Failed to %s", operation),
+			err.Error(),
+		)
+	}
+
+	payloadVal := reflect.ValueOf(payload)
+	if payloadVal.Kind() == reflect.Ptr {
+		payloadVal = payloadVal.Elem()
+	}
+
+	if payloadVal.Kind() != reflect.Struct {
+		return diag.NewErrorDiagnostic(
+			fmt.Sprintf("Failed to %s", operation),
+			err.Error(),
+		)
+	}
+
+	errorsField := payloadVal.FieldByName("Errors")
+	if !errorsField.IsValid() || !errorsField.CanInterface() {
+		return diag.NewErrorDiagnostic(
+			fmt.Sprintf("Failed to %s", operation),
+			err.Error(),
+		)
+	}
+
+	// Type assert to []*models.MsaAPIError
+	payloadErrors, ok := errorsField.Interface().([]*models.MsaAPIError)
+	if !ok || len(payloadErrors) == 0 {
+		return nil
+	}
+
+	// Check for 404 in payload errors
+	for _, apiErr := range payloadErrors {
+		if apiErr != nil && apiErr.Code != nil && *apiErr.Code == 404 {
+			detail := cfg.notFoundDetail
+			if detail == "" && apiErr.Message != nil {
+				detail = *apiErr.Message
+			}
+			return NewNotFoundError(detail)
+		}
+	}
+
+	// Other payload errors
+	return NewDiagnosticFromPayloadErrors(operation, payloadErrors)
 }
 
 // NewDiagnosticFromPayloadErrors converts API payload errors to a Terraform diagnostic.
