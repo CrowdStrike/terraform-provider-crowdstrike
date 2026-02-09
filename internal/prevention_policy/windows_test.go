@@ -172,7 +172,7 @@ func TestAccPreventionPolicyWindowsResource_validationError(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccPreventionPolicyWindowsConfig_validationError(rName),
-				ExpectError: regexp.MustCompile("Error: requirements not met to enable boot_configuration_database_protection"),
+				ExpectError: regexp.MustCompile("When boot_configuration_database_protection is enabled"),
 			},
 		},
 	})
