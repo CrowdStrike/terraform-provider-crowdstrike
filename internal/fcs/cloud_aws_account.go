@@ -1048,8 +1048,9 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 	}
 
 	var dspmRoleArn string
-	dspmRoleNameFromSettings := settings.DSPMRoleName.ValueString()
-	dspmRoleName := getRoleNameFromArn(dspmRoleNameFromSettings)
+
+	dspmRoleNameFromSettings := settings.DSPMRoleName.ValueString() // arn:.../{prefix}{RoleName}{suffix}
+	dspmRoleName := getRoleNameFromArn(dspmRoleNameFromSettings)    // {prefix}{RoleName}{suffix}
 	if strings.HasPrefix(dspmRoleNameFromSettings, "arn:") {
 		dspmRoleArn = dspmRoleNameFromSettings
 	} else if dspmRoleName != "" {
@@ -1061,7 +1062,6 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 	}
 	m.DspmRoleName = types.StringValue(dspmRoleName)
 	m.DspmRoleArn = types.StringValue(dspmRoleArn)
-	m.DSPM.RoleName = types.StringValue(dspmRoleName)
 
 	var vulnScanningRoleArn string
 	vulnScanningRoleNameFromSettings := settings.VulnerabilityScanningRoleName.ValueString()
@@ -1077,7 +1077,6 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 	}
 	m.VulnerabilityScanningRoleName = types.StringValue(vulnScanningRoleName)
 	m.VulnerabilityScanningRoleArn = types.StringValue(vulnScanningRoleArn)
-	m.VulnerabilityScanning.RoleName = types.StringValue(vulnScanningRoleName)
 
 	agentlessScanningRoleName := dspmRoleName
 	if !m.DSPM.Enabled.ValueBool() && m.VulnerabilityScanning.Enabled.ValueBool() {
