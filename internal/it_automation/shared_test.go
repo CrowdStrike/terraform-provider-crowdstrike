@@ -12,6 +12,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/real_time_response_admin"
 	"github.com/crowdstrike/gofalcon/falcon/client/user_management"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
@@ -89,7 +90,7 @@ func createSDKFixtures(t *testing.T) *sdkFixtures {
 		client:        falconClient,
 	}
 
-	randomSuffix := sdkacctest.RandomWithPrefix("tf-acctest")
+	randomSuffix := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	platforms := []string{"windows", "linux", "mac"}
 
 	for _, platform := range platforms {
@@ -367,26 +368,26 @@ func isDefaultPolicy(name string) bool {
 
 // getTestFixtures creates a set of test fixtures with a unique random suffix to avoid naming conflicts when running tests in parallel.
 func getTestFixtures() *testFixtures {
-	randomSuffix := sdkacctest.RandomWithPrefix("tf-acctest")
+	randomSuffix := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	hostGroups := map[string]string{
 		"windows": fmt.Sprintf(`
 resource "crowdstrike_host_group" "windows" {
-  name            = "tf-acctest-windows-hg-%s"
+  name            = "%s-windows-hg"
   description     = "Test host group for Windows IT automation tests"
   type            = "dynamic"
   assignment_rule = "platform_name:'Windows'"
 }`, randomSuffix),
 		"linux": fmt.Sprintf(`
 resource "crowdstrike_host_group" "linux" {
-  name            = "tf-acctest-linux-hg-%s"
+  name            = "%s-linux-hg"
   description     = "Test host group for Linux IT automation tests"
   type            = "dynamic"
   assignment_rule = "platform_name:'Linux'"
 }`, randomSuffix),
 		"mac": fmt.Sprintf(`
 resource "crowdstrike_host_group" "mac" {
-  name            = "tf-acctest-mac-hg-%s"
+  name            = "%s-mac-hg"
   description     = "Test host group for Mac IT automation tests"
   type            = "dynamic"
   assignment_rule = "platform_name:'Mac'"
@@ -396,7 +397,7 @@ resource "crowdstrike_host_group" "mac" {
 	policies := map[string]string{
 		"windows_1": fmt.Sprintf(`
 resource "crowdstrike_it_automation_policy" "windows_1" {
-  name        = "tf-acctest-windows-policy-1-%s"
+  name        = "%s-windows-policy-1"
   description = "Test Windows policy 1 for precedence tests"
   platform_name    = "Windows"
   enabled  = true
@@ -418,7 +419,7 @@ resource "crowdstrike_it_automation_policy" "windows_1" {
 }`, randomSuffix),
 		"windows_2": fmt.Sprintf(`
 resource "crowdstrike_it_automation_policy" "windows_2" {
-  name        = "tf-acctest-windows-policy-2-%s"
+  name        = "%s-windows-policy-2"
   description = "Test Windows policy 2 for precedence tests"
   platform_name    = "Windows"
   enabled  = true
@@ -440,7 +441,7 @@ resource "crowdstrike_it_automation_policy" "windows_2" {
 }`, randomSuffix),
 		"windows_3": fmt.Sprintf(`
 resource "crowdstrike_it_automation_policy" "windows_3" {
-  name        = "tf-acctest-windows-policy-3-%s"
+  name        = "%s-windows-policy-3"
   description = "Test Windows policy 3 for precedence tests"
   platform_name    = "Windows"
   enabled  = true
@@ -462,7 +463,7 @@ resource "crowdstrike_it_automation_policy" "windows_3" {
 }`, randomSuffix),
 		"linux_1": fmt.Sprintf(`
 resource "crowdstrike_it_automation_policy" "linux_1" {
-  name        = "tf-acctest-linux-policy-1-%s"
+  name        = "%s-linux-policy-1"
   description = "Test Linux policy 1 for precedence tests"
   platform_name    = "Linux"
   enabled  = true
@@ -484,7 +485,7 @@ resource "crowdstrike_it_automation_policy" "linux_1" {
 }`, randomSuffix),
 		"linux_2": fmt.Sprintf(`
 resource "crowdstrike_it_automation_policy" "linux_2" {
-  name        = "tf-acctest-linux-policy-2-%s"
+  name        = "%s-linux-policy-2"
   description = "Test Linux policy 2 for precedence tests"
   platform_name    = "Linux"
   enabled  = true
@@ -506,7 +507,7 @@ resource "crowdstrike_it_automation_policy" "linux_2" {
 }`, randomSuffix),
 		"linux_3": fmt.Sprintf(`
 resource "crowdstrike_it_automation_policy" "linux_3" {
-  name        = "tf-acctest-linux-policy-3-%s"
+  name        = "%s-linux-policy-3"
   description = "Test Linux policy 3 for precedence tests"
   platform_name    = "Linux"
   enabled  = true
@@ -528,7 +529,7 @@ resource "crowdstrike_it_automation_policy" "linux_3" {
 }`, randomSuffix),
 		"mac_1": fmt.Sprintf(`
 resource "crowdstrike_it_automation_policy" "mac_1" {
-  name        = "tf-acctest-mac-policy-1-%s"
+  name        = "%s-mac-policy-1"
   description = "Test Mac policy 1 for precedence tests"
   platform_name    = "Mac"
   enabled  = true
@@ -549,7 +550,7 @@ resource "crowdstrike_it_automation_policy" "mac_1" {
 }`, randomSuffix),
 		"mac_2": fmt.Sprintf(`
 resource "crowdstrike_it_automation_policy" "mac_2" {
-  name        = "tf-acctest-mac-policy-2-%s"
+  name        = "%s-mac-policy-2"
   description = "Test Mac policy 2 for precedence tests"
   platform_name    = "Mac"
   enabled  = true
@@ -570,7 +571,7 @@ resource "crowdstrike_it_automation_policy" "mac_2" {
 }`, randomSuffix),
 		"mac_3": fmt.Sprintf(`
 resource "crowdstrike_it_automation_policy" "mac_3" {
-  name        = "tf-acctest-mac-policy-3-%s"
+  name        = "%s-mac-policy-3"
   description = "Test Mac policy 3 for precedence tests"
   platform_name    = "Mac"
   enabled  = true
@@ -594,21 +595,21 @@ resource "crowdstrike_it_automation_policy" "mac_3" {
 	verificationTasks := map[string]string{
 		"windows": fmt.Sprintf(`
 resource "crowdstrike_it_automation_task" "verify_windows" {
-  name        = "tf-acctest-windows-verification-task-%s"
+  name        = "%s-windows-verification-task"
   access_type = "Public"
   type        = "query"
   os_query    = "SELECT * FROM system_info;"
 }`, randomSuffix),
 		"linux": fmt.Sprintf(`
 resource "crowdstrike_it_automation_task" "verify_linux" {
-  name        = "tf-acctest-linux-verification-task-%s"
+  name        = "%s-linux-verification-task"
   access_type = "Public"
   type        = "query"
   os_query    = "SELECT * FROM system_info;"
 }`, randomSuffix),
 		"mac": fmt.Sprintf(`
 resource "crowdstrike_it_automation_task" "verify_mac" {
-  name        = "tf-acctest-mac-verification-task-%s"
+  name        = "%s-mac-verification-task"
   access_type = "Public"
   type        = "query"
   os_query    = "SELECT * FROM system_info;"

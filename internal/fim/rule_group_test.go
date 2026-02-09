@@ -14,7 +14,7 @@ func testAccFilevantageRuleGroup_basic(
 	rgType string,
 	paths []string,
 ) resource.TestCase {
-	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	rDescription := sdkacctest.RandString(20)
 	config := acctest.ProviderConfig + fmt.Sprintf(`
 variable "base_rule" {
