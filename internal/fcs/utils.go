@@ -11,6 +11,10 @@ func getRoleNameFromArn(arn string) string {
 	if len(arnParts) == 2 {
 		return arnParts[1]
 	}
+	// If it's not in ARN format and doesn't contain "arn:" prefix, assume it's already a role name
+	if !strings.Contains(arn, "/") && !strings.HasPrefix(arn, "arn:") && arn != "" {
+		return arn
+	}
 	return ""
 }
 

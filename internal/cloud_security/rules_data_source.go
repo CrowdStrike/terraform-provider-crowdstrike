@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -37,6 +38,7 @@ type cloudSecurityRulesDataSource struct {
 type cloudSecurityRulesDataSourceModel struct {
 	CloudProvider types.String `tfsdk:"cloud_provider"`
 	RuleName      types.String `tfsdk:"rule_name"`
+	RuleOrigin    types.String `tfsdk:"rule_origin"`
 	ResourceType  types.String `tfsdk:"resource_type"`
 	Benchmark     types.String `tfsdk:"benchmark"`
 	Framework     types.String `tfsdk:"framework"`
@@ -47,6 +49,7 @@ type cloudSecurityRulesDataSourceModel struct {
 
 type cloudSecurityRulesDataSourceRuleModel struct {
 	ID              types.String `tfsdk:"id"`
+	RuleOrigin      types.String `tfsdk:"rule_origin"`
 	AlertInfo       types.List   `tfsdk:"alert_info"`
 	Controls        types.Set    `tfsdk:"controls"`
 	Description     types.String `tfsdk:"description"`
@@ -71,7 +74,8 @@ type fqlFilters struct {
 
 func (m cloudSecurityRulesDataSourceRuleModel) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"id": types.StringType,
+		"id":          types.StringType,
+		"rule_origin": types.StringType,
 		"alert_info": types.ListType{
 			ElemType: types.StringType,
 		},
@@ -112,20 +116,20 @@ func (r *cloudSecurityRulesDataSource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
 		return
 	}
 
-	r.client = client
+	r.client = config.Client
 }
 
 func (r *cloudSecurityRulesDataSource) Metadata(
@@ -153,6 +157,14 @@ func (r *cloudSecurityRulesDataSource) Schema(
 				Description: "Cloud provider for where the rule resides.",
 				Validators: []validator.String{
 					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
+				},
+			},
+			"rule_origin": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "Rule origin to filter by. Valid values are 'Default' or 'Custom'.",
+				Validators: []validator.String{
+					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
+					stringvalidator.OneOf("Default", "Custom"),
 				},
 			},
 			"rule_name": schema.StringAttribute{
@@ -208,6 +220,10 @@ func (r *cloudSecurityRulesDataSource) Schema(
 									"must be a valid ID in the format of 7c86a274-c04b-4292-9f03-dafae42bde97",
 								),
 							},
+						},
+						"rule_origin": schema.StringAttribute{
+							Computed:    true,
+							Description: "Rule origin indicating whether this is a Default or Custom rule.",
 						},
 						"alert_info": schema.ListAttribute{
 							Computed:    true,
@@ -319,6 +335,10 @@ func (r *cloudSecurityRulesDataSource) Read(
 			value:    data.CloudProvider.ValueString(),
 		},
 		{
+			property: "rule_origin",
+			value:    data.RuleOrigin.ValueString(),
+		},
+		{
 			property: "rule_name",
 			value:    data.RuleName.ValueString(),
 		},
@@ -382,7 +402,11 @@ func (r *cloudSecurityRulesDataSource) getRules(
 		for _, f := range fqlFilters {
 			if f.value != "" {
 				value := strings.ReplaceAll(f.value, "\\", "\\\\\\\\")
-				filters = append(filters, fmt.Sprintf("%s:*'%s'", f.property, value))
+				if f.property == "rule_origin" {
+					filters = append(filters, fmt.Sprintf("%s:'%s'", f.property, value))
+				} else {
+					filters = append(filters, fmt.Sprintf("%s:*'%s'", f.property, value))
+				}
 			}
 		}
 
@@ -488,6 +512,7 @@ func (r *cloudSecurityRulesDataSource) getRules(
 				CloudPlatform:  types.StringValue(resource.Platform),
 				CloudProvider:  types.StringPointerValue(resource.Provider),
 				Subdomain:      types.StringPointerValue(resource.Subdomain),
+				RuleOrigin:     types.StringPointerValue(resource.Origin),
 			}
 
 			var policyControls []policyControl

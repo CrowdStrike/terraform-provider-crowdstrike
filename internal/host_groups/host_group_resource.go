@@ -2,6 +2,7 @@ package hostgroups
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -14,9 +15,11 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/response_policies"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/retry"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -104,13 +107,13 @@ func (r *hostGroupResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
@@ -118,7 +121,7 @@ func (r *hostGroupResource) Configure(
 		return
 	}
 
-	r.client = client
+	r.client = config.Client
 }
 
 // Metadata returns the resource type name.
@@ -242,28 +245,30 @@ func (r *hostGroupResource) Create(
 
 	hostGroup, err := r.client.HostGroup.CreateHostGroups(&hostGroupParams)
 	if err != nil {
-		errMsg := fmt.Sprintf(
-			"Could not create host group (%s): %s",
-			plan.Name.ValueString(),
-			err.Error(),
-		)
-		if strings.Contains(err.Error(), "409") {
-			errMsg = fmt.Sprintf(
-				"Could not create host group (%s): A host group already exists with that name.\n\n%s",
-				plan.Name.ValueString(),
-				err.Error(),
-			)
+		var forbiddenError *host_group.CreateHostGroupsForbidden
+		if errors.As(err, &forbiddenError) {
+			resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Create, apiScopes))
+			return
 		}
 
-		if strings.Contains(err.Error(), "500") && plan.GroupType.ValueString() == HgDynamic {
-			errMsg = fmt.Sprintf(
-				"Could not create host group (%s): Returned error code 500, this could be caused by invalid assignment_rule.\n\n%s",
-				plan.Name.ValueString(),
-				err.Error(),
-			)
+		if strings.Contains(err.Error(), "status 409") {
+			resp.Diagnostics.Append(tferrors.NewConflictError(
+				tferrors.Create,
+				fmt.Sprintf("A host group already exists with the name %q. %s", plan.Name.ValueString(), err.Error()),
+			))
+			return
 		}
 
-		resp.Diagnostics.AddError("Error creating host group", errMsg)
+		var internalServerError *host_group.CreateHostGroupsInternalServerError
+		if errors.As(err, &internalServerError) && plan.GroupType.ValueString() == HgDynamic {
+			resp.Diagnostics.Append(tferrors.NewOperationError(
+				tferrors.Create,
+				fmt.Errorf("returned error code 500, this could be caused by invalid assignment_rule: %w", err),
+			))
+			return
+		}
+
+		resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Create, err))
 		return
 	}
 
@@ -281,10 +286,14 @@ func (r *hostGroupResource) Create(
 	if plan.GroupType.ValueString() != HgDynamic {
 		hgUpdate, err := r.updateHostGroup(ctx, plan, assignmentRule)
 		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error assigning hosts to host group",
-				fmt.Sprintf("Could not assign hosts to host group with ID: %s: %s", plan.ID.ValueString(), err.Error()),
-			)
+			var forbiddenError *host_group.UpdateHostGroupsForbidden
+			if errors.As(err, &forbiddenError) {
+				resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Update, apiScopes))
+				return
+			}
+
+			resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Update,
+				fmt.Errorf("could not assign hosts to host group with ID %s: %w", plan.ID.ValueString(), err)))
 			return
 		}
 
@@ -318,10 +327,20 @@ func (r *hostGroupResource) Read(
 		},
 	)
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error reading CrowdStrike host group",
-			"Could not read CrowdStrike host group: "+state.ID.ValueString()+": "+err.Error(),
-		)
+		var notFoundError *host_group.GetHostGroupsNotFound
+		if errors.As(err, &notFoundError) {
+			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
+			resp.State.RemoveResource(ctx)
+			return
+		}
+
+		var forbiddenError *host_group.GetHostGroupsForbidden
+		if errors.As(err, &forbiddenError) {
+			resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Read, apiScopes))
+			return
+		}
+
+		resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Read, err))
 		return
 	}
 
@@ -356,29 +375,38 @@ func (r *hostGroupResource) Update(
 
 	hostGroup, err := r.updateHostGroup(ctx, plan, assignmentRule)
 	if err != nil {
-		errMsg := fmt.Sprintf(
-			"Could not update host group (%s): %s",
-			plan.ID.ValueString(),
-			err.Error(),
-		)
-		if strings.Contains(err.Error(), "409") {
-			errMsg = fmt.Sprintf(
-				"Could not update host group (%s): A host group already exists with that name. \n\n %s",
-				plan.ID.ValueString(),
-				err.Error(),
-			)
+		var forbiddenError *host_group.UpdateHostGroupsForbidden
+		if errors.As(err, &forbiddenError) {
+			resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Update, apiScopes))
+			return
 		}
 
-		if strings.Contains(err.Error(), "500") && plan.GroupType.ValueString() == HgDynamic {
-			errMsg = fmt.Sprintf(
-				"Could not update host group (%s): Returned error code 500, this could be caused by invalid assignment_rule. \n\n %s",
-				plan.Name.ValueString(),
-				err.Error(),
-			)
+		var notFoundError *host_group.UpdateHostGroupsNotFound
+		if errors.As(err, &notFoundError) {
+			resp.Diagnostics.Append(tferrors.NewNotFoundError(
+				fmt.Sprintf("Host group with ID %q was not found. It may have been deleted outside of Terraform.", plan.ID.ValueString()),
+			))
+			return
 		}
 
-		resp.Diagnostics.AddError("Error updating host group", errMsg)
+		if strings.Contains(err.Error(), "status 409") {
+			resp.Diagnostics.Append(tferrors.NewConflictError(
+				tferrors.Update,
+				fmt.Sprintf("A host group already exists with the name %q. %s", plan.Name.ValueString(), err.Error()),
+			))
+			return
+		}
 
+		var internalServerError *host_group.UpdateHostGroupsInternalServerError
+		if errors.As(err, &internalServerError) && plan.GroupType.ValueString() == HgDynamic {
+			resp.Diagnostics.Append(tferrors.NewOperationError(
+				tferrors.Update,
+				fmt.Errorf("returned error code 500, this could be caused by invalid assignment_rule: %w", err),
+			))
+			return
+		}
+
+		resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Update, err))
 		return
 	}
 
@@ -455,7 +483,14 @@ func (r *hostGroupResource) Delete(
 		)
 		if err == nil {
 			tflog.Debug(ctx, "Successfully deleted host group", map[string]any{"id": state.ID.ValueString()})
+			return nil
 		}
+
+		var notFoundError *host_group.DeleteHostGroupsNotFound
+		if errors.As(err, &notFoundError) {
+			return nil
+		}
+
 		return err
 	}
 	const pollInterval = 2 * time.Second
@@ -463,17 +498,15 @@ func (r *hostGroupResource) Delete(
 	deleteErr := retry.RetryUntilNoError(ctx, pollTimeout, pollInterval, deleteFn)
 
 	if deleteErr != nil {
-		if strings.Contains(deleteErr.Error(), "409") {
-			resp.Diagnostics.AddError(
-				"Error deleting CrowdStrike host group",
-				"Host group could not be deleted because assigned policies (firewall, prevention, sensor update, or response) could not be removed, likely due to insufficient API scopes. Please ensure your API credentials have the necessary scopes to remove these assigned policies, or remove them manually, then try again. Error: "+deleteErr.Error(),
-			)
-		} else {
-			resp.Diagnostics.AddError(
-				"Error deleting CrowdStrike host group",
-				"Could not delete host group, unexpected error: "+deleteErr.Error(),
-			)
+		if strings.Contains(deleteErr.Error(), "status 409") {
+			resp.Diagnostics.Append(tferrors.NewConflictError(
+				tferrors.Delete,
+				fmt.Sprintf("Host group could not be deleted because assigned policies (firewall, prevention, sensor update, or response) could not be removed, likely due to insufficient API scopes. Please ensure your API credentials have the necessary scopes to remove these assigned policies, or remove them manually, then try again. %s", deleteErr.Error()),
+			))
+			return
 		}
+
+		resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Delete, deleteErr))
 	}
 }
 
@@ -502,10 +535,7 @@ func (r *hostGroupResource) purgeSensorUpdatePolicies(
 		},
 	)
 	if err != nil {
-		diags.AddError(
-			"Error deleting CrowdStrike host group",
-			"Unable to read assigned sensor update policies "+err.Error(),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Delete, err))
 		return diags
 	}
 
@@ -529,10 +559,7 @@ func (r *hostGroupResource) purgeSensorUpdatePolicies(
 			},
 		)
 		if err != nil {
-			diags.AddError(
-				"Error deleting CrowdStrike host group",
-				"Unable to remove assigned sensor update policies "+err.Error(),
-			)
+			diags.Append(tferrors.NewOperationError(tferrors.Delete, err))
 			return diags
 		}
 	}
@@ -555,10 +582,7 @@ func (r *hostGroupResource) purgePreventionPolicies(
 		},
 	)
 	if err != nil {
-		diags.AddError(
-			"Error deleting CrowdStrike host group",
-			"Unable to read assigned prevention policies "+err.Error(),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Delete, err))
 		return diags
 	}
 
@@ -582,10 +606,7 @@ func (r *hostGroupResource) purgePreventionPolicies(
 			},
 		)
 		if err != nil {
-			diags.AddError(
-				"Error deleting CrowdStrike host group",
-				"Unable to remove assigned prevention policies "+err.Error(),
-			)
+			diags.Append(tferrors.NewOperationError(tferrors.Delete, err))
 			return diags
 		}
 	}
@@ -608,10 +629,7 @@ func (r *hostGroupResource) purgeFirewallPolicies(
 		},
 	)
 	if err != nil {
-		diags.AddError(
-			"Error deleting CrowdStrike host group",
-			"Unable to read assigned firewall prevention policies "+err.Error(),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Delete, err))
 		return diags
 	}
 
@@ -635,10 +653,7 @@ func (r *hostGroupResource) purgeFirewallPolicies(
 			},
 		)
 		if err != nil {
-			diags.AddError(
-				"Error deleting CrowdStrike host group",
-				"Unable to remove assigned firewall prevention policies "+err.Error(),
-			)
+			diags.Append(tferrors.NewOperationError(tferrors.Delete, err))
 			return diags
 		}
 	}
@@ -661,10 +676,7 @@ func (r *hostGroupResource) purgeResponsePolicies(
 		},
 	)
 	if err != nil {
-		diags.AddError(
-			"Error deleting CrowdStrike host group",
-			"Unable to read assigned response policies "+err.Error(),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Delete, err))
 		return diags
 	}
 
@@ -688,10 +700,7 @@ func (r *hostGroupResource) purgeResponsePolicies(
 			},
 		)
 		if err != nil {
-			diags.AddError(
-				"Error deleting CrowdStrike host group",
-				"Unable to remove assigned response policies "+err.Error(),
-			)
+			diags.Append(tferrors.NewOperationError(tferrors.Delete, err))
 			return diags
 		}
 	}

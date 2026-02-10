@@ -2,12 +2,15 @@ package sensorupdatepolicy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -116,15 +119,7 @@ func (d *sensorUpdatePolicyBuildsDataSource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: fmt.Sprintf(
 			"Sensor Update Policy --- This data source provides information about the latest sensor builds for each platform.\n\n%s",
-			scopes.GenerateScopeDescription(
-				[]scopes.Scope{
-					{
-						Name:  "Sensor update policies",
-						Read:  true,
-						Write: false,
-					},
-				},
-			),
+			scopes.GenerateScopeDescription(apiScopesRead),
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -169,7 +164,12 @@ func (d *sensorUpdatePolicyBuildsDataSource) Read(
 		},
 	)
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to read sensor update policy builds", err.Error())
+		var forbiddenErr *sensor_update_policies.QueryCombinedSensorUpdateBuildsForbidden
+		if errors.As(err, &forbiddenErr) {
+			resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Read, apiScopesRead))
+			return
+		}
+		resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Read, err))
 		return
 	}
 
@@ -236,19 +236,19 @@ func (d *sensorUpdatePolicyBuildsDataSource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
 		return
 	}
 
-	d.client = client
+	d.client = config.Client
 }
 
 // mapBuild checks if a build is latest, n-1, or n-2 and adds the build to the appropriate attribute.

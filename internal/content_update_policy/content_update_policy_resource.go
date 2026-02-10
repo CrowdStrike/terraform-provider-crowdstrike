@@ -8,8 +8,10 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/content_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -261,13 +263,13 @@ func (r *contentPolicyResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
@@ -275,7 +277,7 @@ func (r *contentPolicyResource) Configure(
 		return
 	}
 
-	r.client = client
+	r.client = config.Client
 }
 
 // Metadata returns the resource type name.
@@ -502,18 +504,10 @@ func (r *contentPolicyResource) Create(
 	}
 
 	if len(plan.HostGroups.Elements()) > 0 {
-		var hostGroupIDs []string
-		resp.Diagnostics.Append(plan.HostGroups.ElementsAs(ctx, &hostGroupIDs, false)...)
+		emptySet := types.SetNull(types.StringType)
+		resp.Diagnostics.Append(
+			syncHostGroups(ctx, r.client, plan.HostGroups, emptySet, plan.ID.ValueString())...)
 		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		err = r.updateHostGroups(ctx, hostgroups.AddHostGroup, hostGroupIDs, plan.ID.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error assigning host group to policy",
-				"Could not assign host group to policy, unexpected error: "+err.Error(),
-			)
 			return
 		}
 	}
@@ -571,11 +565,10 @@ func (r *contentPolicyResource) Read(
 	})
 	policy, diags := getContentUpdatePolicy(ctx, r.client, state.ID.ValueString())
 	if diags.HasError() {
-		for _, diag := range diags {
-			if strings.Contains(diag.Summary(), "not found") {
-				resp.State.RemoveResource(ctx)
-				return
-			}
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
+			resp.State.RemoveResource(ctx)
+			return
 		}
 		resp.Diagnostics.Append(diags...)
 		return
@@ -614,56 +607,10 @@ func (r *contentPolicyResource) Update(
 		return
 	}
 
-	hostGroupsToAdd, hostGroupsToRemove, diags := utils.SetIDsToModify(
-		ctx,
-		plan.HostGroups,
-		state.HostGroups,
-	)
-	resp.Diagnostics.Append(diags...)
+	resp.Diagnostics.Append(
+		syncHostGroups(ctx, r.client, plan.HostGroups, state.HostGroups, plan.ID.ValueString())...)
 	if resp.Diagnostics.HasError() {
 		return
-	}
-
-	if len(hostGroupsToAdd) != 0 {
-		err := r.updateHostGroups(
-			ctx,
-			hostgroups.AddHostGroup,
-			hostGroupsToAdd,
-			plan.ID.ValueString(),
-		)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating content update policy",
-				fmt.Sprintf(
-					"Could not add host groups: (%s) to policy with id: %s \n\n %s",
-					strings.Join(hostGroupsToAdd, ", "),
-					plan.ID.ValueString(),
-					err.Error(),
-				),
-			)
-			return
-		}
-	}
-
-	if len(hostGroupsToRemove) != 0 {
-		err := r.updateHostGroups(
-			ctx,
-			hostgroups.RemoveHostGroup,
-			hostGroupsToRemove,
-			plan.ID.ValueString(),
-		)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Error updating content update policy",
-				fmt.Sprintf(
-					"Could not remove host groups: (%s) from policy with id: %s \n\n %s",
-					strings.Join(hostGroupsToRemove, ", "),
-					plan.ID.ValueString(),
-					err.Error(),
-				),
-			)
-			return
-		}
 	}
 
 	assignments := categoryAssignments{
@@ -774,7 +721,7 @@ func (r *contentPolicyResource) Delete(
 	})
 	err := updatePolicyEnabledState(ctx, r.client, state.ID.ValueString(), false)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if _, ok := err.(*content_update_policies.PerformContentUpdatePoliciesActionNotFound); ok {
 			return
 		}
 		resp.Diagnostics.AddError(
@@ -791,7 +738,7 @@ func (r *contentPolicyResource) Delete(
 		},
 	)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if _, ok := err.(*content_update_policies.DeleteContentUpdatePoliciesNotFound); ok {
 			return
 		}
 		resp.Diagnostics.AddError(
@@ -944,38 +891,4 @@ func (r *contentPolicyResource) ModifyPlan(
 		plan.rapidResponse,
 	)
 	resp.Diagnostics.Append(validationDiags...)
-}
-
-// updateHostGroups will remove or add a slice of host groups to a content update policy.
-func (r *contentPolicyResource) updateHostGroups(
-	ctx context.Context,
-	action hostgroups.HostGroupAction,
-	hostGroupIDs []string,
-	policyID string,
-) error {
-	var actionParams []*models.MsaspecActionParameter
-	name := "group_id"
-
-	for _, g := range hostGroupIDs {
-		gCopy := g
-		actionParam := &models.MsaspecActionParameter{
-			Name:  &name,
-			Value: &gCopy,
-		}
-
-		actionParams = append(actionParams, actionParam)
-	}
-
-	_, err := r.client.ContentUpdatePolicies.PerformContentUpdatePoliciesAction(
-		&content_update_policies.PerformContentUpdatePoliciesActionParams{
-			Context:    ctx,
-			ActionName: action.String(),
-			Body: &models.MsaEntityActionRequestV2{
-				ActionParameters: actionParams,
-				Ids:              []string{policyID},
-			},
-		},
-	)
-
-	return err
 }

@@ -210,11 +210,116 @@ func TestStringIsEmailAddressValidator(t *testing.T) {
 	}
 }
 
-func TestStringIsEmailAddressValidator_Description(t *testing.T) {
-	v := StringIsEmailAddress()
-	desc := v.Description(context.Background())
-	markdownDesc := v.MarkdownDescription(context.Background())
+func TestSortFieldValidator(t *testing.T) {
+	t.Parallel()
 
-	assert.NotEmpty(t, desc, "Description should not be empty")
-	assert.NotEmpty(t, markdownDesc, "MarkdownDescription should not be empty")
+	validFields := []string{"name", "created_at", "status"}
+
+	tests := []struct {
+		name        string
+		value       types.String
+		expectError bool
+	}{
+		{
+			name:        "valid field with .asc",
+			value:       types.StringValue("name.asc"),
+			expectError: false,
+		},
+		{
+			name:        "valid field with .desc",
+			value:       types.StringValue("name.desc"),
+			expectError: false,
+		},
+		{
+			name:        "valid field created_at with .asc",
+			value:       types.StringValue("created_at.asc"),
+			expectError: false,
+		},
+		{
+			name:        "valid field status with .desc",
+			value:       types.StringValue("status.desc"),
+			expectError: false,
+		},
+		{
+			name:        "invalid - missing suffix",
+			value:       types.StringValue("name"),
+			expectError: true,
+		},
+		{
+			name:        "invalid - wrong suffix",
+			value:       types.StringValue("name.ascending"),
+			expectError: true,
+		},
+		{
+			name:        "invalid - invalid field name",
+			value:       types.StringValue("invalid_field.asc"),
+			expectError: true,
+		},
+		{
+			name:        "invalid - empty string",
+			value:       types.StringValue(""),
+			expectError: true,
+		},
+		{
+			name:        "invalid - only suffix",
+			value:       types.StringValue(".asc"),
+			expectError: true,
+		},
+		{
+			name:        "null value",
+			value:       types.StringNull(),
+			expectError: false,
+		},
+		{
+			name:        "unknown value",
+			value:       types.StringUnknown(),
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := validator.StringRequest{
+				Path:           path.Root("test"),
+				PathExpression: path.MatchRoot("test"),
+				ConfigValue:    tt.value,
+			}
+			resp := &validator.StringResponse{}
+
+			SortField(validFields).ValidateString(context.Background(), req, resp)
+
+			if tt.expectError {
+				assert.True(t, resp.Diagnostics.HasError(), "Expected error but got none for value: %q", tt.value.ValueString())
+			} else {
+				assert.False(t, resp.Diagnostics.HasError(), "Unexpected error for value: %q", tt.value.ValueString())
+			}
+		})
+	}
+}
+
+func TestSortFieldValidator_MultipleErrors(t *testing.T) {
+	t.Parallel()
+
+	validFields := []string{"name", "created_at", "status"}
+
+	req := validator.StringRequest{
+		Path:           path.Root("test"),
+		PathExpression: path.MatchRoot("test"),
+		ConfigValue:    types.StringValue("invalid_field"),
+	}
+	resp := &validator.StringResponse{}
+
+	SortField(validFields).ValidateString(context.Background(), req, resp)
+
+	assert.True(t, resp.Diagnostics.HasError(), "Expected errors for invalid field without suffix")
+	assert.Equal(t, 2, resp.Diagnostics.ErrorsCount(), "Expected 2 errors: missing suffix and invalid field name")
+
+	errors := resp.Diagnostics.Errors()
+	errorMessages := make([]string, len(errors))
+	for i, err := range errors {
+		errorMessages[i] = err.Summary()
+	}
+
+	assert.Contains(t, errorMessages, "Invalid Sort Field Format", "Should contain format error")
+	assert.Contains(t, errorMessages, "Invalid Sort Field", "Should contain invalid field error")
 }

@@ -46,29 +46,6 @@ func validateMlSlider(attribute string, slider mlSlider) diag.Diagnostics {
 	return diags
 }
 
-// validateRequiredAttribute validates that a required attribute is set.
-func validateRequiredAttribute(
-	attrValue types.Bool,
-	otherAttrValue types.Bool,
-	attr string,
-	otherAttr string,
-) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	if !utils.IsKnown(attrValue) || !utils.IsKnown(otherAttrValue) {
-		return diags
-	}
-
-	if attrValue.ValueBool() && !otherAttrValue.ValueBool() {
-		diags.AddAttributeError(
-			path.Root(attr),
-			fmt.Sprint("requirements not met to enable ", attr),
-			fmt.Sprintf("%s requires %s to be enabled", attr, otherAttr),
-		)
-	}
-	return diags
-}
-
 // toggleOptions holds the options for toggleAttribute function.
 type toggleOptions struct {
 	enabled bool
@@ -248,6 +225,10 @@ func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 			),
 			"extended_user_mode_data": mlSLiderAttribute(
 				"Allows the sensor to get more data from a user-mode component it loads into all eligible processes, which augments online machine learning and turns on additional detections. Recommend testing with critical applications before full deployment.",
+				withPrevention(false),
+			),
+			"cloud_based_anomalous_process_execution": mlSLiderAttribute(
+				"Use AI-powered IOAs to identify and detect potentially malicious behaviors from Living Off the Land binaries (LOLbins) on your online hosts.",
 				withPrevention(false),
 			),
 			"cloud_anti_malware": mlSLiderAttribute(

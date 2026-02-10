@@ -7,17 +7,24 @@ import (
 	"os"
 
 	"github.com/crowdstrike/gofalcon/falcon"
+	"github.com/crowdstrike/gofalcon/falcon/client"
+	cidgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cid_group"
 	cloudcompliance "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_compliance"
+	cloudgoogleregistration "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_google_registration"
 	cloudgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_group"
 	cloudsecurity "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_security"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
+	dataprotection "github.com/crowdstrike/terraform-provider-crowdstrike/internal/data_protection"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
+	responsepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/response_policy"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/function"
@@ -45,7 +52,7 @@ type CrowdStrikeProvider struct {
 	version string
 }
 
-// CrowdStrikeProviderModel describes the provider data model.
+// CrowdStrikeProviderModel  the provider data model.
 type CrowdStrikeProviderModel struct {
 	Cloud        types.String `tfsdk:"cloud"`
 	ClientSecret types.String `tfsdk:"client_secret"`
@@ -86,7 +93,7 @@ func (p *CrowdStrikeProvider) Schema(
 				Sensitive:           false,
 			},
 			"cloud": schema.StringAttribute{
-				MarkdownDescription: "Falcon Cloud to authenticate to. Valid values are autodiscover, us-1, us-2, eu-1, us-gov-1. Will use FALCON_CLOUD environment variable when left blank.",
+				MarkdownDescription: "Falcon Cloud to authenticate to. Valid values are autodiscover, us-1, us-2, eu-1, us-gov-1, us-gov-2. Will use FALCON_CLOUD environment variable when left blank.",
 				Optional:            true,
 				Validators: []validator.String{
 					stringvalidator.OneOfCaseInsensitive(
@@ -95,6 +102,7 @@ func (p *CrowdStrikeProvider) Schema(
 						"us-2",
 						"eu-1",
 						"us-gov-1",
+						"us-gov-2",
 					),
 				},
 			},
@@ -107,15 +115,15 @@ func (p *CrowdStrikeProvider) Configure(
 	req provider.ConfigureRequest,
 	resp *provider.ConfigureResponse,
 ) {
-	var config CrowdStrikeProviderModel
+	var model CrowdStrikeProviderModel
 
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &model)...)
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if config.Cloud.IsUnknown() {
+	if model.Cloud.IsUnknown() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("cloud"),
 			"Unknown CrowdStrike API Cloud",
@@ -124,7 +132,7 @@ func (p *CrowdStrikeProvider) Configure(
 		)
 	}
 
-	if config.ClientId.IsUnknown() {
+	if model.ClientId.IsUnknown() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("client_id"),
 			"Unknown CrowdStrike API Client ID",
@@ -133,7 +141,7 @@ func (p *CrowdStrikeProvider) Configure(
 		)
 	}
 
-	if config.ClientSecret.IsUnknown() {
+	if model.ClientSecret.IsUnknown() {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("client_secret"),
 			"Unknown CrowdStrike API Client Secret",
@@ -152,20 +160,20 @@ func (p *CrowdStrikeProvider) Configure(
 	clientId := os.Getenv("FALCON_CLIENT_ID")
 	clientSecret := os.Getenv("FALCON_CLIENT_SECRET")
 
-	if !config.Cloud.IsNull() {
-		cloud = config.Cloud.ValueString()
+	if !model.Cloud.IsNull() {
+		cloud = model.Cloud.ValueString()
 	}
 
 	if cloud == "" {
 		cloud = "autodiscover"
 	}
 
-	if !config.ClientId.IsNull() {
-		clientId = config.ClientId.ValueString()
+	if !model.ClientId.IsNull() {
+		clientId = model.ClientId.ValueString()
 	}
 
-	if !config.ClientSecret.IsNull() {
-		clientSecret = config.ClientSecret.ValueString()
+	if !model.ClientSecret.IsNull() {
+		clientSecret = model.ClientSecret.ValueString()
 	}
 
 	if clientId == "" {
@@ -195,46 +203,71 @@ func (p *CrowdStrikeProvider) Configure(
 	ctx = tflog.SetField(ctx, "crowdstrike_cloud", cloud)
 	ctx = tflog.SetField(ctx, "crowdstrike_client_id", clientId)
 	ctx = tflog.SetField(ctx, "crowdstrike_client_secret", clientSecret)
-	ctx = tflog.SetField(ctx, "crowdstrike_member_cid", config.MemberCID.ValueString())
+	ctx = tflog.SetField(ctx, "crowdstrike_member_cid", model.MemberCID.ValueString())
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "crowdstrike_client_id")
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "crowdstrike_client_secret")
 
-	tflog.Debug(ctx, "Creating CrowdStrike client")
+	tflog.Debug(ctx, "Configuring CrowdStrike client")
 
-	apiConfig := falcon.ApiConfig{
-		Cloud:             falcon.Cloud(cloud),
-		ClientId:          clientId,
-		ClientSecret:      clientSecret,
-		UserAgentOverride: fmt.Sprintf("terraform-provider-crowdstrike/%s", p.version),
-		Context:           context.Background(),
-		HostOverride:      os.Getenv("HOST_OVERRIDE"),
-		TransportDecorator: falcon.TransportDecorator(func(r http.RoundTripper) http.RoundTripper {
-			return logging.NewLoggingHTTPTransport(r)
-		}),
+	var falconClient *client.CrowdStrikeAPISpecification
+	var err error
+
+	// During acceptance tests, use the cached client to avoid re-authentication
+	// Check if version is "test" AND a cached client exists
+	if p.version == "test" {
+		cachedClient := testconfig.GetTestClient()
+		if cachedClient != nil {
+			falconClient = cachedClient
+			tflog.Debug(ctx, "Using cached test client")
+		} else {
+			// Fall through to create a new client
+			tflog.Debug(ctx, "No cached test client available, creating new client")
+		}
 	}
 
-	if !config.MemberCID.IsNull() {
-		apiConfig.MemberCID = config.MemberCID.ValueString()
+	if falconClient == nil {
+		tflog.Debug(ctx, "Creating new CrowdStrike API client")
+		apiConfig := falcon.ApiConfig{
+			Cloud:             falcon.Cloud(cloud),
+			ClientId:          clientId,
+			ClientSecret:      clientSecret,
+			UserAgentOverride: fmt.Sprintf("terraform-provider-crowdstrike/%s", p.version),
+			Context:           context.Background(),
+			HostOverride:      os.Getenv("HOST_OVERRIDE"),
+			TransportDecorator: falcon.TransportDecorator(func(r http.RoundTripper) http.RoundTripper {
+				return logging.NewLoggingHTTPTransport(r)
+			}),
+		}
+
+		if !model.MemberCID.IsNull() {
+			apiConfig.MemberCID = model.MemberCID.ValueString()
+		}
+
+		falconClient, err = falcon.NewClient(&apiConfig)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Unable to Create CrowdStrike API Client",
+				"An unexpected error occurred when creating the CrowdStrike API client. "+
+					"If the error is not clear, please open a issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike\n\n"+
+					"CrowdStrike Client Error: "+err.Error(),
+			)
+			return
+		}
 	}
 
-	client, err := falcon.NewClient(&apiConfig)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to Create CrowdStrike API Client",
-			"An unexpected error occurred when creating the CrowdStrike API client. "+
-				"If the error is not clear, please open a issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike\n\n"+
-				"CrowdStrike Client Error: "+err.Error(),
-		)
+	providerConfig := config.ProviderConfig{
+		ClientId: clientId,
+		Client:   falconClient,
 	}
-
-	resp.DataSourceData = client
-	resp.ResourceData = client
+	resp.DataSourceData = providerConfig
+	resp.ResourceData = providerConfig
 
 	tflog.Info(ctx, "Configured CrowdStrike client", map[string]any{"success": true})
 }
 
 func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		cidgroup.NewCIDGroupResource,
 		sensorupdatepolicy.NewSensorUpdatePolicyResource,
 		sensorupdatepolicy.NewDefaultSensorUpdatePolicyResource,
 		sensorupdatepolicy.NewSensorUpdatePolicyHostGroupAttachmentResource,
@@ -251,21 +284,32 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		fim.NewFIMPolicyResource,
 		fim.NewFilevantageRuleGroupResource,
 		fim.NewFilevantagePolicyPrecedenceResource,
+		fim.NewFilevantagePolicyAttachmentResource,
 		fcs.NewCloudAWSAccountResource,
 		fcs.NewCloudAzureTenantEventhubSettingsResource,
 		fcs.NewCloudAzureTenantResource,
+		cloudgoogleregistration.NewCloudGoogleRegistrationResource,
+		cloudgoogleregistration.NewCloudGoogleRegistrationSettingsResource,
 		contentupdatepolicy.NewContentPolicyResource,
 		contentupdatepolicy.NewDefaultContentUpdatePolicyResource,
 		contentupdatepolicy.NewContentUpdatePolicyPrecedenceResource,
+		contentupdatepolicy.NewContentUpdatePolicyAttachmentResource,
 		sensorvisibilityexclusion.NewSensorVisibilityExclusionResource,
+		sensorvisibilityexclusion.NewSensorVisibilityExclusionAttachmentResource,
 		itautomation.NewItAutomationTaskResource,
 		itautomation.NewItAutomationTaskGroupResource,
 		itautomation.NewItAutomationPolicyResource,
 		itautomation.NewItAutomationDefaultPolicyResource,
 		itautomation.NewItAutomationPolicyPrecedenceResource,
 		cloudsecurity.NewCloudSecurityCustomRuleResource,
+		cloudsecurity.NewCloudSecurityKacPolicyResource,
+		cloudsecurity.NewCloudSecurityKacPolicyPrecedenceResource,
 		cloudcompliance.NewCloudComplianceCustomFrameworkResource,
 		cloudgroup.NewCloudGroupResource,
+		cloudsecurity.NewCloudSecuritySuppressionRuleResource,
+		dataprotection.NewDataProtectionContentPatternResource,
+		responsepolicy.NewResponsePolicyResource,
+		responsepolicy.NewResponsePolicyPrecedenceResource,
 	}
 }
 
@@ -275,9 +319,11 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		sensorupdatepolicy.NewSensorUpdatePoliciesDataSource,
 		sensorvisibilityexclusion.NewSensorVisibilityExclusionsDataSource,
 		fcs.NewCloudAwsAccountsDataSource,
+		fcs.NewCloudAwsAccountValidationDataSource,
 		contentupdatepolicy.NewContentCategoryVersionsDataSource,
 		contentupdatepolicy.NewContentUpdatePoliciesDataSource,
 		cloudsecurity.NewCloudSecurityRulesDataSource,
+		cloudsecurity.NewCloudRiskFindingsDataSource,
 		cloudcompliance.NewCloudComplianceFrameworkControlDataSource,
 		preventionpolicy.NewPreventionPoliciesDataSource,
 		fim.NewFilevantagePoliciesDataSource,

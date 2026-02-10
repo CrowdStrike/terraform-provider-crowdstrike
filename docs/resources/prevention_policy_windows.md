@@ -72,6 +72,9 @@ resource "crowdstrike_prevention_policy_windows" "example" {
   extended_user_mode_data = {
     "detection" = "MODERATE"
   }
+  cloud_based_anomalous_process_execution = {
+    "detection" = "EXTRA_AGGRESSIVE"
+  }
   usb_insertion_triggered_scan                   = true
   application_exploitation_activity              = true
   additional_user_mode_data                      = true
@@ -126,7 +129,7 @@ resource "crowdstrike_prevention_policy_windows" "example" {
   file_system_containment                        = true
   wsl2_visibility                                = true
   boot_configuration_database_protection         = true
-  suspicious_file_analysis                       = false
+  suspicious_file_analysis                       = true
 }
 
 output "prevention_policy_windows" {
@@ -157,6 +160,7 @@ output "prevention_policy_windows" {
 - `cloud_anti_malware` (Attributes) Use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware for your online hosts. (see [below for nested schema](#nestedatt--cloud_anti_malware))
 - `cloud_anti_malware_microsoft_office_files` (Attributes) Identifies potentially malicious macros in Microsoft Office files and, if prevention is enabled, either quarantines the file or removes the malicious macros before releasing the file back to the host (see [below for nested schema](#nestedatt--cloud_anti_malware_microsoft_office_files))
 - `cloud_anti_malware_user_initiated` (Attributes) For online hosts running on-demand scans initiated by end users, use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware. (see [below for nested schema](#nestedatt--cloud_anti_malware_user_initiated))
+- `cloud_based_anomalous_process_execution` (Attributes) Use AI-powered IOAs to identify and detect potentially malicious behaviors from Living Off the Land binaries (LOLbins) on your online hosts. (see [below for nested schema](#nestedatt--cloud_based_anomalous_process_execution))
 - `code_injection` (Boolean) Whether to enable the setting. Kill processes that unexpectedly injected code into another process. Requires additional_user_mode_data to be enabled.
 - `credential_dumping` (Boolean) Whether to enable the setting. Kill suspicious processes determined to be stealing logins and passwords. Requires additional_user_mode_data to be enabled.
 - `cryptowall` (Boolean) Whether to enable the setting. A process associated with Cryptowall was blocked.
@@ -259,6 +263,14 @@ Required:
 
 - `detection` (String) Machine learning level for detection.
 - `prevention` (String) Machine learning level for prevention.
+
+
+<a id="nestedatt--cloud_based_anomalous_process_execution"></a>
+### Nested Schema for `cloud_based_anomalous_process_execution`
+
+Required:
+
+- `detection` (String) Machine learning level for detection.
 
 
 <a id="nestedatt--extended_user_mode_data"></a>

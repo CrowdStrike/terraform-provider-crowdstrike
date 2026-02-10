@@ -2,8 +2,12 @@ package tferrors
 
 import (
 	"fmt"
+	"reflect"
 
+	"github.com/crowdstrike/gofalcon/falcon"
+	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/go-openapi/runtime"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
 
@@ -63,4 +67,228 @@ func NewOperationError(operation Operation, err error) diag.ErrorDiagnostic {
 		fmt.Sprintf("Failed to %s", operation),
 		err.Error(),
 	)
+}
+
+// NewConflictError creates a diagnostic error for 409 Conflict responses.
+func NewConflictError(operation Operation, detail string) diag.ErrorDiagnostic {
+	return diag.NewErrorDiagnostic(
+		fmt.Sprintf("Failed to %s: 409 Conflict", operation),
+		detail,
+	)
+}
+
+// NewBadRequestError creates a diagnostic error for 400 Conflict responses.
+func NewBadRequestError(operation Operation, detail string) diag.ErrorDiagnostic {
+	return diag.NewErrorDiagnostic(
+		fmt.Sprintf("Failed to %s: 400 Bad Request", operation),
+		detail,
+	)
+}
+
+// ErrorOption configures optional behavior for NewDiagnosticFromAPIError.
+type ErrorOption func(*errorConfig)
+
+// errorConfig holds optional configuration for error handling.
+type errorConfig struct {
+	forbiddenDetail   string
+	notFoundDetail    string
+	conflictDetail    string
+	serverErrorDetail string
+	badRequestDetail  string
+	detail            string
+}
+
+// WithForbiddenDetail provides a custom detail message for 403 Forbidden errors.
+// If not provided, defaults to the API scope requirements.
+func WithForbiddenDetail(detail string) ErrorOption {
+	return func(cfg *errorConfig) {
+		cfg.forbiddenDetail = detail
+	}
+}
+
+// WithNotFoundDetail provides a custom detail message for 404 Not Found errors.
+func WithNotFoundDetail(detail string) ErrorOption {
+	return func(cfg *errorConfig) {
+		cfg.notFoundDetail = detail
+	}
+}
+
+// WithConflictDetail provides a custom detail message for 409 Conflict errors.
+func WithConflictDetail(detail string) ErrorOption {
+	return func(cfg *errorConfig) {
+		cfg.conflictDetail = detail
+	}
+}
+
+// WithServerErrorDetail provides a custom detail message for 5xx server errors.
+func WithServerErrorDetail(detail string) ErrorOption {
+	return func(cfg *errorConfig) {
+		cfg.serverErrorDetail = detail
+	}
+}
+
+// WithBadRequestDetail provides a custom detail message for 400 Bad Request errors.
+func WithBadRequestDetail(detail string) ErrorOption {
+	return func(cfg *errorConfig) {
+		cfg.badRequestDetail = detail
+	}
+}
+
+// WithDetail provides a custom detail message for all other errors.
+func WithDetail(detail string) ErrorOption {
+	return func(cfg *errorConfig) {
+		cfg.detail = detail
+	}
+}
+
+// NewDiagnosticFromAPIError converts a gofalcon API error into a Terraform diagnostic.
+func NewDiagnosticFromAPIError(operation Operation, err error, apiScopes []scopes.Scope, options ...ErrorOption) diag.Diagnostic {
+	if err == nil {
+		return nil
+	}
+
+	cfg := &errorConfig{}
+	for _, opt := range options {
+		opt(cfg)
+	}
+
+	if statusErr, ok := err.(runtime.ClientResponseStatus); ok {
+		switch {
+		case statusErr.IsCode(400):
+			detail := cfg.badRequestDetail
+			if detail == "" {
+				detail = err.Error()
+			}
+			return NewBadRequestError(operation, detail)
+
+		case statusErr.IsCode(403):
+			detail := cfg.forbiddenDetail
+			if detail == "" {
+				detail = scopes.GenerateScopeDescription(apiScopes)
+			}
+			return diag.NewErrorDiagnostic(
+				fmt.Sprintf("Failed to %s: 403 Forbidden", operation),
+				detail,
+			)
+
+		case statusErr.IsCode(404):
+			detail := cfg.notFoundDetail
+			if detail == "" {
+				detail = err.Error()
+			}
+			return NewNotFoundError(detail)
+
+		case statusErr.IsCode(207):
+			return handle207PayloadErrors(operation, err, cfg)
+
+		case statusErr.IsCode(409):
+			detail := cfg.conflictDetail
+			if detail == "" {
+				detail = err.Error()
+			}
+			return NewConflictError(operation, detail)
+
+		case statusErr.IsServerError():
+			detail := cfg.serverErrorDetail
+			if detail == "" {
+				detail = err.Error()
+			}
+			return diag.NewErrorDiagnostic(
+				fmt.Sprintf("Failed to %s", operation),
+				detail,
+			)
+		}
+	}
+
+	detail := cfg.detail
+	if detail == "" {
+		detail = err.Error()
+	}
+	return diag.NewErrorDiagnostic(
+		fmt.Sprintf("Failed to %s", operation),
+		detail,
+	)
+}
+
+// handle207PayloadErrors extracts and processes payload errors from 207 Multi-Status responses.
+// Returns NotFoundError if any error has code 404, otherwise returns standard operation error.
+func handle207PayloadErrors(operation Operation, err error, cfg *errorConfig) diag.Diagnostic {
+	// Call GetPayload() method using reflection since return types vary by multi-status type
+	errVal := reflect.ValueOf(err)
+	getPayloadMethod := errVal.MethodByName("GetPayload")
+	if !getPayloadMethod.IsValid() {
+		return diag.NewErrorDiagnostic(
+			fmt.Sprintf("Failed to %s", operation),
+			err.Error(),
+		)
+	}
+
+	// Call GetPayload()
+	results := getPayloadMethod.Call(nil)
+	if len(results) == 0 || results[0].IsNil() {
+		return diag.NewErrorDiagnostic(
+			fmt.Sprintf("Failed to %s", operation),
+			err.Error(),
+		)
+	}
+
+	payload := results[0].Interface()
+	if payload == nil {
+		return diag.NewErrorDiagnostic(
+			fmt.Sprintf("Failed to %s", operation),
+			err.Error(),
+		)
+	}
+
+	payloadVal := reflect.ValueOf(payload)
+	if payloadVal.Kind() == reflect.Ptr {
+		payloadVal = payloadVal.Elem()
+	}
+
+	if payloadVal.Kind() != reflect.Struct {
+		return diag.NewErrorDiagnostic(
+			fmt.Sprintf("Failed to %s", operation),
+			err.Error(),
+		)
+	}
+
+	errorsField := payloadVal.FieldByName("Errors")
+	if !errorsField.IsValid() || !errorsField.CanInterface() {
+		return diag.NewErrorDiagnostic(
+			fmt.Sprintf("Failed to %s", operation),
+			err.Error(),
+		)
+	}
+
+	// Type assert to []*models.MsaAPIError
+	payloadErrors, ok := errorsField.Interface().([]*models.MsaAPIError)
+	if !ok || len(payloadErrors) == 0 {
+		return nil
+	}
+
+	// Check for 404 in payload errors
+	for _, apiErr := range payloadErrors {
+		if apiErr != nil && apiErr.Code != nil && *apiErr.Code == 404 {
+			detail := cfg.notFoundDetail
+			if detail == "" && apiErr.Message != nil {
+				detail = *apiErr.Message
+			}
+			return NewNotFoundError(detail)
+		}
+	}
+
+	// Other payload errors
+	return NewDiagnosticFromPayloadErrors(operation, payloadErrors)
+}
+
+// NewDiagnosticFromPayloadErrors converts API payload errors to a Terraform diagnostic.
+// This function checks for application-level errors within the API response payload
+// using falcon.AssertNoError to convert MsaAPIError list to golang errors.
+// Returns nil if there are no payload errors.
+func NewDiagnosticFromPayloadErrors(operation Operation, payloadErrors []*models.MsaAPIError) diag.Diagnostic {
+	// todo: in goFalcon implement a better error check that returns a better format
+	if err := falcon.AssertNoError(payloadErrors); err != nil {
+		return NewOperationError(operation, err)
+	}
+	return nil
 }

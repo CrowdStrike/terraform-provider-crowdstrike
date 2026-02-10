@@ -9,7 +9,9 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -53,6 +55,7 @@ type defaultSensorUpdatePolicyResourceModel struct {
 	BuildArm64          types.String `tfsdk:"build_arm64"`
 	PlatformName        types.String `tfsdk:"platform_name"`
 	UninstallProtection types.Bool   `tfsdk:"uninstall_protection"`
+	BulkMaintenanceMode types.Bool   `tfsdk:"bulk_maintenance_mode"`
 	LastUpdated         types.String `tfsdk:"last_updated"`
 	Schedule            types.Object `tfsdk:"schedule"`
 
@@ -130,10 +133,16 @@ func (d *defaultSensorUpdatePolicyResourceModel) wrap(
 		}
 	}
 
-	if *policy.Settings.UninstallProtection == "ENABLED" {
+	switch *policy.Settings.UninstallProtection {
+	case "MAINTENANCE_MODE":
 		d.UninstallProtection = types.BoolValue(true)
-	} else {
+		d.BulkMaintenanceMode = types.BoolValue(true)
+	case "ENABLED":
+		d.UninstallProtection = types.BoolValue(true)
+		d.BulkMaintenanceMode = types.BoolValue(false)
+	default:
 		d.UninstallProtection = types.BoolValue(false)
+		d.BulkMaintenanceMode = types.BoolValue(false)
 	}
 
 	policySchedule := policySchedule{}
@@ -208,13 +217,13 @@ func (r *defaultSensorUpdatePolicyResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
@@ -222,7 +231,7 @@ func (r *defaultSensorUpdatePolicyResource) Configure(
 		return
 	}
 
-	r.client = client
+	r.client = config.Client
 }
 
 // Metadata returns the resource type name.
@@ -279,6 +288,12 @@ func (r *defaultSensorUpdatePolicyResource) Schema(
 				Optional:    true,
 				Computed:    true,
 				Description: "Enable uninstall protection.",
+				Default:     booldefault.StaticBool(false),
+			},
+			"bulk_maintenance_mode": schema.BoolAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "Enable bulk maintenance mode. When enabled, uninstall_protection must be set to true and build must be set to an empty string (\"\") to turn off sensor version updates.",
 				Default:     booldefault.StaticBool(false),
 			},
 			"schedule": schema.SingleNestedAttribute{
@@ -477,16 +492,38 @@ func (r *defaultSensorUpdatePolicyResource) ValidateConfig(
 		return
 	}
 
-	platform := strings.ToLower(config.PlatformName.ValueString())
+	if utils.IsKnown(config.BulkMaintenanceMode) && utils.IsKnown(config.UninstallProtection) {
+		if config.BulkMaintenanceMode.ValueBool() && !config.UninstallProtection.ValueBool() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("uninstall_protection"),
+				"Invalid configuration",
+				"When bulk_maintenance_mode is set to true, uninstall_protection must also be set to true.",
+			)
+		}
+	}
 
-	if platform == "linux" && config.BuildArm64.IsNull() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("platform_name"),
-			"Attribute build_arm64 missing",
-			"Attribute build_arm64 is required when platform_name is linux.",
-		)
+	if utils.IsKnown(config.BulkMaintenanceMode) && utils.IsKnown(config.Build) {
+		if config.BulkMaintenanceMode.ValueBool() && config.Build.ValueString() != "" {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("build"),
+				"Invalid configuration",
+				"When bulk_maintenance_mode is set to true, build must be set to an empty string (\"\") to disable sensor version updates.",
+			)
+		}
+	}
 
-		return
+	if utils.IsKnown(config.PlatformName) {
+		platform := strings.ToLower(config.PlatformName.ValueString())
+
+		if platform == "linux" && config.BuildArm64.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("platform_name"),
+				"Attribute build_arm64 missing",
+				"Attribute build_arm64 is required when platform_name is linux.",
+			)
+
+			return
+		}
 	}
 
 	if !config.schedule.Enabled.IsUnknown() {
@@ -602,11 +639,16 @@ func (r *defaultSensorUpdatePolicyResource) updateDefaultPolicy(
 		policyParams.Body.Resources[0].Settings.Variants = variants
 	}
 
-	if config.UninstallProtection.ValueBool() {
-		policyParams.Body.Resources[0].Settings.UninstallProtection = "ENABLED"
-	} else {
-		policyParams.Body.Resources[0].Settings.UninstallProtection = "DISABLED"
+	var uninstallProtection string
+	switch {
+	case config.BulkMaintenanceMode.ValueBool():
+		uninstallProtection = "MAINTENANCE_MODE"
+	case config.UninstallProtection.ValueBool():
+		uninstallProtection = "ENABLED"
+	default:
+		uninstallProtection = "DISABLED"
 	}
+	policyParams.Body.Resources[0].Settings.UninstallProtection = uninstallProtection
 
 	updateSchedular := models.PolicySensorUpdateScheduler{}
 	updateSchedular.Timezone = config.schedule.Timezone.ValueStringPointer()

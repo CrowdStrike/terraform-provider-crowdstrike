@@ -42,6 +42,10 @@ resource "crowdstrike_default_prevention_policy_windows" "test" {
     detection  = "CAUTIOUS"
     prevention = "CAUTIOUS"
   }
+
+  cloud_based_anomalous_process_execution = {
+    detection = "MODERATE"
+  }
 }`
 }
 
@@ -66,6 +70,10 @@ resource "crowdstrike_default_prevention_policy_windows" "test" {
   cloud_adware_pup_user_initiated = {
     detection  = "DISABLED"
     prevention = "DISABLED"
+  }
+
+  cloud_based_anomalous_process_execution = {
+    detection = "DISABLED"
   }
 }
 `, ruleGroupID)
@@ -156,7 +164,7 @@ func TestAccDefaultPreventionPolicyWindowsResource_validationError(t *testing.T)
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccDefaultPreventionPolicyWindowsConfig_validationError(),
-				ExpectError: regexp.MustCompile("Error: requirements not met to enable boot_configuration_database_protection"),
+				ExpectError: regexp.MustCompile("When boot_configuration_database_protection is enabled"),
 			},
 		},
 	})
@@ -231,6 +239,11 @@ func TestAccDefaultPreventionPolicyWindowsResource(t *testing.T) {
 						"cloud_adware_pup_user_initiated.prevention",
 						"CAUTIOUS",
 					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"cloud_based_anomalous_process_execution.detection",
+						"MODERATE",
+					),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
 				),
@@ -299,6 +312,11 @@ func TestAccDefaultPreventionPolicyWindowsResource(t *testing.T) {
 					resource.TestCheckResourceAttr(
 						resourceName,
 						"cloud_adware_pup_user_initiated.prevention",
+						"DISABLED",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"cloud_based_anomalous_process_execution.detection",
 						"DISABLED",
 					),
 					resource.TestCheckResourceAttr(resourceName, "ioa_rule_groups.#", "1"),

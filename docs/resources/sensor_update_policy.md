@@ -37,13 +37,14 @@ provider "crowdstrike" {
 data "crowdstrike_sensor_update_policy_builds" "all" {}
 
 resource "crowdstrike_sensor_update_policy" "example" {
-  name                 = "example_prevention_policy"
-  enabled              = false
-  description          = "made with terraform"
-  platform_name        = "Windows"
-  build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
-  uninstall_protection = false
-  host_groups          = ["host_group_id"]
+  name                  = "example_sensor_update_policy"
+  enabled               = false
+  description           = "made with terraform"
+  platform_name         = "Windows"
+  build                 = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
+  uninstall_protection  = true
+  bulk_maintenance_mode = false
+  host_groups           = ["host_group_id"]
   schedule = {
     enabled  = true
     timezone = "Etc/UTC"
@@ -75,6 +76,7 @@ output "sensor_policy" {
 ### Optional
 
 - `build_arm64` (String) Sensor arm64 build to use for the sensor update policy (Linux only). Required if platform_name is Linux. Use an empty string to turn off sensor version updates.
+- `bulk_maintenance_mode` (Boolean) Enable bulk maintenance mode. When enabled, uninstall_protection must be set to true and build must be set to an empty string ("") to turn off sensor version updates.
 - `description` (String) Description of the sensor update policy.
 - `enabled` (Boolean) Enable the sensor update policy.
 - `host_groups` (Set of String) Host Group ids to attach to the sensor update policy.

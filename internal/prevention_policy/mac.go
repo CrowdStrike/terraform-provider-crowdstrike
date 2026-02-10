@@ -7,6 +7,8 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -75,13 +77,13 @@ func (r *preventionPolicyMacResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
@@ -89,7 +91,7 @@ func (r *preventionPolicyMacResource) Configure(
 		return
 	}
 
-	r.client = client
+	r.client = config.Client
 }
 
 // Metadata returns the resource type name.
@@ -409,7 +411,7 @@ func (r *preventionPolicyMacResource) ValidateConfig(
 	resp.Diagnostics.Append(utils.ValidateEmptyIDs(ctx, config.RuleGroups, "ioa_rule_groups")...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.QuarantineOnWrite,
 			config.NextGenAV,
 			"quarantine_on_write",
@@ -417,7 +419,7 @@ func (r *preventionPolicyMacResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.QuarantineOnWrite,
 			config.DetectOnWrite,
 			"quarantine_on_write",

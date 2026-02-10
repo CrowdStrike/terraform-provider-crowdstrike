@@ -5,7 +5,7 @@ description: |-
   This resource registers an AWS account or organization in Falcon Cloud Security.
   API Scopes
   The following API scopes are required:
-  Cloud security AWS registration | Read & WriteCSPM registration | Read & Write
+  Cloud security AWS registration | Read & Write
 ---
 
 # crowdstrike_cloud_aws_account (Resource)
@@ -17,7 +17,6 @@ This resource registers an AWS account or organization in Falcon Cloud Security.
 The following API scopes are required:
 
 - Cloud security AWS registration | Read & Write
-- CSPM registration | Read & Write
 
 
 ## Example Usage
@@ -133,7 +132,7 @@ Required:
 
 Read-Only:
 
-- `status` (String) Current status of the Identity Protection integration
+- `status` (String, Deprecated) Current status of the Identity Protection integration
 
 
 <a id="nestedatt--realtime_visibility"></a>
@@ -146,6 +145,12 @@ Required:
 
 Optional:
 
+- `log_ingestion_kms_key_arn` (String) Optional KMS key ARN for S3 bucket encryption when log_ingestion_method is 's3'
+- `log_ingestion_method` (String) Log ingestion method for real-time visibility. Valid values are 'eventbridge' or 's3'
+- `log_ingestion_s3_bucket_name` (String) S3 bucket name for CloudTrail log ingestion when log_ingestion_method is 's3'. Required when using S3 method
+- `log_ingestion_s3_bucket_prefix` (String) Optional S3 bucket prefix (a prefix used for filter log files with the prefix present in their key) for CloudTrail logs when log_ingestion_method is 's3'
+- `log_ingestion_sns_topic_arn` (String) SNS topic ARN for S3 CloudTrail log notifications when log_ingestion_method is 's3'. Required when using S3 method
+- `regions` (List of String) List of AWS regions for Real-Time Visibility and Detection. If not specified, defaults to all regions
 - `use_existing_cloudtrail` (Boolean) Set to true if a CloudTrail already exists
 
 
