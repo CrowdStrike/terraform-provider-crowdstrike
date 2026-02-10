@@ -364,7 +364,6 @@ func (r *cloudSecuritySuppressionRulesDataSource) Read(
 		return
 	}
 
-	// Set State
 	diags = resp.State.Set(ctx, &data)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -478,7 +477,6 @@ func (r *cloudSecuritySuppressionRulesDataSource) getSuppressionRules(
 				return defaultResponse, diags
 			}
 
-			// Set rule selection filter
 			if resource.RuleSelectionFilter != nil {
 				ruleSelectionFilter := make(map[string]attr.Value)
 
@@ -529,7 +527,6 @@ func (r *cloudSecuritySuppressionRulesDataSource) getSuppressionRules(
 				rule.RuleSelectionFilter = types.ObjectNull(ruleSelectionFilterModel{}.AttributeTypes())
 			}
 
-			// Set asset filter
 			if resource.ScopeAssetFilter != nil {
 				cloudGroupIDs := make([]string, 0)
 				if resource.ScopeAssetFilter != nil && len(resource.ScopeAssetFilter.CloudGroups) != 0 {
@@ -610,7 +607,7 @@ func (r *cloudSecuritySuppressionRulesDataSource) getSuppressionRules(
 
 		if queryPayload.Meta != nil && queryPayload.Meta.Pagination != nil {
 			pagination := queryPayload.Meta.Pagination
-			if pagination.Offset != nil && pagination.Total != nil && *pagination.Offset >= int32(*pagination.Total) {
+			if pagination.Offset != nil && pagination.Total != nil && int64(*pagination.Offset) >= *pagination.Total {
 				tflog.Info(ctx, "Pagination complete", map[string]any{"meta": queryPayload.Meta})
 				break
 			}
