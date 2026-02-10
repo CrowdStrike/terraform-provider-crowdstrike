@@ -6,40 +6,88 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-func TestCloudSecurityRulesDataSource(t *testing.T) {
+func TestCloudSecurityRulesDatasourceConfigConflicts(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping long-running test in short mode")
 	}
-	var steps []resource.TestStep
-
-	steps = append(steps, testDatasourceConfigConflicts()...)
-	steps = append(steps, testEmptyResultSet()...)
-	steps = append(steps, testCloudRules(awsConfig)...)
-	steps = append(steps, testCloudRules(azureConfig)...)
-	steps = append(steps, testCloudRules(gcpConfig)...)
-	steps = append(steps, testWildcardPatterns(awsConfig)...)
-
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    steps,
+		Steps:                    testDatasourceConfigConflicts(),
+	})
+}
+
+func TestCloudSecurityRulesDatasourceEmptyResultSet(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long-running test in short mode")
+	}
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    testEmptyResultSet(),
+	})
+}
+
+func TestCloudSecurityRulesDatasourceAWS(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long-running test in short mode")
+	}
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    testCloudRules(awsConfig),
+	})
+}
+
+func TestCloudSecurityRulesDatasourceAzure(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long-running test in short mode")
+	}
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    testCloudRules(azureConfig),
+	})
+}
+
+func TestCloudSecurityRulesDatasourceGCP(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long-running test in short mode")
+	}
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    testCloudRules(gcpConfig),
+	})
+}
+
+func TestCloudSecurityRulesDatasourceWildcardPatterns(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long-running test in short mode")
+	}
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    testWildcardPatterns(awsConfig),
 	})
 }
 
 func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resourceName := fmt.Sprintf("data.crowdstrike_cloud_security_rules.%s", config.cloudProvider)
 	steps = []resource.TestStep{
 		{
 			Config: fmt.Sprintf(`
-data "crowdstrike_cloud_security_rules" "%[1]s" {
-  cloud_provider = "%[1]s"
-  resource_type  = "%[2]s"
-}
-`, config.cloudProvider, config.resourceType),
+		data "crowdstrike_cloud_security_rules" "%[1]s" {
+		  cloud_provider = "%[1]s"
+		  resource_type  = "%[2]s"
+		}
+		`, config.cloudProvider, config.resourceType),
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttrSet(resourceName, "rules.#"),
 				resource.TestMatchResourceAttr(resourceName, "rules.#", regexp.MustCompile(`^[2-9]|\d{2,}$`)),
@@ -60,11 +108,11 @@ data "crowdstrike_cloud_security_rules" "%[1]s" {
 		},
 		{
 			Config: fmt.Sprintf(`
-data "crowdstrike_cloud_security_rules" "%[1]s" {
-  cloud_provider = "%[1]s"
-  rule_name = "%[2]s"
-}
-`, config.cloudProvider, config.ruleName),
+				data "crowdstrike_cloud_security_rules" "%[1]s" {
+				  cloud_provider = "%[1]s"
+				  rule_name = "%[2]s"
+				}
+				`, config.cloudProvider, config.ruleName),
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttr(resourceName, "rules.#", "1"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.id"),
@@ -78,18 +126,19 @@ data "crowdstrike_cloud_security_rules" "%[1]s" {
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.attack_types.#"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.resource_type"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.subdomain"),
+				resource.TestCheckResourceAttrSet(resourceName, "rules.0.rule_origin"),
 			),
 		},
 		{
 			Config: fmt.Sprintf(`
-data "crowdstrike_cloud_security_rules" "%[1]s" {
-  cloud_provider = "%[1]s"
-  rule_name = "%[2]s"
-  benchmark = "%[3]s"
-  framework = "%[4]s"
-  service = "%[5]s"
-}
-`, config.cloudProvider, config.ruleName, config.benchmark, config.framework, config.service),
+		data "crowdstrike_cloud_security_rules" "%[1]s" {
+		  cloud_provider = "%[1]s"
+		  rule_name = "%[2]s"
+		  benchmark = "%[3]s"
+		  framework = "%[4]s"
+		  service = "%[5]s"
+		}
+		`, config.cloudProvider, config.ruleName, config.benchmark, config.framework, config.service),
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttr(resourceName, "rules.#", "1"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.id"),
@@ -103,14 +152,15 @@ data "crowdstrike_cloud_security_rules" "%[1]s" {
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.attack_types.#"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.resource_type"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.subdomain"),
+				resource.TestCheckResourceAttrSet(resourceName, "rules.0.rule_origin"),
 			),
 		},
 		{
 			Config: fmt.Sprintf(`
-data "crowdstrike_cloud_security_rules" "%s" {
-  fql = "rule_name:'%s'"
-}
-`, config.cloudProvider, config.ruleName),
+		data "crowdstrike_cloud_security_rules" "%s" {
+		  fql = "rule_name:'%s'"
+		}
+		`, config.cloudProvider, config.ruleName),
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttr(resourceName, "rules.#", "1"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.id"),
@@ -124,6 +174,45 @@ data "crowdstrike_cloud_security_rules" "%s" {
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.attack_types.#"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.resource_type"),
 				resource.TestCheckResourceAttrSet(resourceName, "rules.0.subdomain"),
+				resource.TestCheckResourceAttrSet(resourceName, "rules.0.rule_origin"),
+			),
+		},
+		{
+			Config: fmt.Sprintf(`
+		resource "crowdstrike_cloud_security_custom_rule" "rule_%[1]s" {
+		  resource_type    = "%[5]s"
+		  name             = "%[6]s"
+		  description      = "Test Custom Rule Name"
+		  cloud_provider   = "%[2]s"
+		  parent_rule_id   = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
+		}
+
+		data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
+		 rule_name = "%[3]s"
+		 benchmark = "%[4]s"
+		}
+		data "crowdstrike_cloud_security_rules" "%[1]s" {
+		  rule_origin = "Custom"
+		}
+		`, config.cloudProvider, config.cloudProvider, config.ruleName, config.benchmark, config.resourceType, rName),
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttrSet(resourceName, "rules.#"),
+				func(s *terraform.State) error {
+					rs, ok := s.RootModule().Resources[resourceName]
+					if !ok {
+						return fmt.Errorf("Not found: %s", resourceName)
+					}
+					// Verify that all returned rules have rule_origin "Custom"
+					for i := 0; ; i++ {
+						typeKey := fmt.Sprintf("rules.%d.rule_origin", i)
+						if typeVal, ok := rs.Primary.Attributes[typeKey]; !ok {
+							break
+						} else if typeVal != "Custom" {
+							return fmt.Errorf("Expected rule %d to have rule_origin 'Custom', got '%s'", i, typeVal)
+						}
+					}
+					return nil
+				},
 			),
 		},
 	}
@@ -186,6 +275,23 @@ data "crowdstrike_cloud_security_rules" "test" {
 }
 			`,
 			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		{
+			Config: `
+data "crowdstrike_cloud_security_rules" "test" {
+	fql  = "test"
+	rule_origin = "Default"
+}
+			`,
+			ExpectError: regexp.MustCompile("Invalid Attribute Combination"),
+		},
+		{
+			Config: `
+data "crowdstrike_cloud_security_rules" "test" {
+	rule_origin = "Invalid"
+}
+			`,
+			ExpectError: regexp.MustCompile("Invalid Attribute Value"),
 		},
 	}
 }

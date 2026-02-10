@@ -254,7 +254,7 @@ func TestAccITAutomationTaskResource_ScriptContent(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	defer sdk.Cleanup(t)
 
-	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	testCases := []struct {
 		name   string
@@ -378,7 +378,7 @@ func TestAccITAutomationTaskResource_ScriptFile(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	defer sdk.Cleanup(t)
 
-	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	testCases := []struct {
 		name   string
@@ -513,7 +513,7 @@ func TestAccITAutomationTaskResource_OSQuery(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	defer sdk.Cleanup(t)
 
-	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	testCases := []struct {
 		name   string
@@ -574,7 +574,7 @@ func TestAccITAutomationTaskResource_InTaskGroup(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	defer sdk.Cleanup(t)
 
-	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
@@ -646,7 +646,7 @@ func TestAccITAutomationTaskResource_RemovedFromGroup(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	defer sdk.Cleanup(t)
 
-	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
@@ -714,7 +714,7 @@ func TestAccITAutomationTaskResource_ConfigureWhileInGroup(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	defer sdk.Cleanup(t)
 
-	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
@@ -801,7 +801,7 @@ func TestAccITAutomationTaskResource_ExplicitAccessTypeOverride(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	defer sdk.Cleanup(t)
 
-	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
@@ -860,7 +860,7 @@ func TestAccITAutomationTaskResource_PublicAccessInheritance(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	defer sdk.Cleanup(t)
 
-	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
@@ -906,7 +906,7 @@ func TestAccITAutomationTaskResource_GroupAccessTypeChange(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	defer sdk.Cleanup(t)
 
-	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	taskName := rName + "-task"
 	groupName := rName + "-group"
 
@@ -986,7 +986,7 @@ func TestAccITAutomationTaskResource_AddRemoveUsers(t *testing.T) {
 		t.Skip("Skipping test: requires at least 3 users")
 	}
 
-	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -1130,7 +1130,7 @@ resource "crowdstrike_it_automation_task" "test" {
 }
 
 func TestAccITAutomationTaskResource_OmittedOptionalFields(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },

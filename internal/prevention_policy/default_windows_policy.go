@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -40,6 +41,7 @@ type defaultPreventionPolicyWindowsResourceModel struct {
 	RuleGroups                                 types.Set    `tfsdk:"ioa_rule_groups"`
 	CloudAntiMalwareForMicrosoftOfficeFiles    types.Object `tfsdk:"cloud_anti_malware_microsoft_office_files"`
 	ExtendedUserModeDataSlider                 types.Object `tfsdk:"extended_user_mode_data"`
+	CloudBasedAnomalousProcessExecution        types.Object `tfsdk:"cloud_based_anomalous_process_execution"`
 	CloudAntiMalware                           types.Object `tfsdk:"cloud_anti_malware"`
 	AdwarePUP                                  types.Object `tfsdk:"adware_and_pup"`
 	OnSensorMLSlider                           types.Object `tfsdk:"sensor_anti_malware"`
@@ -269,6 +271,16 @@ func (m *defaultPreventionPolicyWindowsResourceModel) generatePreventionSettings
 		detectionMlSliderSettings["ExtendedUserModeDataSlider"] = extendedSlider
 	}
 
+	if !m.CloudBasedAnomalousProcessExecution.IsNull() {
+		var cloudAnomalousSlider detectionMlSlider
+		diagsCloud := m.CloudBasedAnomalousProcessExecution.As(ctx, &cloudAnomalousSlider, basetypes.ObjectAsOptions{})
+		diags.Append(diagsCloud...)
+		if diags.HasError() {
+			return preventionSettings, diags
+		}
+		detectionMlSliderSettings["CloudBasedAnomalousProcessExecution"] = cloudAnomalousSlider
+	}
+
 	for k, v := range toggleSettings {
 		kCopy := k
 		vCopy := v
@@ -412,6 +424,18 @@ func (m *defaultPreventionPolicyWindowsResourceModel) assignPreventionSettings(
 			return diags
 		}
 		m.ExtendedUserModeDataSlider = extendedUserModeData
+	}
+
+	if detectionSlider, ok := detectionMlSliderSettings["CloudBasedAnomalousProcessExecution"]; ok {
+		cloudBasedAnomalousProcessExecution, diagsCloud := types.ObjectValueFrom(
+			ctx,
+			detectionMlSlider{}.AttributeTypes(),
+			detectionSlider,
+		)
+		if diagsCloud.HasError() {
+			return diagsCloud
+		}
+		m.CloudBasedAnomalousProcessExecution = cloudBasedAnomalousProcessExecution
 	}
 
 	if slider, ok := mlSliderSettings["CloudAntiMalwareForMicrosoftOfficeFiles"]; ok {
@@ -681,7 +705,7 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 	resp.Diagnostics.Append(utils.ValidateEmptyIDs(ctx, config.RuleGroups, "ioa_rule_groups")...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.ProcessHollowing,
 			config.AdditionalUserModeData,
 			"code_injection",
@@ -689,7 +713,7 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.ForceASLR,
 			config.AdditionalUserModeData,
 			"force_aslr",
@@ -697,7 +721,7 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.ForceDEP,
 			config.AdditionalUserModeData,
 			"force_dep",
@@ -705,7 +729,7 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.HeapSprayPreallocation,
 			config.AdditionalUserModeData,
 			"heap_spray_preallocation",
@@ -713,7 +737,7 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.NullPageAllocation,
 			config.AdditionalUserModeData,
 			"null_page_allocation",
@@ -721,7 +745,7 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.CredentialDumping,
 			config.AdditionalUserModeData,
 			"credential_dumping",
@@ -729,7 +753,7 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.SEHOverwriteProtection,
 			config.AdditionalUserModeData,
 			"seh_overwrite_protection",
@@ -737,7 +761,7 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.EngineProtectionV2,
 			config.InterpreterProtection,
 			"engine_full_visibility",
@@ -745,7 +769,7 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.CPUMemoryScan,
 			config.MemoryScan,
 			"memory_scanning_scan_with_cpu",
@@ -753,7 +777,7 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.VolumeShadowCopyProtect,
 			config.VolumeShadowCopyAudit,
 			"volume_shadow_copy_protect",
@@ -761,7 +785,7 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.VulnerableDriverProtection,
 			config.SuspiciousKernelDrivers,
 			"vulnerable_driver_protection",
@@ -769,7 +793,7 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.QuarantineOnWrite,
 			config.NextGenAV,
 			"quarantine_on_write",
@@ -777,7 +801,7 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.QuarantineOnWrite,
 			config.DetectOnWrite,
 			"quarantine_on_write",
@@ -785,21 +809,21 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 		)...)
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.ScriptBasedExecutionMonitoring,
 			config.NextGenAV,
 			"script_based_execution_monitoring",
 			"quarantine_and_security_center_registration",
 		)...)
 
-	interpDiags := validateRequiredAttribute(
+	interpDiags := fwvalidators.BoolRequiresBool(
 		config.MaliciousPowershell,
 		config.InterpreterProtection,
 		"suspicious_scripts_and_commands",
 		"interpreter_only",
 	)
 
-	scriptDiags := validateRequiredAttribute(
+	scriptDiags := fwvalidators.BoolRequiresBool(
 		config.MaliciousPowershell,
 		config.ScriptBasedExecutionMonitoring,
 		"suspicious_scripts_and_commands",
@@ -807,7 +831,7 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 	)
 
 	if interpDiags.HasError() && scriptDiags.HasError() {
-		resp.Diagnostics.Append(validateRequiredAttribute(
+		resp.Diagnostics.Append(fwvalidators.BoolRequiresBool(
 			config.MaliciousPowershell,
 			types.BoolValue(false),
 			"suspicious_scripts_and_commands",
@@ -843,7 +867,7 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 	}
 
 	resp.Diagnostics.Append(
-		validateRequiredAttribute(
+		fwvalidators.BoolRequiresBool(
 			config.BootConfigurationDatabaseProtection,
 			config.SuspiciousRegistryOperations,
 			"boot_configuration_database_protection",

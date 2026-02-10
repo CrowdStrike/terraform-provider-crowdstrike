@@ -32,6 +32,9 @@ resource "crowdstrike_prevention_policy_windows" "test" {
     detection  = "CAUTIOUS"
     prevention = "CAUTIOUS"
   }
+  cloud_based_anomalous_process_execution = {
+    detection = "MODERATE"
+  }
 }
 `, rName, enabled)
 }
@@ -61,6 +64,9 @@ resource "crowdstrike_prevention_policy_windows" "test" {
   cloud_adware_pup_user_initiated = {
     detection  = "DISABLED"
     prevention = "DISABLED"
+  }
+  cloud_based_anomalous_process_execution = {
+    detection = "DISABLED"
   }
 }
 `, rName, hostGroupID, ruleGroupID, enabled)
@@ -124,7 +130,7 @@ resource "crowdstrike_prevention_policy_windows" "test" {
 }
 
 func TestAccPreventionPolicyWindowsResource_unknown(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resourceName := "crowdstrike_prevention_policy_windows.test"
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -158,7 +164,7 @@ func TestAccPreventionPolicyWindowsResource_unknown(t *testing.T) {
 }
 
 func TestAccPreventionPolicyWindowsResource_validationError(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -166,14 +172,14 @@ func TestAccPreventionPolicyWindowsResource_validationError(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccPreventionPolicyWindowsConfig_validationError(rName),
-				ExpectError: regexp.MustCompile("Error: requirements not met to enable boot_configuration_database_protection"),
+				ExpectError: regexp.MustCompile("When boot_configuration_database_protection is enabled"),
 			},
 		},
 	})
 }
 
 func TestAccPreventionPolicyWindowsResource(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resourceName := "crowdstrike_prevention_policy_windows.test"
 	hostGroupID, _ := os.LookupEnv("HOST_GROUP_ID")
 	ruleGroupID, _ := os.LookupEnv("IOA_RULE_GROUP_ID")
@@ -237,6 +243,11 @@ func TestAccPreventionPolicyWindowsResource(t *testing.T) {
 						resourceName,
 						"cloud_adware_pup_user_initiated.prevention",
 						"CAUTIOUS",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"cloud_based_anomalous_process_execution.detection",
+						"MODERATE",
 					),
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
@@ -315,6 +326,11 @@ func TestAccPreventionPolicyWindowsResource(t *testing.T) {
 					resource.TestCheckResourceAttr(
 						resourceName,
 						"cloud_adware_pup_user_initiated.prevention",
+						"DISABLED",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"cloud_based_anomalous_process_execution.detection",
 						"DISABLED",
 					),
 					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "1"),

@@ -2,6 +2,7 @@ package sensorupdatepolicy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -117,15 +119,7 @@ func (d *sensorUpdatePolicyBuildsDataSource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: fmt.Sprintf(
 			"Sensor Update Policy --- This data source provides information about the latest sensor builds for each platform.\n\n%s",
-			scopes.GenerateScopeDescription(
-				[]scopes.Scope{
-					{
-						Name:  "Sensor update policies",
-						Read:  true,
-						Write: false,
-					},
-				},
-			),
+			scopes.GenerateScopeDescription(apiScopesRead),
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -170,7 +164,12 @@ func (d *sensorUpdatePolicyBuildsDataSource) Read(
 		},
 	)
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to read sensor update policy builds", err.Error())
+		var forbiddenErr *sensor_update_policies.QueryCombinedSensorUpdateBuildsForbidden
+		if errors.As(err, &forbiddenErr) {
+			resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Read, apiScopesRead))
+			return
+		}
+		resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Read, err))
 		return
 	}
 

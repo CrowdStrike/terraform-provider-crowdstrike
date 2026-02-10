@@ -69,6 +69,7 @@ data "crowdstrike_cloud_security_rules" "original" {
 - `framework` (String) Name of the framework that this rule is attached to. Note that rules can be associated with multiple benchmarks. Examples: CIS, NIST
 - `resource_type` (String) Name of the resource type to search for. Examples: `AWS::IAM::CredentialReport`, `Microsoft.Compute/virtualMachines`, `container.googleapis.com/Cluster`.
 - `rule_name` (String) Name of the rule to search for.
+- `rule_origin` (String) Rule origin to filter by. Valid values are 'Default' or 'Custom'.
 - `service` (String) Name of the service within the cloud provider that rule is for. Examples: IAM, S3, Microsoft.Compute
 
 ### Read-Only
@@ -94,6 +95,7 @@ Read-Only:
 - `parent_rule_id` (String) Id of the parent rule to inherit properties from.
 - `remediation_info` (List of String) Information about how to remediate issues detected by this rule.
 - `resource_type` (String) The full resource type. Format examples: `AWS::IAM::CredentialReport`, `Microsoft.Compute/virtualMachines`, `container.googleapis.com/Cluster`
+- `rule_origin` (String) Rule origin indicating whether this is a Default or Custom rule.
 - `severity` (String) Severity of the rule. Valid values are `critical`, `high`, `medium`, `informational`.
 - `subdomain` (String) Subdomain for the policy rule. Valid values are 'IOM' (Indicators of Misconfiguration) or 'IAC' (Infrastructure as Code).
 

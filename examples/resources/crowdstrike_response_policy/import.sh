@@ -1,0 +1,1 @@
+terraform import crowdstrike_response_policy.example abc123

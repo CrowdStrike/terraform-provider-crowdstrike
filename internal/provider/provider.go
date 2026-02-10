@@ -7,20 +7,25 @@ import (
 	"os"
 
 	"github.com/crowdstrike/gofalcon/falcon"
+	"github.com/crowdstrike/gofalcon/falcon/client"
+	cidgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cid_group"
 	cloudcompliance "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_compliance"
 	cloudgoogleregistration "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_google_registration"
 	cloudgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_group"
 	cloudsecurity "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_security"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
+	dataprotection "github.com/crowdstrike/terraform-provider-crowdstrike/internal/data_protection"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
 	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
+	responsepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/response_policy"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/function"
@@ -89,7 +94,7 @@ func (p *CrowdStrikeProvider) Schema(
 				Sensitive:           false,
 			},
 			"cloud": schema.StringAttribute{
-				MarkdownDescription: "Falcon Cloud to authenticate to. Valid values are autodiscover, us-1, us-2, eu-1, us-gov-1. Will use FALCON_CLOUD environment variable when left blank.",
+				MarkdownDescription: "Falcon Cloud to authenticate to. Valid values are autodiscover, us-1, us-2, eu-1, us-gov-1, us-gov-2. Will use FALCON_CLOUD environment variable when left blank.",
 				Optional:            true,
 				Validators: []validator.String{
 					stringvalidator.OneOfCaseInsensitive(
@@ -98,6 +103,7 @@ func (p *CrowdStrikeProvider) Schema(
 						"us-2",
 						"eu-1",
 						"us-gov-1",
+						"us-gov-2",
 					),
 				},
 			},
@@ -202,37 +208,57 @@ func (p *CrowdStrikeProvider) Configure(
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "crowdstrike_client_id")
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "crowdstrike_client_secret")
 
-	tflog.Debug(ctx, "Creating CrowdStrike client")
+	tflog.Debug(ctx, "Configuring CrowdStrike client")
 
-	apiConfig := falcon.ApiConfig{
-		Cloud:             falcon.Cloud(cloud),
-		ClientId:          clientId,
-		ClientSecret:      clientSecret,
-		UserAgentOverride: fmt.Sprintf("terraform-provider-crowdstrike/%s", p.version),
-		Context:           context.Background(),
-		HostOverride:      os.Getenv("HOST_OVERRIDE"),
-		TransportDecorator: falcon.TransportDecorator(func(r http.RoundTripper) http.RoundTripper {
-			return logging.NewLoggingHTTPTransport(r)
-		}),
+	var falconClient *client.CrowdStrikeAPISpecification
+	var err error
+
+	// During acceptance tests, use the cached client to avoid re-authentication
+	// Check if version is "test" AND a cached client exists
+	if p.version == "test" {
+		cachedClient := testconfig.GetTestClient()
+		if cachedClient != nil {
+			falconClient = cachedClient
+			tflog.Debug(ctx, "Using cached test client")
+		} else {
+			// Fall through to create a new client
+			tflog.Debug(ctx, "No cached test client available, creating new client")
+		}
 	}
 
-	if !model.MemberCID.IsNull() {
-		apiConfig.MemberCID = model.MemberCID.ValueString()
-	}
+	if falconClient == nil {
+		tflog.Debug(ctx, "Creating new CrowdStrike API client")
+		apiConfig := falcon.ApiConfig{
+			Cloud:             falcon.Cloud(cloud),
+			ClientId:          clientId,
+			ClientSecret:      clientSecret,
+			UserAgentOverride: fmt.Sprintf("terraform-provider-crowdstrike/%s", p.version),
+			Context:           context.Background(),
+			HostOverride:      os.Getenv("HOST_OVERRIDE"),
+			TransportDecorator: falcon.TransportDecorator(func(r http.RoundTripper) http.RoundTripper {
+				return logging.NewLoggingHTTPTransport(r)
+			}),
+		}
 
-	client, err := falcon.NewClient(&apiConfig)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to Create CrowdStrike API Client",
-			"An unexpected error occurred when creating the CrowdStrike API client. "+
-				"If the error is not clear, please open a issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike\n\n"+
-				"CrowdStrike Client Error: "+err.Error(),
-		)
+		if !model.MemberCID.IsNull() {
+			apiConfig.MemberCID = model.MemberCID.ValueString()
+		}
+
+		falconClient, err = falcon.NewClient(&apiConfig)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Unable to Create CrowdStrike API Client",
+				"An unexpected error occurred when creating the CrowdStrike API client. "+
+					"If the error is not clear, please open a issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike\n\n"+
+					"CrowdStrike Client Error: "+err.Error(),
+			)
+			return
+		}
 	}
 
 	providerConfig := config.ProviderConfig{
 		ClientId: clientId,
-		Client:   client,
+		Client:   falconClient,
 	}
 	resp.DataSourceData = providerConfig
 	resp.ResourceData = providerConfig
@@ -242,6 +268,7 @@ func (p *CrowdStrikeProvider) Configure(
 
 func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		cidgroup.NewCIDGroupResource,
 		sensorupdatepolicy.NewSensorUpdatePolicyResource,
 		sensorupdatepolicy.NewDefaultSensorUpdatePolicyResource,
 		sensorupdatepolicy.NewSensorUpdatePolicyHostGroupAttachmentResource,
@@ -276,9 +303,15 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		itautomation.NewItAutomationDefaultPolicyResource,
 		itautomation.NewItAutomationPolicyPrecedenceResource,
 		cloudsecurity.NewCloudSecurityCustomRuleResource,
+		cloudsecurity.NewCloudSecurityKacPolicyResource,
+		cloudsecurity.NewCloudSecurityKacPolicyPrecedenceResource,
 		cloudcompliance.NewCloudComplianceCustomFrameworkResource,
 		cloudgroup.NewCloudGroupResource,
 		ioarulegroup.NewIOARuleGroupResource,
+		cloudsecurity.NewCloudSecuritySuppressionRuleResource,
+		dataprotection.NewDataProtectionContentPatternResource,
+		responsepolicy.NewResponsePolicyResource,
+		responsepolicy.NewResponsePolicyPrecedenceResource,
 	}
 }
 
@@ -286,6 +319,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 	return []func() datasource.DataSource{
 		sensorupdatepolicy.NewSensorUpdateBuildsDataSource,
 		sensorupdatepolicy.NewSensorUpdatePoliciesDataSource,
+		sensorvisibilityexclusion.NewSensorVisibilityExclusionsDataSource,
 		fcs.NewCloudAwsAccountsDataSource,
 		fcs.NewCloudAwsAccountValidationDataSource,
 		contentupdatepolicy.NewContentCategoryVersionsDataSource,

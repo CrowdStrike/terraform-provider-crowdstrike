@@ -35,6 +35,18 @@ var (
 		2: SeverityMedium,
 		3: SeverityInformational,
 	}
+	severityToString = map[string]string{
+		SeverityCritical:      "0",
+		SeverityHigh:          "1",
+		SeverityMedium:        "2",
+		SeverityInformational: "3",
+	}
+	stringToSeverity = map[string]string{
+		"0": SeverityCritical,
+		"1": SeverityHigh,
+		"2": SeverityMedium,
+		"3": SeverityInformational,
+	}
 )
 
 func convertAlertRemediationInfoToTerraformState(input *string) basetypes.ListValue {

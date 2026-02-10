@@ -37,9 +37,10 @@ provider "crowdstrike" {
 data "crowdstrike_sensor_update_policy_builds" "all" {}
 
 resource "crowdstrike_default_sensor_update_policy" "default" {
-  platform_name        = "windows"
-  build                = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
-  uninstall_protection = true
+  platform_name         = "windows"
+  build                 = data.crowdstrike_sensor_update_policy_builds.all.windows.n1.build
+  uninstall_protection  = true
+  bulk_maintenance_mode = false
   schedule = {
     enabled  = true
     timezone = "Etc/UTC"
@@ -71,6 +72,7 @@ output "sensor_policy" {
 ### Optional
 
 - `build_arm64` (String) Sensor arm64 build to use for the default sensor update policy (Linux only). Required if platform_name is Linux. Use an empty string to turn off sensor version updates.
+- `bulk_maintenance_mode` (Boolean) Enable bulk maintenance mode. When enabled, uninstall_protection must be set to true and build must be set to an empty string ("") to turn off sensor version updates.
 - `uninstall_protection` (Boolean) Enable uninstall protection.
 
 ### Read-Only
