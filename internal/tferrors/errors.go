@@ -204,13 +204,6 @@ func NewDiagnosticFromAPIError(operation Operation, err error, apiScopes []scope
 			}
 			return NewConflictError(operation, detail)
 
-		case statusErr.IsCode(400):
-			detail := cfg.badRequestDetail
-			if detail == "" {
-				detail = err.Error()
-			}
-			return NewBadRequestError(operation, detail)
-
 		case statusErr.IsCode(429):
 			detail := cfg.tooManyRequestsDetail
 			if detail == "" {

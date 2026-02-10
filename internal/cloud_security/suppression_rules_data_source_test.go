@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
+//nolint:unparam
 func compareSuppressionRuleToDataSource(resourceName, dataSourceName string) []statecheck.StateCheck {
 	dataSourceRulePath := tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey
 
