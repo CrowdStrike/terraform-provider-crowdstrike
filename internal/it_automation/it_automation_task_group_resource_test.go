@@ -27,7 +27,7 @@ func (config *taskGroupConfig) String() string {
 	var taskRefs []string
 
 	for i := range len(config.TaskIds) {
-		randomSuffix := sdkacctest.RandomWithPrefix("tf-acctest")
+		randomSuffix := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 		taskName := fmt.Sprintf("task-%s-%d", randomSuffix, i)
 
 		taskResources += fmt.Sprintf(`
@@ -95,7 +95,7 @@ func TestAccITAutomationTaskGroupResource_Basic(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	defer sdk.Cleanup(t)
 
-	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	testCases := []struct {
 		name   string
@@ -151,7 +151,7 @@ func TestAccITAutomationTaskGroupResource_AccessTypes(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	defer sdk.Cleanup(t)
 
-	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	testCases := []struct {
 		name   string
@@ -199,7 +199,7 @@ func TestAccITAutomationTaskGroupResource_WithTasks(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	defer sdk.Cleanup(t)
 
-	rName := sdkacctest.RandomWithPrefix("tf-acctest")
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
 	testCases := []struct {
 		name   string
