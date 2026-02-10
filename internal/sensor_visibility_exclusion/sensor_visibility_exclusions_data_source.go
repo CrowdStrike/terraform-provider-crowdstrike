@@ -3,11 +3,11 @@ package sensorvisibilityexclusion
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_visibility_exclusions"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
@@ -46,19 +46,19 @@ func (d *sensorVisibilityExclusionsDataSource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	config, ok := req.ProviderData.(config.ProviderConfig)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
 			fmt.Sprintf(
-				"Expected *client.CrowdStrikeAPISpecification, got: %T. Please report this issue to the provider developers.",
+				"Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.",
 				req.ProviderData,
 			),
 		)
 		return
 	}
 
-	d.client = client
+	d.client = config.Client
 }
 
 // sensorVisibilityExclusionsDataSource is the data source implementation.
@@ -350,7 +350,12 @@ func (d *sensorVisibilityExclusionsDataSource) querySensorVisibilityExclusions(
 
 		res, err := d.client.SensorVisibilityExclusions.QuerySensorVisibilityExclusionsV1(params)
 		if err != nil {
-			diags.Append(tferrors.NewOperationError(tferrors.Read, err))
+			diag := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopes)
+			if diag.Summary() == tferrors.NotFoundErrorSummary {
+				tflog.Debug(ctx, "[datasource] No sensor visibility exclusions found (404), returning empty list")
+				return allExclusions, diags
+			}
+			diags.Append(diag)
 			return allExclusions, diags
 		}
 
@@ -424,15 +429,15 @@ func (d *sensorVisibilityExclusionsDataSource) getSensorVisibilityExclusions(
 
 	res, err := d.client.SensorVisibilityExclusions.GetSensorVisibilityExclusionsV1(params)
 	if err != nil {
-		// Handle 404 errors gracefully - return empty list instead of error
-		if strings.Contains(err.Error(), "404") {
+		diag := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopes)
+		if diag.Summary() == tferrors.NotFoundErrorSummary {
 			tflog.Debug(ctx, "[datasource] Sensor visibility exclusions not found (404), returning empty list",
 				map[string]any{
 					"ids": ids,
 				})
 			return []*models.SvExclusionsSVExclusionV1{}, diags
 		}
-		diags.Append(tferrors.NewOperationError(tferrors.Read, err))
+		diags.Append(diag)
 		return nil, diags
 	}
 
@@ -490,7 +495,7 @@ func (d *sensorVisibilityExclusionsDataSource) Read(
 		}
 
 		if data.hasIndividualFilters() {
-			exclusions = FilterExclusionsByAttributes(exclusions, &data)
+			exclusions = filterExclusionsByAttributes(exclusions, &data)
 		}
 	}
 
@@ -502,8 +507,8 @@ func (d *sensorVisibilityExclusionsDataSource) Read(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-// FilterExclusionsByAttributes filters exclusions by individual attributes.
-func FilterExclusionsByAttributes(exclusions []*models.SvExclusionsSVExclusionV1, filters *SensorVisibilityExclusionsDataSourceModel) []*models.SvExclusionsSVExclusionV1 {
+// filterExclusionsByAttributes filters exclusions by individual attributes.
+func filterExclusionsByAttributes(exclusions []*models.SvExclusionsSVExclusionV1, filters *SensorVisibilityExclusionsDataSourceModel) []*models.SvExclusionsSVExclusionV1 {
 	filtered := make([]*models.SvExclusionsSVExclusionV1, 0, len(exclusions))
 	for _, exclusion := range exclusions {
 		if exclusion == nil {

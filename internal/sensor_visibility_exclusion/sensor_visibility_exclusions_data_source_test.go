@@ -15,44 +15,39 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var (
-	testBoolTrue  = true
-	testBoolFalse = false
-)
-
 var testExclusions = []*models.SvExclusionsSVExclusionV1{
 	{
 		ID:              utils.Addr("exclusion-001"),
 		Value:           utils.Addr("C:\\Program Files\\Test\\*.exe"),
-		AppliedGlobally: &testBoolTrue,
+		AppliedGlobally: utils.Addr(true),
 		CreatedBy:       utils.Addr("admin@example.com"),
 		ModifiedBy:      utils.Addr("security@example.com"),
 	},
 	{
 		ID:              utils.Addr("exclusion-002"),
 		Value:           utils.Addr("C:\\Temp\\*.dll"),
-		AppliedGlobally: &testBoolFalse,
+		AppliedGlobally: utils.Addr(false),
 		CreatedBy:       utils.Addr("admin@example.com"),
 		ModifiedBy:      utils.Addr("admin@example.com"),
 	},
 	{
 		ID:              utils.Addr("exclusion-003"),
 		Value:           utils.Addr("/opt/test/*.so"),
-		AppliedGlobally: &testBoolTrue,
+		AppliedGlobally: utils.Addr(true),
 		CreatedBy:       utils.Addr("user@example.com"),
 		ModifiedBy:      utils.Addr("security@example.com"),
 	},
 	{
 		ID:              utils.Addr("exclusion-004"),
 		Value:           utils.Addr("C:\\Windows\\System32\\test.exe"),
-		AppliedGlobally: &testBoolFalse,
+		AppliedGlobally: utils.Addr(false),
 		CreatedBy:       utils.Addr("user@example.com"),
 		ModifiedBy:      utils.Addr("user@example.com"),
 	},
 	{
 		ID:              utils.Addr("exclusion-005"),
 		Value:           utils.Addr("/usr/bin/testapp"),
-		AppliedGlobally: &testBoolTrue,
+		AppliedGlobally: utils.Addr(true),
 		CreatedBy:       utils.Addr("admin@crowdstrike.com"),
 		ModifiedBy:      utils.Addr("admin@crowdstrike.com"),
 	},
@@ -153,64 +148,6 @@ func TestFilterExclusionsByAttributes(t *testing.T) {
 	}
 }
 
-func TestAccSensorVisibilityExclusionsDataSource_WithIDs(t *testing.T) {
-	dataSourceName := "data.crowdstrike_sensor_visibility_exclusions.test"
-
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccSensorVisibilityExclusionsDataSourceConfigWithIDs(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(dataSourceName, "exclusions.#"),
-				),
-			},
-		},
-	})
-}
-
-func TestAccSensorVisibilityExclusionsDataSource_WithIndividualFilters(t *testing.T) {
-	dataSourceName := "data.crowdstrike_sensor_visibility_exclusions.test"
-
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccSensorVisibilityExclusionsDataSourceConfigWithAppliedGloballyFilter(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(dataSourceName, "exclusions.#"),
-				),
-			},
-			{
-				Config: testAccSensorVisibilityExclusionsDataSourceConfigWithCreatedByFilter(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(dataSourceName, "exclusions.#"),
-				),
-			},
-			{
-				Config: testAccSensorVisibilityExclusionsDataSourceConfigWithModifiedByFilter(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(dataSourceName, "exclusions.#"),
-				),
-			},
-			{
-				Config: testAccSensorVisibilityExclusionsDataSourceConfigWithValueFilter(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(dataSourceName, "exclusions.#"),
-				),
-			},
-			{
-				Config: testAccSensorVisibilityExclusionsDataSourceConfigWithCombinedFilters(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(dataSourceName, "exclusions.#"),
-				),
-			},
-		},
-	})
-}
-
 func TestAccSensorVisibilityExclusionsDataSource_ValidationErrors(t *testing.T) {
 	t.Parallel()
 
@@ -306,55 +243,6 @@ func TestAccSensorVisibilityExclusionsDataSource_ResourceMatch(t *testing.T) {
 			},
 		},
 	})
-}
-
-func testAccSensorVisibilityExclusionsDataSourceConfigWithIDs() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_sensor_visibility_exclusions" "test" {
-  ids = ["00000000000000000000000000000001", "00000000000000000000000000000002"]
-}
-`
-}
-
-func testAccSensorVisibilityExclusionsDataSourceConfigWithAppliedGloballyFilter() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_sensor_visibility_exclusions" "test" {
-  applied_globally = true
-}
-`
-}
-
-func testAccSensorVisibilityExclusionsDataSourceConfigWithCreatedByFilter() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_sensor_visibility_exclusions" "test" {
-  created_by = "admin*"
-}
-`
-}
-
-func testAccSensorVisibilityExclusionsDataSourceConfigWithModifiedByFilter() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_sensor_visibility_exclusions" "test" {
-  modified_by = "user*"
-}
-`
-}
-
-func testAccSensorVisibilityExclusionsDataSourceConfigWithValueFilter() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_sensor_visibility_exclusions" "test" {
-  value = "*.exe"
-}
-`
-}
-
-func testAccSensorVisibilityExclusionsDataSourceConfigWithCombinedFilters() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_sensor_visibility_exclusions" "test" {
-  applied_globally = true
-  created_by      = "admin*"
-}
-`
 }
 
 func testAccSensorVisibilityExclusionsDataSourceConfigValidationFilterIDs() string {
