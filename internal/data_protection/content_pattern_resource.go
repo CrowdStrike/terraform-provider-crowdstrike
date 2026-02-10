@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
+	fwplanmodifiers "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/planmodifiers"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
@@ -125,26 +126,8 @@ func (r *dataProtectionContentPatternResource) Schema(
 				Validators: []validator.String{
 					fwvalidators.StringNotWhitespace(),
 				},
-				// Backend API bug: description cannot be cleared once set, so require replacement
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplaceIf(func(ctx context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
-						if req.State.Raw.IsNull() {
-							return
-						}
-
-						var stateValue types.String
-						diags := req.State.GetAttribute(ctx, req.Path, &stateValue)
-						if diags.HasError() {
-							return
-						}
-
-						// If the field was previously set and is now being cleared, require replacement
-						if !stateValue.IsNull() && stateValue.ValueString() != "" {
-							if req.ConfigValue.IsNull() || req.ConfigValue.ValueString() == "" {
-								resp.RequiresReplace = true
-							}
-						}
-					}, "Requires replacement if cleared once set (backend API limitation)", "Requires replacement if cleared once set (backend API limitation)"),
+					fwplanmodifiers.StringRequiresReplaceIfCleared(),
 				},
 			},
 			"last_updated": schema.StringAttribute{

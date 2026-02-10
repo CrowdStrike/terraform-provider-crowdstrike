@@ -70,13 +70,13 @@ output "host_group" {
 
 ### Required
 
-- `description` (String) A description for the host group.
 - `name` (String) The display name for the host group.
 - `type` (String) The type of host group. Valid values: `dynamic`, `static`, `staticByID`. This value is case sensitive.
 
 ### Optional
 
 - `assignment_rule` (String) The assignment rule used for dynamic host groups. Required if `type` is `dynamic`.
+- `description` (String) A description for the host group.
 - `host_ids` (Set of String) A set of host IDs to include in a staticByID host group. Required if `type` is `staticByID`.
 - `hostnames` (Set of String) A set of hostnames to include in a static host group. Required if `type` is `static`.
 

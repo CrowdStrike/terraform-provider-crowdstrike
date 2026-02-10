@@ -16,6 +16,8 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
+	fwplanmodifiers "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/planmodifiers"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/retry"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
@@ -25,6 +27,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/identityschema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -39,6 +42,7 @@ var (
 	_ resource.ResourceWithConfigure      = &hostGroupResource{}
 	_ resource.ResourceWithImportState    = &hostGroupResource{}
 	_ resource.ResourceWithValidateConfig = &hostGroupResource{}
+	_ resource.ResourceWithIdentity       = &hostGroupResource{}
 )
 
 var (
@@ -97,6 +101,11 @@ type HostGroupResourceModel struct {
 	LastUpdated    types.String `tfsdk:"last_updated"`
 }
 
+// HostGroupResourceIdentityModel maps the resource identity schema data.
+type HostGroupResourceIdentityModel struct {
+	ID types.String `tfsdk:"id"`
+}
+
 // Configure adds the provider configured client to the resource.
 func (r *hostGroupResource) Configure(
 	ctx context.Context,
@@ -131,6 +140,21 @@ func (r *hostGroupResource) Metadata(
 	resp *resource.MetadataResponse,
 ) {
 	resp.TypeName = req.ProviderTypeName + "_host_group"
+}
+
+// IdentitySchema defines the identity schema for the resource.
+func (r *hostGroupResource) IdentitySchema(
+	_ context.Context,
+	_ resource.IdentitySchemaRequest,
+	resp *resource.IdentitySchemaResponse,
+) {
+	resp.IdentitySchema = identityschema.Schema{
+		Attributes: map[string]identityschema.Attribute{
+			"id": identityschema.StringAttribute{
+				RequiredForImport: true,
+			},
+		},
+	}
 }
 
 // Schema defines the schema for the resource.
@@ -198,10 +222,13 @@ func (r *hostGroupResource) Schema(
 				},
 			},
 			"description": schema.StringAttribute{
-				Required:            true,
+				Optional:            true,
 				MarkdownDescription: "A description for the host group.",
 				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
+					fwvalidators.StringNotWhitespace(),
+				},
+				PlanModifiers: []planmodifier.String{
+					fwplanmodifiers.StringRequiresReplaceIfCleared(),
 				},
 			},
 		},
@@ -279,9 +306,17 @@ func (r *hostGroupResource) Create(
 		return
 	}
 	plan.Name = types.StringValue(*hostGroupResource.Name)
-	plan.Description = types.StringValue(*hostGroupResource.Description)
+	plan.Description = flex.StringPointerToFramework(hostGroupResource.Description)
 	plan.GroupType = types.StringValue(hostGroupResource.GroupType)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+
+	identity := HostGroupResourceIdentityModel{
+		ID: plan.ID,
+	}
+	resp.Diagnostics.Append(resp.Identity.Set(ctx, &identity)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	if plan.GroupType.ValueString() != HgDynamic {
 		hgUpdate, err := r.updateHostGroup(ctx, plan, assignmentRule)
@@ -348,9 +383,14 @@ func (r *hostGroupResource) Read(
 
 	state.ID = types.StringValue(*hostGroupResource.ID)
 	state.Name = types.StringValue(*hostGroupResource.Name)
-	state.Description = types.StringValue(*hostGroupResource.Description)
+	state.Description = flex.StringPointerToFramework(hostGroupResource.Description)
 	state.GroupType = types.StringValue(hostGroupResource.GroupType)
 	resp.Diagnostics.Append(AssignAssignmentRule(ctx, hostGroupResource.AssignmentRule, &state)...)
+
+	identity := HostGroupResourceIdentityModel{
+		ID: state.ID,
+	}
+	resp.Diagnostics.Append(resp.Identity.Set(ctx, &identity)...)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -414,7 +454,7 @@ func (r *hostGroupResource) Update(
 
 	plan.ID = types.StringValue(*hostGroupResource.ID)
 	plan.Name = types.StringValue(*hostGroupResource.Name)
-	plan.Description = types.StringValue(*hostGroupResource.Description)
+	plan.Description = flex.StringPointerToFramework(hostGroupResource.Description)
 	resp.Diagnostics.Append(AssignAssignmentRule(ctx, hostGroupResource.AssignmentRule, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -516,8 +556,7 @@ func (r *hostGroupResource) ImportState(
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
 ) {
-	// Retrieve import ID and save to id attribute
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resource.ImportStatePassthroughWithIdentity(ctx, path.Root("id"), path.Root("id"), req, resp)
 }
 
 // purgeSensorUpdatePolicies removes all sensor update policies from a host group.

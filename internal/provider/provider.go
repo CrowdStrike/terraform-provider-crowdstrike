@@ -28,6 +28,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/function"
+	"github.com/hashicorp/terraform-plugin-framework/list"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -40,8 +41,9 @@ import (
 
 // Ensure ScaffoldingProvider satisfies various provider interfaces.
 var (
-	_ provider.Provider              = &CrowdStrikeProvider{}
-	_ provider.ProviderWithFunctions = &CrowdStrikeProvider{}
+	_ provider.Provider                  = &CrowdStrikeProvider{}
+	_ provider.ProviderWithFunctions     = &CrowdStrikeProvider{}
+	_ provider.ProviderWithListResources = &CrowdStrikeProvider{}
 )
 
 // CrowdStrikeProvider defines the provider implementation.
@@ -261,6 +263,7 @@ func (p *CrowdStrikeProvider) Configure(
 	}
 	resp.DataSourceData = providerConfig
 	resp.ResourceData = providerConfig
+	resp.ListResourceData = providerConfig
 
 	tflog.Info(ctx, "Configured CrowdStrike client", map[string]any{"success": true})
 }
@@ -331,6 +334,12 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 
 func (p *CrowdStrikeProvider) Functions(ctx context.Context) []func() function.Function {
 	return []func() function.Function{}
+}
+
+func (p *CrowdStrikeProvider) ListResources(ctx context.Context) []func() list.ListResource {
+	return []func() list.ListResource{
+		hostgroups.NewHostGroupListResource,
+	}
 }
 
 func New(version string) func() provider.Provider {
