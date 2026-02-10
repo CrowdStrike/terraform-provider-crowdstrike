@@ -317,6 +317,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 	return []func() datasource.DataSource{
 		sensorupdatepolicy.NewSensorUpdateBuildsDataSource,
 		sensorupdatepolicy.NewSensorUpdatePoliciesDataSource,
+		sensorvisibilityexclusion.NewSensorVisibilityExclusionsDataSource,
 		fcs.NewCloudAwsAccountsDataSource,
 		fcs.NewCloudAwsAccountValidationDataSource,
 		contentupdatepolicy.NewContentCategoryVersionsDataSource,
