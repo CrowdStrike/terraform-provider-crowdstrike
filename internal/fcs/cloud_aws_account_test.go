@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/crowdstrike/gofalcon/falcon/models"
@@ -253,8 +254,8 @@ resource "crowdstrike_cloud_aws_account" "test" {
 
 func TestAccCloudAwsAccountResource(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
-	orgID := fmt.Sprintf("o-%s", sdkacctest.RandStringFromCharSet(10, sdkacctest.CharSetAlpha))
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	orgID := fmt.Sprintf("o-tfacctest%s", strings.ToLower(sdkacctest.RandStringFromCharSet(3, sdkacctest.CharSetAlphaNum)))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -357,7 +358,7 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 
 func TestAccCloudAwsAccountResourceMinimal(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -395,7 +396,7 @@ func TestAccCloudAwsAccountResourceMinimal(t *testing.T) {
 
 func TestAccCloudAwsAccountResourceVulnerabilityScanning(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -418,7 +419,7 @@ func TestAccCloudAwsAccountResourceVulnerabilityScanning(t *testing.T) {
 
 func TestAccCloudAwsAccountResourceVulnerabilityScanningNoRoleName(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -440,7 +441,7 @@ func TestAccCloudAwsAccountResourceVulnerabilityScanningNoRoleName(t *testing.T)
 
 func TestAccCloudAwsAccountResourceBothDSPMAndVulnScanning(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -462,7 +463,7 @@ func TestAccCloudAwsAccountResourceBothDSPMAndVulnScanning(t *testing.T) {
 }
 
 func TestAccCloudAwsAccountResourceRoleMismatchValidation(t *testing.T) {
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -478,7 +479,7 @@ func TestAccCloudAwsAccountResourceRoleMismatchValidation(t *testing.T) {
 
 func TestAccCloudAwsAccountResourceAgentlessRoleUpdates(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -542,7 +543,7 @@ func TestAccCloudAwsAccountResourceAgentlessRoleUpdates(t *testing.T) {
 
 func TestAccCloudAwsAccountResourceBothEnabledDefaultRoles(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -563,7 +564,7 @@ func TestAccCloudAwsAccountResourceBothEnabledDefaultRoles(t *testing.T) {
 }
 
 func TestAccCloudAwsAccountResourceMixedRoleConfiguration(t *testing.T) {
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -580,7 +581,7 @@ func TestAccCloudAwsAccountResourceMixedRoleConfiguration(t *testing.T) {
 // TestAccCloudAWSAccount_RealtimeVisibility tests commercial account realtime_visibility configurations.
 func TestAccCloudAWSAccount_RealtimeVisibility(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -832,7 +833,7 @@ resource "crowdstrike_cloud_aws_account" "test" {
 // TestAccCloudAWSAccount_S3LogIngestion tests S3 log ingestion configurations.
 func TestAccCloudAWSAccount_S3LogIngestion(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -873,7 +874,7 @@ func TestAccCloudAWSAccount_S3LogIngestion(t *testing.T) {
 
 // TestAccCloudAWSAccount_S3LogIngestionValidation tests validation for S3 log ingestion.
 func TestAccCloudAWSAccount_S3LogIngestionValidation(t *testing.T) {
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -906,7 +907,7 @@ func TestAccCloudAWSAccount_S3LogIngestionValidation(t *testing.T) {
 // TestAccCloudAWSAccount_S3LogIngestionBasic tests basic S3 log ingestion functionality.
 func TestAccCloudAWSAccount_S3LogIngestionBasic(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -929,7 +930,7 @@ func TestAccCloudAWSAccount_S3LogIngestionBasic(t *testing.T) {
 // TestAccCloudAWSAccount_S3LogIngestionCreateWithOptional tests if API returns optional fields when set during CREATE.
 func TestAccCloudAWSAccount_S3LogIngestionCreateWithOptional(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -954,7 +955,7 @@ func TestAccCloudAWSAccount_S3LogIngestionCreateWithOptional(t *testing.T) {
 // TestAccCloudAWSAccount_EventBridgeLogIngestion tests explicit EventBridge log ingestion.
 func TestAccCloudAWSAccount_EventBridgeLogIngestion(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -979,7 +980,7 @@ func TestAccCloudAWSAccount_EventBridgeLogIngestion(t *testing.T) {
 // TestAccCloudAWSAccount_LogIngestionMethodSwitching tests switching between log ingestion methods.
 func TestAccCloudAWSAccount_LogIngestionMethodSwitching(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1023,7 +1024,7 @@ func TestAccCloudAWSAccount_LogIngestionMethodSwitching(t *testing.T) {
 // TestAccCloudAWSAccount_S3LogIngestionExpansion tests expanding S3 configuration.
 func TestAccCloudAWSAccount_S3LogIngestionExpansion(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1063,7 +1064,7 @@ func TestAccCloudAWSAccount_S3LogIngestionExpansion(t *testing.T) {
 // TestAccCloudAWSAccount_S3LogIngestionDisableRTVD tests S3 → disabled RTVD → re-enabled transitions.
 func TestAccCloudAWSAccount_S3LogIngestionDisableRTVD(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1118,7 +1119,7 @@ func TestAccCloudAWSAccount_S3LogIngestionDisableRTVD(t *testing.T) {
 }
 
 func TestAccCloudAwsAccountResourceRegionsValidation(t *testing.T) {
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1144,7 +1145,7 @@ func TestAccCloudAwsAccountResourceRegionsValidation(t *testing.T) {
 
 func TestAccCloudAwsAccountResourceRegions(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1269,7 +1270,7 @@ resource "crowdstrike_cloud_aws_account" "test" {
 
 func TestAccCloudAwsAccountResource_RegressionDisableDSPMThenVulnScanning(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
-	accountID := sdkacctest.RandStringFromCharSet(12, acctest.CharSetNum)
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,

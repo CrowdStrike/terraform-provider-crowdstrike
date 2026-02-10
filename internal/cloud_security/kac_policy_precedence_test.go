@@ -31,14 +31,13 @@ resource "crowdstrike_cloud_security_kac_policy_precedence" "test" {
 }
 
 func TestCloudSecurityKacPolicyPrecedenceResource_Comprehensive(t *testing.T) {
-	randomSuffix := sdkacctest.RandString(8)
 	resourceName := "crowdstrike_cloud_security_kac_policy_precedence.test"
 
 	// Create 4 minimal KAC policies for testing various precedence scenarios
-	policy1Name := fmt.Sprintf("tfacc-kac-policy-precedence-1-%s", randomSuffix)
-	policy2Name := fmt.Sprintf("tfacc-kac-policy-precedence-2-%s", randomSuffix)
-	policy3Name := fmt.Sprintf("tfacc-kac-policy-precedence-3-%s", randomSuffix)
-	policy4Name := fmt.Sprintf("tfacc-kac-policy-precedence-4-%s", randomSuffix)
+	policy1Name := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	policy2Name := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	policy3Name := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	policy4Name := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	policy1ResourceName := "crowdstrike_cloud_security_kac_policy.test_policy_1"
 	policy2ResourceName := "crowdstrike_cloud_security_kac_policy.test_policy_2"
 	policy3ResourceName := "crowdstrike_cloud_security_kac_policy.test_policy_3"
