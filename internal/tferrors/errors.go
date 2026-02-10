@@ -77,6 +77,14 @@ func NewConflictError(operation Operation, detail string) diag.ErrorDiagnostic {
 	)
 }
 
+// NewTooManyRequestsError creates a diagnostic error for 429 Too Many Requests responses.
+func NewTooManyRequestsError(operation Operation, detail string) diag.ErrorDiagnostic {
+	return diag.NewErrorDiagnostic(
+		fmt.Sprintf("Failed to %s: 429 Too Many Requests", operation),
+		detail,
+	)
+}
+
 // NewBadRequestError creates a diagnostic error for 400 Conflict responses.
 func NewBadRequestError(operation Operation, detail string) diag.ErrorDiagnostic {
 	return diag.NewErrorDiagnostic(
@@ -90,12 +98,13 @@ type ErrorOption func(*errorConfig)
 
 // errorConfig holds optional configuration for error handling.
 type errorConfig struct {
-	forbiddenDetail   string
-	notFoundDetail    string
-	conflictDetail    string
-	serverErrorDetail string
-	badRequestDetail  string
-	detail            string
+	forbiddenDetail       string
+	notFoundDetail        string
+	conflictDetail        string
+	serverErrorDetail     string
+	badRequestDetail      string
+	tooManyRequestsDetail string
+	detail                string
 }
 
 // WithForbiddenDetail provides a custom detail message for 403 Forbidden errors.
@@ -131,6 +140,13 @@ func WithServerErrorDetail(detail string) ErrorOption {
 func WithBadRequestDetail(detail string) ErrorOption {
 	return func(cfg *errorConfig) {
 		cfg.badRequestDetail = detail
+	}
+}
+
+// WithTooManyRequestsDetail provides a custom detail message for 429 Too Many Requests errors.
+func WithTooManyRequestsDetail(detail string) ErrorOption {
+	return func(cfg *errorConfig) {
+		cfg.tooManyRequestsDetail = detail
 	}
 }
 
@@ -187,6 +203,13 @@ func NewDiagnosticFromAPIError(operation Operation, err error, apiScopes []scope
 				detail = err.Error()
 			}
 			return NewConflictError(operation, detail)
+
+		case statusErr.IsCode(429):
+			detail := cfg.tooManyRequestsDetail
+			if detail == "" {
+				detail = err.Error()
+			}
+			return NewTooManyRequestsError(operation, detail)
 
 		case statusErr.IsServerError():
 			detail := cfg.serverErrorDetail

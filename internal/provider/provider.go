@@ -323,6 +323,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		contentupdatepolicy.NewContentCategoryVersionsDataSource,
 		contentupdatepolicy.NewContentUpdatePoliciesDataSource,
 		cloudsecurity.NewCloudSecurityRulesDataSource,
+		cloudsecurity.NewCloudSecuritySuppressionRulesDataSource,
 		cloudsecurity.NewCloudRiskFindingsDataSource,
 		cloudcompliance.NewCloudComplianceFrameworkControlDataSource,
 		preventionpolicy.NewPreventionPoliciesDataSource,
