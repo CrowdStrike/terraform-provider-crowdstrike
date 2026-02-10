@@ -774,7 +774,7 @@ func (r *cloudSecuritySuppressionRuleResource) deleteSuppressionRule(ctx context
 	}
 
 	_, err := r.client.CloudPolicies.DeleteSuppressionRules(&params)
-	diag := tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, suppressionRuleResourceRequiredScopes)
+	diag := tferrors.NewDiagnosticFromAPIError(tferrors.Delete, err, suppressionRuleResourceRequiredScopes)
 	if diag != nil {
 		diags.Append(diag)
 		return diags

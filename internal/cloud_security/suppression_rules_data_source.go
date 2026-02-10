@@ -529,7 +529,7 @@ func (r *cloudSecuritySuppressionRulesDataSource) getSuppressionRules(
 
 			if resource.ScopeAssetFilter != nil {
 				cloudGroupIDs := make([]string, 0)
-				if resource.ScopeAssetFilter != nil && len(resource.ScopeAssetFilter.CloudGroups) != 0 {
+				if len(resource.ScopeAssetFilter.CloudGroups) != 0 {
 					for _, cloudGroup := range resource.ScopeAssetFilter.CloudGroups {
 						if cloudGroup != nil && cloudGroup.ID != nil {
 							cloudGroupIDs = append(cloudGroupIDs, *cloudGroup.ID)
