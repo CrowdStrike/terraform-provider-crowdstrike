@@ -63,6 +63,7 @@ output "ioa_rule_group" {
 
 - `comment` (String) A comment about the IOA rule group. Required for updates.
 - `description` (String) The description of the IOA rule group.
+- `rules` (Attributes Set) Set of IOA rules within this rule group. (see [below for nested schema](#nestedatt--rules))
 
 ### Read-Only
 
@@ -77,6 +78,47 @@ output "ioa_rule_group" {
 - `modified_by` (String) The API client ID that last modified the rule group.
 - `rule_ids` (List of String) List of rule IDs in this rule group.
 - `version` (Number) The version of the rule group.
+
+<a id="nestedatt--rules"></a>
+### Nested Schema for `rules`
+
+Required:
+
+- `disposition_id` (Number) The disposition ID for the rule action (e.g., 20 for Detect, 30 for Kill Process).
+- `name` (String) The name of the IOA rule.
+- `pattern_severity` (String) The severity level for the IOA rule. Valid values: critical, high, medium, low, informational.
+- `ruletype_id` (String) The rule type ID. Use the /ioarules/queries/rule-types/v1 endpoint to get available rule type IDs.
+
+Optional:
+
+- `description` (String) The description of the IOA rule.
+- `enabled` (Boolean) Whether the IOA rule is enabled. Defaults to false.
+- `field_values` (Attributes Set) Set of field values for the IOA rule configuration. (see [below for nested schema](#nestedatt--rules--field_values))
+
+Read-Only:
+
+- `id` (String) The ID of the IOA rule.
+
+<a id="nestedatt--rules--field_values"></a>
+### Nested Schema for `rules.field_values`
+
+Required:
+
+- `name` (String) The field name (e.g., 'ImageFilename', 'CommandLine').
+- `values` (Attributes Set) Set of field value options. (see [below for nested schema](#nestedatt--rules--field_values--values))
+
+Optional:
+
+- `label` (String) The human-readable label for the field.
+- `type` (String) The field type (e.g., 'excludable').
+
+<a id="nestedatt--rules--field_values--values"></a>
+### Nested Schema for `rules.field_values.values`
+
+Required:
+
+- `label` (String) The label for the field value (e.g., 'include', 'exclude').
+- `value` (String) The actual value/pattern for the field.
 
 ## Import
 
