@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -55,13 +56,6 @@ var (
 		"1": SeverityHigh,
 		"2": SeverityMedium,
 		"3": SeverityInformational,
-	iomRuleDomainConfig = cloudSecurityDomainConfig{
-		Domain:    "CSPM",
-		Subdomain: "IOM",
-	}
-	kacIomRuleDomainConfig = cloudSecurityDomainConfig{
-		Domain:    "Runtime",
-		Subdomain: "IOM",
 	}
 )
 
@@ -166,59 +160,26 @@ func convertRemediationInfoToAPIFormat(ctx context.Context, info basetypes.ListV
 	return convertedInfo, diags
 }
 
-func createCloudPolicyRule(client *client.CrowdStrikeAPISpecification, params cloud_policies.CreateRuleMixin0Params) (*models.ApimodelsRule, diag.Diagnostics) {
+func createCloudPolicyRule(client *client.CrowdStrikeAPISpecification, params cloud_policies.CreateRuleMixin0Params, scopes []scopes.Scope) (*models.ApimodelsRule, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var newRule *models.ApimodelsRule
 
 	resp, err := client.CloudPolicies.CreateRuleMixin0(&params)
-	if err != nil {
-		if badRequest, ok := err.(*cloud_policies.CreateRuleMixin0BadRequest); ok {
-			diags.AddError(
-				"Error Creating Rule",
-				fmt.Sprintf("Failed to create rule (400): %+v", *badRequest.Payload.Errors[0].Message),
-			)
-			return nil, diags
-		}
-
-		if ruleConflict, ok := err.(*cloud_policies.CreateRuleMixin0Conflict); ok {
-			diags.AddError(
-				"Error Creating Rule",
-				fmt.Sprintf("Failed to create rule (409): %+v", *ruleConflict.Payload.Errors[0].Message),
-			)
-			return nil, diags
-		}
-
-		if internalServerError, ok := err.(*cloud_policies.CreateRuleMixin0InternalServerError); ok {
-			diags.AddError(
-				"Error Creating Rule",
-				fmt.Sprintf("Failed to create rule (500): %+v", *internalServerError.Payload.Errors[0].Message),
-			)
-			return nil, diags
-		}
-
-		diags.AddError(
-			"Error Creating Rule",
-			fmt.Sprintf("Failed to create rule: %+v", err),
-		)
-
+	diag := tferrors.NewDiagnosticFromAPIError(tferrors.Create, err, scopes)
+	if diag != nil {
+		diags.Append(diag)
 		return nil, diags
 	}
 
 	if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 {
-		diags.AddError(
-			"Error Creating Rule",
-			"Failed to create rule: API returned an empty response",
-		)
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Create))
 		return nil, diags
 	}
 
 	payload := resp.GetPayload()
 
 	if err = falcon.AssertNoError(payload.Errors); err != nil {
-		diags.AddError(
-			"Error Creating Rule. Body Error",
-			fmt.Sprintf("Failed to create rule: %s", err.Error()),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Create, err))
 		return nil, diags
 	}
 
@@ -227,132 +188,71 @@ func createCloudPolicyRule(client *client.CrowdStrikeAPISpecification, params cl
 	return newRule, diags
 }
 
-func getCloudPolicyRule(client *client.CrowdStrikeAPISpecification, params cloud_policies.GetRuleParams) (*models.ApimodelsRule, diag.Diagnostics) {
+func getCloudPolicyRule(client *client.CrowdStrikeAPISpecification, params cloud_policies.GetRuleParams, scopes []scopes.Scope) (*models.ApimodelsRule, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	resp, err := client.CloudPolicies.GetRule(&params)
-	if err != nil {
-		if notFound, ok := err.(*cloud_policies.GetRuleNotFound); ok {
-			diags.Append(tferrors.NewNotFoundError(
-				fmt.Sprintf("Failed to retrieve rule (404): %s, %+v", params.Ids[0], *notFound.Payload.Errors[0].Message),
-			))
-			return nil, diags
-		}
-
-		if internalServerError, ok := err.(*cloud_policies.GetRuleInternalServerError); ok {
-			diags.AddError(
-				"Error Retrieving Rule",
-				fmt.Sprintf("Failed to retrieve rule (500): %s, %+v", params.Ids[0], *internalServerError.Payload.Errors[0].Message),
-			)
-			return nil, diags
-		}
-
-		diags.AddError(
-			"Error Retrieving Rule",
-			fmt.Sprintf("Failed to retrieve rule %s: %+v", params.Ids[0], err),
-		)
-
+	diag := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, scopes)
+	if diag != nil {
+		diags.Append(diag)
 		return nil, diags
 	}
 
 	if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 {
-		diags.AddError(
-			"Error Retrieving Rule",
-			fmt.Sprintf("Failed to retrieve rule %s: API returned an empty response", params.Ids[0]),
-		)
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Read))
 		return nil, diags
 	}
 
 	payload := resp.GetPayload()
 
 	if err = falcon.AssertNoError(payload.Errors); err != nil {
-		diags.AddError(
-			"Error Retrieving Rule",
-			fmt.Sprintf("Failed to retrieve rule: %s", err.Error()),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Read, err))
 		return nil, diags
 	}
 
 	return payload.Resources[0], diags
 }
 
-func updateCloudPolicyRule(client *client.CrowdStrikeAPISpecification, params cloud_policies.UpdateRuleParams) (*models.ApimodelsRule, diag.Diagnostics) {
+func updateCloudPolicyRule(client *client.CrowdStrikeAPISpecification, params cloud_policies.UpdateRuleParams, scopes []scopes.Scope) (*models.ApimodelsRule, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	resp, err := client.CloudPolicies.UpdateRule(&params)
-	if err != nil {
-		if badRequest, ok := err.(*cloud_policies.UpdateRuleBadRequest); ok {
-			diags.AddError(
-				"Error Updating Rule",
-				fmt.Sprintf("Failed to update rule (400): %+v", *badRequest.Payload.Errors[0].Message),
-			)
-			return nil, diags
-		}
-
-		if ruleConflict, ok := err.(*cloud_policies.UpdateRuleConflict); ok {
-			diags.AddError(
-				"Error Updating Rule",
-				fmt.Sprintf("Failed to update rule (409): %+v", *ruleConflict.Payload.Errors[0].Message),
-			)
-			return nil, diags
-		}
-
-		if internalServerError, ok := err.(*cloud_policies.UpdateRuleInternalServerError); ok {
-			diags.AddError(
-				"Error Updating Rule",
-				fmt.Sprintf("Failed to update rule (500): %+v", *internalServerError.Payload.Errors[0].Message),
-			)
-			return nil, diags
-		}
-
-		diags.AddError(
-			"Error Updating Rule",
-			fmt.Sprintf("Failed to update rule: %s", err),
-		)
+	diag := tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, scopes)
+	if diag != nil {
+		diags.Append(diag)
 		return nil, diags
 	}
 
 	if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 {
-		diags.AddError(
-			"Error Updating Rule",
-			fmt.Sprintf("Failed to update rule %s: API returned an empty response", *params.Body.UUID),
-		)
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
 		return nil, diags
 	}
 
 	payload := resp.GetPayload()
 
 	if err = falcon.AssertNoError(payload.Errors); err != nil {
-		diags.AddError(
-			"Error Updating Rule",
-			fmt.Sprintf("Failed to update rule: %s", err.Error()),
-		)
+		diags.Append(tferrors.NewOperationError(tferrors.Read, err))
 		return nil, diags
 	}
+
 	return payload.Resources[0], diags
 }
 
-func deleteCloudPolicyRule(client *client.CrowdStrikeAPISpecification, params cloud_policies.DeleteRuleMixin0Params) diag.Diagnostics {
+func deleteCloudPolicyRule(client *client.CrowdStrikeAPISpecification, params cloud_policies.DeleteRuleMixin0Params, scopes []scopes.Scope) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	_, err := client.CloudPolicies.DeleteRuleMixin0(&params)
-	if err != nil {
-		if _, ok := err.(*cloud_policies.DeleteRuleMixin0NotFound); ok {
-			return diags
-		}
-		diags.AddError(
-			"Error Deleting Rule",
-			fmt.Sprintf("Failed to delete rule %s: \n\n %s", params.Ids[0], err.Error()),
-		)
+	diag := tferrors.NewDiagnosticFromAPIError(tferrors.Delete, err, scopes)
+	if diag != nil {
+		diags.Append(diag)
+		return diags
 	}
 
 	return diags
 }
 
 // handleNotFoundRemoveFromState checks if the diagnostics contain a "not found" error and handles it by
-// removing the resource from state and logging a warning. Returns true if the error was handled,
-// false otherwise. This function can be used across all custom rule resources for consistent
-// error handling.
+// removing the resource from state and logging a warning.
 func handleNotFoundRemoveFromState(
 	ctx context.Context,
 	diags diag.Diagnostics,
