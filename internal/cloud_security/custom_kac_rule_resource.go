@@ -42,8 +42,8 @@ const (
 
 var (
 	kacRuledocumentationSection        string         = "Falcon Cloud Security"
-	kacRuleresourceMarkdownDescription string         = "This resource manages custom cloud security rules."
-	kacRulerequiredScopes              []scopes.Scope = cloudSecurityRuleScopes
+	kacRuleresourceMarkdownDescription string         = "This resource manages custom cloud security KAC rules."
+	kacRuleRequiredScopes              []scopes.Scope = cloudSecurityRuleScopes
 )
 
 func NewCloudSecurityKacCustomRuleResource() resource.Resource {
@@ -105,7 +105,7 @@ func (r *cloudSecurityKacCustomRuleResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: utils.MarkdownDescription(kacRuledocumentationSection, kacRuleresourceMarkdownDescription, kacRulerequiredScopes),
+		MarkdownDescription: utils.MarkdownDescription(kacRuledocumentationSection, kacRuleresourceMarkdownDescription, kacRuleRequiredScopes),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
@@ -148,7 +148,7 @@ func (r *cloudSecurityKacCustomRuleResource) Schema(
 			"remediation_info": schema.ListAttribute{
 				Optional:            true,
 				ElementType:         types.StringType,
-				MarkdownDescription: "Information about how to remediate issues detected by this rule. Do not include numbering within this list. The Falcon console will automatically add numbering.",
+				MarkdownDescription: "Information about how to remediate issues detected by this rule.",
 				Validators: []validator.List{
 					listvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
@@ -168,7 +168,7 @@ func (r *cloudSecurityKacCustomRuleResource) Schema(
 			"alert_info": schema.ListAttribute{
 				Optional:            true,
 				ElementType:         types.StringType,
-				MarkdownDescription: "A list of the alert logic and detection criteria for rule violations. Do not include numbering within this list. The Falcon console will automatically add numbering.When `alert_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `alert_info`.",
+				MarkdownDescription: "A list of the alert logic and detection criteria for rule violations.",
 				Validators: []validator.List{
 					listvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
@@ -215,7 +215,7 @@ func (r *cloudSecurityKacCustomRuleResource) Read(
 	}
 
 	rule, diags := r.getCloudPolicyRule(ctx, state.ID.ValueString())
-	if handleNotFoundRemoveFromState(ctx, diags, state.ID.ValueString(), "custom rule", resp) {
+	if handleNotFoundRemoveFromState(ctx, diags, state.ID.ValueString(), "custom kac rule", resp) {
 		return
 	}
 	if diags.HasError() {
@@ -352,14 +352,14 @@ func (r *cloudSecurityKacCustomRuleResource) createCloudPolicyRule(ctx context.C
 	return createCloudPolicyRule(r.client, cloud_policies.CreateRuleMixin0Params{
 		Context: ctx,
 		Body:    body,
-	})
+	}, kacRuleRequiredScopes)
 }
 
 func (r *cloudSecurityKacCustomRuleResource) getCloudPolicyRule(ctx context.Context, id string) (*models.ApimodelsRule, diag.Diagnostics) {
 	return getCloudPolicyRule(r.client, cloud_policies.GetRuleParams{
 		Context: ctx,
 		Ids:     []string{id},
-	})
+	}, kacRuleRequiredScopes)
 }
 
 func (r *cloudSecurityKacCustomRuleResource) updateCloudPolicyRule(ctx context.Context, plan *cloudSecurityKacCustomRuleResourceModel) (*models.ApimodelsRule, diag.Diagnostics) {
@@ -402,12 +402,12 @@ func (r *cloudSecurityKacCustomRuleResource) updateCloudPolicyRule(ctx context.C
 	return updateCloudPolicyRule(r.client, cloud_policies.UpdateRuleParams{
 		Context: ctx,
 		Body:    body,
-	})
+	}, kacRuleRequiredScopes)
 }
 
 func (r *cloudSecurityKacCustomRuleResource) deleteCloudPolicyRule(ctx context.Context, id string) diag.Diagnostics {
 	return deleteCloudPolicyRule(r.client, cloud_policies.DeleteRuleMixin0Params{
 		Context: ctx,
 		Ids:     []string{id},
-	})
+	}, kacRuleRequiredScopes)
 }
