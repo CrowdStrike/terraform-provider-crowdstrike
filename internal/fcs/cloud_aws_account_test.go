@@ -1337,6 +1337,306 @@ func TestAccCloudAwsAccountResource_RegressionDisableDSPMThenVulnScanning(t *tes
 	})
 }
 
+func testAccCloudAwsAccountConfig_withPrefixAndSuffix(account, prefix, suffix string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id           = "%s"
+  resource_name_prefix = "%s"
+  resource_name_suffix = "%s"
+  dspm = {
+    enabled = true
+  }
+  vulnerability_scanning = {
+    enabled = true
+  }
+}
+`, account, prefix, suffix)
+}
+
+func TestShouldInvalidateDSPMRoleField(t *testing.T) {
+	tests := []struct {
+		name     string
+		plan     fcs.CloudAWSAccountModel
+		state    fcs.CloudAWSAccountModel
+		expected bool
+	}{
+		{
+			name: "no changes",
+			plan: fcs.CloudAWSAccountModel{
+				DSPM:               &fcs.DSPMOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix: types.StringValue(""),
+				ResourceNameSuffix: types.StringValue(""),
+			},
+			state: fcs.CloudAWSAccountModel{
+				DSPM:               &fcs.DSPMOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix: types.StringValue(""),
+				ResourceNameSuffix: types.StringValue(""),
+			},
+			expected: false,
+		},
+		{
+			name: "dspm role name changed",
+			plan: fcs.CloudAWSAccountModel{
+				DSPM:               &fcs.DSPMOptions{RoleName: types.StringValue("role2")},
+				ResourceNamePrefix: types.StringValue(""),
+				ResourceNameSuffix: types.StringValue(""),
+			},
+			state: fcs.CloudAWSAccountModel{
+				DSPM:               &fcs.DSPMOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix: types.StringValue(""),
+				ResourceNameSuffix: types.StringValue(""),
+			},
+			expected: true,
+		},
+		{
+			name: "prefix changed",
+			plan: fcs.CloudAWSAccountModel{
+				DSPM:               &fcs.DSPMOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix: types.StringValue("new-"),
+				ResourceNameSuffix: types.StringValue(""),
+			},
+			state: fcs.CloudAWSAccountModel{
+				DSPM:               &fcs.DSPMOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix: types.StringValue(""),
+				ResourceNameSuffix: types.StringValue(""),
+			},
+			expected: true,
+		},
+		{
+			name: "suffix changed",
+			plan: fcs.CloudAWSAccountModel{
+				DSPM:               &fcs.DSPMOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix: types.StringValue(""),
+				ResourceNameSuffix: types.StringValue("-new"),
+			},
+			state: fcs.CloudAWSAccountModel{
+				DSPM:               &fcs.DSPMOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix: types.StringValue(""),
+				ResourceNameSuffix: types.StringValue(""),
+			},
+			expected: true,
+		},
+		{
+			name: "both prefix and suffix changed",
+			plan: fcs.CloudAWSAccountModel{
+				DSPM:               &fcs.DSPMOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix: types.StringValue("new-"),
+				ResourceNameSuffix: types.StringValue("-new"),
+			},
+			state: fcs.CloudAWSAccountModel{
+				DSPM:               &fcs.DSPMOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix: types.StringValue("old-"),
+				ResourceNameSuffix: types.StringValue("-old"),
+			},
+			expected: true,
+		},
+		{
+			name: "nil dspm but prefix changed",
+			plan: fcs.CloudAWSAccountModel{
+				DSPM:               nil,
+				ResourceNamePrefix: types.StringValue("new-"),
+				ResourceNameSuffix: types.StringValue(""),
+			},
+			state: fcs.CloudAWSAccountModel{
+				DSPM:               nil,
+				ResourceNamePrefix: types.StringValue(""),
+				ResourceNameSuffix: types.StringValue(""),
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := fcs.ShouldInvalidateDSPMRoleField(tt.plan, tt.state)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestShouldInvalidateVulnerabilityScanningRoleField(t *testing.T) {
+	tests := []struct {
+		name     string
+		plan     fcs.CloudAWSAccountModel
+		state    fcs.CloudAWSAccountModel
+		expected bool
+	}{
+		{
+			name: "no changes",
+			plan: fcs.CloudAWSAccountModel{
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix:    types.StringValue(""),
+				ResourceNameSuffix:    types.StringValue(""),
+			},
+			state: fcs.CloudAWSAccountModel{
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix:    types.StringValue(""),
+				ResourceNameSuffix:    types.StringValue(""),
+			},
+			expected: false,
+		},
+		{
+			name: "vuln scanning role name changed",
+			plan: fcs.CloudAWSAccountModel{
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{RoleName: types.StringValue("role2")},
+				ResourceNamePrefix:    types.StringValue(""),
+				ResourceNameSuffix:    types.StringValue(""),
+			},
+			state: fcs.CloudAWSAccountModel{
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix:    types.StringValue(""),
+				ResourceNameSuffix:    types.StringValue(""),
+			},
+			expected: true,
+		},
+		{
+			name: "prefix changed",
+			plan: fcs.CloudAWSAccountModel{
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix:    types.StringValue("new-"),
+				ResourceNameSuffix:    types.StringValue(""),
+			},
+			state: fcs.CloudAWSAccountModel{
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix:    types.StringValue(""),
+				ResourceNameSuffix:    types.StringValue(""),
+			},
+			expected: true,
+		},
+		{
+			name: "suffix changed",
+			plan: fcs.CloudAWSAccountModel{
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix:    types.StringValue(""),
+				ResourceNameSuffix:    types.StringValue("-new"),
+			},
+			state: fcs.CloudAWSAccountModel{
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix:    types.StringValue(""),
+				ResourceNameSuffix:    types.StringValue(""),
+			},
+			expected: true,
+		},
+		{
+			name: "nil vuln scanning but prefix changed",
+			plan: fcs.CloudAWSAccountModel{
+				VulnerabilityScanning: nil,
+				ResourceNamePrefix:    types.StringValue("new-"),
+				ResourceNameSuffix:    types.StringValue(""),
+			},
+			state: fcs.CloudAWSAccountModel{
+				VulnerabilityScanning: nil,
+				ResourceNamePrefix:    types.StringValue(""),
+				ResourceNameSuffix:    types.StringValue(""),
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := fcs.ShouldInvalidateVulnerabilityScanningRoleField(tt.plan, tt.state)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestShouldInvalidateAgentlessScanningRoleField(t *testing.T) {
+	tests := []struct {
+		name     string
+		plan     fcs.CloudAWSAccountModel
+		state    fcs.CloudAWSAccountModel
+		expected bool
+	}{
+		{
+			name: "no changes",
+			plan: fcs.CloudAWSAccountModel{
+				DSPM:                  &fcs.DSPMOptions{RoleName: types.StringValue("role1")},
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix:    types.StringValue(""),
+				ResourceNameSuffix:    types.StringValue(""),
+			},
+			state: fcs.CloudAWSAccountModel{
+				DSPM:                  &fcs.DSPMOptions{RoleName: types.StringValue("role1")},
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix:    types.StringValue(""),
+				ResourceNameSuffix:    types.StringValue(""),
+			},
+			expected: false,
+		},
+		{
+			name: "prefix changed invalidates agentless",
+			plan: fcs.CloudAWSAccountModel{
+				DSPM:                  &fcs.DSPMOptions{RoleName: types.StringValue("role1")},
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix:    types.StringValue("new-"),
+				ResourceNameSuffix:    types.StringValue(""),
+			},
+			state: fcs.CloudAWSAccountModel{
+				DSPM:                  &fcs.DSPMOptions{RoleName: types.StringValue("role1")},
+				VulnerabilityScanning: &fcs.VulnerabilityScanningOptions{RoleName: types.StringValue("role1")},
+				ResourceNamePrefix:    types.StringValue(""),
+				ResourceNameSuffix:    types.StringValue(""),
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := fcs.ShouldInvalidateAgentlessScanningRoleField(tt.plan, tt.state)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestAccCloudAwsAccountResource_PrefixSuffixRoleNames tests that changing
+// resource_name_prefix or resource_name_suffix causes the computed DSPM,
+// vulnerability scanning, and agentless scanning role name/ARN fields to be
+// invalidated and re-read from the API. If the plan modifiers fail to mark
+// these fields as unknown, Terraform will error with "Provider produced
+// inconsistent result", so each step succeeding proves invalidation works.
+func TestAccCloudAwsAccountResource_PrefixSuffixRoleNames(t *testing.T) {
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			// Step 1: Create with DSPM and vuln scanning enabled, no prefix/suffix
+			{
+				Config: testAccCloudAwsAccountConfig_bothDSPMAndVulnEnabledNoRoles(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "resource_name_prefix", ""),
+					resource.TestCheckResourceAttr(fullResourceName, "resource_name_suffix", ""),
+					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
+				),
+			},
+			// Step 2: Add prefix and suffix — computed role fields must be invalidated
+			{
+				Config: testAccCloudAwsAccountConfig_withPrefixAndSuffix(accountID, "tp-", "-sf"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "resource_name_prefix", "tp-"),
+					resource.TestCheckResourceAttr(fullResourceName, "resource_name_suffix", "-sf"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
+				),
+			},
+		},
+	})
+}
+
 func TestBuildProductsFromModel(t *testing.T) {
 	tests := []struct {
 		name     string
