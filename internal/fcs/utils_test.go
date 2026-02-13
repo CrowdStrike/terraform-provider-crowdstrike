@@ -18,6 +18,67 @@ var (
 	testVulnRoleArn = fmt.Sprintf("arn:aws:iam::%s:role/%s", testAccountID, testVulnRoleName)
 )
 
+func TestStripPrefixAndSuffix(t *testing.T) {
+	tests := []struct {
+		name     string
+		roleName string
+		prefix   string
+		suffix   string
+		expected string
+	}{
+		{
+			name:     "Default name with no prefix or suffix - returns default",
+			roleName: "CrowdStrikeAgentlessScanningIntegrationRole",
+			prefix:   "",
+			suffix:   "",
+			expected: "CrowdStrikeAgentlessScanningIntegrationRole",
+		},
+		{
+			name:     "Default name with prefix only - returns default",
+			roleName: "myprefix-CrowdStrikeAgentlessScanningIntegrationRole",
+			prefix:   "myprefix-",
+			suffix:   "",
+			expected: "CrowdStrikeAgentlessScanningIntegrationRole",
+		},
+		{
+			name:     "Default name with suffix only - returns default",
+			roleName: "CrowdStrikeAgentlessScanningIntegrationRole-mysuffix",
+			prefix:   "",
+			suffix:   "-mysuffix",
+			expected: "CrowdStrikeAgentlessScanningIntegrationRole",
+		},
+		{
+			name:     "Default name with both prefix and suffix - returns default",
+			roleName: "myprefix-CrowdStrikeAgentlessScanningIntegrationRole-mysuffix",
+			prefix:   "myprefix-",
+			suffix:   "-mysuffix",
+			expected: "CrowdStrikeAgentlessScanningIntegrationRole",
+		},
+		{
+			name:     "Custom role name - returns unchanged",
+			roleName: "CustomRoleName",
+			prefix:   "myprefix-",
+			suffix:   "-mysuffix",
+			expected: "CustomRoleName",
+		},
+		{
+			name:     "Empty role name - returns empty",
+			roleName: "",
+			prefix:   "myprefix-",
+			suffix:   "-mysuffix",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := stripPrefixAndSuffix(tt.roleName, tt.prefix, tt.suffix); got != tt.expected {
+				t.Errorf("stripPrefixAndSuffix() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestGetRoleNameFromArn(t *testing.T) {
 	tests := []struct {
 		name   string

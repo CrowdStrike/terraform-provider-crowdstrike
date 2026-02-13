@@ -128,13 +128,15 @@ func agentlessScanningRoleNameStateModifier() agentlessScanningRoleNameModifier 
 }
 
 func shouldInvalidateDSPMRoleField(plan, state cloudAWSAccountModel) bool {
-	shouldInvalidate := plan.DSPM != nil && state.DSPM != nil && !plan.DSPM.RoleName.Equal(state.DSPM.RoleName)
+	shouldInvalidate := (plan.DSPM != nil && state.DSPM != nil && !plan.DSPM.RoleName.Equal(state.DSPM.RoleName)) ||
+		!plan.ResourceNamePrefix.Equal(state.ResourceNamePrefix) || !plan.ResourceNameSuffix.Equal(state.ResourceNameSuffix)
 	return shouldInvalidate
 }
 
 func shouldInvalidateVulnerabilityScanningRoleField(plan, state cloudAWSAccountModel) bool {
-	shouldInvalidate := plan.VulnerabilityScanning != nil && state.VulnerabilityScanning != nil &&
-		!plan.VulnerabilityScanning.RoleName.Equal(state.VulnerabilityScanning.RoleName)
+	shouldInvalidate := (plan.VulnerabilityScanning != nil && state.VulnerabilityScanning != nil &&
+		!plan.VulnerabilityScanning.RoleName.Equal(state.VulnerabilityScanning.RoleName)) ||
+		!plan.ResourceNamePrefix.Equal(state.ResourceNamePrefix) || !plan.ResourceNameSuffix.Equal(state.ResourceNameSuffix)
 	return shouldInvalidate
 }
 

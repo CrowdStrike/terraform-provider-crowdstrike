@@ -13,7 +13,10 @@ type (
 )
 
 var (
-	NewSettingsConfig               = newSettingsConfig
-	BuildProductsFromModel          = (*cloudAWSAccountResource).buildProductsFromModel
-	UpdateFeatureStatesFromProducts = updateFeatureStatesFromProducts
+	NewSettingsConfig                              = newSettingsConfig
+	BuildProductsFromModel                         = (*cloudAWSAccountResource).buildProductsFromModel
+	UpdateFeatureStatesFromProducts                = updateFeatureStatesFromProducts
+	ShouldInvalidateDSPMRoleField                  = shouldInvalidateDSPMRoleField
+	ShouldInvalidateVulnerabilityScanningRoleField = shouldInvalidateVulnerabilityScanningRoleField
+	ShouldInvalidateAgentlessScanningRoleField     = shouldInvalidateAgentlessScanningRoleField
 )

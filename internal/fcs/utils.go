@@ -18,6 +18,19 @@ func getRoleNameFromArn(arn string) string {
 	return ""
 }
 
+const defaultAgentlessScanningRoleName = "CrowdStrikeAgentlessScanningIntegrationRole"
+
+// stripPrefixAndSuffix returns the base role name from an API-returned role
+// name by checking if it matches the default role name with prefix/suffix
+// applied. If it matches, the default name is returned. Otherwise the original
+// name is returned as-is (custom role names are never prefixed/suffixed).
+func stripPrefixAndSuffix(roleName, prefix, suffix string) string {
+	if roleName == prefix+defaultAgentlessScanningRoleName+suffix {
+		return defaultAgentlessScanningRoleName
+	}
+	return roleName
+}
+
 // resolveAgentlessScanningRoleName retrieves agentless scanning role name from CSPM account.
 // DSPM role takes precedence over vulnerability scanning role.
 func resolveAgentlessScanningRoleName(cspmAccount *models.DomainAWSAccountV2) string {
