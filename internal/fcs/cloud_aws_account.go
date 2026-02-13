@@ -1062,6 +1062,13 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 	}
 	m.DspmRoleName = types.StringValue(dspmRoleName)
 	m.DspmRoleArn = types.StringValue(dspmRoleArn)
+	// Recover the base role name for drift detection on dspm.role_name.
+	// The API returns the prefixed/suffixed name for the default role, so we
+	// strip it using the API-returned prefix/suffix (m.ResourceNamePrefix may
+	// not be set yet during Read).
+	if m.DSPM != nil {
+		m.DSPM.RoleName = types.StringValue(stripPrefixAndSuffix(dspmRoleName, cloudAccount.ResourceNamePrefix, cloudAccount.ResourceNameSuffix))
+	}
 
 	var vulnScanningRoleArn string
 	vulnScanningRoleNameFromSettings := settings.VulnerabilityScanningRoleName.ValueString()
@@ -1077,6 +1084,9 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 	}
 	m.VulnerabilityScanningRoleName = types.StringValue(vulnScanningRoleName)
 	m.VulnerabilityScanningRoleArn = types.StringValue(vulnScanningRoleArn)
+	if m.VulnerabilityScanning != nil {
+		m.VulnerabilityScanning.RoleName = types.StringValue(stripPrefixAndSuffix(vulnScanningRoleName, cloudAccount.ResourceNamePrefix, cloudAccount.ResourceNameSuffix))
+	}
 
 	agentlessScanningRoleName := dspmRoleName
 	if !m.DSPM.Enabled.ValueBool() && m.VulnerabilityScanning.Enabled.ValueBool() {
