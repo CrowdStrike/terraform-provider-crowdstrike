@@ -48,8 +48,8 @@ func TestAccCloudGoogleRegistrationResource_Complete(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "wif_project", wifProjectID),
 					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
 					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.0", "sys-test-.*"),
-					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.1", "sys-.*-sandbox$"),
+					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.0", "test-*"),
+					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.1", "*-sandbox"),
 					resource.TestCheckResourceAttr(resourceName, "resource_name_prefix", "cs-"),
 					resource.TestCheckResourceAttr(resourceName, "resource_name_suffix", "-prod"),
 					resource.TestCheckResourceAttr(resourceName, "labels.%", "2"),
@@ -81,7 +81,7 @@ func TestAccCloudGoogleRegistrationResource_Complete(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "infra_project", infraProjectID),
 					resource.TestCheckResourceAttr(resourceName, "wif_project", wifProjectID),
 					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.0", "sys-dev-.*"),
+					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.0", "dev-*"),
 					resource.TestCheckResourceAttr(resourceName, "resource_name_prefix", "cs-"),
 					resource.TestCheckResourceAttr(resourceName, "resource_name_suffix", "-stg"),
 					resource.TestCheckResourceAttr(resourceName, "labels.%", "3"),
@@ -453,6 +453,49 @@ func TestAccCloudGoogleRegistrationResource_InfrastructureManagerMissingRegion(t
 	})
 }
 
+func TestAccCloudGoogleRegistrationResource_ExcludedProjectPatternsValidation(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	projectID := generateGoogleCloudProjectID()
+	infraProjectID := generateGoogleCloudProjectID()
+	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudGoogleRegistrationConfig_excludedPatterns(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, `["Test-*"]`),
+				ExpectError: regexp.MustCompile(
+					`(?s).*Attribute excluded_project_patterns\[0\] must contain only lowercase letters.*got: Test-\*`,
+				),
+				PlanOnly: true,
+			},
+			{
+				Config: testAccCloudGoogleRegistrationConfig_excludedPatterns(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, `["sys-.*-dev"]`),
+				ExpectError: regexp.MustCompile(
+					`(?s).*Attribute excluded_project_patterns\[0\] must contain only lowercase letters.*got: sys-`,
+				),
+				PlanOnly: true,
+			},
+			{
+				Config: testAccCloudGoogleRegistrationConfig_excludedPatterns(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, `["test_dev"]`),
+				ExpectError: regexp.MustCompile(
+					`(?s).*Attribute excluded_project_patterns\[0\] must contain only lowercase letters.*got: test_dev`,
+				),
+				PlanOnly: true,
+			},
+			{
+				Config: testAccCloudGoogleRegistrationConfig_excludedPatterns(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, `["*"]`),
+				ExpectError: regexp.MustCompile(
+					`(?s).*Attribute excluded_project_patterns\[0\] value must be none of:.*got: "\*"`,
+				),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
 func testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber string, projectIDs ...string) string {
 	projectsList := make([]string, len(projectIDs))
 	for i, pid := range projectIDs {
@@ -509,8 +552,8 @@ resource "crowdstrike_cloud_google_registration" "test" {
   deployment_method = "terraform-native"
 
   excluded_project_patterns = [
-    "sys-test-.*",
-    "sys-.*-sandbox$"
+    "test-*",
+    "*-sandbox"
   ]
 
   resource_name_prefix = "cs-"
@@ -545,7 +588,7 @@ resource "crowdstrike_cloud_google_registration" "test" {
   infrastructure_manager_region = "us-central1"
 
   excluded_project_patterns = [
-    "sys-dev-.*"
+    "dev-*"
   ]
 
   resource_name_prefix = "cs-"
@@ -627,4 +670,17 @@ resource "crowdstrike_cloud_google_registration" "test" {
   deployment_method = "infrastructure-manager"
 }
 `, rName, projectID, infraProjectID, wifProjectID, wifProjectNumber)
+}
+
+func testAccCloudGoogleRegistrationConfig_excludedPatterns(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, patterns string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_cloud_google_registration" "test" {
+  name                   = %[1]q
+  projects               = [%[2]q]
+  infra_project          = %[3]q
+  wif_project            = %[4]q
+  wif_project_number     = %[5]q
+  excluded_project_patterns = %[6]s
+}
+`, rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, patterns)
 }

@@ -419,15 +419,16 @@ func (r *cloudGoogleRegistrationResource) Schema(
 
 			"excluded_project_patterns": schema.ListAttribute{
 				Optional:    true,
-				Description: "Regex patterns to exclude specific projects from registration. Each pattern must start with 'sys-' (case insensitive)",
+				Description: "Wildcard patterns to exclude specific projects from registration. Each pattern must contain only lowercase letters, hyphens, numbers, and wildcard (*). A pattern containing only a wildcard is not valid",
 				ElementType: types.StringType,
 				Validators: []validator.List{
 					listvalidator.ValueStringsAre(
 						validators.StringNotWhitespace(),
 						stringvalidator.RegexMatches(
-							regexp.MustCompile(`^(?i)sys-`),
-							"must start with 'sys-' (case insensitive)",
+							regexp.MustCompile(`^[a-z0-9*-]+$`),
+							"must contain only lowercase letters, hyphens, numbers, and wildcard (*)",
 						),
+						stringvalidator.NoneOf("*"),
 					),
 				},
 			},
