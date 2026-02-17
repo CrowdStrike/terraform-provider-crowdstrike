@@ -1049,8 +1049,8 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 
 	var dspmRoleArn string
 
-	dspmRoleNameFromSettings := settings.DSPMRoleName.ValueString() // arn:.../{prefix}{RoleName}{suffix}
-	dspmRoleName := getRoleNameFromArn(dspmRoleNameFromSettings)    // {prefix}{RoleName}{suffix}
+	dspmRoleNameFromSettings := settings.DSPMRoleName.ValueString()
+	dspmRoleName := getRoleNameFromArn(dspmRoleNameFromSettings)
 	if strings.HasPrefix(dspmRoleNameFromSettings, "arn:") {
 		dspmRoleArn = dspmRoleNameFromSettings
 	} else if dspmRoleName != "" {
