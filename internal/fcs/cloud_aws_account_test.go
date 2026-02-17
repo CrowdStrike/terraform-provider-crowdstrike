@@ -1337,6 +1337,69 @@ func TestAccCloudAwsAccountResource_RegressionDisableDSPMThenVulnScanning(t *tes
 	})
 }
 
+func testAccCloudAwsAccountConfig_withPrefixAndSuffix(account, prefix, suffix string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id           = "%s"
+  resource_name_prefix = "%s"
+  resource_name_suffix = "%s"
+  dspm = {
+    enabled = true
+  }
+  vulnerability_scanning = {
+    enabled = true
+  }
+}
+`, account, prefix, suffix)
+}
+
+// TestAccCloudAwsAccountResource_PrefixSuffixRoleNames tests that changing
+// resource_name_prefix or resource_name_suffix causes the computed DSPM,
+// vulnerability scanning, and agentless scanning role name/ARN fields to be
+// invalidated and re-read from the API. If the plan modifiers fail to mark
+// these fields as unknown, Terraform will error with "Provider produced
+// inconsistent result", so each step succeeding proves invalidation works.
+func TestAccCloudAwsAccountResource_PrefixSuffixRoleNames(t *testing.T) {
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			// Step 1: Create with DSPM and vuln scanning enabled, no prefix/suffix
+			{
+				Config: testAccCloudAwsAccountConfig_bothDSPMAndVulnEnabledNoRoles(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "true"),
+					resource.TestCheckResourceAttr(fullResourceName, "resource_name_prefix", ""),
+					resource.TestCheckResourceAttr(fullResourceName, "resource_name_suffix", ""),
+					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
+				),
+			},
+			// Step 2: Add prefix and suffix — computed role fields must be invalidated
+			{
+				Config: testAccCloudAwsAccountConfig_withPrefixAndSuffix(accountID, "tp-", "-sf"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "resource_name_prefix", "tp-"),
+					resource.TestCheckResourceAttr(fullResourceName, "resource_name_suffix", "-sf"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "dspm_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_name"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "vulnerability_scanning_role_arn"),
+					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_scanning_role_name"),
+				),
+			},
+		},
+	})
+}
+
 func TestBuildProductsFromModel(t *testing.T) {
 	tests := []struct {
 		name     string
