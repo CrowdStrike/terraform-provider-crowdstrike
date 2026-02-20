@@ -2,6 +2,8 @@ package tferrors
 
 import (
 	"errors"
+	"io"
+	"strings"
 	"testing"
 
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
@@ -11,9 +13,22 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/go-openapi/runtime"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/stretchr/testify/assert"
 )
+
+type mockClientResponse struct {
+	code    int
+	message string
+	body    io.ReadCloser
+}
+
+func (m *mockClientResponse) Code() int                  { return m.code }
+func (m *mockClientResponse) Message() string            { return m.message }
+func (m *mockClientResponse) GetHeader(string) string    { return "" }
+func (m *mockClientResponse) GetHeaders(string) []string { return nil }
+func (m *mockClientResponse) Body() io.ReadCloser        { return m.body }
 
 func TestNewDiagnosticFromAPIError(t *testing.T) {
 	testScopes := []scopes.Scope{{Name: "test", Read: true}}
@@ -59,6 +74,43 @@ func TestNewDiagnosticFromAPIError(t *testing.T) {
 			operation: Create,
 			options:   []ErrorOption{WithBadRequestDetail("Custom bad request message")},
 			wantDiag:  NewBadRequestError(Create, "Custom bad request message"),
+		},
+		{
+			name: "bad request from runtime.APIError extracts body errors",
+			err: runtime.NewAPIError("create-rule", &mockClientResponse{
+				code:    400,
+				message: "400 Bad Request",
+				body: io.NopCloser(strings.NewReader(`{
+					"errors": [{"code": 400, "message": "item label not found or value invalid"}]
+				}`)),
+			}, 400),
+			operation: Create,
+			wantDiag:  NewBadRequestError(Create, "item label not found or value invalid"),
+		},
+		{
+			name: "bad request from runtime.APIError with multiple errors",
+			err: runtime.NewAPIError("create-rule", &mockClientResponse{
+				code:    400,
+				message: "400 Bad Request",
+				body: io.NopCloser(strings.NewReader(`{
+					"errors": [
+						{"code": 400, "message": "first error"},
+						{"code": 400, "message": "second error"}
+					]
+				}`)),
+			}, 400),
+			operation: Create,
+			wantDiag:  NewBadRequestError(Create, "first error; second error"),
+		},
+		{
+			name: "bad request from runtime.APIError with empty body falls back",
+			err: runtime.NewAPIError("[POST /ioarules/entities/rules/v1] create-rule", &mockClientResponse{
+				code:    400,
+				message: "400 Bad Request",
+				body:    io.NopCloser(strings.NewReader("")),
+			}, 400),
+			operation: Create,
+			wantDiag:  NewBadRequestError(Create, "[POST /ioarules/entities/rules/v1] create-rule (status 400): {}"),
 		},
 		{
 			name:      "conflict error",
