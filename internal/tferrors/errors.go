@@ -1,8 +1,11 @@
 package tferrors
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"reflect"
+	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/models"
@@ -157,6 +160,9 @@ func NewDiagnosticFromAPIError(operation Operation, err error, apiScopes []scope
 		case statusErr.IsCode(400):
 			detail := cfg.badRequestDetail
 			if detail == "" {
+				detail = extractAPIErrorDetail(err)
+			}
+			if detail == "" {
 				detail = err.Error()
 			}
 			return NewBadRequestError(operation, detail)
@@ -174,6 +180,9 @@ func NewDiagnosticFromAPIError(operation Operation, err error, apiScopes []scope
 		case statusErr.IsCode(404):
 			detail := cfg.notFoundDetail
 			if detail == "" {
+				detail = extractAPIErrorDetail(err)
+			}
+			if detail == "" {
 				detail = err.Error()
 			}
 			return NewNotFoundError(detail)
@@ -184,12 +193,18 @@ func NewDiagnosticFromAPIError(operation Operation, err error, apiScopes []scope
 		case statusErr.IsCode(409):
 			detail := cfg.conflictDetail
 			if detail == "" {
+				detail = extractAPIErrorDetail(err)
+			}
+			if detail == "" {
 				detail = err.Error()
 			}
 			return NewConflictError(operation, detail)
 
 		case statusErr.IsServerError():
 			detail := cfg.serverErrorDetail
+			if detail == "" {
+				detail = extractAPIErrorDetail(err)
+			}
 			if detail == "" {
 				detail = err.Error()
 			}
@@ -201,6 +216,9 @@ func NewDiagnosticFromAPIError(operation Operation, err error, apiScopes []scope
 	}
 
 	detail := cfg.detail
+	if detail == "" {
+		detail = extractAPIErrorDetail(err)
+	}
 	if detail == "" {
 		detail = err.Error()
 	}
@@ -291,4 +309,45 @@ func NewDiagnosticFromPayloadErrors(operation Operation, payloadErrors []*models
 		return NewOperationError(operation, err)
 	}
 	return nil
+}
+
+// extractAPIErrorDetail attempts to read error messages from the response body
+// of a runtime.APIError. This handles cases where the gofalcon SDK does not have
+// a typed response struct for a given status code (e.g., 400), causing the error
+// to fall into the default case of ReadResponse with an unreadable body reference.
+func extractAPIErrorDetail(err error) string {
+	apiErr, ok := err.(*runtime.APIError)
+	if !ok {
+		return ""
+	}
+
+	resp, ok := apiErr.Response.(runtime.ClientResponse)
+	if !ok || resp.Body() == nil {
+		return ""
+	}
+
+	body, readErr := io.ReadAll(resp.Body())
+	if readErr != nil || len(body) == 0 {
+		return ""
+	}
+
+	var parsed struct {
+		Errors []struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+
+	if json.Unmarshal(body, &parsed) != nil || len(parsed.Errors) == 0 {
+		return ""
+	}
+
+	var messages []string
+	for _, e := range parsed.Errors {
+		if e.Message != "" {
+			messages = append(messages, e.Message)
+		}
+	}
+
+	return strings.Join(messages, "; ")
 }
