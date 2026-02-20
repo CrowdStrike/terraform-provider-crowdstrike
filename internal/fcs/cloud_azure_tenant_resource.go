@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_azure_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -462,11 +462,11 @@ func (r *cloudAzureTenantResource) deleteRegistration(
 		},
 	)
 	if err != nil {
-		diags.AddError(
-			"Failed to delete registration",
-			fmt.Sprintf("Failed to delete Azure tenant registration: %s", falcon.ErrorExplain(err)),
-		)
-
+		if _, ok := err.(*cloud_azure_registration.CloudRegistrationAzureDeleteRegistrationForbidden); ok {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Delete, azureRegistrationScopes))
+			return diags
+		}
+		diags.Append(tferrors.NewOperationError(tferrors.Delete, err))
 		return diags
 	}
 
@@ -495,11 +495,12 @@ func (r *cloudAzureTenantResource) getRegistration(
 			return nil, diags
 		}
 
-		diags.AddError(
-			"Failed to get registration",
-			fmt.Sprintf("Failed to get Azure tenant registration: %s", falcon.ErrorExplain(err)),
-		)
+		if _, ok := err.(*cloud_azure_registration.CloudRegistrationAzureGetRegistrationForbidden); ok {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Read, azureRegistrationScopes))
+			return nil, diags
+		}
 
+		diags.Append(tferrors.NewOperationError(tferrors.Read, err))
 		return nil, diags
 	}
 
@@ -573,11 +574,11 @@ func (r *cloudAzureTenantResource) createRegistration(
 
 	res, err := r.client.CloudAzureRegistration.CloudRegistrationAzureCreateRegistration(&params)
 	if err != nil {
-		diags.AddError(
-			"Failed to register tenant",
-			fmt.Sprintf("Failed to register Azure tenant: %s", falcon.ErrorExplain(err)),
-		)
-
+		if _, ok := err.(*cloud_azure_registration.CloudRegistrationAzureCreateRegistrationForbidden); ok {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Create, azureRegistrationScopes))
+			return nil, diags
+		}
+		diags.Append(tferrors.NewOperationError(tferrors.Create, err))
 		return nil, diags
 	}
 
@@ -673,11 +674,12 @@ func (r *cloudAzureTenantResource) updateRegistration(
 			return nil, diags
 		}
 
-		diags.AddError(
-			"Failed to update registration",
-			fmt.Sprintf("Failed to update Azure tenant registration: %s", falcon.ErrorExplain(err)),
-		)
+		if _, ok := err.(*cloud_azure_registration.CloudRegistrationAzureUpdateRegistrationForbidden); ok {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Update, azureRegistrationScopes))
+			return nil, diags
+		}
 
+		diags.Append(tferrors.NewOperationError(tferrors.Update, err))
 		return nil, diags
 	}
 

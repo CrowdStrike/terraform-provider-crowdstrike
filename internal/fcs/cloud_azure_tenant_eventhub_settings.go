@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_azure_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
@@ -341,11 +340,12 @@ func (r *cloudAzureTenantEventhubSettingsResource) getRegistration(
 			return nil, diags
 		}
 
-		diags.AddError(
-			"Failed to get registration",
-			fmt.Sprintf("Failed to get Azure tenant registration: %s", falcon.ErrorExplain(err)),
-		)
+		if _, ok := err.(*cloud_azure_registration.CloudRegistrationAzureGetRegistrationForbidden); ok {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Read, azureRegistrationScopes))
+			return nil, diags
+		}
 
+		diags.Append(tferrors.NewOperationError(tferrors.Read, err))
 		return nil, diags
 	}
 
@@ -405,11 +405,12 @@ func (r *cloudAzureTenantEventhubSettingsResource) updateRegistration(
 			return nil, diags
 		}
 
-		diags.AddError(
-			"Failed to update registration",
-			fmt.Sprintf("Failed to update Azure tenant registration: %s", falcon.ErrorExplain(err)),
-		)
+		if _, ok := err.(*cloud_azure_registration.CloudRegistrationAzureUpdateRegistrationForbidden); ok {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Update, azureRegistrationScopes))
+			return nil, diags
+		}
 
+		diags.Append(tferrors.NewOperationError(tferrors.Update, err))
 		return nil, diags
 	}
 
@@ -444,7 +445,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) triggerHealthCheck(
 		}
 		diags.AddWarning(
 			"Failed to trigger health check scan. Please go to the Falcon console and trigger health check scan manually to reflect the latest state.",
-			fmt.Sprintf("Failed to trigger health check scan for Azure tenant registration: %s", falcon.ErrorExplain(err)),
+			err.Error(),
 		)
 	}
 
@@ -470,7 +471,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) validateRegistration(
 		}
 		diags.AddWarning(
 			"Failed to validate registration. Please go to the Falcon console and trigger health check scan manually to reflect the latest state.",
-			fmt.Sprintf("Failed to validate Azure tenant registration: %s", falcon.ErrorExplain(err)),
+			err.Error(),
 		)
 	}
 
