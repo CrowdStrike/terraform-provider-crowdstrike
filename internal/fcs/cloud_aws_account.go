@@ -583,7 +583,7 @@ func (r *cloudAWSAccountResource) Schema(
 				Computed:    true,
 				Description: "The name of the CloudTrail S3 bucket used for real-time visibility",
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+					cloudtrailBucketNameStateModifier(),
 				},
 			},
 			"dspm_role_arn": schema.StringAttribute{
@@ -805,11 +805,16 @@ func (r *cloudAWSAccountResource) createCloudAccount(
 		createAccount.VulnerabilityScanningRole = model.VulnerabilityScanning.RoleName.ValueString()
 	}
 
+	// Always set use_existing_cloudtrail, defaulting to true.
+	useExistingCloudtrail := true
+	if model.RealtimeVisibility != nil && !model.RealtimeVisibility.UseExistingCloudTrail.IsNull() {
+		useExistingCloudtrail = model.RealtimeVisibility.UseExistingCloudTrail.ValueBool()
+	}
+	createAccount.UseExistingCloudtrail = &useExistingCloudtrail
+
 	// Add realtime visibility configuration
 	if model.RealtimeVisibility != nil {
 		createAccount.CloudtrailRegion = model.RealtimeVisibility.CloudTrailRegion.ValueString()
-		useExistingCloudtrail := model.RealtimeVisibility.UseExistingCloudTrail.ValueBool()
-		createAccount.UseExistingCloudtrail = &useExistingCloudtrail
 		createAccount.LogIngestionMethod = model.RealtimeVisibility.LogIngestionMethod.ValueString()
 
 		if !model.RealtimeVisibility.LogIngestionS3BucketName.IsNull() {
@@ -1225,6 +1230,12 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 
 	if model.VulnerabilityScanning != nil {
 		patchAccount.VulnerabilityScanningRole = model.VulnerabilityScanning.RoleName.ValueString()
+	}
+
+	// Always set use_existing_cloudtrail, defaulting to true.
+	patchAccount.UseExistingCloudtrail = true
+	if model.RealtimeVisibility != nil && !model.RealtimeVisibility.UseExistingCloudTrail.IsNull() {
+		patchAccount.UseExistingCloudtrail = model.RealtimeVisibility.UseExistingCloudTrail.ValueBool()
 	}
 
 	if model.RealtimeVisibility != nil {

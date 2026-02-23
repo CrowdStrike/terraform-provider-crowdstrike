@@ -143,6 +143,90 @@ func shouldInvalidateAgentlessScanningRoleField(plan, state cloudAWSAccountModel
 	return shouldInvalidate
 }
 
+// cloudtrailBucketNameModifier preserves the prior state value for cloudtrail_bucket_name
+// unless the cloudtrail_region has changed, in which case it marks the value as unknown
+// so Terraform re-reads it from the backend.
+type cloudtrailBucketNameModifier struct {
+	planmodifier.String
+}
+
+func (m cloudtrailBucketNameModifier) Description(_ context.Context) string {
+	return "Uses prior state value unless cloudtrail_region changes, then marks as unknown for re-read"
+}
+
+func (m cloudtrailBucketNameModifier) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func (m cloudtrailBucketNameModifier) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	// Do nothing on create (no state value yet).
+	if req.StateValue.IsNull() {
+		return
+	}
+
+	// Compare cloudtrail_region between config and state to detect changes.
+	// We use config (not plan) because plan modifiers like CloudtrailRegionDefault
+	// may not have run yet, and the plan value could still be null.
+	var configRegion, stateRegion types.String
+
+	// Get the config's cloudtrail_region. If realtime_visibility is not in the
+	// config, this will error — in which case we check whether the state had a
+	// non-default region that would change when defaults are applied.
+	configDiag := req.Config.GetAttribute(ctx, path.Root("realtime_visibility").AtName("cloudtrail_region"), &configRegion)
+	stateDiag := req.State.GetAttribute(ctx, path.Root("realtime_visibility").AtName("cloudtrail_region"), &stateRegion)
+
+	if configDiag.HasError() || stateDiag.HasError() {
+		// Can't resolve one side — preserve state value.
+		resp.PlanValue = req.StateValue
+		return
+	}
+
+	// If both are null/unknown, no change.
+	if (configRegion.IsNull() || configRegion.IsUnknown()) && (stateRegion.IsNull() || stateRegion.IsUnknown()) {
+		resp.PlanValue = req.StateValue
+		return
+	}
+
+	// If config region is null/unknown (omitted), the CloudtrailRegionDefault
+	// modifier will set a default (us-east-1 for commercial). Check if the
+	// state region differs from the default.
+	if configRegion.IsNull() || configRegion.IsUnknown() {
+		// When config omits the region, the default is us-east-1 (or us-gov-west-1
+		// for gov). If state has a different region, the bucket name will change.
+		var accountType types.String
+		_ = req.State.GetAttribute(ctx, path.Root("account_type"), &accountType)
+		defaultRegion := "us-east-1"
+		if accountType.ValueString() == "gov" {
+			defaultRegion = "us-gov-west-1"
+		}
+		if !stateRegion.IsNull() && !stateRegion.IsUnknown() && stateRegion.ValueString() != defaultRegion {
+			resp.PlanValue = types.StringUnknown()
+			return
+		}
+		resp.PlanValue = req.StateValue
+		return
+	}
+
+	// If state region is null/unknown but config has a value, preserve state.
+	if stateRegion.IsNull() || stateRegion.IsUnknown() {
+		resp.PlanValue = req.StateValue
+		return
+	}
+
+	// Both are known — compare directly.
+	if configRegion.ValueString() != stateRegion.ValueString() {
+		resp.PlanValue = types.StringUnknown()
+		return
+	}
+
+	// No change — preserve the state value.
+	resp.PlanValue = req.StateValue
+}
+
+func cloudtrailBucketNameStateModifier() cloudtrailBucketNameModifier {
+	return cloudtrailBucketNameModifier{}
+}
+
 // cloudtrailRegionDefault is a plan modifier that sets the default cloudtrail_region based on account_type.
 type cloudtrailRegionDefault struct{}
 
