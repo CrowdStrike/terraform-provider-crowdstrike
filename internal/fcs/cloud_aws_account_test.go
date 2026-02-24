@@ -777,7 +777,7 @@ func TestAccCloudAWSAccount_UseExistingCloudTrailDefaultsTrue(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Step 1: Create with use_existing_cloudtrail = true (explicit).
 			{
-				Config: testAccCloudAWSAccountConfigUseExistingCloudTrail(accountID, true, "us-east-1", true),
+				Config: testAccCloudAWSAccountConfigUseExistingCloudTrail(accountID, "us-east-1", true),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
@@ -786,7 +786,7 @@ func TestAccCloudAWSAccount_UseExistingCloudTrailDefaultsTrue(t *testing.T) {
 			// Step 2: Change region while keeping use_existing_cloudtrail = true.
 			// This verifies the default is sent on update so the backend doesn't reset it.
 			{
-				Config: testAccCloudAWSAccountConfigUseExistingCloudTrail(accountID, true, "us-west-2", true),
+				Config: testAccCloudAWSAccountConfigUseExistingCloudTrail(accountID, "us-west-2", true),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "us-west-2"),
@@ -799,12 +799,7 @@ func TestAccCloudAWSAccount_UseExistingCloudTrailDefaultsTrue(t *testing.T) {
 
 // TestAccCloudAWSAccount_UseExistingCloudTrailToggle validates that
 // use_existing_cloudtrail can be toggled from true to false via update.
-// Currently skipped: the gofalcon SDK patch model uses `bool` with `omitempty`
-// for UseExistingCloudtrail, which causes `false` to be dropped from the JSON
-// payload. The SDK needs to change this field to `*bool` to support toggling.
 func TestAccCloudAWSAccount_UseExistingCloudTrailToggle(t *testing.T) {
-	t.Skip("Blocked by gofalcon SDK: RestAWSAccountPatchExtV1.UseExistingCloudtrail is bool with omitempty, cannot send false")
-
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 
@@ -814,7 +809,7 @@ func TestAccCloudAWSAccount_UseExistingCloudTrailToggle(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Step 1: Create with use_existing_cloudtrail = true.
 			{
-				Config: testAccCloudAWSAccountConfigUseExistingCloudTrail(accountID, true, "us-east-1", true),
+				Config: testAccCloudAWSAccountConfigUseExistingCloudTrail(accountID, "us-east-1", true),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
@@ -822,7 +817,7 @@ func TestAccCloudAWSAccount_UseExistingCloudTrailToggle(t *testing.T) {
 			},
 			// Step 2: Toggle to use_existing_cloudtrail = false.
 			{
-				Config: testAccCloudAWSAccountConfigUseExistingCloudTrail(accountID, true, "us-east-1", false),
+				Config: testAccCloudAWSAccountConfigUseExistingCloudTrail(accountID, "us-east-1", false),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "false"),
@@ -830,7 +825,7 @@ func TestAccCloudAWSAccount_UseExistingCloudTrailToggle(t *testing.T) {
 			},
 			// Step 3: Toggle back to use_existing_cloudtrail = true.
 			{
-				Config: testAccCloudAWSAccountConfigUseExistingCloudTrail(accountID, true, "us-east-1", true),
+				Config: testAccCloudAWSAccountConfigUseExistingCloudTrail(accountID, "us-east-1", true),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
 					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
@@ -840,17 +835,17 @@ func TestAccCloudAWSAccount_UseExistingCloudTrailToggle(t *testing.T) {
 	})
 }
 
-func testAccCloudAWSAccountConfigUseExistingCloudTrail(accountID string, enabled bool, cloudtrailRegion string, useExistingCloudtrail bool) string {
+func testAccCloudAWSAccountConfigUseExistingCloudTrail(accountID, cloudtrailRegion string, useExistingCloudtrail bool) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_aws_account" "test" {
   account_id   = %[1]q
   realtime_visibility = {
-    enabled                 = %[2]t
-    cloudtrail_region       = %[3]q
-    use_existing_cloudtrail = %[4]t
+    enabled                 = true
+    cloudtrail_region       = %[2]q
+    use_existing_cloudtrail = %[3]t
   }
 }
-`, accountID, enabled, cloudtrailRegion, useExistingCloudtrail)
+`, accountID, cloudtrailRegion, useExistingCloudtrail)
 }
 
 // S3 Log Ingestion test configurations.
