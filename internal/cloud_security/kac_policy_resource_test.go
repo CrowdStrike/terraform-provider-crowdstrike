@@ -29,12 +29,14 @@ type ruleGroupConfig struct {
 	namespaces      []string
 	labels          []labelConfig
 	defaultRules    *defaultRulesConfig
+	customRules     []customRuleConfig
 }
 
 type defaultRuleGroupConfig struct {
 	denyOnError     *bool
 	imageAssessment *imageAssessmentConfig
 	defaultRules    *defaultRulesConfig
+	customRules     []customRuleConfig
 }
 
 type imageAssessmentConfig struct {
@@ -56,6 +58,11 @@ type defaultRulesConfig struct {
 	sensitiveHostDirectories       *string
 	workloadInDefaultNamespace     *string
 	runtimeSocketInContainer       *string
+}
+
+type customRuleConfig struct {
+	id     string
+	action string
 }
 
 func (c kacPolicyConfig) String() string {
@@ -152,6 +159,23 @@ resource "crowdstrike_cloud_security_kac_policy" "test" {
       }`
 			}
 
+			if len(rg.customRules) > 0 {
+				config += `
+      custom_rules = [`
+				for i, cr := range rg.customRules {
+					if i > 0 {
+						config += `,`
+					}
+					config += fmt.Sprintf(`
+        {
+          id     = %q
+          action = %q
+        }`, cr.id, cr.action)
+				}
+				config += `
+      ]`
+			}
+
 			config += `
     }`
 		}
@@ -159,9 +183,7 @@ resource "crowdstrike_cloud_security_kac_policy" "test" {
   ]`
 	}
 
-	// Add default_rule_group configuration
 	config += c.defaultRuleGroup.render()
-
 	config += `
 }
 `
@@ -232,6 +254,23 @@ func (drg *defaultRuleGroupConfig) render() string {
 		config += drg.defaultRules.renderRules("    ")
 		config += `
     }`
+	}
+
+	if len(drg.customRules) > 0 {
+		config += `
+    custom_rules = [`
+		for i, cr := range drg.customRules {
+			if i > 0 {
+				config += `,`
+			}
+			config += fmt.Sprintf(`
+      {
+        id     = %q
+        action = %q
+      }`, cr.id, cr.action)
+		}
+		config += `
+    ]`
 	}
 
 	config += `
@@ -1196,6 +1235,222 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 						return nil
 					},
 				),
+			},
+		},
+	})
+}
+
+func TestCloudSecurityKacPolicyResource_CustomRules(t *testing.T) {
+	policyName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	resourceName := "crowdstrike_cloud_security_kac_policy.test"
+
+	// TODO: Replace hard coded custom rule IDs with custom rule resource outputs.
+	testCustomRuleID1 := "custom-rule-id1"
+	testCustomRuleID2 := "custom-rule-id2"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			// Step 1: Create policy with 2 rule groups + default rule group, add custom rules
+			{
+				Config: kacPolicyConfig{
+					name: policyName,
+					ruleGroups: []ruleGroupConfig{
+						{
+							name:        "rule-group-1",
+							description: utils.Addr("First rule group with custom rule"),
+							customRules: []customRuleConfig{
+								{
+									id:     testCustomRuleID1,
+									action: "Alert",
+								},
+							},
+						},
+						{
+							name:        "rule-group-2",
+							description: utils.Addr("Second rule group"),
+						},
+					},
+					defaultRuleGroup: &defaultRuleGroupConfig{
+						customRules: []customRuleConfig{
+							{
+								id:     testCustomRuleID1,
+								action: "Prevent",
+							},
+						},
+					},
+				}.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify policy created
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+					resource.TestCheckResourceAttr(resourceName, "name", policyName),
+
+					// Verify 2 rule groups exist
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "2"),
+
+					// Verify custom rule in rule group 1
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.custom_rules.#", "1"),
+					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "rule_groups.0.custom_rules.*", map[string]string{
+						"id":     testCustomRuleID1,
+						"action": "Alert",
+					}),
+
+					// Verify custom rule in rule group 2 (synchronized with default action)
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.custom_rules.#", "1"),
+					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "rule_groups.1.custom_rules.*", map[string]string{
+						"id":     testCustomRuleID1,
+						"action": "Disabled",
+					}),
+
+					// Verify custom rule in default rule group
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.custom_rules.#", "1"),
+					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "default_rule_group.custom_rules.*", map[string]string{
+						"id":     testCustomRuleID1,
+						"action": "Prevent",
+					}),
+				),
+			},
+			// Step 2: Update custom rule actions and add another custom rule
+			{
+				Config: kacPolicyConfig{
+					name: policyName,
+					ruleGroups: []ruleGroupConfig{
+						{
+							name:        "rule-group-1",
+							description: utils.Addr("First rule group with custom rule"),
+							customRules: []customRuleConfig{
+								{
+									id:     testCustomRuleID1,
+									action: "Prevent", // Changed from Alert
+								},
+								{
+									id:     testCustomRuleID2,
+									action: "Disabled",
+								},
+							},
+						},
+						{
+							name:        "rule-group-2",
+							description: utils.Addr("Second rule group"),
+							customRules: []customRuleConfig{
+								{
+									id:     testCustomRuleID1,
+									action: "Alert", // Changed from default action
+								},
+								{
+									id:     testCustomRuleID2,
+									action: "Disabled",
+								},
+							},
+						},
+					},
+					defaultRuleGroup: &defaultRuleGroupConfig{
+						customRules: []customRuleConfig{
+							{
+								id:     testCustomRuleID1,
+								action: "Disabled", // Changed from Alert
+							},
+							{
+								id:     testCustomRuleID2,
+								action: "Prevent", // New custom rule added to default rule group
+							},
+						},
+					},
+				}.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify custom rules updated in rule group 1
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.custom_rules.#", "2"),
+					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "rule_groups.0.custom_rules.*", map[string]string{
+						"id":     testCustomRuleID1,
+						"action": "Prevent",
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "rule_groups.0.custom_rules.*", map[string]string{
+						"id":     testCustomRuleID2,
+						"action": "Disabled",
+					}),
+
+					// Verify custom rules in rule group 2
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.custom_rules.#", "2"),
+					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "rule_groups.1.custom_rules.*", map[string]string{
+						"id":     testCustomRuleID1,
+						"action": "Alert",
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "rule_groups.1.custom_rules.*", map[string]string{
+						"id":     testCustomRuleID2,
+						"action": "Disabled",
+					}),
+
+					// Verify custom rules in default rule group
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.custom_rules.#", "2"),
+					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "default_rule_group.custom_rules.*", map[string]string{
+						"id":     testCustomRuleID1,
+						"action": "Disabled",
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "default_rule_group.custom_rules.*", map[string]string{
+						"id":     testCustomRuleID2,
+						"action": "Prevent",
+					}),
+				),
+			},
+			// Step 3: Remove one custom rule
+			{
+				Config: kacPolicyConfig{
+					name: policyName,
+					ruleGroups: []ruleGroupConfig{
+						{
+							name:        "rule-group-1",
+							description: utils.Addr("First rule group with custom rule"),
+							customRules: []customRuleConfig{
+								{
+									id:     testCustomRuleID2,
+									action: "Alert",
+								},
+							},
+						},
+						{
+							name:        "rule-group-2",
+							description: utils.Addr("Second rule group"),
+							customRules: []customRuleConfig{
+								{
+									id:     testCustomRuleID2,
+									action: "Prevent",
+								},
+							},
+						},
+					},
+					defaultRuleGroup: &defaultRuleGroupConfig{
+						// Remove custom_rules to revert all custom rules to default action
+					},
+				}.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					// Verify only one custom rule remains in each rule group
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.custom_rules.#", "1"),
+					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "rule_groups.0.custom_rules.*", map[string]string{
+						"id":     testCustomRuleID2,
+						"action": "Alert",
+					}),
+
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.custom_rules.#", "1"),
+					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "rule_groups.1.custom_rules.*", map[string]string{
+						"id":     testCustomRuleID2,
+						"action": "Prevent",
+					}),
+
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.custom_rules.#", "1"),
+					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "default_rule_group.custom_rules.*", map[string]string{
+						"id":     testCustomRuleID2,
+						"action": "Disabled",
+					}),
+				),
+			},
+			// Step 4: Import validation
+			{
+				ResourceName:                         resourceName,
+				ImportState:                          true,
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "id",
+				ImportStateVerifyIgnore:              []string{"last_updated"},
 			},
 		},
 	})
