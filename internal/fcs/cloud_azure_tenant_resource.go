@@ -91,9 +91,14 @@ type cloudAzureTenantModel struct {
 	Tags                        types.Map           `tfsdk:"tags"`
 	TenantId                    types.String        `tfsdk:"tenant_id"`
 	RealtimeVisibility          *realtimeVisibility `tfsdk:"realtime_visibility"`
+	DSPM                        *dspm               `tfsdk:"dspm"`
 }
 
 type realtimeVisibility struct {
+	Enabled types.Bool `tfsdk:"enabled"`
+}
+
+type dspm struct {
 	Enabled types.Bool `tfsdk:"enabled"`
 }
 
@@ -122,12 +127,12 @@ func (r *cloudAzureTenantResource) Schema(
 				MarkdownDescription: "Client ID of CrowdStrike's multi-tenant application in Azure. This is used to establish the connection between Azure and Falcon Cloud Security.",
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			// reguired if realtime_visibility is enabled todo validate
+			// required if realtime_visibility is enabled todo validate
 			"cs_infra_location": schema.StringAttribute{
 				MarkdownDescription: "Azure location where CrowdStrike infrastructure resources (such as Event Hubs) were deployed.",
 				Optional:            true,
 			},
-			// reguired if realtime_visibility is enabled todo validate
+			// required if realtime_visibility is enabled todo validate
 			"cs_infra_subscription_id": schema.StringAttribute{
 				MarkdownDescription: "Azure subscription ID where CrowdStrike infrastructure resources (such as Event Hubs) were deployed.",
 				Optional:            true,
@@ -174,6 +179,27 @@ func (r *cloudAzureTenantResource) Schema(
 				PlanModifiers: []planmodifier.Object{
 					objectplanmodifier.UseStateForUnknown(),
 				},
+			},
+			"dspm": schema.SingleNestedAttribute{
+				Required: false,
+				Optional: true,
+				Computed: true,
+				Attributes: map[string]schema.Attribute{
+					"enabled": schema.BoolAttribute{
+						Required:    true,
+						Description: "Enable data security posture management (DSPM)",
+					},
+				},
+				Default: objectdefault.StaticValue(
+					types.ObjectValueMust(
+						map[string]attr.Type{
+							"enabled": types.BoolType,
+						},
+						map[string]attr.Value{
+							"enabled": types.BoolValue(false),
+						},
+					),
+				),
 			},
 			"resource_name_prefix": schema.StringAttribute{
 				MarkdownDescription: "The prefix added to resources created during onboarding. It will be used if you generate new .tfvars from the UI.",
@@ -222,11 +248,13 @@ func (m *cloudAzureTenantModel) wrap(
 	if m.SubscriptionIds.IsNull() && len(subscriptionsIDs.Elements()) == 0 {
 		subscriptionsIDs = types.ListNull(types.StringType)
 	}
+	m.SubscriptionIds = subscriptionsIDs
 
 	managementGroupIDs := utils.SliceToListTypeString(ctx, registration.ManagementGroupIds, &diags)
 	if m.ManagementGroupIds.IsNull() && len(managementGroupIDs.Elements()) == 0 {
 		managementGroupIDs = types.ListNull(types.StringType)
 	}
+	m.ManagementGroupIds = managementGroupIDs
 
 	tags, err := types.MapValueFrom(ctx, types.StringType, registration.Tags)
 	if m.Tags.IsNull() && len(tags.Elements()) == 0 {
@@ -244,18 +272,25 @@ func (m *cloudAzureTenantModel) wrap(
 	m.ResourceNameSuffix = types.StringPointerValue(registration.ResourceNameSuffix)
 	m.MicrosoftGraphPermissionIds = graphPermissionIDs
 	m.Tags = tags
-	m.SubscriptionIds = subscriptionsIDs
-	m.ManagementGroupIds = managementGroupIDs
 
 	if m.RealtimeVisibility == nil {
 		m.RealtimeVisibility = &realtimeVisibility{}
 	}
 	m.RealtimeVisibility.Enabled = types.BoolValue(false)
+
+	if m.DSPM == nil {
+		m.DSPM = &dspm{}
+	}
+	m.DSPM.Enabled = types.BoolValue(false)
+
 	for _, product := range registration.Products {
 		if *product.Product == "cspm" {
 			for _, feature := range product.Features {
-				if feature == "ioa" {
+				switch feature {
+				case "ioa":
 					m.RealtimeVisibility.Enabled = types.BoolValue(true)
+				case "dspm":
+					m.DSPM.Enabled = types.BoolValue(true)
 				}
 			}
 		}
@@ -514,8 +549,12 @@ func (r *cloudAzureTenantResource) createRegistration(
 		Features: []string{"iom"},
 	}
 
-	if data.RealtimeVisibility.Enabled.ValueBool() {
+	if data.RealtimeVisibility != nil && data.RealtimeVisibility.Enabled.ValueBool() {
 		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "ioa")
+	}
+
+	if data.DSPM != nil && data.DSPM.Enabled.ValueBool() {
+		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "dspm")
 	}
 
 	params := cloud_azure_registration.CloudRegistrationAzureCreateRegistrationParams{
@@ -581,6 +620,10 @@ func (r *cloudAzureTenantResource) updateRegistration(
 
 	if data.RealtimeVisibility != nil && data.RealtimeVisibility.Enabled.ValueBool() {
 		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "ioa")
+	}
+
+	if data.DSPM != nil && data.DSPM.Enabled.ValueBool() {
+		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "dspm")
 	}
 
 	params := cloud_azure_registration.CloudRegistrationAzureUpdateRegistrationParams{
