@@ -23,7 +23,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -211,22 +210,13 @@ func (r *cloudAzureTenantEventhubSettingsResource) Read(
 	}
 
 	registration, diags := r.getRegistration(ctx, data.TenantId.ValueString())
-	for _, err := range diags.Errors() {
-		if err.Summary() == notFoundErrorSummary {
-			tflog.Warn(
-				ctx,
-				fmt.Sprintf(
-					"registration for tenant %s not found, removing from state",
-					data.TenantId.ValueString(),
-				),
-			)
-
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 			resp.State.RemoveResource(ctx)
 			return
 		}
-	}
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -273,13 +263,10 @@ func (r *cloudAzureTenantEventhubSettingsResource) Delete(
 	registration, err := r.updateRegistration(ctx, &data)
 	resp.Diagnostics.Append(err...)
 
-	for _, err := range resp.Diagnostics.Errors() {
-		if err.Summary() == notFoundErrorSummary {
+	if resp.Diagnostics.HasError() {
+		if tferrors.HasNotFoundError(resp.Diagnostics) {
 			return
 		}
-	}
-
-	if resp.Diagnostics.HasError() {
 		return
 	}
 	resp.Diagnostics.Append(data.wrap(ctx, *registration)...)
@@ -331,30 +318,17 @@ func (r *cloudAzureTenantEventhubSettingsResource) getRegistration(
 		},
 	)
 	if err != nil {
-		if _, ok := err.(*cloud_azure_registration.CloudRegistrationAzureGetRegistrationNotFound); ok {
-			diags.Append(
-				newNotFoundError(
-					fmt.Sprintf("No registration found for tenant: %s.", tenantID),
-				),
-			)
-			return nil, diags
-		}
-
-		if _, ok := err.(*cloud_azure_registration.CloudRegistrationAzureGetRegistrationForbidden); ok {
-			diags.Append(tferrors.NewForbiddenError(tferrors.Read, azureRegistrationScopes))
-			return nil, diags
-		}
-
-		diags.Append(tferrors.NewOperationError(tferrors.Read, err))
+		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, azureRegistrationScopes))
 		return nil, diags
 	}
 
-	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
-		diags.AddError(
-			"Failed to get registration",
-			"Get registration api call returned a successful status code, but no registration information was returned. Please report this issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
-		)
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Read))
+		return nil, diags
+	}
 
+	if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Read, res.Payload.Errors); diag != nil {
+		diags.Append(diag)
 		return nil, diags
 	}
 
@@ -393,33 +367,17 @@ func (r *cloudAzureTenantEventhubSettingsResource) updateRegistration(
 
 	res, err := r.client.CloudAzureRegistration.CloudRegistrationAzureUpdateRegistration(&params)
 	if err != nil {
-		if _, ok := err.(*cloud_azure_registration.CloudRegistrationAzureUpdateRegistrationNotFound); ok {
-			diags.Append(
-				newNotFoundError(
-					fmt.Sprintf(
-						"No registration found for tenant: %s.",
-						data.TenantId.ValueString(),
-					),
-				),
-			)
-			return nil, diags
-		}
-
-		if _, ok := err.(*cloud_azure_registration.CloudRegistrationAzureUpdateRegistrationForbidden); ok {
-			diags.Append(tferrors.NewForbiddenError(tferrors.Update, azureRegistrationScopes))
-			return nil, diags
-		}
-
-		diags.Append(tferrors.NewOperationError(tferrors.Update, err))
+		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, azureRegistrationScopes))
 		return nil, diags
 	}
 
-	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
-		diags.AddError(
-			"Failed to update registration",
-			"Update registration api call returned a successful status code, but no registration information was returned. Please report this issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
-		)
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
+		return nil, diags
+	}
 
+	if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Update, res.Payload.Errors); diag != nil {
+		diags.Append(diag)
 		return nil, diags
 	}
 
