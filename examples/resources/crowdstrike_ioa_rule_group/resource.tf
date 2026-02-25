@@ -1,15 +1,26 @@
+terraform {
+  required_providers {
+    crowdstrike = {
+      source = "registry.terraform.io/crowdstrike/crowdstrike"
+    }
+  }
+}
+
+provider "crowdstrike" {
+  cloud = "us-2"
+}
 resource "crowdstrike_ioa_rule_group" "linux_monitoring" {
   name        = "Linux Security Monitoring"
   platform    = "Linux"
   description = "Custom IOA rules for monitoring suspicious Linux activity"
-  comment     = "Managed by Security Operations team"
+  comment     = "Managed by Terraform"
   enabled     = true
 
   rules = [
     {
       name             = "Suspicious Network Connection"
       description      = "Monitors for suspicious outbound network connections"
-      comment          = "Alert on connections to known malicious IPs"
+      comment          = "Managed by Terraform"
       pattern_severity = "critical"
       type             = "Network Connection"
       action           = "Monitor"

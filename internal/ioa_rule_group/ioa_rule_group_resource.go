@@ -10,10 +10,11 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
-	validators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -26,7 +27,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -38,6 +38,22 @@ var (
 	_ resource.ResourceWithImportState    = &ioaRuleGroupResource{}
 	_ resource.ResourceWithValidateConfig = &ioaRuleGroupResource{}
 )
+
+func invertMap[K, V comparable](m map[K]V) map[V]K {
+	inv := make(map[V]K, len(m))
+	for k, v := range m {
+		inv[v] = k
+	}
+	return inv
+}
+
+func invertNestedMap[K, V comparable](m map[K]map[V]K) map[K]map[K]V {
+	inv := make(map[K]map[K]V, len(m))
+	for outerKey, inner := range m {
+		inv[outerKey] = invertMap(inner)
+	}
+	return inv
+}
 
 var apiScopesReadWrite = []scopes.Scope{
 	{
@@ -68,26 +84,7 @@ var ruleTypeIDMap = map[string]map[string]string{
 	},
 }
 
-var ruleTypeNameMap = map[string]map[string]string{
-	"Windows": {
-		"1":  "Process Creation",
-		"2":  "File Creation",
-		"9":  "Network Connection",
-		"11": "Domain Name",
-	},
-	"Linux": {
-		"12": "Process Creation",
-		"13": "File Creation",
-		"17": "Network Connection",
-		"15": "Domain Name",
-	},
-	"Mac": {
-		"5":  "Process Creation",
-		"6":  "File Creation",
-		"10": "Network Connection",
-		"16": "Domain Name",
-	},
-}
+var ruleTypeNameMap = invertNestedMap(ruleTypeIDMap)
 
 var dispositionMap = map[string]int32{
 	"Monitor":      10,
@@ -95,11 +92,7 @@ var dispositionMap = map[string]int32{
 	"Kill Process": 30,
 }
 
-var dispositionNameMap = map[int32]string{
-	10: "Monitor",
-	20: "Detect",
-	30: "Kill Process",
-}
+var dispositionNameMap = invertMap(dispositionMap)
 
 var platformToAPI = map[string]string{
 	"Windows": "windows",
@@ -107,11 +100,7 @@ var platformToAPI = map[string]string{
 	"Mac":     "mac",
 }
 
-var platformFromAPI = map[string]string{
-	"windows": "Windows",
-	"linux":   "Linux",
-	"mac":     "Mac",
-}
+var platformFromAPI = invertMap(platformToAPI)
 
 func normalizePlatform(platform string) string {
 	if v, ok := platformFromAPI[strings.ToLower(platform)]; ok {
@@ -135,20 +124,7 @@ var fieldNameToAPI = map[string]string{
 	"domain_name":                "DomainName",
 }
 
-var fieldNameFromAPI = map[string]string{
-	"GrandparentImageFilename": "grandparent_image_filename",
-	"GrandparentCommandLine":   "grandparent_command_line",
-	"ParentImageFilename":      "parent_image_filename",
-	"ParentCommandLine":        "parent_command_line",
-	"ImageFilename":            "image_filename",
-	"CommandLine":              "command_line",
-	"FilePath":                 "file_path",
-	"FileType":                 "file_type",
-	"RemoteIPAddress":          "remote_ip_address",
-	"RemotePort":               "remote_port",
-	"ConnectionType":           "connection_type",
-	"DomainName":               "domain_name",
-}
+var fieldNameFromAPI = invertMap(fieldNameToAPI)
 
 var fileTypeLabelMap = map[string]string{
 	"PE":     "PE",
@@ -267,6 +243,65 @@ var excludableFieldAttrTypes = map[string]attr.Type{
 	"exclude": types.StringType,
 }
 
+var excludableFieldNames = []string{
+	"grandparent_image_filename",
+	"grandparent_command_line",
+	"parent_image_filename",
+	"parent_command_line",
+	"image_filename",
+	"command_line",
+	"file_path",
+	"remote_ip_address",
+	"remote_port",
+	"domain_name",
+}
+
+type namedObjectField struct {
+	name  string
+	value types.Object
+}
+
+func (r ioaRuleModel) excludableFields() []namedObjectField {
+	return []namedObjectField{
+		{"grandparent_image_filename", r.GrandparentImageFilename},
+		{"grandparent_command_line", r.GrandparentCommandLine},
+		{"parent_image_filename", r.ParentImageFilename},
+		{"parent_command_line", r.ParentCommandLine},
+		{"image_filename", r.ImageFilename},
+		{"command_line", r.CommandLine},
+		{"file_path", r.FilePath},
+		{"remote_ip_address", r.RemoteIPAddress},
+		{"remote_port", r.RemotePort},
+		{"domain_name", r.DomainName},
+	}
+}
+
+func (r ioaRuleModel) hasNonWildcardInclude(ctx context.Context, diags *diag.Diagnostics) bool {
+	for _, f := range r.excludableFields() {
+		if f.value.IsNull() || f.value.IsUnknown() {
+			continue
+		}
+		var ef excludableField
+		diags.Append(f.value.As(ctx, &ef, basetypes.ObjectAsOptions{})...)
+		if diags.HasError() {
+			return false
+		}
+
+		include := ef.Include.ValueString()
+		if include != "" && include != ".*" {
+			return true
+		}
+	}
+
+	for _, sf := range []types.Set{r.FileType, r.ConnectionType} {
+		if !sf.IsNull() && !sf.IsUnknown() && len(sf.Elements()) > 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (r *ioaRuleGroupResource) Configure(
 	ctx context.Context,
 	req resource.ConfigureRequest,
@@ -365,7 +400,7 @@ func (r *ioaRuleGroupResource) Schema(
 			},
 			"comment": schema.StringAttribute{
 				Optional:    true,
-				Description: "The comment for the IOA rule group.",
+				Description: "The comment stored in audit logs when making changes to the IOA rule group.",
 				Validators: []validator.String{
 					validators.StringNotWhitespace(),
 				},
@@ -419,6 +454,9 @@ func (r *ioaRuleGroupResource) Schema(
 			"rules": schema.ListNestedAttribute{
 				Optional:    true,
 				Description: "Ordered list of IOA rules within this rule group.",
+				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
+				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"instance_id": schema.StringAttribute{
@@ -444,7 +482,7 @@ func (r *ioaRuleGroupResource) Schema(
 						},
 						"comment": schema.StringAttribute{
 							Required:    true,
-							Description: "The comment for audit log.",
+							Description: "The comment stored in audit logs when making changes to the IOA rule group rule.",
 							Validators: []validator.String{
 								validators.StringNotWhitespace(),
 							},
@@ -580,13 +618,29 @@ func wrapRules(
 		ruleTypeName := ""
 		if apiRule.RuletypeID != nil {
 			if nameMap, ok := ruleTypeNameMap[platform]; ok {
-				ruleTypeName = nameMap[*apiRule.RuletypeID]
+				if name, found := nameMap[*apiRule.RuletypeID]; found {
+					ruleTypeName = name
+				} else {
+					diags.AddError(
+						"Unknown rule type ID",
+						fmt.Sprintf("Rule type ID %q for platform %q is not recognized by this provider version.", *apiRule.RuletypeID, platform),
+					)
+					return types.ListNull(types.ObjectType{AttrTypes: ruleAttrTypes}), diags
+				}
 			}
 		}
 
 		actionName := ""
 		if apiRule.DispositionID != nil {
-			actionName = dispositionNameMap[*apiRule.DispositionID]
+			if name, found := dispositionNameMap[*apiRule.DispositionID]; found {
+				actionName = name
+			} else {
+				diags.AddError(
+					"Unknown disposition ID",
+					fmt.Sprintf("Disposition ID %d is not recognized by this provider version.", *apiRule.DispositionID),
+				)
+				return types.ListNull(types.ObjectType{AttrTypes: ruleAttrTypes}), diags
+			}
 		}
 
 		ruleAttrs := map[string]attr.Value{
@@ -602,20 +656,7 @@ func wrapRules(
 
 		fieldMap := buildFieldValueMap(apiRule.FieldValues)
 
-		excludableFields := []string{
-			"grandparent_image_filename",
-			"grandparent_command_line",
-			"parent_image_filename",
-			"parent_command_line",
-			"image_filename",
-			"command_line",
-			"file_path",
-			"remote_ip_address",
-			"remote_port",
-			"domain_name",
-		}
-
-		for _, fieldName := range excludableFields {
+		for _, fieldName := range excludableFieldNames {
 			val, d := wrapExcludableField(fieldMap, fieldName)
 			diags.Append(d...)
 			if diags.HasError() {
@@ -624,12 +665,19 @@ func wrapRules(
 			ruleAttrs[fieldName] = val
 		}
 
-		ruleAttrs["file_type"] = wrapListField(ctx, fieldMap, "file_type", &diags)
-		ruleAttrs["connection_type"] = wrapListField(ctx, fieldMap, "connection_type", &diags)
-
+		fileTypeVal, d := wrapSetField(ctx, fieldMap, "file_type")
+		diags.Append(d...)
 		if diags.HasError() {
 			return types.ListNull(types.ObjectType{AttrTypes: ruleAttrTypes}), diags
 		}
+		ruleAttrs["file_type"] = fileTypeVal
+
+		connTypeVal, d := wrapSetField(ctx, fieldMap, "connection_type")
+		diags.Append(d...)
+		if diags.HasError() {
+			return types.ListNull(types.ObjectType{AttrTypes: ruleAttrTypes}), diags
+		}
+		ruleAttrs["connection_type"] = connTypeVal
 
 		ruleObj, d := types.ObjectValue(ruleAttrTypes, ruleAttrs)
 		diags.Append(d...)
@@ -674,12 +722,7 @@ func ruleObjectAttrTypes() map[string]attr.Type {
 }
 
 func reorderRules(apiRules []*models.APIRuleV1, ruleOrder []string) []*models.APIRuleV1 {
-	apiRuleMap := make(map[string]*models.APIRuleV1)
-	for _, r := range apiRules {
-		if r != nil && r.InstanceID != nil {
-			apiRuleMap[*r.InstanceID] = r
-		}
-	}
+	apiRuleMap := indexRulesByInstanceID(apiRules)
 
 	ordered := make([]*models.APIRuleV1, 0, len(apiRules))
 	seen := make(map[string]bool)
@@ -695,6 +738,16 @@ func reorderRules(apiRules []*models.APIRuleV1, ruleOrder []string) []*models.AP
 		}
 	}
 	return ordered
+}
+
+func indexRulesByInstanceID(rules []*models.APIRuleV1) map[string]*models.APIRuleV1 {
+	m := make(map[string]*models.APIRuleV1, len(rules))
+	for _, rule := range rules {
+		if rule != nil && rule.InstanceID != nil {
+			m[*rule.InstanceID] = rule
+		}
+	}
+	return m
 }
 
 func buildFieldValueMap(fieldValues []*models.DomainFieldValue) map[string]*models.DomainFieldValue {
@@ -744,15 +797,14 @@ func wrapExcludableField(fieldMap map[string]*models.DomainFieldValue, fieldName
 	return obj, d
 }
 
-func wrapListField(
+func wrapSetField(
 	ctx context.Context,
 	fieldMap map[string]*models.DomainFieldValue,
 	fieldName string,
-	diags *diag.Diagnostics,
-) attr.Value {
+) (attr.Value, diag.Diagnostics) {
 	fv, ok := fieldMap[fieldName]
 	if !ok || fv == nil {
-		return types.SetNull(types.StringType)
+		return types.SetNull(types.StringType), nil
 	}
 
 	var values []string
@@ -763,34 +815,18 @@ func wrapListField(
 	}
 
 	if len(values) == 0 {
-		return types.SetNull(types.StringType)
+		return types.SetNull(types.StringType), nil
 	}
 
 	setVal, d := types.SetValueFrom(ctx, types.StringType, values)
-	diags.Append(d...)
-	return setVal
+	return setVal, d
 }
 
-func expandRuleToFieldValues(ctx context.Context, rule ioaRuleModel, diags *diag.Diagnostics) []*models.DomainFieldValue {
+func expandRuleToFieldValues(ctx context.Context, rule ioaRuleModel) ([]*models.DomainFieldValue, diag.Diagnostics) {
+	var diags diag.Diagnostics
 	var fieldValues []*models.DomainFieldValue
 
-	excludableFields := []struct {
-		name  string
-		value types.Object
-	}{
-		{"grandparent_image_filename", rule.GrandparentImageFilename},
-		{"grandparent_command_line", rule.GrandparentCommandLine},
-		{"parent_image_filename", rule.ParentImageFilename},
-		{"parent_command_line", rule.ParentCommandLine},
-		{"image_filename", rule.ImageFilename},
-		{"command_line", rule.CommandLine},
-		{"file_path", rule.FilePath},
-		{"remote_ip_address", rule.RemoteIPAddress},
-		{"remote_port", rule.RemotePort},
-		{"domain_name", rule.DomainName},
-	}
-
-	for _, f := range excludableFields {
+	for _, f := range rule.excludableFields() {
 		if f.value.IsNull() || f.value.IsUnknown() {
 			continue
 		}
@@ -799,7 +835,7 @@ func expandRuleToFieldValues(ctx context.Context, rule ioaRuleModel, diags *diag
 		d := f.value.As(ctx, &ef, basetypes.ObjectAsOptions{})
 		diags.Append(d...)
 		if diags.HasError() {
-			return nil
+			return nil, diags
 		}
 
 		include := ef.Include.ValueString()
@@ -809,7 +845,7 @@ func expandRuleToFieldValues(ctx context.Context, rule ioaRuleModel, diags *diag
 		fieldValues = append(fieldValues, fv)
 	}
 
-	listFields := []struct {
+	setFields := []struct {
 		name  string
 		value types.Set
 	}{
@@ -817,7 +853,7 @@ func expandRuleToFieldValues(ctx context.Context, rule ioaRuleModel, diags *diag
 		{"connection_type", rule.ConnectionType},
 	}
 
-	for _, f := range listFields {
+	for _, f := range setFields {
 		if f.value.IsNull() || f.value.IsUnknown() {
 			continue
 		}
@@ -826,14 +862,14 @@ func expandRuleToFieldValues(ctx context.Context, rule ioaRuleModel, diags *diag
 		d := f.value.ElementsAs(ctx, &vals, false)
 		diags.Append(d...)
 		if diags.HasError() {
-			return nil
+			return nil, diags
 		}
 
-		fv := expandListToFieldValue(f.name, vals)
+		fv := expandSetToFieldValue(f.name, vals)
 		fieldValues = append(fieldValues, fv)
 	}
 
-	return fieldValues
+	return fieldValues, diags
 }
 
 func expandExcludableField(name, include, exclude string) *models.DomainFieldValue {
@@ -842,44 +878,34 @@ func expandExcludableField(name, include, exclude string) *models.DomainFieldVal
 		apiName = name
 	}
 	fieldType := "excludable"
-	var items []*models.DomainValueItem
-
 	includeLabel := "include"
 	excludeLabel := "exclude"
 
-	items = append(items, &models.DomainValueItem{
-		Label: &includeLabel,
-		Value: &include,
-	})
-
-	items = append(items, &models.DomainValueItem{
-		Label: &excludeLabel,
-		Value: &exclude,
-	})
-
 	return &models.DomainFieldValue{
-		Name:   &apiName,
-		Type:   &fieldType,
-		Value:  &include,
-		Values: items,
+		Name:  &apiName,
+		Type:  &fieldType,
+		Value: &include,
+		Values: []*models.DomainValueItem{
+			{Label: &includeLabel, Value: &include},
+			{Label: &excludeLabel, Value: &exclude},
+		},
 	}
 }
 
-func expandListToFieldValue(name string, values []string) *models.DomainFieldValue {
+func expandSetToFieldValue(name string, values []string) *models.DomainFieldValue {
 	apiName := fieldNameToAPI[name]
 	if apiName == "" {
 		apiName = name
 	}
 	fieldType := "set"
 	labelMap := setFieldLabelMaps[name]
-	var items []*models.DomainValueItem
+
+	items := make([]*models.DomainValueItem, 0, len(values))
 	for _, v := range values {
 		val := v
 		label := v
-		if labelMap != nil {
-			if l, ok := labelMap[v]; ok {
-				label = l
-			}
+		if l, ok := labelMap[v]; ok {
+			label = l
 		}
 		items = append(items, &models.DomainValueItem{
 			Label: &label,
@@ -887,11 +913,11 @@ func expandListToFieldValue(name string, values []string) *models.DomainFieldVal
 		})
 	}
 
-	empty := ""
+	emptyValue := ""
 	return &models.DomainFieldValue{
 		Name:   &apiName,
 		Type:   &fieldType,
-		Value:  &empty,
+		Value:  &emptyValue,
 		Values: items,
 	}
 }
@@ -943,7 +969,17 @@ func (r *ioaRuleGroupResource) Create(
 	}
 
 	group := res.Payload.Resources[0]
+
+	if group.ID == nil {
+		resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
+		return
+	}
 	groupID := *group.ID
+
+	if group.Version == nil {
+		resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
+		return
+	}
 	version := *group.Version
 
 	tflog.Info(ctx, "Created IOA rule group", map[string]any{
@@ -968,84 +1004,21 @@ func (r *ioaRuleGroupResource) Create(
 		platform := plan.Platform.ValueString()
 
 		for _, rule := range rules {
-			fieldValues := expandRuleToFieldValues(ctx, rule, &resp.Diagnostics)
-			if resp.Diagnostics.HasError() {
-				return
-			}
-
-			ruleTypeID, ok := ruleTypeIDMap[platform][rule.Type.ValueString()]
-			if !ok {
-				resp.Diagnostics.AddError(
-					"Invalid rule type",
-					fmt.Sprintf("Rule type %q is not valid for platform %q.", rule.Type.ValueString(), platform),
-				)
-				return
-			}
-
-			dispID, ok := dispositionMap[rule.Action.ValueString()]
-			if !ok {
-				resp.Diagnostics.AddError(
-					"Invalid action",
-					fmt.Sprintf("Action %q is not valid.", rule.Action.ValueString()),
-				)
-				return
-			}
-
-			ruleComment := rule.Comment.ValueString()
-			createRuleParams := custom_ioa.NewCreateRuleParamsWithContext(ctx)
-			createRuleParams.Body = &models.APIRuleCreateV1{
-				RulegroupID:     &groupID,
-				Name:            rule.Name.ValueStringPointer(),
-				Description:     rule.Description.ValueStringPointer(),
-				PatternSeverity: rule.PatternSeverity.ValueStringPointer(),
-				RuletypeID:      &ruleTypeID,
-				DispositionID:   &dispID,
-				FieldValues:     fieldValues,
-				Comment:         &ruleComment,
-			}
-
-			ruleRes, err := r.client.CustomIoa.CreateRule(createRuleParams)
-			if err != nil {
-				resp.Diagnostics.Append(
-					tferrors.NewDiagnosticFromAPIError(tferrors.Create, err, apiScopesReadWrite),
-				)
-				return
-			}
-
-			if ruleRes == nil || ruleRes.Payload == nil || len(ruleRes.Payload.Resources) == 0 || ruleRes.Payload.Resources[0] == nil {
-				resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
-				return
-			}
-
-			if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Create, ruleRes.Payload.Errors); diag != nil {
-				resp.Diagnostics.Append(diag)
-				return
-			}
-
-			createdRule := ruleRes.Payload.Resources[0]
-
-			if createdRule.InstanceID != nil {
-				orderedInstanceIDs = append(orderedInstanceIDs, *createdRule.InstanceID)
-			}
-
-			refreshedGroup, d := r.readRuleGroup(ctx, groupID)
+			instanceID, newVersion, d := r.createRule(ctx, groupID, rule, platform, version)
 			resp.Diagnostics.Append(d...)
 			if resp.Diagnostics.HasError() {
 				return
 			}
-			version = *refreshedGroup.Version
-
-			if rule.Enabled.ValueBool() && (createdRule.Enabled == nil || !*createdRule.Enabled) {
-				version, resp.Diagnostics = r.enableRule(ctx, groupID, createdRule, version, resp.Diagnostics)
-				if resp.Diagnostics.HasError() {
-					return
-				}
+			version = newVersion
+			if instanceID != "" {
+				orderedInstanceIDs = append(orderedInstanceIDs, instanceID)
 			}
 		}
 	}
 
 	if plan.Enabled.ValueBool() {
-		_, resp.Diagnostics = r.enableRuleGroup(ctx, groupID, plan, version, resp.Diagnostics)
+		_, d := r.enableRuleGroup(ctx, groupID, plan, version)
+		resp.Diagnostics.Append(d...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
@@ -1058,7 +1031,6 @@ func (r *ioaRuleGroupResource) Create(
 	}
 
 	resp.Diagnostics.Append(plan.wrap(ctx, group, plan.Platform.ValueString(), orderedInstanceIDs)...)
-	plan.Comment = extractComment(ctx, req.Plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
@@ -1118,12 +1090,6 @@ func (r *ioaRuleGroupResource) Update(
 		return
 	}
 
-	var state ioaRuleGroupResourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	groupID := plan.ID.ValueString()
 	platform := plan.Platform.ValueString()
 
@@ -1172,14 +1138,13 @@ func (r *ioaRuleGroupResource) Update(
 		return
 	}
 
+	if updateRes.Payload.Resources[0].Version == nil {
+		resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Update))
+		return
+	}
 	version = *updateRes.Payload.Resources[0].Version
 
-	existingRules := make(map[string]*models.APIRuleV1)
-	for _, rule := range currentGroup.Rules {
-		if rule != nil && rule.InstanceID != nil {
-			existingRules[*rule.InstanceID] = rule
-		}
-	}
+	existingRules := indexRulesByInstanceID(currentGroup.Rules)
 
 	var planRules []ioaRuleModel
 	if !plan.Rules.IsNull() && len(plan.Rules.Elements()) > 0 {
@@ -1198,7 +1163,7 @@ func (r *ioaRuleGroupResource) Update(
 
 	var ruleIDsToDelete []string
 	for _, rule := range currentGroup.Rules {
-		if rule != nil && rule.InstanceID != nil {
+		if rule != nil && rule.InstanceID != nil && (rule.Deleted == nil || !*rule.Deleted) {
 			if !planInstanceIDs[*rule.InstanceID] {
 				ruleIDsToDelete = append(ruleIDsToDelete, *rule.InstanceID)
 			}
@@ -1209,15 +1174,21 @@ func (r *ioaRuleGroupResource) Update(
 		deleteRulesParams := custom_ioa.NewDeleteRulesParamsWithContext(ctx)
 		deleteRulesParams.RuleGroupID = groupID
 		deleteRulesParams.Ids = ruleIDsToDelete
-		deleteComment := comment
-		deleteRulesParams.Comment = &deleteComment
+		deleteRulesParams.Comment = &comment
 
-		_, err := r.client.CustomIoa.DeleteRules(deleteRulesParams)
+		deleteRes, err := r.client.CustomIoa.DeleteRules(deleteRulesParams)
 		if err != nil {
 			resp.Diagnostics.Append(
 				tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, apiScopesReadWrite),
 			)
 			return
+		}
+
+		if deleteRes != nil && deleteRes.Payload != nil {
+			if d := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Update, deleteRes.Payload.Errors); d != nil {
+				resp.Diagnostics.Append(d)
+				return
+			}
 		}
 
 		refreshedGroup, d := r.readRuleGroup(ctx, groupID)
@@ -1226,143 +1197,34 @@ func (r *ioaRuleGroupResource) Update(
 			return
 		}
 		version = *refreshedGroup.Version
-		existingRules = make(map[string]*models.APIRuleV1)
-		for _, rule := range refreshedGroup.Rules {
-			if rule != nil && rule.InstanceID != nil {
-				existingRules[*rule.InstanceID] = rule
-			}
-		}
+		existingRules = indexRulesByInstanceID(refreshedGroup.Rules)
 	}
 
 	var orderedInstanceIDs []string
 
 	for _, planRule := range planRules {
-		fieldValues := expandRuleToFieldValues(ctx, planRule, &resp.Diagnostics)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		ruleTypeID, ok := ruleTypeIDMap[platform][planRule.Type.ValueString()]
-		if !ok {
-			resp.Diagnostics.AddError(
-				"Invalid rule type",
-				fmt.Sprintf("Rule type %q is not valid for platform %q.", planRule.Type.ValueString(), platform),
-			)
-			return
-		}
-
-		dispID, ok := dispositionMap[planRule.Action.ValueString()]
-		if !ok {
-			resp.Diagnostics.AddError(
-				"Invalid action",
-				fmt.Sprintf("Action %q is not valid.", planRule.Action.ValueString()),
-			)
-			return
-		}
-
-		ruleComment := planRule.Comment.ValueString()
-		ruleName := planRule.Name.ValueString()
-
 		var existingRule *models.APIRuleV1
 		if !planRule.InstanceID.IsNull() && !planRule.InstanceID.IsUnknown() {
 			existingRule = existingRules[planRule.InstanceID.ValueString()]
 		}
 
 		if existingRule != nil {
-			updateRuleParams := custom_ioa.NewUpdateRulesV2ParamsWithContext(ctx)
-			updateRuleParams.Body = &models.APIRuleUpdatesRequestV2{
-				RulegroupID:      &groupID,
-				Comment:          &ruleComment,
-				RulegroupVersion: &version,
-				RuleUpdates: []*models.APIRuleUpdateV2{
-					{
-						InstanceID:       existingRule.InstanceID,
-						Name:             &ruleName,
-						Description:      planRule.Description.ValueStringPointer(),
-						PatternSeverity:  planRule.PatternSeverity.ValueStringPointer(),
-						DispositionID:    &dispID,
-						FieldValues:      fieldValues,
-						Enabled:          planRule.Enabled.ValueBoolPointer(),
-						RulegroupVersion: &version,
-					},
-				},
-			}
-
-			updateRuleRes, err := r.client.CustomIoa.UpdateRulesV2(updateRuleParams)
-			if err != nil {
-				resp.Diagnostics.Append(
-					tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, apiScopesReadWrite),
-				)
-				return
-			}
-
-			if updateRuleRes == nil || updateRuleRes.Payload == nil || len(updateRuleRes.Payload.Resources) == 0 || updateRuleRes.Payload.Resources[0] == nil {
-				resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Update))
-				return
-			}
-
-			if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Update, updateRuleRes.Payload.Errors); diag != nil {
-				resp.Diagnostics.Append(diag)
-				return
-			}
-
-			refreshedGroup, d := r.readRuleGroup(ctx, groupID)
+			newVersion, d := r.updateRule(ctx, groupID, planRule, existingRule, version)
 			resp.Diagnostics.Append(d...)
 			if resp.Diagnostics.HasError() {
 				return
 			}
-			version = *refreshedGroup.Version
-
+			version = newVersion
 			orderedInstanceIDs = append(orderedInstanceIDs, *existingRule.InstanceID)
 		} else {
-			createRuleParams := custom_ioa.NewCreateRuleParamsWithContext(ctx)
-			createRuleParams.Body = &models.APIRuleCreateV1{
-				RulegroupID:     &groupID,
-				Name:            &ruleName,
-				Description:     planRule.Description.ValueStringPointer(),
-				PatternSeverity: planRule.PatternSeverity.ValueStringPointer(),
-				RuletypeID:      &ruleTypeID,
-				DispositionID:   &dispID,
-				FieldValues:     fieldValues,
-				Comment:         &ruleComment,
-			}
-
-			ruleRes, err := r.client.CustomIoa.CreateRule(createRuleParams)
-			if err != nil {
-				resp.Diagnostics.Append(
-					tferrors.NewDiagnosticFromAPIError(tferrors.Create, err, apiScopesReadWrite),
-				)
-				return
-			}
-
-			if ruleRes == nil || ruleRes.Payload == nil || len(ruleRes.Payload.Resources) == 0 || ruleRes.Payload.Resources[0] == nil {
-				resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
-				return
-			}
-
-			if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Create, ruleRes.Payload.Errors); diag != nil {
-				resp.Diagnostics.Append(diag)
-				return
-			}
-
-			createdRule := ruleRes.Payload.Resources[0]
-
-			if createdRule.InstanceID != nil {
-				orderedInstanceIDs = append(orderedInstanceIDs, *createdRule.InstanceID)
-			}
-
-			refreshedGroup, d := r.readRuleGroup(ctx, groupID)
+			instanceID, newVersion, d := r.createRule(ctx, groupID, planRule, platform, version)
 			resp.Diagnostics.Append(d...)
 			if resp.Diagnostics.HasError() {
 				return
 			}
-			version = *refreshedGroup.Version
-
-			if planRule.Enabled.ValueBool() && (createdRule.Enabled == nil || !*createdRule.Enabled) {
-				version, resp.Diagnostics = r.enableRule(ctx, groupID, createdRule, version, resp.Diagnostics)
-				if resp.Diagnostics.HasError() {
-					return
-				}
+			version = newVersion
+			if instanceID != "" {
+				orderedInstanceIDs = append(orderedInstanceIDs, instanceID)
 			}
 		}
 	}
@@ -1374,7 +1236,6 @@ func (r *ioaRuleGroupResource) Update(
 	}
 
 	resp.Diagnostics.Append(plan.wrap(ctx, group, platform, orderedInstanceIDs)...)
-	plan.Comment = extractComment(ctx, req.Plan)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
@@ -1446,208 +1307,32 @@ func (r *ioaRuleGroupResource) ValidateConfig(
 
 		ruleName := rule.Name.ValueString()
 
-		fileCreationFields := map[string]types.Object{
-			"file_path": rule.FilePath,
-		}
-		fileCreationListFields := map[string]types.Set{
-			"file_type": rule.FileType,
-		}
-		networkFields := map[string]types.Object{
-			"remote_ip_address": rule.RemoteIPAddress,
-			"remote_port":       rule.RemotePort,
-		}
-		networkListFields := map[string]types.Set{
-			"connection_type": rule.ConnectionType,
-		}
-		domainFields := map[string]types.Object{
-			"domain_name": rule.DomainName,
+		typeSpecificFields := []struct {
+			name     string
+			validFor string
+			isSet    bool
+		}{
+			{"file_path", "File Creation", !rule.FilePath.IsNull() && !rule.FilePath.IsUnknown()},
+			{"file_type", "File Creation", !rule.FileType.IsNull() && !rule.FileType.IsUnknown()},
+			{"remote_ip_address", "Network Connection", !rule.RemoteIPAddress.IsNull() && !rule.RemoteIPAddress.IsUnknown()},
+			{"remote_port", "Network Connection", !rule.RemotePort.IsNull() && !rule.RemotePort.IsUnknown()},
+			{"connection_type", "Network Connection", !rule.ConnectionType.IsNull() && !rule.ConnectionType.IsUnknown()},
+			{"domain_name", "Domain Name", !rule.DomainName.IsNull() && !rule.DomainName.IsUnknown()},
 		}
 
-		switch ruleType {
-		case "Process Creation":
-			for fieldName, fieldVal := range fileCreationFields {
-				if !fieldVal.IsNull() && !fieldVal.IsUnknown() {
-					resp.Diagnostics.AddAttributeError(
-						path.Root("rules"),
-						fmt.Sprintf("Invalid field for rule type %q", ruleType),
-						fmt.Sprintf("Rule %q: %s is only valid for File Creation rules.", ruleName, fieldName),
-					)
-				}
-			}
-			for fieldName, fieldVal := range fileCreationListFields {
-				if !fieldVal.IsNull() && !fieldVal.IsUnknown() {
-					resp.Diagnostics.AddAttributeError(
-						path.Root("rules"),
-						fmt.Sprintf("Invalid field for rule type %q", ruleType),
-						fmt.Sprintf("Rule %q: %s is only valid for File Creation rules.", ruleName, fieldName),
-					)
-				}
-			}
-			for fieldName, fieldVal := range networkFields {
-				if !fieldVal.IsNull() && !fieldVal.IsUnknown() {
-					resp.Diagnostics.AddAttributeError(
-						path.Root("rules"),
-						fmt.Sprintf("Invalid field for rule type %q", ruleType),
-						fmt.Sprintf("Rule %q: %s is only valid for Network Connection rules.", ruleName, fieldName),
-					)
-				}
-			}
-			for fieldName, fieldVal := range networkListFields {
-				if !fieldVal.IsNull() && !fieldVal.IsUnknown() {
-					resp.Diagnostics.AddAttributeError(
-						path.Root("rules"),
-						fmt.Sprintf("Invalid field for rule type %q", ruleType),
-						fmt.Sprintf("Rule %q: %s is only valid for Network Connection rules.", ruleName, fieldName),
-					)
-				}
-			}
-			for fieldName, fieldVal := range domainFields {
-				if !fieldVal.IsNull() && !fieldVal.IsUnknown() {
-					resp.Diagnostics.AddAttributeError(
-						path.Root("rules"),
-						fmt.Sprintf("Invalid field for rule type %q", ruleType),
-						fmt.Sprintf("Rule %q: %s is only valid for Domain Name rules.", ruleName, fieldName),
-					)
-				}
-			}
-
-		case "File Creation":
-			for fieldName, fieldVal := range networkFields {
-				if !fieldVal.IsNull() && !fieldVal.IsUnknown() {
-					resp.Diagnostics.AddAttributeError(
-						path.Root("rules"),
-						fmt.Sprintf("Invalid field for rule type %q", ruleType),
-						fmt.Sprintf("Rule %q: %s is only valid for Network Connection rules.", ruleName, fieldName),
-					)
-				}
-			}
-			for fieldName, fieldVal := range networkListFields {
-				if !fieldVal.IsNull() && !fieldVal.IsUnknown() {
-					resp.Diagnostics.AddAttributeError(
-						path.Root("rules"),
-						fmt.Sprintf("Invalid field for rule type %q", ruleType),
-						fmt.Sprintf("Rule %q: %s is only valid for Network Connection rules.", ruleName, fieldName),
-					)
-				}
-			}
-			for fieldName, fieldVal := range domainFields {
-				if !fieldVal.IsNull() && !fieldVal.IsUnknown() {
-					resp.Diagnostics.AddAttributeError(
-						path.Root("rules"),
-						fmt.Sprintf("Invalid field for rule type %q", ruleType),
-						fmt.Sprintf("Rule %q: %s is only valid for Domain Name rules.", ruleName, fieldName),
-					)
-				}
-			}
-
-		case "Network Connection":
-			for fieldName, fieldVal := range fileCreationFields {
-				if !fieldVal.IsNull() && !fieldVal.IsUnknown() {
-					resp.Diagnostics.AddAttributeError(
-						path.Root("rules"),
-						fmt.Sprintf("Invalid field for rule type %q", ruleType),
-						fmt.Sprintf("Rule %q: %s is only valid for File Creation rules.", ruleName, fieldName),
-					)
-				}
-			}
-			for fieldName, fieldVal := range fileCreationListFields {
-				if !fieldVal.IsNull() && !fieldVal.IsUnknown() {
-					resp.Diagnostics.AddAttributeError(
-						path.Root("rules"),
-						fmt.Sprintf("Invalid field for rule type %q", ruleType),
-						fmt.Sprintf("Rule %q: %s is only valid for File Creation rules.", ruleName, fieldName),
-					)
-				}
-			}
-			for fieldName, fieldVal := range domainFields {
-				if !fieldVal.IsNull() && !fieldVal.IsUnknown() {
-					resp.Diagnostics.AddAttributeError(
-						path.Root("rules"),
-						fmt.Sprintf("Invalid field for rule type %q", ruleType),
-						fmt.Sprintf("Rule %q: %s is only valid for Domain Name rules.", ruleName, fieldName),
-					)
-				}
-			}
-
-		case "Domain Name":
-			for fieldName, fieldVal := range fileCreationFields {
-				if !fieldVal.IsNull() && !fieldVal.IsUnknown() {
-					resp.Diagnostics.AddAttributeError(
-						path.Root("rules"),
-						fmt.Sprintf("Invalid field for rule type %q", ruleType),
-						fmt.Sprintf("Rule %q: %s is only valid for File Creation rules.", ruleName, fieldName),
-					)
-				}
-			}
-			for fieldName, fieldVal := range fileCreationListFields {
-				if !fieldVal.IsNull() && !fieldVal.IsUnknown() {
-					resp.Diagnostics.AddAttributeError(
-						path.Root("rules"),
-						fmt.Sprintf("Invalid field for rule type %q", ruleType),
-						fmt.Sprintf("Rule %q: %s is only valid for File Creation rules.", ruleName, fieldName),
-					)
-				}
-			}
-			for fieldName, fieldVal := range networkFields {
-				if !fieldVal.IsNull() && !fieldVal.IsUnknown() {
-					resp.Diagnostics.AddAttributeError(
-						path.Root("rules"),
-						fmt.Sprintf("Invalid field for rule type %q", ruleType),
-						fmt.Sprintf("Rule %q: %s is only valid for Network Connection rules.", ruleName, fieldName),
-					)
-				}
-			}
-			for fieldName, fieldVal := range networkListFields {
-				if !fieldVal.IsNull() && !fieldVal.IsUnknown() {
-					resp.Diagnostics.AddAttributeError(
-						path.Root("rules"),
-						fmt.Sprintf("Invalid field for rule type %q", ruleType),
-						fmt.Sprintf("Rule %q: %s is only valid for Network Connection rules.", ruleName, fieldName),
-					)
-				}
+		for _, f := range typeSpecificFields {
+			if f.isSet && f.validFor != ruleType {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("rules"),
+					fmt.Sprintf("Invalid field for rule type %q", ruleType),
+					fmt.Sprintf("Rule %q: %s is only valid for %s rules.", ruleName, f.name, f.validFor),
+				)
 			}
 		}
 
-		hasNonWildcardInclude := false
-		excludableFields := []types.Object{
-			rule.GrandparentImageFilename,
-			rule.GrandparentCommandLine,
-			rule.ParentImageFilename,
-			rule.ParentCommandLine,
-			rule.ImageFilename,
-			rule.CommandLine,
-			rule.FilePath,
-			rule.RemoteIPAddress,
-			rule.RemotePort,
-			rule.DomainName,
-		}
-
-		for _, field := range excludableFields {
-			if field.IsNull() || field.IsUnknown() {
-				continue
-			}
-			var ef excludableField
-			resp.Diagnostics.Append(field.As(ctx, &ef, basetypes.ObjectAsOptions{})...)
-			if resp.Diagnostics.HasError() {
-				return
-			}
-
-			include := ef.Include.ValueString()
-			if include != "" && include != ".*" {
-				hasNonWildcardInclude = true
-				break
-			}
-		}
-
-		if !hasNonWildcardInclude {
-			if !rule.FileType.IsNull() && !rule.FileType.IsUnknown() && len(rule.FileType.Elements()) > 0 {
-				hasNonWildcardInclude = true
-			}
-		}
-		if !hasNonWildcardInclude {
-			if !rule.ConnectionType.IsNull() && !rule.ConnectionType.IsUnknown() && len(rule.ConnectionType.Elements()) > 0 {
-				hasNonWildcardInclude = true
-			}
+		hasNonWildcardInclude := rule.hasNonWildcardInclude(ctx, &resp.Diagnostics)
+		if resp.Diagnostics.HasError() {
+			return
 		}
 
 		if !hasNonWildcardInclude {
@@ -1661,6 +1346,165 @@ func (r *ioaRuleGroupResource) ValidateConfig(
 			)
 		}
 	}
+}
+
+func (r *ioaRuleGroupResource) updateRule(
+	ctx context.Context,
+	groupID string,
+	planRule ioaRuleModel,
+	existingRule *models.APIRuleV1,
+	version int64,
+) (int64, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	fieldValues, d := expandRuleToFieldValues(ctx, planRule)
+	diags.Append(d...)
+	if diags.HasError() {
+		return version, diags
+	}
+
+	dispID, ok := dispositionMap[planRule.Action.ValueString()]
+	if !ok {
+		diags.AddError(
+			"Invalid action",
+			fmt.Sprintf("Action %q is not valid.", planRule.Action.ValueString()),
+		)
+		return version, diags
+	}
+
+	ruleComment := planRule.Comment.ValueString()
+	ruleName := planRule.Name.ValueString()
+
+	updateRuleParams := custom_ioa.NewUpdateRulesV2ParamsWithContext(ctx)
+	updateRuleParams.Body = &models.APIRuleUpdatesRequestV2{
+		RulegroupID:      &groupID,
+		Comment:          &ruleComment,
+		RulegroupVersion: &version,
+		RuleUpdates: []*models.APIRuleUpdateV2{
+			{
+				InstanceID:       existingRule.InstanceID,
+				Name:             &ruleName,
+				Description:      planRule.Description.ValueStringPointer(),
+				PatternSeverity:  planRule.PatternSeverity.ValueStringPointer(),
+				DispositionID:    &dispID,
+				FieldValues:      fieldValues,
+				Enabled:          planRule.Enabled.ValueBoolPointer(),
+				RulegroupVersion: &version,
+			},
+		},
+	}
+
+	updateRuleRes, err := r.client.CustomIoa.UpdateRulesV2(updateRuleParams)
+	if err != nil {
+		diags.Append(
+			tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, apiScopesReadWrite),
+		)
+		return version, diags
+	}
+
+	if updateRuleRes == nil || updateRuleRes.Payload == nil || len(updateRuleRes.Payload.Resources) == 0 || updateRuleRes.Payload.Resources[0] == nil {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
+		return version, diags
+	}
+
+	if d := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Update, updateRuleRes.Payload.Errors); d != nil {
+		diags.Append(d)
+		return version, diags
+	}
+
+	refreshedGroup, d := r.readRuleGroup(ctx, groupID)
+	diags.Append(d...)
+	if diags.HasError() {
+		return version, diags
+	}
+
+	return *refreshedGroup.Version, diags
+}
+
+func (r *ioaRuleGroupResource) createRule(
+	ctx context.Context,
+	groupID string,
+	rule ioaRuleModel,
+	platform string,
+	version int64,
+) (instanceID string, newVersion int64, diags diag.Diagnostics) {
+	fieldValues, d := expandRuleToFieldValues(ctx, rule)
+	diags.Append(d...)
+	if diags.HasError() {
+		return "", version, diags
+	}
+
+	ruleTypeID, ok := ruleTypeIDMap[platform][rule.Type.ValueString()]
+	if !ok {
+		diags.AddError(
+			"Invalid rule type",
+			fmt.Sprintf("Rule type %q is not valid for platform %q.", rule.Type.ValueString(), platform),
+		)
+		return "", version, diags
+	}
+
+	dispID, ok := dispositionMap[rule.Action.ValueString()]
+	if !ok {
+		diags.AddError(
+			"Invalid action",
+			fmt.Sprintf("Action %q is not valid.", rule.Action.ValueString()),
+		)
+		return "", version, diags
+	}
+
+	ruleComment := rule.Comment.ValueString()
+	createRuleParams := custom_ioa.NewCreateRuleParamsWithContext(ctx)
+	createRuleParams.Body = &models.APIRuleCreateV1{
+		RulegroupID:     &groupID,
+		Name:            rule.Name.ValueStringPointer(),
+		Description:     rule.Description.ValueStringPointer(),
+		PatternSeverity: rule.PatternSeverity.ValueStringPointer(),
+		RuletypeID:      &ruleTypeID,
+		DispositionID:   &dispID,
+		FieldValues:     fieldValues,
+		Comment:         &ruleComment,
+	}
+
+	ruleRes, err := r.client.CustomIoa.CreateRule(createRuleParams)
+	if err != nil {
+		diags.Append(
+			tferrors.NewDiagnosticFromAPIError(tferrors.Create, err, apiScopesReadWrite),
+		)
+		return "", version, diags
+	}
+
+	if ruleRes == nil || ruleRes.Payload == nil || len(ruleRes.Payload.Resources) == 0 || ruleRes.Payload.Resources[0] == nil {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Create))
+		return "", version, diags
+	}
+
+	if d := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Create, ruleRes.Payload.Errors); d != nil {
+		diags.Append(d)
+		return "", version, diags
+	}
+
+	createdRule := ruleRes.Payload.Resources[0]
+
+	refreshedGroup, d := r.readRuleGroup(ctx, groupID)
+	diags.Append(d...)
+	if diags.HasError() {
+		return "", version, diags
+	}
+	version = *refreshedGroup.Version
+
+	if createdRule.InstanceID != nil {
+		instanceID = *createdRule.InstanceID
+	}
+
+	if rule.Enabled.ValueBool() && (createdRule.Enabled == nil || !*createdRule.Enabled) {
+		version, d = r.enableRule(ctx, groupID, createdRule, version)
+		diags.Append(d...)
+		if diags.HasError() {
+			return instanceID, version, diags
+		}
+	}
+
+	return instanceID, version, diags
 }
 
 func (r *ioaRuleGroupResource) readRuleGroup(
@@ -1690,6 +1534,11 @@ func (r *ioaRuleGroupResource) readRuleGroup(
 		return nil, diags
 	}
 
+	if res.Payload.Resources[0].Version == nil {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Read))
+		return nil, diags
+	}
+
 	return res.Payload.Resources[0], diags
 }
 
@@ -1698,8 +1547,9 @@ func (r *ioaRuleGroupResource) enableRule(
 	groupID string,
 	rule *models.APIRuleV1,
 	version int64,
-	diags diag.Diagnostics,
 ) (int64, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
 	enabled := true
 	updateParams := custom_ioa.NewUpdateRulesV2ParamsWithContext(ctx)
 	updateParams.Body = &models.APIRuleUpdatesRequestV2{
@@ -1720,11 +1570,21 @@ func (r *ioaRuleGroupResource) enableRule(
 		},
 	}
 
-	_, err := r.client.CustomIoa.UpdateRulesV2(updateParams)
+	updateRes, err := r.client.CustomIoa.UpdateRulesV2(updateParams)
 	if err != nil {
 		diags.Append(
 			tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, apiScopesReadWrite),
 		)
+		return version, diags
+	}
+
+	if updateRes == nil || updateRes.Payload == nil || len(updateRes.Payload.Resources) == 0 || updateRes.Payload.Resources[0] == nil {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
+		return version, diags
+	}
+
+	if d := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Update, updateRes.Payload.Errors); d != nil {
+		diags.Append(d)
 		return version, diags
 	}
 
@@ -1742,8 +1602,9 @@ func (r *ioaRuleGroupResource) enableRuleGroup(
 	groupID string,
 	plan ioaRuleGroupResourceModel,
 	version int64,
-	diags diag.Diagnostics,
 ) (int64, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
 	enabled := true
 	comment := plan.Comment.ValueString()
 	if comment == "" {
@@ -1769,15 +1630,20 @@ func (r *ioaRuleGroupResource) enableRuleGroup(
 		return version, diags
 	}
 
-	if updateRes != nil && updateRes.Payload != nil && len(updateRes.Payload.Resources) > 0 && updateRes.Payload.Resources[0] != nil {
-		return *updateRes.Payload.Resources[0].Version, diags
+	if updateRes == nil || updateRes.Payload == nil || len(updateRes.Payload.Resources) == 0 || updateRes.Payload.Resources[0] == nil {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
+		return version, diags
 	}
 
-	return version, diags
-}
+	if d := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Update, updateRes.Payload.Errors); d != nil {
+		diags.Append(d)
+		return version, diags
+	}
 
-func extractComment(ctx context.Context, plan tfsdk.Plan) types.String {
-	var planModel ioaRuleGroupResourceModel
-	plan.Get(ctx, &planModel)
-	return planModel.Comment
+	if updateRes.Payload.Resources[0].Version == nil {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
+		return version, diags
+	}
+
+	return *updateRes.Payload.Resources[0].Version, diags
 }
