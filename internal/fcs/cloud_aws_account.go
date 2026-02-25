@@ -678,20 +678,21 @@ func (r *cloudAWSAccountResource) ModifyPlan(ctx context.Context, req resource.M
 		return
 	}
 
-	stateRegion := ""
-	planRegion := ""
-	if state.RealtimeVisibility != nil {
-		stateRegion = state.RealtimeVisibility.CloudTrailRegion.ValueString()
-	}
-	if plan.RealtimeVisibility != nil {
-		planRegion = plan.RealtimeVisibility.CloudTrailRegion.ValueString()
+	if state.RealtimeVisibility == nil || plan.RealtimeVisibility == nil {
+		return
 	}
 
-	if stateRegion != planRegion {
+	if plan.RealtimeVisibility.CloudTrailRegion.IsUnknown() {
 		resp.Plan.SetAttribute(ctx, path.Root("cloudtrail_bucket_name"), types.StringUnknown())
-	} else {
-		resp.Plan.SetAttribute(ctx, path.Root("cloudtrail_bucket_name"), state.CloudTrailBucketName)
+		return
 	}
+
+	if state.RealtimeVisibility.CloudTrailRegion.ValueString() != plan.RealtimeVisibility.CloudTrailRegion.ValueString() {
+		resp.Plan.SetAttribute(ctx, path.Root("cloudtrail_bucket_name"), types.StringUnknown())
+		return
+	}
+
+	resp.Plan.SetAttribute(ctx, path.Root("cloudtrail_bucket_name"), state.CloudTrailBucketName)
 }
 
 // Create creates the resource and sets the initial Terraform state.
