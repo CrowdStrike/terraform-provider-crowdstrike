@@ -11,6 +11,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
@@ -135,6 +136,7 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 				ElementType:         types.StringType,
 				MarkdownDescription: "A list of the alert logic and detection criteria for rule violations. Do not include numbering within this list. The Falcon console will automatically add numbering.When `alert_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `alert_info`.",
 				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
 					listvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
 					),
@@ -174,6 +176,7 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 				MarkdownDescription: "Specific attack types associated with the rule. If `parent_rule_id` is defined, `attack_types` will be inherited from the parent rule and cannot be specified using this field. ",
 				ElementType:         types.StringType,
 				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
 					setvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
 					),
@@ -230,6 +233,7 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 				ElementType:         types.StringType,
 				MarkdownDescription: "Information about how to remediate issues detected by this rule. Do not include numbering within this list. The Falcon console will automatically add numbering. When `remediation_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `remediation_info`.",
 				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
 					listvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
 					),
@@ -457,11 +461,21 @@ func (m *cloudSecurityCustomRuleResourceModel) wrap(
 	m.Domain = types.StringPointerValue(rule.Domain)
 	m.Subdomain = types.StringPointerValue(rule.Subdomain)
 	m.CloudProvider = types.StringPointerValue(rule.Provider)
-	m.RemediationInfo = convertAlertRemediationInfoToTerraformState(rule.Remediation)
-	m.AlertInfo = convertAlertRemediationInfoToTerraformState(rule.AlertInfo)
+
+	m.RemediationInfo, diags = flex.FlattenStringValueList(ctx, convertAlertRemediationInfoToTerraformState(rule.Remediation))
+	if diags.HasError() {
+		return diags
+	}
+
+	m.AlertInfo, diags = flex.FlattenStringValueList(ctx, convertAlertRemediationInfoToTerraformState(rule.AlertInfo))
+	if diags.HasError() {
+		return diags
+	}
 
 	if rule.Severity != nil {
 		m.Severity = types.StringValue(int32ToSeverity[int32(*rule.Severity)])
+	} else {
+		m.Severity = types.StringNull()
 	}
 
 	if rule.ParentRuleShortUUID != "" {

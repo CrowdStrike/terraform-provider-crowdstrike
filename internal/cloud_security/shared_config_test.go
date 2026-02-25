@@ -13,9 +13,9 @@ var awsConfig = dataRuleConfig{
 	cloudProvider: "AWS",
 	ruleName:      "Auto Scaling group launch configuration not configured with a customer created IAM role",
 	resourceType:  "AWS::AutoScaling::LaunchConfiguration",
-	benchmark:     "CIS*",
+	benchmark:     "*CIS*",
 	framework:     "CIS",
-	service:       "ELB",
+	service:       "Auto Scaling",
 }
 
 var azureConfig = dataRuleConfig{

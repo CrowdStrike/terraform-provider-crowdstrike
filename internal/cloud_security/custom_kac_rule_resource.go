@@ -10,7 +10,9 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
@@ -150,6 +152,7 @@ func (r *cloudSecurityKacCustomRuleResource) Schema(
 				ElementType:         types.StringType,
 				MarkdownDescription: "Information about how to remediate issues detected by this rule.",
 				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
 					listvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
 					),
@@ -160,6 +163,7 @@ func (r *cloudSecurityKacCustomRuleResource) Schema(
 				MarkdownDescription: "Specific attack types associated with the rule.",
 				ElementType:         types.StringType,
 				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
 					setvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
 					),
@@ -170,6 +174,7 @@ func (r *cloudSecurityKacCustomRuleResource) Schema(
 				ElementType:         types.StringType,
 				MarkdownDescription: "A list of the alert logic and detection criteria for rule violations.",
 				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
 					listvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
 					),
@@ -215,10 +220,13 @@ func (r *cloudSecurityKacCustomRuleResource) Read(
 	}
 
 	rule, diags := r.getCloudPolicyRule(ctx, state.ID.ValueString())
-	if handleNotFoundRemoveFromState(ctx, diags, state.ID.ValueString(), "custom kac rule", resp) {
-		return
-	}
+
 	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.Append(diags...)
 		return
 	}
@@ -283,14 +291,18 @@ func (m *cloudSecurityKacCustomRuleResourceModel) wrap(
 
 	if rule.Severity != nil {
 		m.Severity = types.StringValue(int32ToSeverity[int32(*rule.Severity)])
+	} else {
+		m.Severity = types.StringNull()
 	}
 
-	if rule.AlertInfo != nil && *rule.AlertInfo != "" {
-		m.AlertInfo = convertAlertRemediationInfoToTerraformState(rule.AlertInfo)
+	m.AlertInfo, diags = flex.FlattenStringValueList(ctx, convertAlertRemediationInfoToTerraformState(rule.AlertInfo))
+	if diags.HasError() {
+		return diags
 	}
 
-	if rule.Remediation != nil && *rule.Remediation != "" {
-		m.RemediationInfo = convertAlertRemediationInfoToTerraformState(rule.Remediation)
+	m.RemediationInfo, diags = flex.FlattenStringValueList(ctx, convertAlertRemediationInfoToTerraformState(rule.Remediation))
+	if diags.HasError() {
+		return diags
 	}
 
 	m.AttackTypes = types.SetNull(types.StringType)

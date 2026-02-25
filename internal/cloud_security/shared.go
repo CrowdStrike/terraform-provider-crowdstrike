@@ -11,12 +11,9 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 const (
@@ -59,15 +56,15 @@ var (
 	}
 )
 
-func convertAlertRemediationInfoToTerraformState(input *string) basetypes.ListValue {
+func convertAlertRemediationInfoToTerraformState(input *string) []string {
 	if input == nil || *input == "" {
-		return types.ListValueMust(types.StringType, []attr.Value{})
+		return nil
 	}
 	*input = strings.TrimSpace(*input)
 	*input = strings.TrimSuffix(*input, "|")
 
 	parts := strings.Split(*input, "|")
-	values := make([]attr.Value, 0, len(parts))
+	values := make([]string, 0, len(parts))
 
 	for index, part := range parts {
 		trimmed := strings.TrimSpace(part)
@@ -77,11 +74,11 @@ func convertAlertRemediationInfoToTerraformState(input *string) basetypes.ListVa
 			trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, fmt.Sprintf("%d. ", index+1)))
 		}
 		if trimmed != "" {
-			values = append(values, types.StringValue(trimmed))
+			values = append(values, trimmed)
 		}
 	}
 
-	return types.ListValueMust(types.StringType, values)
+	return values
 }
 
 func convertAlertInfoToAPIFormat(ctx context.Context, alertInfo basetypes.ListValue, includeNumbering ...bool) (string, diag.Diagnostics) {
@@ -244,6 +241,10 @@ func deleteCloudPolicyRule(client *client.CrowdStrikeAPISpecification, params cl
 	_, err := client.CloudPolicies.DeleteRuleMixin0(&params)
 	diag := tferrors.NewDiagnosticFromAPIError(tferrors.Delete, err, scopes)
 	if diag != nil {
+		diag := tferrors.NewDiagnosticFromAPIError(tferrors.Delete, err, scopes)
+		if diag.Summary() == tferrors.NotFoundErrorSummary {
+			return diags
+		}
 		diags.Append(diag)
 		return diags
 	}
@@ -253,29 +254,29 @@ func deleteCloudPolicyRule(client *client.CrowdStrikeAPISpecification, params cl
 
 // handleNotFoundRemoveFromState checks if the diagnostics contain a "not found" error and handles it by
 // removing the resource from state and logging a warning.
-func handleNotFoundRemoveFromState(
-	ctx context.Context,
-	diags diag.Diagnostics,
-	resourceID string,
-	resourceType string,
-	resp *resource.ReadResponse,
-) bool {
-	if !diags.HasError() {
-		return false
-	}
+// func handleNotFoundRemoveFromState(
+// 	ctx context.Context,
+// 	diags diag.Diagnostics,
+// 	resourceID string,
+// 	resourceType string,
+// 	resp *resource.ReadResponse,
+// ) bool {
+// 	if !diags.HasError() {
+// 		return false
+// 	}
 
-	if tferrors.HasNotFoundError(diags) {
-		resp.State.RemoveResource(ctx)
-		tflog.Warn(
-			ctx,
-			fmt.Sprintf(
-				"%s with ID %s not found, removing from state",
-				resourceType,
-				resourceID,
-			),
-		)
-		return true
-	}
+// 	if tferrors.HasNotFoundError(diags) {
+// 		resp.State.RemoveResource(ctx)
+// 		tflog.Warn(
+// 			ctx,
+// 			fmt.Sprintf(
+// 				"%s with ID %s not found, removing from state",
+// 				resourceType,
+// 				resourceID,
+// 			),
+// 		)
+// 		return true
+// 	}
 
-	return false
-}
+// 	return false
+// }

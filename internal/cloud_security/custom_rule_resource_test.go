@@ -434,7 +434,6 @@ resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
 
 data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[10]s"
-  benchmark = "%[11]s"
 }
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName, config.description[i],
 				config.cloudProvider, config.severity[i], remediationInfo,
@@ -578,7 +577,6 @@ resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
 
 data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[6]s"
-  benchmark = "%[7]s"
 }
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName, config.description[i],
 				config.cloudProvider, config.parentRule.ruleName, config.parentRule.benchmark),
@@ -692,7 +690,6 @@ resource "crowdstrike_cloud_security_custom_rule" "rule_%s_definedToOmitted" {
 
 data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[10]s"
-  benchmark = "%[11]s"
 }
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName, config.description[0],
 			config.cloudProvider, config.severity[0], remediationInfo,
@@ -729,7 +726,6 @@ resource "crowdstrike_cloud_security_custom_rule" "rule_%s_definedToOmitted" {
 
 data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[7]s"
-  benchmark = "%[8]s"
 }
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName, config.description[0],
 			config.cloudProvider, config.severity[0], config.parentRule.ruleName, config.parentRule.benchmark),
@@ -788,7 +784,6 @@ resource "crowdstrike_cloud_security_custom_rule" "%s" {
 
 data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[10]s"
-  benchmark = "%[11]s"
 }
 `, resourceName, config.resourceType, config.ruleNamePrefix+resourceName, config.description[0],
 			config.cloudProvider, config.severity[0], remediationInfo,
@@ -821,14 +816,11 @@ resource "crowdstrike_cloud_security_custom_rule" "%s" {
   cloud_provider   = "%s"
   severity         = "%s"
   controls         = []
-  remediation_info = []
-  alert_info       = []
   parent_rule_id   = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
 }
 
 data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[9]s"
-  benchmark = "%[10]s"
 }
 `, resourceName, config.resourceType, config.ruleNamePrefix+resourceName, config.description[0],
 			config.cloudProvider, config.severity[0], testGenerateControlBlock(config.controls[0]),
@@ -843,8 +835,8 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 			resource.TestCheckResourceAttr(fullResourceName, "cloud_provider", config.cloudProvider),
 			resource.TestCheckResourceAttr(fullResourceName, "severity", config.severity[0]),
 			resource.TestCheckResourceAttr(fullResourceName, "controls.#", "0"),
-			resource.TestCheckResourceAttr(fullResourceName, "alert_info.#", "0"),
-			resource.TestCheckResourceAttr(fullResourceName, "remediation_info.#", "0"),
+			resource.TestMatchResourceAttr(fullResourceName, "alert_info.#", regexp.MustCompile(`^[1-9]\d*$`)),
+			resource.TestMatchResourceAttr(fullResourceName, "remediation_info.#", regexp.MustCompile(`^[1-9]\d*$`)),
 			resource.TestCheckResourceAttrSet(fullResourceName, "id"),
 			resource.TestCheckResourceAttrSet(fullResourceName, "parent_rule_id"),
 		),
@@ -1012,8 +1004,6 @@ resource "crowdstrike_cloud_security_custom_rule" "rule_%s_definedToEmpty" {
 %s
 EOF
   controls         = []
-  alert_info       = []
-  remediation_info = []
 }
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName, config.description[0],
 			config.cloudProvider, config.severity[0], config.logic[0]),
@@ -1072,7 +1062,6 @@ resource "crowdstrike_cloud_security_custom_rule" "%s" {
 
 data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[10]s"
-  benchmark = "%[11]s"
 }
 `, resourceName, config.resourceType, config.ruleNamePrefix+resourceName, config.description[0],
 				config.cloudProvider, config.severity[0], remediationInfo,
@@ -1116,7 +1105,6 @@ resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
 
 data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[7]s"
-  benchmark = "%[8]s"
 }
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName,
 			config.description[0], config.cloudProvider, config.severity[0],
@@ -1148,14 +1136,11 @@ resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
   cloud_provider   = "%s"
   severity         = "%s"
   controls         = []
-  remediation_info = []
-  alert_info       = []
   parent_rule_id   = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
 }
 
 data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[7]s"
-  benchmark = "%[8]s"
 }
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName,
 			config.description[0], config.cloudProvider, config.severity[0],
@@ -1169,9 +1154,9 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 			resource.TestCheckResourceAttr(resourceName, "cloud_platform", config.cloudPlatform),
 			resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
 			resource.TestCheckResourceAttr(resourceName, "severity", config.severity[0]),
-			resource.TestCheckResourceAttr(resourceName, "controls.#", "0"),         // Should be empty
-			resource.TestCheckResourceAttr(resourceName, "alert_info.#", "0"),       // Should be empty
-			resource.TestCheckResourceAttr(resourceName, "remediation_info.#", "0"), // Should be empty
+			resource.TestCheckResourceAttr(resourceName, "controls.#", "0"), // Should be empty
+			resource.TestMatchResourceAttr(resourceName, "alert_info.#", regexp.MustCompile(`^[1-9]\d*$`)),
+			resource.TestMatchResourceAttr(resourceName, "remediation_info.#", regexp.MustCompile(`^[1-9]\d*$`)),
 			resource.TestCheckResourceAttrSet(resourceName, "id"),
 			resource.TestCheckResourceAttrSet(resourceName, "parent_rule_id"),
 		),
@@ -1191,7 +1176,6 @@ resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
 
 data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[7]s"
-  benchmark = "%[8]s"
 }
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName,
 			config.description[0], config.cloudProvider, config.severity[0],
@@ -1235,14 +1219,11 @@ resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
   cloud_provider   = "%s"
   severity         = "%s"
   controls         = []
-  remediation_info = []
-  alert_info       = []
   parent_rule_id   = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
 }
 
 data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
   rule_name = "%[7]s"
-  benchmark = "%[8]s"
 }
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName,
 		config.description[0], config.cloudProvider, config.severity[0],
@@ -1260,8 +1241,8 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 			resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
 			resource.TestCheckResourceAttr(resourceName, "severity", config.severity[0]),
 			resource.TestCheckResourceAttr(resourceName, "controls.#", "0"),
-			resource.TestCheckResourceAttr(resourceName, "alert_info.#", "0"),
-			resource.TestCheckResourceAttr(resourceName, "remediation_info.#", "0"),
+			resource.TestMatchResourceAttr(resourceName, "alert_info.#", regexp.MustCompile(`^[1-9]\d*$`)),
+			resource.TestMatchResourceAttr(resourceName, "remediation_info.#", regexp.MustCompile(`^[1-9]\d*$`)),
 			resource.TestCheckResourceAttrSet(resourceName, "id"),
 			resource.TestCheckResourceAttrSet(resourceName, "parent_rule_id"),
 		),
