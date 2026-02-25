@@ -69,6 +69,7 @@ output "tenant_registration" {
 - `account_type` (String) The Azure Tenant account type. Value is 'commercial' for Commercial cloud accounts. For GovCloud environments, value can be either 'commercial' or 'gov' depending on the account type
 - `cs_infra_location` (String) Azure location where CrowdStrike infrastructure resources (such as Event Hubs) were deployed.
 - `cs_infra_subscription_id` (String) Azure subscription ID where CrowdStrike infrastructure resources (such as Event Hubs) were deployed.
+- `dspm` (Attributes) (see [below for nested schema](#nestedatt--dspm))
 - `environment` (String) The environment added to resources created during onboarding. It will be used if you generate new .tfvars from the UI.
 - `management_group_ids` (List of String) A list of Azure management group IDs to monitor. All subscriptions under the management groups will be monitored.
 - `realtime_visibility` (Attributes) (see [below for nested schema](#nestedatt--realtime_visibility))
@@ -80,6 +81,14 @@ output "tenant_registration" {
 ### Read-Only
 
 - `cs_azure_client_id` (String) Client ID of CrowdStrike's multi-tenant application in Azure. This is used to establish the connection between Azure and Falcon Cloud Security.
+
+<a id="nestedatt--dspm"></a>
+### Nested Schema for `dspm`
+
+Required:
+
+- `enabled` (Boolean) Enable data security posture management (DSPM)
+
 
 <a id="nestedatt--realtime_visibility"></a>
 ### Nested Schema for `realtime_visibility`
