@@ -130,6 +130,63 @@ func TestAccIOARuleGroupResource_Update(t *testing.T) {
 				},
 			},
 			{
+				Config: testAccIOARuleGroupConfigUpdateRuleInPlace(rName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName+"-updated")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("Updated rule group description")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules"), knownvalue.ListSizeExact(2)),
+					statecheck.ExpectKnownValue(
+						resourceName,
+						tfjsonpath.New("rules"),
+						knownvalue.ListPartial(map[int]knownvalue.Check{
+							0: knownvalue.ObjectPartial(map[string]knownvalue.Check{
+								"name":             knownvalue.StringExact("Detect Suspicious Process Updated"),
+								"description":      knownvalue.StringExact("Modified description for in-place update"),
+								"pattern_severity": knownvalue.StringExact("medium"),
+								"type":             knownvalue.StringExact("Process Creation"),
+								"action":           knownvalue.StringExact("Detect"),
+								"enabled":          knownvalue.Bool(true),
+								"image_filename": knownvalue.ObjectExact(map[string]knownvalue.Check{
+									"include": knownvalue.StringExact(".*/opt/.*"),
+									"exclude": knownvalue.StringExact(".*/opt/safe/.*"),
+								}),
+								"command_line": knownvalue.ObjectExact(map[string]knownvalue.Check{
+									"include": knownvalue.StringExact(".*"),
+									"exclude": knownvalue.Null(),
+								}),
+							}),
+						}),
+					),
+					statecheck.ExpectKnownValue(
+						resourceName,
+						tfjsonpath.New("rules"),
+						knownvalue.ListPartial(map[int]knownvalue.Check{
+							1: knownvalue.ObjectPartial(map[string]knownvalue.Check{
+								"name":             knownvalue.StringExact("Monitor Bash Activity"),
+								"description":      knownvalue.StringExact("Updated bash monitoring description"),
+								"pattern_severity": knownvalue.StringExact("medium"),
+								"type":             knownvalue.StringExact("Process Creation"),
+								"action":           knownvalue.StringExact("Monitor"),
+								"enabled":          knownvalue.Bool(true),
+								"parent_image_filename": knownvalue.ObjectExact(map[string]knownvalue.Check{
+									"include": knownvalue.StringExact(".*/bin/bash"),
+									"exclude": knownvalue.Null(),
+								}),
+								"image_filename": knownvalue.ObjectExact(map[string]knownvalue.Check{
+									"include": knownvalue.StringExact(".*/usr/bin/.*"),
+									"exclude": knownvalue.Null(),
+								}),
+								"command_line": knownvalue.ObjectExact(map[string]knownvalue.Check{
+									"include": knownvalue.StringExact(".*"),
+									"exclude": knownvalue.Null(),
+								}),
+							}),
+						}),
+					),
+				},
+			},
+			{
 				Config: testAccIOARuleGroupConfigBasic(rName, "Linux"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
@@ -650,6 +707,60 @@ resource "crowdstrike_ioa_rule_group" "test" {
     {
       name             = "Monitor Bash Activity"
       description      = "Monitors bash process creation"
+      comment          = "Additional rule"
+      pattern_severity = "medium"
+      type             = "Process Creation"
+      action           = "Monitor"
+      enabled          = true
+
+      parent_image_filename = {
+        include = ".*/bin/bash"
+      }
+
+      image_filename = {
+        include = ".*/usr/bin/.*"
+      }
+
+      command_line = {
+        include = ".*"
+      }
+    }
+  ]
+}
+`, rName)
+}
+
+func testAccIOARuleGroupConfigUpdateRuleInPlace(rName string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_ioa_rule_group" "test" {
+  name        = "%[1]s-updated"
+  platform    = "Linux"
+  description = "Updated rule group description"
+  comment     = "Updated by Terraform acceptance tests"
+  enabled     = false
+
+  rules = [
+    {
+      name             = "Detect Suspicious Process Updated"
+      description      = "Modified description for in-place update"
+      comment          = "Updated rule"
+      pattern_severity = "medium"
+      type             = "Process Creation"
+      action           = "Detect"
+      enabled          = true
+
+      image_filename = {
+        include = ".*/opt/.*"
+        exclude = ".*/opt/safe/.*"
+      }
+
+      command_line = {
+        include = ".*"
+      }
+    },
+    {
+      name             = "Monitor Bash Activity"
+      description      = "Updated bash monitoring description"
       comment          = "Additional rule"
       pattern_severity = "medium"
       type             = "Process Creation"

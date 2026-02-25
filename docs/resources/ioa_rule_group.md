@@ -1,6 +1,6 @@
 ---
 page_title: "crowdstrike_ioa_rule_group Resource - crowdstrike"
-subcategory: "Custom IOA Rules"
+subcategory: "Endpoint Security"
 description: |-
   Manages IOA (Indicator of Attack) rule groups in CrowdStrike Falcon. Rule groups contain custom IOA rules that define detection logic for suspicious activities based on process creation, file creation, network connections, and domain name patterns.
   API Scopes
@@ -22,18 +22,29 @@ The following API scopes are required:
 ## Example Usage
 
 ```terraform
+terraform {
+  required_providers {
+    crowdstrike = {
+      source = "registry.terraform.io/crowdstrike/crowdstrike"
+    }
+  }
+}
+
+provider "crowdstrike" {
+  cloud = "us-2"
+}
 resource "crowdstrike_ioa_rule_group" "linux_monitoring" {
   name        = "Linux Security Monitoring"
   platform    = "Linux"
   description = "Custom IOA rules for monitoring suspicious Linux activity"
-  comment     = "Managed by Security Operations team"
+  comment     = "Managed by Terraform"
   enabled     = true
 
   rules = [
     {
       name             = "Suspicious Network Connection"
       description      = "Monitors for suspicious outbound network connections"
-      comment          = "Alert on connections to known malicious IPs"
+      comment          = "Managed by Terraform"
       pattern_severity = "critical"
       type             = "Network Connection"
       action           = "Monitor"
@@ -90,7 +101,7 @@ resource "crowdstrike_ioa_rule_group" "linux_monitoring" {
 
 ### Optional
 
-- `comment` (String) The comment for the IOA rule group.
+- `comment` (String) The comment stored in audit logs when making changes to the IOA rule group.
 - `description` (String) The description of the IOA rule group.
 - `enabled` (Boolean) Whether the IOA rule group is enabled.
 - `rules` (Attributes List) Ordered list of IOA rules within this rule group. (see [below for nested schema](#nestedatt--rules))
@@ -112,7 +123,7 @@ resource "crowdstrike_ioa_rule_group" "linux_monitoring" {
 Required:
 
 - `action` (String) The action to take when the rule triggers.
-- `comment` (String) The comment for audit log.
+- `comment` (String) The comment stored in audit logs when making changes to the IOA rule group rule.
 - `description` (String) The description of the IOA rule.
 - `name` (String) The name of the IOA rule.
 - `pattern_severity` (String) The severity of the pattern.

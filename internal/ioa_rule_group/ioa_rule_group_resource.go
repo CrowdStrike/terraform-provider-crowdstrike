@@ -278,7 +278,7 @@ func (r ioaRuleModel) excludableFields() []namedObjectField {
 
 func (r ioaRuleModel) hasNonWildcardInclude(ctx context.Context, diags *diag.Diagnostics) bool {
 	for _, f := range r.excludableFields() {
-		if f.value.IsNull() || f.value.IsUnknown() {
+		if !utils.IsKnown(f.value) {
 			continue
 		}
 		var ef excludableField
@@ -294,7 +294,7 @@ func (r ioaRuleModel) hasNonWildcardInclude(ctx context.Context, diags *diag.Dia
 	}
 
 	for _, sf := range []types.Set{r.FileType, r.ConnectionType} {
-		if !sf.IsNull() && !sf.IsUnknown() && len(sf.Elements()) > 0 {
+		if utils.IsKnown(sf) && len(sf.Elements()) > 0 {
 			return true
 		}
 	}
@@ -362,7 +362,7 @@ func (r *ioaRuleGroupResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
-			"Custom IOA Rules",
+			"Endpoint Security",
 			"Manages IOA (Indicator of Attack) rule groups in CrowdStrike Falcon. Rule groups contain custom IOA rules that define detection logic for suspicious activities based on process creation, file creation, network connections, and domain name patterns.",
 			apiScopesReadWrite,
 		),
@@ -827,7 +827,7 @@ func expandRuleToFieldValues(ctx context.Context, rule ioaRuleModel) ([]*models.
 	var fieldValues []*models.DomainFieldValue
 
 	for _, f := range rule.excludableFields() {
-		if f.value.IsNull() || f.value.IsUnknown() {
+		if !utils.IsKnown(f.value) {
 			continue
 		}
 
@@ -854,7 +854,7 @@ func expandRuleToFieldValues(ctx context.Context, rule ioaRuleModel) ([]*models.
 	}
 
 	for _, f := range setFields {
-		if f.value.IsNull() || f.value.IsUnknown() {
+		if !utils.IsKnown(f.value) {
 			continue
 		}
 
@@ -994,13 +994,12 @@ func (r *ioaRuleGroupResource) Create(
 
 	var orderedInstanceIDs []string
 
-	if !plan.Rules.IsNull() && len(plan.Rules.Elements()) > 0 {
-		var rules []ioaRuleModel
-		resp.Diagnostics.Append(plan.Rules.ElementsAs(ctx, &rules, false)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
+	rules := utils.ListTypeAs[ioaRuleModel](ctx, plan.Rules, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
+	if len(rules) > 0 {
 		platform := plan.Platform.ValueString()
 
 		for _, rule := range rules {
@@ -1046,16 +1045,13 @@ func (r *ioaRuleGroupResource) Read(
 	}
 
 	var ruleOrder []string
-	if !state.Rules.IsNull() && len(state.Rules.Elements()) > 0 {
-		var stateRules []ioaRuleModel
-		resp.Diagnostics.Append(state.Rules.ElementsAs(ctx, &stateRules, false)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		for _, r := range stateRules {
-			if !r.InstanceID.IsNull() && !r.InstanceID.IsUnknown() {
-				ruleOrder = append(ruleOrder, r.InstanceID.ValueString())
-			}
+	stateRules := utils.ListTypeAs[ioaRuleModel](ctx, state.Rules, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	for _, r := range stateRules {
+		if !r.InstanceID.IsNull() {
+			ruleOrder = append(ruleOrder, r.InstanceID.ValueString())
 		}
 	}
 
@@ -1146,17 +1142,14 @@ func (r *ioaRuleGroupResource) Update(
 
 	existingRules := indexRulesByInstanceID(currentGroup.Rules)
 
-	var planRules []ioaRuleModel
-	if !plan.Rules.IsNull() && len(plan.Rules.Elements()) > 0 {
-		resp.Diagnostics.Append(plan.Rules.ElementsAs(ctx, &planRules, false)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
+	planRules := utils.ListTypeAs[ioaRuleModel](ctx, plan.Rules, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	planInstanceIDs := make(map[string]bool)
 	for _, rule := range planRules {
-		if !rule.InstanceID.IsNull() && !rule.InstanceID.IsUnknown() {
+		if utils.IsKnown(rule.InstanceID) {
 			planInstanceIDs[rule.InstanceID.ValueString()] = true
 		}
 	}
@@ -1204,7 +1197,7 @@ func (r *ioaRuleGroupResource) Update(
 
 	for _, planRule := range planRules {
 		var existingRule *models.APIRuleV1
-		if !planRule.InstanceID.IsNull() && !planRule.InstanceID.IsUnknown() {
+		if utils.IsKnown(planRule.InstanceID) {
 			existingRule = existingRules[planRule.InstanceID.ValueString()]
 		}
 
@@ -1289,12 +1282,11 @@ func (r *ioaRuleGroupResource) ValidateConfig(
 		return
 	}
 
-	if config.Rules.IsNull() || config.Rules.IsUnknown() {
+	if !utils.IsKnown(config.Rules) {
 		return
 	}
 
-	var rules []ioaRuleModel
-	resp.Diagnostics.Append(config.Rules.ElementsAs(ctx, &rules, false)...)
+	rules := utils.ListTypeAs[ioaRuleModel](ctx, config.Rules, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -1312,12 +1304,12 @@ func (r *ioaRuleGroupResource) ValidateConfig(
 			validFor string
 			isSet    bool
 		}{
-			{"file_path", "File Creation", !rule.FilePath.IsNull() && !rule.FilePath.IsUnknown()},
-			{"file_type", "File Creation", !rule.FileType.IsNull() && !rule.FileType.IsUnknown()},
-			{"remote_ip_address", "Network Connection", !rule.RemoteIPAddress.IsNull() && !rule.RemoteIPAddress.IsUnknown()},
-			{"remote_port", "Network Connection", !rule.RemotePort.IsNull() && !rule.RemotePort.IsUnknown()},
-			{"connection_type", "Network Connection", !rule.ConnectionType.IsNull() && !rule.ConnectionType.IsUnknown()},
-			{"domain_name", "Domain Name", !rule.DomainName.IsNull() && !rule.DomainName.IsUnknown()},
+			{"file_path", "File Creation", utils.IsKnown(rule.FilePath)},
+			{"file_type", "File Creation", utils.IsKnown(rule.FileType)},
+			{"remote_ip_address", "Network Connection", utils.IsKnown(rule.RemoteIPAddress)},
+			{"remote_port", "Network Connection", utils.IsKnown(rule.RemotePort)},
+			{"connection_type", "Network Connection", utils.IsKnown(rule.ConnectionType)},
+			{"domain_name", "Domain Name", utils.IsKnown(rule.DomainName)},
 		}
 
 		for _, f := range typeSpecificFields {
