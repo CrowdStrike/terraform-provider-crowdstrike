@@ -1023,7 +1023,6 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 		m.IsOrgManagementAccount = types.BoolValue(false)
 	}
 
-	// Set computed values from cloudAccount
 	m.ExternalID = types.StringValue(cloudAccount.ResourceMetadata.ExternalID)
 	m.IntermediateRoleArn = types.StringValue(cloudAccount.ResourceMetadata.IntermediateRoleArn)
 	m.IamRoleArn = types.StringValue(cloudAccount.ResourceMetadata.IamRoleArn)
@@ -1061,7 +1060,9 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 	}
 	m.DspmRoleName = types.StringValue(dspmRoleName)
 	m.DspmRoleArn = types.StringValue(dspmRoleArn)
-	m.DSPM.RoleName = types.StringValue(dspmRoleName)
+	if m.DSPM != nil {
+		m.DSPM.RoleName = types.StringValue(dspmRoleName)
+	}
 
 	var vulnScanningRoleArn string
 	vulnScanningRoleNameFromSettings := settings.VulnerabilityScanningRoleName.ValueString()
@@ -1077,11 +1078,15 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 	}
 	m.VulnerabilityScanningRoleName = types.StringValue(vulnScanningRoleName)
 	m.VulnerabilityScanningRoleArn = types.StringValue(vulnScanningRoleArn)
-	m.VulnerabilityScanning.RoleName = types.StringValue(vulnScanningRoleName)
+	if m.VulnerabilityScanning != nil {
+		m.VulnerabilityScanning.RoleName = types.StringValue(vulnScanningRoleName)
+	}
 
 	agentlessScanningRoleName := dspmRoleName
-	if !m.DSPM.Enabled.ValueBool() && m.VulnerabilityScanning.Enabled.ValueBool() {
-		agentlessScanningRoleName = vulnScanningRoleName
+	if m.DSPM != nil && m.VulnerabilityScanning != nil {
+		if !m.DSPM.Enabled.ValueBool() && m.VulnerabilityScanning.Enabled.ValueBool() {
+			agentlessScanningRoleName = vulnScanningRoleName
+		}
 	}
 	m.AgentlessScanningRoleName = types.StringValue(agentlessScanningRoleName)
 
