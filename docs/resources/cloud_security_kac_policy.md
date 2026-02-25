@@ -64,6 +64,12 @@ resource "crowdstrike_cloud_security_kac_policy" "example" {
         privileged_container          = "Alert"
         sensitive_data_in_environment = "Disabled"
       }
+      custom_rules = [
+        {
+          id     = "123e4567-e89b-12d3-a456-426614174000"
+          action = "Alert"
+        }
+      ]
     }
   ]
   default_rule_group = {
@@ -75,6 +81,12 @@ resource "crowdstrike_cloud_security_kac_policy" "example" {
     default_rules = {
       container_run_as_root = "Prevent"
     }
+    custom_rules = [
+      {
+        id     = "123e4567-e89b-12d3-a456-426614174000"
+        action = "Disabled"
+      }
+    ]
   }
 }
 
@@ -108,10 +120,14 @@ output "cloud_security_kac_policy" {
 
 Optional:
 
-- `default_rules` (Attributes) Set the action Falcon KAC should take when assessing default rules. All default rules are set to "Alert" by default. Action must be one of:
- - "Disabled": Do nothing
- - "Alert": Send an alert
- - "Prevent": Prevent the object from running (see [below for nested schema](#nestedatt--default_rule_group--default_rules))
+- `custom_rules` (Attributes Set) Manage custom rules for your KAC policy. Adding a custom rule to one rule group also adds the custom rule to all other rule groups in the same policy. Custom rules are set to `"Disabled"` by default. Action must be one of:
+ - `"Disabled"`: Do nothing
+ - `"Alert"`: Send an alert
+ - `"Prevent"`: Prevent the object from running (see [below for nested schema](#nestedatt--default_rule_group--custom_rules))
+- `default_rules` (Attributes) Set the action Falcon KAC should take when assessing default rules. All default rules are set to `"Alert"` by default. Action must be one of:
+ - `"Disabled"`: Do nothing
+ - `"Alert"`: Send an alert
+ - `"Prevent"`: Prevent the object from running (see [below for nested schema](#nestedatt--default_rule_group--default_rules))
 - `deny_on_error` (Boolean) Defines how KAC will handle an unrecognized error or timeout when processing an admission request. If set to "false", the pod or workload will be allowed to run.
 - `image_assessment` (Attributes) When enabled, KAC applies image assessment policies to pods or workloads that are being created or updated on the Kubernetes cluster. (see [below for nested schema](#nestedatt--default_rule_group--image_assessment))
 
@@ -122,6 +138,15 @@ Read-Only:
 - `labels` (Attributes Set) The default rule group applies to all labels, and is not configurable. (see [below for nested schema](#nestedatt--default_rule_group--labels))
 - `name` (String) Name of the default KAC policy rule group.
 - `namespaces` (Set of String) The default rule group namespace is `"*"`, which applies to all namespaces, and is not configurable.
+
+<a id="nestedatt--default_rule_group--custom_rules"></a>
+### Nested Schema for `default_rule_group.custom_rules`
+
+Required:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the custom rule.
+- `id` (String) Identifier for the KAC custom rule.
+
 
 <a id="nestedatt--default_rule_group--default_rules"></a>
 ### Nested Schema for `default_rule_group.default_rules`
@@ -188,10 +213,14 @@ Required:
 
 Optional:
 
-- `default_rules` (Attributes) Set the action Falcon KAC should take when assessing default rules. All default rules are set to "Alert" by default. Action must be one of:
- - "Disabled": Do nothing
- - "Alert": Send an alert
- - "Prevent": Prevent the object from running (see [below for nested schema](#nestedatt--rule_groups--default_rules))
+- `custom_rules` (Attributes Set) Manage custom rules for your KAC policy. Adding a custom rule to one rule group also adds the custom rule to all other rule groups in the same policy. Custom rules are set to `"Disabled"` by default. Action must be one of:
+ - `"Disabled"`: Do nothing
+ - `"Alert"`: Send an alert
+ - `"Prevent"`: Prevent the object from running (see [below for nested schema](#nestedatt--rule_groups--custom_rules))
+- `default_rules` (Attributes) Set the action Falcon KAC should take when assessing default rules. All default rules are set to `"Alert"` by default. Action must be one of:
+ - `"Disabled"`: Do nothing
+ - `"Alert"`: Send an alert
+ - `"Prevent"`: Prevent the object from running (see [below for nested schema](#nestedatt--rule_groups--default_rules))
 - `deny_on_error` (Boolean) Defines how KAC will handle an unrecognized error or timeout when processing an admission request. If set to "false", the pod or workload will be allowed to run.
 - `description` (String) Description of the KAC policy rule group.
 - `image_assessment` (Attributes) When enabled, KAC applies image assessment policies to pods or workloads that are being created or updated on the Kubernetes cluster. (see [below for nested schema](#nestedatt--rule_groups--image_assessment))
@@ -201,6 +230,15 @@ Optional:
 Read-Only:
 
 - `id` (String) Identifier for the KAC policy rule group.
+
+<a id="nestedatt--rule_groups--custom_rules"></a>
+### Nested Schema for `rule_groups.custom_rules`
+
+Required:
+
+- `action` (String) Determines what action Falcon KAC takes when assessing the custom rule.
+- `id` (String) Identifier for the KAC custom rule.
+
 
 <a id="nestedatt--rule_groups--default_rules"></a>
 ### Nested Schema for `rule_groups.default_rules`

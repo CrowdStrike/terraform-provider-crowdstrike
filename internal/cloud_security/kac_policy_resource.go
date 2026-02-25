@@ -83,6 +83,7 @@ type ruleGroupTFModel struct {
 	Namespaces      types.Set    `tfsdk:"namespaces"`
 	Labels          types.Set    `tfsdk:"labels"`
 	DefaultRules    types.Object `tfsdk:"default_rules"`
+	CustomRules     types.Set    `tfsdk:"custom_rules"`
 }
 
 type imageAssessmentTFModel struct {
@@ -94,6 +95,11 @@ type labelTFModel struct {
 	Key      types.String `tfsdk:"key"`
 	Value    types.String `tfsdk:"value"`
 	Operator types.String `tfsdk:"operator"`
+}
+
+type customRuleTFModel struct {
+	ID     types.String `tfsdk:"id"`
+	Action types.String `tfsdk:"action"`
 }
 
 func (m *cloudSecurityKacPolicyResourceModel) wrap(
@@ -366,6 +372,7 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 							},
 						},
 						"default_rules": defaultRulesSchema,
+						"custom_rules":  customRulesSchema,
 					},
 				},
 			},
@@ -390,6 +397,7 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 							),
 							"namespaces":    types.SetUnknown(types.StringType),
 							"labels":        types.SetUnknown(types.ObjectType{AttrTypes: labelsAttrMap}),
+							"custom_rules":  types.SetNull(types.ObjectType{AttrTypes: customRulesAttrMap}),
 							"default_rules": defaultRulesDefaultValue,
 						},
 					),
@@ -482,6 +490,7 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 						},
 					},
 					"default_rules": defaultRulesSchema,
+					"custom_rules":  customRulesSchema,
 				},
 			},
 			"last_updated": schema.StringAttribute{
@@ -795,49 +804,54 @@ func (r *cloudSecurityKacPolicyResource) ModifyPlan(
 	req resource.ModifyPlanRequest,
 	resp *resource.ModifyPlanResponse,
 ) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+	if req.Plan.Raw.IsNull() || req.Plan.Raw.Equal(req.State.Raw) {
 		return
 	}
 
-	if req.Plan.Raw.Equal(req.State.Raw) {
-		return
-	}
-
-	var originalPlan, plan, state cloudSecurityKacPolicyResourceModel
-
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &originalPlan)...)
+	var plan, state cloudSecurityKacPolicyResourceModel
+	var diags diag.Diagnostics
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+
+	plan, diags = r.synchronizeCustomRules(ctx, plan)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Computed+Optional object attributes (default_rule_group) cause constant plan diffs
-	// This causes computed values that need to be set on update (LastUpdated) to be marked
-	// as Unknown, resulting in constant plan diffs.
-	// When there are no plan changes and LastUpdated is Unknown revert it to prior state value.
-	if plan.LastUpdated.IsUnknown() {
-		plan.LastUpdated = state.LastUpdated
-
-		resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+	if !req.State.Raw.IsNull() {
+		resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 
-		// Revert if LastUpdated is not the only change
-		if !resp.Plan.Raw.Equal(req.State.Raw) {
-			plan = originalPlan
-			resp.Diagnostics.Append(resp.Plan.Set(ctx, originalPlan)...)
+		// Computed+Optional object attributes (default_rule_group) cause constant plan diffs
+		// This causes computed values that need to be set on update (LastUpdated) to be marked
+		// as Unknown, resulting in constant plan diffs.
+		// When there are no plan changes and LastUpdated is Unknown revert it to prior state value.
+		if plan.LastUpdated.IsUnknown() {
+			planLastUpdated := plan.LastUpdated
+			plan.LastUpdated = state.LastUpdated
+
+			resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+
+			// Revert if LastUpdated is not the only change
+			if !resp.Plan.Raw.Equal(req.State.Raw) {
+				plan.LastUpdated = planLastUpdated
+				resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
+			}
+		}
+
+		plan, diags = r.matchRuleGroupIDsByName(ctx, plan, state)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
 		}
 	}
 
-	modifiedPlan, modifyDiags := r.matchRuleGroupIDsByName(ctx, plan, state)
-	resp.Diagnostics.Append(modifyDiags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	resp.Diagnostics.Append(resp.Plan.Set(ctx, modifiedPlan)...)
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
 }
 
 func (r *cloudSecurityKacPolicyResource) matchRuleGroupIDsByName(
@@ -919,6 +933,103 @@ func (r *cloudSecurityKacPolicyResource) matchRuleGroupIDsByName(
 	}
 
 	modifiedPlan.RuleGroups = modifiedRuleGroupsList
+	return modifiedPlan, diags
+}
+
+// synchronizeCustomRules ensures custom rules are synchronized across all rule groups according to the following parameters:
+// - When a custom rule is added to one rule group, it's automatically added to all other rule groups with action "Disabled".
+// - When a custom rule is removed from one rule group but exists in another, it's set to "Disabled" instead of deleted.
+// - A custom rule is only fully removed when it's not present in any rule group in the config.
+func (r *cloudSecurityKacPolicyResource) synchronizeCustomRules(
+	ctx context.Context,
+	plan cloudSecurityKacPolicyResourceModel,
+) (cloudSecurityKacPolicyResourceModel, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	modifiedPlan := plan
+
+	if plan.RuleGroups.IsNull() {
+		return modifiedPlan, diags
+	}
+
+	planRuleGroups := flex.ExpandListAs[ruleGroupTFModel](ctx, plan.RuleGroups, &diags)
+	if diags.HasError() {
+		return modifiedPlan, diags
+	}
+
+	var defaultRG ruleGroupTFModel
+	diags.Append(plan.DefaultRuleGroup.As(ctx, &defaultRG, basetypes.ObjectAsOptions{})...)
+	if diags.HasError() {
+		return modifiedPlan, diags
+	}
+
+	planRuleGroups = append(planRuleGroups, defaultRG)
+
+	customRuleDetails := make(map[string]customRuleTFModel)
+	ruleGroupCustomRules := make([]map[string]string, len(planRuleGroups))
+
+	for rgIdx, rg := range planRuleGroups {
+		ruleGroupCustomRules[rgIdx] = make(map[string]string)
+		customRules := flex.ExpandSetAs[customRuleTFModel](ctx, rg.CustomRules, &diags)
+		if diags.HasError() {
+			return modifiedPlan, diags
+		}
+
+		for _, cr := range customRules {
+			ruleID := cr.ID.ValueString()
+			action := cr.Action.ValueString()
+			ruleGroupCustomRules[rgIdx][ruleID] = action
+
+			if _, exists := customRuleDetails[ruleID]; !exists {
+				customRuleDetails[ruleID] = cr
+			}
+		}
+	}
+
+	if len(customRuleDetails) == 0 {
+		return modifiedPlan, diags
+	}
+
+	for rgIdx := range planRuleGroups {
+		modifiedCustomRules := make([]customRuleTFModel, 0, len(customRuleDetails))
+
+		for ruleID, customRule := range customRuleDetails {
+			customRuleCopy := customRule
+			if action, exists := ruleGroupCustomRules[rgIdx][ruleID]; exists {
+				customRuleCopy.Action = types.StringValue(action)
+			} else {
+				customRuleCopy.Action = types.StringValue("Disabled")
+			}
+
+			modifiedCustomRules = append(modifiedCustomRules, customRuleCopy)
+		}
+
+		customRuleSet, setDiags := types.SetValueFrom(ctx, types.ObjectType{
+			AttrTypes: customRulesAttrMap,
+		}, modifiedCustomRules)
+		diags.Append(setDiags...)
+		if diags.HasError() {
+			return modifiedPlan, diags
+		}
+
+		planRuleGroups[rgIdx].CustomRules = customRuleSet
+	}
+
+	defaultRGIdx := len(planRuleGroups) - 1
+	defaultRGObj, objDiags := types.ObjectValueFrom(ctx, ruleGroupAttrMap, planRuleGroups[defaultRGIdx])
+	diags.Append(objDiags...)
+	if diags.HasError() {
+		return modifiedPlan, diags
+	}
+
+	modifiedRuleGroupsList, listDiags := types.ListValueFrom(ctx, plan.RuleGroups.ElementType(ctx), planRuleGroups[:defaultRGIdx])
+	diags.Append(listDiags...)
+	if diags.HasError() {
+		return modifiedPlan, diags
+	}
+
+	modifiedPlan.RuleGroups = modifiedRuleGroupsList
+	modifiedPlan.DefaultRuleGroup = defaultRGObj
+
 	return modifiedPlan, diags
 }
 
@@ -1164,6 +1275,15 @@ func (r *cloudSecurityKacPolicyResource) reconcileRuleGroupUpdates(
 		apiKacPolicy = updatedApiKacPolicy
 	}
 
+	updatedApiKacPolicy, customRulesDiags := r.reconcileCustomRules(ctx, plan.ID.ValueString(), planTFRuleGroups, apiKacPolicy)
+	diags.Append(customRulesDiags...)
+	if diags.HasError() {
+		return nil, diags
+	}
+	if updatedApiKacPolicy != nil {
+		apiKacPolicy = updatedApiKacPolicy
+	}
+
 	return apiKacPolicy, diags
 }
 
@@ -1338,4 +1458,281 @@ func (r *cloudSecurityKacPolicyResource) replaceRuleGroupSelectors(
 	}
 
 	return replaceSelectorsResponse.Payload.Resources[0]
+}
+
+func (r *cloudSecurityKacPolicyResource) reconcileCustomRules(
+	ctx context.Context,
+	policyID string,
+	planRuleGroupsWithDefaultRG []ruleGroupTFModel,
+	apiKacPolicy *models.ModelsKACPolicy,
+) (*models.ModelsKACPolicy, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	planCustomRuleIDs := types.SetNull(types.StringType)
+	planDefaultRG := planRuleGroupsWithDefaultRG[len(planRuleGroupsWithDefaultRG)-1]
+	if utils.IsKnown(planDefaultRG.CustomRules) {
+		customRules := flex.ExpandSetAs[customRuleTFModel](ctx, planDefaultRG.CustomRules, &diags)
+		if diags.HasError() {
+			return nil, diags
+		}
+
+		ids := make([]string, 0, len(customRules))
+		for _, cr := range customRules {
+			ids = append(ids, cr.ID.ValueString())
+		}
+
+		planCustomRuleIDs, diags = flex.FlattenStringValueSet(ctx, ids)
+		if diags.HasError() {
+			return nil, diags
+		}
+	}
+
+	stateDefaultRG := apiKacPolicy.RuleGroups[len(apiKacPolicy.RuleGroups)-1]
+	stateCustomRuleIDs := types.SetNull(types.StringType)
+	if len(stateDefaultRG.CustomRules) > 0 {
+		ids := make([]string, 0, len(stateDefaultRG.CustomRules))
+		for _, cr := range stateDefaultRG.CustomRules {
+			if cr.ID != nil {
+				ids = append(ids, *cr.ID)
+			}
+		}
+
+		stateCustomRuleIDs, diags = flex.FlattenStringValueSet(ctx, ids)
+		if diags.HasError() {
+			return nil, diags
+		}
+	}
+
+	idsToAdd, idsToRemove, setDiags := utils.SetIDsToModify(ctx, planCustomRuleIDs, stateCustomRuleIDs)
+	diags.Append(setDiags...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	if len(idsToAdd) > 0 {
+		updatedPolicy := r.addCustomRules(ctx, &diags, policyID, *stateDefaultRG.ID, idsToAdd)
+		if diags.HasError() {
+			return nil, diags
+		}
+
+		if updatedPolicy != nil {
+			apiKacPolicy = updatedPolicy
+		}
+	}
+
+	if len(idsToRemove) > 0 {
+		updatedPolicy := r.removeCustomRules(ctx, &diags, policyID, idsToRemove)
+		if diags.HasError() {
+			return nil, diags
+		}
+
+		if updatedPolicy != nil {
+			apiKacPolicy = updatedPolicy
+		}
+	}
+
+	customRulesToUpdate, updateDiags := r.determineCustomRulesToUpdate(ctx, planRuleGroupsWithDefaultRG, apiKacPolicy)
+	diags.Append(updateDiags...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	if len(customRulesToUpdate) > 0 {
+		updatedPolicy := r.updateCustomRuleActions(ctx, &diags, policyID, customRulesToUpdate)
+		if diags.HasError() {
+			return nil, diags
+		}
+
+		if updatedPolicy != nil {
+			apiKacPolicy = updatedPolicy
+		}
+	}
+
+	return apiKacPolicy, diags
+}
+
+func (r *cloudSecurityKacPolicyResource) determineCustomRulesToUpdate(
+	ctx context.Context,
+	planRuleGroups []ruleGroupTFModel,
+	apiKacPolicy *models.ModelsKACPolicy,
+) (map[string][]*models.ModelsUpdateCustomRuleAction, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	toUpdate := make(map[string][]*models.ModelsUpdateCustomRuleAction)
+
+	stateRuleGroupsMap := make(map[string]*models.ModelsKACPolicyRuleGroup)
+	for _, apiRG := range apiKacPolicy.RuleGroups {
+		stateRuleGroupsMap[*apiRG.ID] = apiRG
+	}
+
+	for _, planRG := range planRuleGroups {
+		rgID := planRG.ID.ValueString()
+		stateRG := stateRuleGroupsMap[rgID]
+
+		var stateCustomRulesSet types.Set
+		if len(stateRG.CustomRules) > 0 {
+			stateCustomRules := make([]customRuleTFModel, 0, len(stateRG.CustomRules))
+			for _, cr := range stateRG.CustomRules {
+				customRule := customRuleTFModel{}
+				customRule.wrapCustomRule(cr)
+				stateCustomRules = append(stateCustomRules, customRule)
+			}
+
+			var setDiags diag.Diagnostics
+			stateCustomRulesSet, setDiags = types.SetValueFrom(ctx, types.ObjectType{
+				AttrTypes: customRulesAttrMap,
+			}, stateCustomRules)
+			diags.Append(setDiags...)
+			if diags.HasError() {
+				return nil, diags
+			}
+		}
+
+		if planRG.CustomRules.Equal(stateCustomRulesSet) {
+			continue
+		}
+
+		if utils.IsKnown(planRG.CustomRules) && len(planRG.CustomRules.Elements()) > 0 {
+			planCustomRules := flex.ExpandSetAs[customRuleTFModel](ctx, planRG.CustomRules, &diags)
+			if diags.HasError() {
+				return nil, diags
+			}
+
+			customRuleActions := make([]*models.ModelsUpdateCustomRuleAction, 0, len(planCustomRules))
+			for _, cr := range planCustomRules {
+				customRuleActions = append(customRuleActions, &models.ModelsUpdateCustomRuleAction{
+					ID:     cr.ID.ValueStringPointer(),
+					Action: cr.Action.ValueStringPointer(),
+				})
+			}
+
+			toUpdate[rgID] = customRuleActions
+		}
+	}
+
+	return toUpdate, diags
+}
+
+func (r *cloudSecurityKacPolicyResource) addCustomRules(
+	ctx context.Context,
+	diags *diag.Diagnostics,
+	policyID string,
+	ruleGroupId string,
+	customRulesToAdd []string,
+) *models.ModelsKACPolicy {
+	disabled := "Disabled"
+	customRules := make([]*models.ModelsCustomRule, len(customRulesToAdd))
+	for i, customRuleId := range customRulesToAdd {
+		customRules[i] = &models.ModelsCustomRule{
+			ID:     &customRuleId,
+			Action: &disabled,
+		}
+	}
+
+	ruleGroups := []*models.ModelsAddRuleGroupRule{
+		{
+			ID:          &ruleGroupId,
+			CustomRules: customRules,
+		},
+	}
+
+	addRequest := &models.ModelsAddPolicyRuleGroupCustomRuleRequest{
+		ID:         &policyID,
+		RuleGroups: ruleGroups,
+	}
+
+	params := admission_control_policies.NewAdmissionControlAddRuleGroupCustomRuleParamsWithContext(ctx).
+		WithBody(addRequest)
+
+	addResponse, err := r.client.AdmissionControlPolicies.AdmissionControlAddRuleGroupCustomRule(params)
+	if err != nil {
+		var forbiddenError *admission_control_policies.AdmissionControlAddRuleGroupCustomRuleForbidden
+		if errors.As(err, &forbiddenError) {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
+			return nil
+		}
+
+		diags.Append(tferrors.NewOperationError(tferrors.Update, err))
+		return nil
+	}
+
+	if addResponse == nil || addResponse.Payload == nil || len(addResponse.Payload.Resources) == 0 {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
+		return nil
+	}
+
+	return addResponse.Payload.Resources[0]
+}
+
+func (r *cloudSecurityKacPolicyResource) removeCustomRules(
+	ctx context.Context,
+	diags *diag.Diagnostics,
+	policyID string,
+	customRuleIDsToRemove []string,
+) *models.ModelsKACPolicy {
+	params := admission_control_policies.NewAdmissionControlRemoveRuleGroupCustomRuleParamsWithContext(ctx).
+		WithPolicyID(policyID).
+		WithCustomRuleIds(customRuleIDsToRemove)
+
+	removeResponse, err := r.client.AdmissionControlPolicies.AdmissionControlRemoveRuleGroupCustomRule(params)
+	if err != nil {
+		var forbiddenError *admission_control_policies.AdmissionControlRemoveRuleGroupCustomRuleForbidden
+		if errors.As(err, &forbiddenError) {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
+			return nil
+		}
+
+		diags.Append(tferrors.NewOperationError(tferrors.Update, err))
+		return nil
+	}
+
+	if removeResponse == nil || removeResponse.Payload == nil || len(removeResponse.Payload.Resources) == 0 {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
+		return nil
+	}
+
+	return removeResponse.Payload.Resources[0]
+}
+
+func (r *cloudSecurityKacPolicyResource) updateCustomRuleActions(
+	ctx context.Context,
+	diags *diag.Diagnostics,
+	policyID string,
+	customRulesToUpdate map[string][]*models.ModelsUpdateCustomRuleAction,
+) *models.ModelsKACPolicy {
+	updateRuleGroups := make([]*models.ModelsUpdateRuleGroup, 0)
+
+	for rgID, customRules := range customRulesToUpdate {
+		updateRG := &models.ModelsUpdateRuleGroup{
+			ID:          &rgID,
+			CustomRules: customRules,
+		}
+		updateRuleGroups = append(updateRuleGroups, updateRG)
+	}
+
+	updateRequest := &models.ModelsUpdatePolicyRuleGroupRequest{
+		ID:         &policyID,
+		RuleGroups: updateRuleGroups,
+	}
+
+	params := admission_control_policies.NewAdmissionControlUpdateRuleGroupsParamsWithContext(ctx).
+		WithBody(updateRequest)
+
+	updateResponse, err := r.client.AdmissionControlPolicies.AdmissionControlUpdateRuleGroups(params)
+	if err != nil {
+		var forbiddenError *admission_control_policies.AdmissionControlUpdateRuleGroupsForbidden
+		if errors.As(err, &forbiddenError) {
+			diags.Append(tferrors.NewForbiddenError(tferrors.Update, cloudSecurityKacPolicyScopes))
+			return nil
+		}
+
+		diags.Append(tferrors.NewOperationError(tferrors.Update, err))
+		return nil
+	}
+
+	if updateResponse == nil || updateResponse.Payload == nil || len(updateResponse.Payload.Resources) == 0 {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
+		return nil
+	}
+
+	return updateResponse.Payload.Resources[0]
 }
