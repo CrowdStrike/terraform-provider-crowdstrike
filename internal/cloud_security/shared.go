@@ -251,32 +251,3 @@ func deleteCloudPolicyRule(client *client.CrowdStrikeAPISpecification, params cl
 
 	return diags
 }
-
-// handleNotFoundRemoveFromState checks if the diagnostics contain a "not found" error and handles it by
-// removing the resource from state and logging a warning.
-// func handleNotFoundRemoveFromState(
-// 	ctx context.Context,
-// 	diags diag.Diagnostics,
-// 	resourceID string,
-// 	resourceType string,
-// 	resp *resource.ReadResponse,
-// ) bool {
-// 	if !diags.HasError() {
-// 		return false
-// 	}
-
-// 	if tferrors.HasNotFoundError(diags) {
-// 		resp.State.RemoveResource(ctx)
-// 		tflog.Warn(
-// 			ctx,
-// 			fmt.Sprintf(
-// 				"%s with ID %s not found, removing from state",
-// 				resourceType,
-// 				resourceID,
-// 			),
-// 		)
-// 		return true
-// 	}
-
-// 	return false
-// }

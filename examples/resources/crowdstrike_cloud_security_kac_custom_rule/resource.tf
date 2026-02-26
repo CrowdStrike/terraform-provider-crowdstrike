@@ -10,9 +10,9 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
-resource "crowdstrike_cloud_security_kac_custom_rule" "host_network_detection" {
-  name        = "detect-host-network-usage"
-  description = "Detects pods using host network namespace"
+resource "crowdstrike_cloud_security_kac_custom_rule" "privileged_container_detection" {
+  name        = "detect-privileged-containers"
+  description = "Detects containers configured to run in privileged mode"
   severity    = "critical"
   domain      = "Runtime"
   subdomain   = "IOM"
