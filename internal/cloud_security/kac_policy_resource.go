@@ -797,6 +797,96 @@ func (r *cloudSecurityKacPolicyResource) ValidateConfig(
 ) {
 	var kacPolicyConfig cloudSecurityKacPolicyResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &kacPolicyConfig)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(r.validateCustomRulesPropagation(ctx, kacPolicyConfig)...)
+}
+
+// validateCustomRulesPropagation validates that if custom_rules is explicitly set in any rule group's config,
+// it must contain all unique custom rule IDs that exist across the entire policy.
+// This ensures the provider does not run into a validation error for the count of custom rules in the config
+// compared to the plan, when custom rules are propagated across all rule groups.
+func (r *cloudSecurityKacPolicyResource) validateCustomRulesPropagation(
+	ctx context.Context,
+	config cloudSecurityKacPolicyResourceModel,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if config.RuleGroups.IsNull() {
+		return diags
+	}
+
+	uniqueCustomRuleIDs := make(map[string]bool)
+	type ruleGroupInfo struct {
+		name  string
+		count int
+		path  path.Path
+	}
+	var ruleGroupsWithCustomRules []ruleGroupInfo
+
+	planRuleGroups := flex.ExpandListAs[ruleGroupTFModel](ctx, config.RuleGroups, &diags)
+	if diags.HasError() {
+		return diags
+	}
+
+	if utils.IsKnown(config.DefaultRuleGroup) {
+		var defaultRG ruleGroupTFModel
+		diags.Append(config.DefaultRuleGroup.As(ctx, &defaultRG, basetypes.ObjectAsOptions{})...)
+		defaultRG.Name = types.StringValue("Default")
+		if diags.HasError() {
+			return diags
+		}
+
+		planRuleGroups = append(planRuleGroups, defaultRG)
+	}
+
+	for idx, rg := range planRuleGroups {
+		if !utils.IsKnown(rg.CustomRules) {
+			continue
+		}
+
+		customRules := flex.ExpandSetAs[customRuleTFModel](ctx, rg.CustomRules, &diags)
+		if diags.HasError() {
+			return diags
+		}
+
+		rgPath := path.Root("rule_groups").AtListIndex(idx).AtName("custom_rules")
+		rgName := rg.Name.ValueString()
+		if rg.Name.ValueString() == "Default" {
+			rgPath = path.Root("default_rule_group").AtName("custom_rules")
+		}
+
+		ruleGroupsWithCustomRules = append(ruleGroupsWithCustomRules, ruleGroupInfo{
+			name:  rgName,
+			count: len(customRules),
+			path:  rgPath,
+		})
+
+		for _, cr := range customRules {
+			uniqueCustomRuleIDs[cr.ID.ValueString()] = true
+		}
+	}
+
+	totalUniqueRules := len(uniqueCustomRuleIDs)
+	for _, rgInfo := range ruleGroupsWithCustomRules {
+		if rgInfo.count != totalUniqueRules {
+			diags.AddAttributeError(
+				rgInfo.path,
+				"Incomplete custom rules configuration",
+				fmt.Sprintf(
+					"Rule group %q has %d custom rule(s), but the policy has %d unique custom rule(s) total. "+
+						"All rule groups with custom_rules defined must include all custom rules attached to the policy.",
+					rgInfo.name,
+					rgInfo.count,
+					totalUniqueRules,
+				),
+			)
+		}
+	}
+
+	return diags
 }
 
 func (r *cloudSecurityKacPolicyResource) ModifyPlan(
@@ -812,7 +902,7 @@ func (r *cloudSecurityKacPolicyResource) ModifyPlan(
 	var diags diag.Diagnostics
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 
-	plan, diags = r.synchronizeCustomRules(ctx, plan)
+	plan, diags = r.propagateCustomRules(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -936,11 +1026,13 @@ func (r *cloudSecurityKacPolicyResource) matchRuleGroupIDsByName(
 	return modifiedPlan, diags
 }
 
-// synchronizeCustomRules ensures custom rules are synchronized across all rule groups according to the following parameters:
+// propagateCustomRules ensures custom rules are propagated across all rule groups according to the following parameters:
 // - When a custom rule is added to one rule group, it's automatically added to all other rule groups with action "Disabled".
 // - When a custom rule is removed from one rule group but exists in another, it's set to "Disabled" instead of deleted.
 // - A custom rule is only fully removed when it's not present in any rule group in the config.
-func (r *cloudSecurityKacPolicyResource) synchronizeCustomRules(
+// Before propagating custom rules we validate the count of custom rules in the config for each rule group,
+// so we can safely assume any custom rules in the config have already been propagated.
+func (r *cloudSecurityKacPolicyResource) propagateCustomRules(
 	ctx context.Context,
 	plan cloudSecurityKacPolicyResourceModel,
 ) (cloudSecurityKacPolicyResourceModel, diag.Diagnostics) {
@@ -963,49 +1055,48 @@ func (r *cloudSecurityKacPolicyResource) synchronizeCustomRules(
 	}
 
 	planRuleGroups = append(planRuleGroups, defaultRG)
+	customRuleIDs := make([]string, 0, 10)
+	for _, rg := range planRuleGroups {
+		if rg.CustomRules.IsNull() || rg.CustomRules.IsUnknown() {
+			continue
+		}
 
-	customRuleDetails := make(map[string]customRuleTFModel)
-	ruleGroupCustomRules := make([]map[string]string, len(planRuleGroups))
-
-	for rgIdx, rg := range planRuleGroups {
-		ruleGroupCustomRules[rgIdx] = make(map[string]string)
 		customRules := flex.ExpandSetAs[customRuleTFModel](ctx, rg.CustomRules, &diags)
 		if diags.HasError() {
 			return modifiedPlan, diags
 		}
 
 		for _, cr := range customRules {
-			ruleID := cr.ID.ValueString()
-			action := cr.Action.ValueString()
-			ruleGroupCustomRules[rgIdx][ruleID] = action
-
-			if _, exists := customRuleDetails[ruleID]; !exists {
-				customRuleDetails[ruleID] = cr
-			}
+			customRuleIDs = append(customRuleIDs, cr.ID.ValueString())
 		}
+
+		// we only need the custom rules from the first rule group with custom rules configured
+		break
 	}
 
-	if len(customRuleDetails) == 0 {
+	if len(customRuleIDs) == 0 {
 		return modifiedPlan, diags
 	}
 
-	for rgIdx := range planRuleGroups {
-		modifiedCustomRules := make([]customRuleTFModel, 0, len(customRuleDetails))
+	for rgIdx, rg := range planRuleGroups {
+		// skip any known custom rules, custom rules propagation in the config has already been validated
+		if utils.IsKnown(rg.CustomRules) {
+			continue
+		}
 
-		for ruleID, customRule := range customRuleDetails {
-			customRuleCopy := customRule
-			if action, exists := ruleGroupCustomRules[rgIdx][ruleID]; exists {
-				customRuleCopy.Action = types.StringValue(action)
-			} else {
-				customRuleCopy.Action = types.StringValue("Disabled")
+		propagatedCustomRules := make([]customRuleTFModel, 0, len(customRuleIDs))
+		for _, customRuleID := range customRuleIDs {
+			customRuleCopy := customRuleTFModel{
+				ID:     types.StringValue(customRuleID),
+				Action: types.StringValue("Disabled"),
 			}
 
-			modifiedCustomRules = append(modifiedCustomRules, customRuleCopy)
+			propagatedCustomRules = append(propagatedCustomRules, customRuleCopy)
 		}
 
 		customRuleSet, setDiags := types.SetValueFrom(ctx, types.ObjectType{
 			AttrTypes: customRulesAttrMap,
-		}, modifiedCustomRules)
+		}, propagatedCustomRules)
 		diags.Append(setDiags...)
 		if diags.HasError() {
 			return modifiedPlan, diags

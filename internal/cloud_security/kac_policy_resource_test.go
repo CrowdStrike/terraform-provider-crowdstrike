@@ -1480,3 +1480,118 @@ func testAccCheckNestedObjectIDsUnchanged(resourceName string, initialState map[
 		return nil
 	}
 }
+
+func TestCloudSecurityKacPolicyResource_CustomRulesValidation(t *testing.T) {
+	policyName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	resourceName := "crowdstrike_cloud_security_kac_policy.test"
+
+	// TODO: Replace hard coded custom rule IDs with custom rule resource outputs.
+	testCustomRuleID1 := "custom-rule-id1"
+	testCustomRuleID2 := "custom-rule-id2"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			// Step 1: Test validation error when rule groups have different custom rules
+			{
+				Config: kacPolicyConfig{
+					name: policyName,
+					ruleGroups: []ruleGroupConfig{
+						{
+							name:        "rule-group-1",
+							description: utils.Addr("First rule group with 2 custom rules"),
+							customRules: []customRuleConfig{
+								{
+									id:     testCustomRuleID1,
+									action: "Alert",
+								},
+								{
+									id:     testCustomRuleID2,
+									action: "Alert",
+								},
+							},
+						},
+						{
+							name:        "rule-group-2",
+							description: utils.Addr("Second rule group with only 1 custom rule"),
+							customRules: []customRuleConfig{
+								{
+									id:     testCustomRuleID1,
+									action: "Prevent",
+								},
+							},
+						},
+					},
+				}.String(),
+				ExpectError: regexp.MustCompile(`Rule group "rule-group-2" has 1 custom rule\(s\)`),
+			},
+			// Step 2: Test validation error when default rule group has incomplete custom rules
+			{
+				Config: kacPolicyConfig{
+					name: policyName,
+					ruleGroups: []ruleGroupConfig{
+						{
+							name:        "rule-group-1",
+							description: utils.Addr("Rule group with 2 custom rules"),
+							customRules: []customRuleConfig{
+								{
+									id:     testCustomRuleID1,
+									action: "Alert",
+								},
+								{
+									id:     testCustomRuleID2,
+									action: "Alert",
+								},
+							},
+						},
+					},
+					defaultRuleGroup: &defaultRuleGroupConfig{
+						customRules: []customRuleConfig{
+							{
+								id:     testCustomRuleID1,
+								action: "Prevent",
+							},
+						},
+					},
+				}.String(),
+				ExpectError: regexp.MustCompile(`Rule group "Default" has 1 custom rule\(s\)`),
+			},
+			// Step 3: Test successful creation when custom rules is only defined in 1 rule group
+			{
+				Config: kacPolicyConfig{
+					name: policyName,
+					ruleGroups: []ruleGroupConfig{
+						{
+							name:        "rule-group-1",
+							description: utils.Addr("First rule group with all custom rules"),
+							customRules: []customRuleConfig{
+								{
+									id:     testCustomRuleID1,
+									action: "Alert",
+								},
+								{
+									id:     testCustomRuleID2,
+									action: "Alert",
+								},
+							},
+						},
+						{
+							name:        "rule-group-2",
+							description: utils.Addr("Second rule group"),
+						},
+					},
+				}.String(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+					resource.TestCheckResourceAttr(resourceName, "name", policyName),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "2"),
+					// Verify all rule groups have 2 custom rules
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.custom_rules.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.custom_rules.#", "2"),
+					resource.TestCheckResourceAttr(resourceName, "default_rule_group.custom_rules.#", "2"),
+				),
+			},
+		},
+	})
+}
