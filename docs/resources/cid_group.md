@@ -1,6 +1,6 @@
 ---
 page_title: "crowdstrike_cid_group Resource - crowdstrike"
-subcategory: "Host Management and Setup"
+subcategory: "Host Setup and Management"
 description: |-
   Manages CID groups in CrowdStrike Falcon Flight Control. CID groups allow MSPs to organize and manage child CIDs for multi-tenant environments.
   API Scopes

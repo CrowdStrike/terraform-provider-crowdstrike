@@ -95,7 +95,7 @@ func (r *cidGroupResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
-			"Host Management and Setup",
+			"Host Setup and Management",
 			"Manages CID groups in CrowdStrike Falcon Flight Control. CID groups allow MSPs to organize and manage child CIDs for multi-tenant environments.",
 			apiScopes,
 		),
