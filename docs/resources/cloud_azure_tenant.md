@@ -70,6 +70,7 @@ output "tenant_registration" {
 - `cs_infra_location` (String) Azure location where CrowdStrike infrastructure resources (such as Event Hubs) were deployed.
 - `cs_infra_subscription_id` (String) Azure subscription ID where CrowdStrike infrastructure resources (such as Event Hubs) were deployed.
 - `environment` (String) The environment added to resources created during onboarding. It will be used if you generate new .tfvars from the UI.
+- `falcon_client_id` (String) Falcon API client ID.
 - `management_group_ids` (List of String) A list of Azure management group IDs to monitor. All subscriptions under the management groups will be monitored.
 - `realtime_visibility` (Attributes) (see [below for nested schema](#nestedatt--realtime_visibility))
 - `resource_name_prefix` (String) The prefix added to resources created during onboarding. It will be used if you generate new .tfvars from the UI.

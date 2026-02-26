@@ -83,6 +83,7 @@ type cloudAzureTenantModel struct {
 	AppRegistrationId           types.String        `tfsdk:"cs_azure_client_id"`
 	CsInfraRegion               types.String        `tfsdk:"cs_infra_location"`
 	CsInfraSubscriptionId       types.String        `tfsdk:"cs_infra_subscription_id"`
+	FalconClientId              types.String        `tfsdk:"falcon_client_id"`
 	Environment                 types.String        `tfsdk:"environment"`
 	ManagementGroupIds          types.List          `tfsdk:"management_group_ids"`
 	MicrosoftGraphPermissionIds types.List          `tfsdk:"microsoft_graph_permission_ids"`
@@ -151,6 +152,10 @@ func (r *cloudAzureTenantResource) Schema(
 			"tenant_id": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The Azure Tenant ID to register into Falcon Cloud Security. If subscription_ids and management_group_ids are not provided, then all subscriptions in the tenant are targeted.",
+			},
+			"falcon_client_id": schema.StringAttribute{
+				MarkdownDescription: "Falcon API client ID.",
+				Optional:            true,
 			},
 			"realtime_visibility": schema.SingleNestedAttribute{
 				Required: false,
@@ -238,6 +243,7 @@ func (m *cloudAzureTenantModel) wrap(
 	m.TenantId = types.StringValue(*registration.TenantID)
 	m.AppRegistrationId = types.StringValue(registration.AppRegistrationID)
 	m.AccountType = types.StringValue(registration.AccountType)
+	m.FalconClientId = types.StringValue(registration.APIClientKeyID)
 	m.CsInfraRegion = types.StringPointerValue(registration.CsInfraRegion)
 	m.CsInfraSubscriptionId = types.StringPointerValue(registration.CsInfraSubscriptionID)
 	m.Environment = types.StringPointerValue(registration.Environment)
@@ -547,6 +553,8 @@ func (r *cloudAzureTenantResource) createRegistration(
 				TenantID:                    data.TenantId.ValueStringPointer(),
 				CsInfraRegion:               data.CsInfraRegion.ValueString(),
 				CsInfraSubscriptionID:       data.CsInfraSubscriptionId.ValueString(),
+				APIClientKeyID:              data.FalconClientId.ValueString(),
+				APIClientKeyType:            "customer",
 				Environment:                 data.Environment.ValueStringPointer(),
 				ResourceNamePrefix:          data.ResourceNamePrefix.ValueStringPointer(),
 				ResourceNameSuffix:          data.ResourceNameSuffix.ValueStringPointer(),
@@ -615,6 +623,8 @@ func (r *cloudAzureTenantResource) updateRegistration(
 				TenantID:              data.TenantId.ValueStringPointer(),
 				CsInfraRegion:         data.CsInfraRegion.ValueString(),
 				CsInfraSubscriptionID: data.CsInfraSubscriptionId.ValueString(),
+				APIClientKeyID:        data.FalconClientId.ValueString(),
+				APIClientKeyType:      "customer",
 				Environment:           data.Environment.ValueStringPointer(),
 				ResourceNamePrefix:    data.ResourceNamePrefix.ValueStringPointer(),
 				ResourceNameSuffix:    data.ResourceNameSuffix.ValueStringPointer(),
