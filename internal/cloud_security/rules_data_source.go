@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -539,11 +540,15 @@ func (r *cloudSecurityRulesDataSource) getRules(
 			}
 
 			if len(resource.RuleLogicList) > 0 {
-				rule.RemediationInfo = convertAlertRemediationInfoToTerraformState(resource.RuleLogicList[0].RemediationInfo)
+				rule.RemediationInfo, diags = flex.FlattenStringValueList(ctx, convertAlertRemediationInfoToTerraformState(resource.RuleLogicList[0].RemediationInfo))
+				if diags.HasError() {
+					return defaultResponse, diags
+				}
 			}
 
-			if resource.AlertInfo != nil {
-				rule.AlertInfo = convertAlertRemediationInfoToTerraformState(resource.AlertInfo)
+			rule.AlertInfo, diags = flex.FlattenStringValueList(ctx, convertAlertRemediationInfoToTerraformState(resource.AlertInfo))
+			if diags.HasError() {
+				return defaultResponse, diags
 			}
 
 			if len(resource.ResourceTypes) > 0 {
