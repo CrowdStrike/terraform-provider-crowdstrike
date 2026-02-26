@@ -119,6 +119,7 @@ var (
 	_ resource.ResourceWithConfigure      = &cloudAWSAccountResource{}
 	_ resource.ResourceWithImportState    = &cloudAWSAccountResource{}
 	_ resource.ResourceWithValidateConfig = &cloudAWSAccountResource{}
+	_ resource.ResourceWithModifyPlan     = &cloudAWSAccountResource{}
 )
 
 // NewCloudAWSAccountResource a helper function to simplify the provider implementation.
@@ -582,9 +583,6 @@ func (r *cloudAWSAccountResource) Schema(
 			"cloudtrail_bucket_name": schema.StringAttribute{
 				Computed:    true,
 				Description: "The name of the CloudTrail S3 bucket used for real-time visibility",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
 			},
 			"dspm_role_arn": schema.StringAttribute{
 				Computed:    true,
@@ -662,6 +660,39 @@ func (r *cloudAWSAccountResource) buildProductsFromModel(model cloudAWSAccountMo
 	}
 
 	return products
+}
+
+// ModifyPlan runs after all attribute plan modifiers and defaults have been applied.
+// It marks cloudtrail_bucket_name as unknown when cloudtrail_region changes so
+// Terraform re-reads the value from the backend.
+func (r *cloudAWSAccountResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// Do nothing on create or destroy.
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var state, plan cloudAWSAccountModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if state.RealtimeVisibility == nil || plan.RealtimeVisibility == nil {
+		return
+	}
+
+	if plan.RealtimeVisibility.CloudTrailRegion.IsUnknown() {
+		resp.Plan.SetAttribute(ctx, path.Root("cloudtrail_bucket_name"), types.StringUnknown())
+		return
+	}
+
+	if state.RealtimeVisibility.CloudTrailRegion.ValueString() != plan.RealtimeVisibility.CloudTrailRegion.ValueString() {
+		resp.Plan.SetAttribute(ctx, path.Root("cloudtrail_bucket_name"), types.StringUnknown())
+		return
+	}
+
+	resp.Plan.SetAttribute(ctx, path.Root("cloudtrail_bucket_name"), state.CloudTrailBucketName)
 }
 
 // Create creates the resource and sets the initial Terraform state.
@@ -1229,6 +1260,8 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 
 	if model.RealtimeVisibility != nil {
 		patchAccount.CloudtrailRegion = model.RealtimeVisibility.CloudTrailRegion.ValueString()
+		useExistingCloudtrail := model.RealtimeVisibility.UseExistingCloudTrail.ValueBool()
+		patchAccount.UseExistingCloudtrail = &useExistingCloudtrail
 		patchAccount.LogIngestionMethod = model.RealtimeVisibility.LogIngestionMethod.ValueString()
 		patchAccount.S3LogIngestionBucketName = model.RealtimeVisibility.LogIngestionS3BucketName.ValueString()
 		patchAccount.S3LogIngestionBucketPrefix = model.RealtimeVisibility.LogIngestionS3BucketPrefix.ValueString()
