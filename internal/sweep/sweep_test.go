@@ -17,6 +17,7 @@ import (
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
+	usergroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/user_group"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
@@ -40,4 +41,5 @@ func registerSweepers() {
 	cloudgroup.RegisterSweepers()
 	cloudsecurity.RegisterSweepers()
 	itautomation.RegisterSweepers()
+	usergroup.RegisterSweepers()
 }
