@@ -551,11 +551,7 @@ func (r *cloudAzureTenantResource) createRegistration(
 
 	res, err := r.client.CloudAzureRegistration.CloudRegistrationAzureCreateRegistration(&params)
 	if err != nil {
-		if _, ok := err.(*cloud_azure_registration.CloudRegistrationAzureCreateRegistrationForbidden); ok {
-			diags.Append(tferrors.NewForbiddenError(tferrors.Create, azureRegistrationScopes))
-			return nil, diags
-		}
-		diags.Append(tferrors.NewOperationError(tferrors.Create, err))
+		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Create, err, azureRegistrationScopes))
 		return nil, diags
 	}
 
