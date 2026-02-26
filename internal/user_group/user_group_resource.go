@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/mssp"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
@@ -41,7 +42,7 @@ type userGroupResourceModel struct {
 	ID          types.String `tfsdk:"id"`
 	Name        types.String `tfsdk:"name"`
 	Description types.String `tfsdk:"description"`
-	UserUuids   types.Set    `tfsdk:"user_uuids"`
+	UserIDs     types.Set    `tfsdk:"user_ids"`
 	Cid         types.String `tfsdk:"cid"`
 	LastUpdated types.String `tfsdk:"last_updated"`
 }
@@ -113,7 +114,7 @@ func (r *userGroupResource) Schema(
 					fwvalidators.StringNotWhitespace(),
 				},
 			},
-			"user_uuids": schema.SetAttribute{
+			"user_ids": schema.SetAttribute{
 				Optional:            true,
 				MarkdownDescription: "A set of user UUIDs that are members of this user group. Maximum 500 members allowed.",
 				ElementType:         types.StringType,
@@ -190,9 +191,9 @@ func (r *userGroupResource) Create(
 		return
 	}
 
-	if !plan.UserUuids.IsNull() && len(plan.UserUuids.Elements()) > 0 {
+	if !plan.UserIDs.IsNull() && len(plan.UserIDs.Elements()) > 0 {
 		var userUuids []string
-		resp.Diagnostics.Append(plan.UserUuids.ElementsAs(ctx, &userUuids, false)...)
+		resp.Diagnostics.Append(plan.UserIDs.ElementsAs(ctx, &userUuids, false)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
@@ -243,9 +244,9 @@ func (r *userGroupResource) Read(
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		state.UserUuids = userUuids
+		state.UserIDs = userUuids
 	} else {
-		state.UserUuids = types.SetNull(types.StringType)
+		state.UserIDs = types.SetNull(types.StringType)
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -303,14 +304,14 @@ func (r *userGroupResource) Update(
 	userGroup := res.Payload.Resources[0]
 	plan.wrap(userGroup)
 
-	if !plan.UserUuids.Equal(state.UserUuids) {
+	if !plan.UserIDs.Equal(state.UserIDs) {
 		var planUuids, stateUuids []string
 
-		if !plan.UserUuids.IsNull() {
-			resp.Diagnostics.Append(plan.UserUuids.ElementsAs(ctx, &planUuids, false)...)
+		if !plan.UserIDs.IsNull() {
+			resp.Diagnostics.Append(plan.UserIDs.ElementsAs(ctx, &planUuids, false)...)
 		}
-		if !state.UserUuids.IsNull() {
-			resp.Diagnostics.Append(state.UserUuids.ElementsAs(ctx, &stateUuids, false)...)
+		if !state.UserIDs.IsNull() {
+			resp.Diagnostics.Append(state.UserIDs.ElementsAs(ctx, &stateUuids, false)...)
 		}
 		if resp.Diagnostics.HasError() {
 			return
@@ -349,9 +350,9 @@ func (r *userGroupResource) Delete(
 		return
 	}
 
-	if !state.UserUuids.IsNull() && len(state.UserUuids.Elements()) > 0 {
+	if !state.UserIDs.IsNull() && len(state.UserIDs.Elements()) > 0 {
 		var userUuids []string
-		resp.Diagnostics.Append(state.UserUuids.ElementsAs(ctx, &userUuids, false)...)
+		resp.Diagnostics.Append(state.UserIDs.ElementsAs(ctx, &userUuids, false)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
@@ -521,9 +522,7 @@ func (r *userGroupResource) deleteUserGroupMembers(ctx context.Context, userGrou
 func (m *userGroupResourceModel) wrap(userGroup *models.DomainUserGroup) {
 	m.ID = types.StringValue(userGroup.UserGroupID)
 	m.Name = types.StringPointerValue(userGroup.Name)
-	// TODO: Re-enable once gofalcon SDK bug is fixed that prevents setting description to null
-	// Currently the API returns empty string instead of null, causing Terraform state inconsistencies
-	// m.Description = types.StringPointerValue(userGroup.Description)
+	m.Description = flex.StringPointerToFramework(userGroup.Description)
 	m.Cid = types.StringValue(userGroup.Cid)
 }
 

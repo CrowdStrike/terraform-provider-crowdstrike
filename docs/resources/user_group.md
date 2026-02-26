@@ -38,7 +38,7 @@ resource "crowdstrike_user_group" "example" {
   name        = "Engineering Team"
   description = "User group for engineering team members"
 
-  user_uuids = [
+  user_ids = [
     "12345678-1234-1234-1234-123456789012",
     "87654321-4321-4321-4321-210987654321"
   ]
@@ -55,7 +55,7 @@ resource "crowdstrike_user_group" "example" {
 ### Optional
 
 - `description` (String) A description for the user group.
-- `user_uuids` (Set of String) A set of user UUIDs that are members of this user group. Maximum 500 members allowed.
+- `user_ids` (Set of String) A set of user UUIDs that are members of this user group. Maximum 500 members allowed.
 
 ### Read-Only
 

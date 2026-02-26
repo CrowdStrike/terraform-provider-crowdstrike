@@ -29,7 +29,7 @@ func TestAccUserGroupResource_basic(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cid"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("last_updated"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.Null()),
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("user_uuids"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("user_ids"), knownvalue.Null()),
 				},
 			},
 			{
@@ -56,7 +56,7 @@ func TestAccUserGroupResource_update(t *testing.T) {
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.Null()),
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("user_uuids"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("user_ids"), knownvalue.Null()),
 				},
 			},
 			{
@@ -109,14 +109,14 @@ func TestAccUserGroupResource_members(t *testing.T) {
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("Test user group with members")),
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("user_uuids"), knownvalue.SetSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("user_ids"), knownvalue.SetSizeExact(2)),
 				},
 			},
 			{
 				Config: testAccUserGroupConfig_members(rName, []string{uuid1}),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("user_uuids"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("user_ids"), knownvalue.SetSizeExact(1)),
 				},
 			},
 			{
@@ -124,7 +124,7 @@ func TestAccUserGroupResource_members(t *testing.T) {
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.Null()),
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("user_uuids"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("user_ids"), knownvalue.Null()),
 				},
 			},
 			{
@@ -167,7 +167,7 @@ func testAccUserGroupConfig_members(name string, userUUIDs []string) string {
 resource "crowdstrike_user_group" "test" {
   name        = %[1]q
   description = "Test user group with members"
-  user_uuids = [
+  user_ids = [
     %[2]s
   ]
 }
