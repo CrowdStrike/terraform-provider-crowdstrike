@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_azure_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -24,7 +24,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -308,23 +307,13 @@ func (r *cloudAzureTenantResource) Read(
 	}
 
 	registration, diags := r.getRegistration(ctx, data.TenantId.ValueString())
-	for _, err := range diags.Errors() {
-		if err.Summary() == notFoundErrorSummary {
-			tflog.Warn(
-				ctx,
-				fmt.Sprintf(
-					"registration for tenant %s not found, removing from state",
-					data.TenantId.ValueString(),
-				),
-			)
-
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 			resp.State.RemoveResource(ctx)
 			return
 		}
-	}
-
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -462,11 +451,12 @@ func (r *cloudAzureTenantResource) deleteRegistration(
 		},
 	)
 	if err != nil {
-		diags.AddError(
-			"Failed to delete registration",
-			fmt.Sprintf("Failed to delete Azure tenant registration: %s", falcon.ErrorExplain(err)),
-		)
-
+		diag := tferrors.NewDiagnosticFromAPIError(tferrors.Delete, err, azureRegistrationScopes)
+		// Ignore 404 errors in Delete - some APIs return 404 for already deleted resources
+		if diag.Summary() == tferrors.NotFoundErrorSummary {
+			return diags
+		}
+		diags.Append(diag)
 		return diags
 	}
 
@@ -486,29 +476,17 @@ func (r *cloudAzureTenantResource) getRegistration(
 		},
 	)
 	if err != nil {
-		if _, ok := err.(*cloud_azure_registration.CloudRegistrationAzureGetRegistrationNotFound); ok {
-			diags.Append(
-				newNotFoundError(
-					fmt.Sprintf("No registration found for tenant: %s.", tenantID),
-				),
-			)
-			return nil, diags
-		}
-
-		diags.AddError(
-			"Failed to get registration",
-			fmt.Sprintf("Failed to get Azure tenant registration: %s", falcon.ErrorExplain(err)),
-		)
-
+		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, azureRegistrationScopes))
 		return nil, diags
 	}
 
-	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
-		diags.AddError(
-			"Failed to get registration",
-			"Get registration api call returned a successful status code, but no registration information was returned. Please report this issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
-		)
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Read))
+		return nil, diags
+	}
 
+	if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Read, res.Payload.Errors); diag != nil {
+		diags.Append(diag)
 		return nil, diags
 	}
 
@@ -573,20 +551,17 @@ func (r *cloudAzureTenantResource) createRegistration(
 
 	res, err := r.client.CloudAzureRegistration.CloudRegistrationAzureCreateRegistration(&params)
 	if err != nil {
-		diags.AddError(
-			"Failed to register tenant",
-			fmt.Sprintf("Failed to register Azure tenant: %s", falcon.ErrorExplain(err)),
-		)
-
+		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Create, err, azureRegistrationScopes))
 		return nil, diags
 	}
 
-	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
-		diags.AddError(
-			"Failed to register tenant",
-			"Registration api call returned a successful status code, but no registration information was returned. Please report this issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
-		)
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Create))
+		return nil, diags
+	}
 
+	if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Create, res.Payload.Errors); diag != nil {
+		diags.Append(diag)
 		return nil, diags
 	}
 
@@ -661,32 +636,17 @@ func (r *cloudAzureTenantResource) updateRegistration(
 
 	res, err := r.client.CloudAzureRegistration.CloudRegistrationAzureUpdateRegistration(&params)
 	if err != nil {
-		if _, ok := err.(*cloud_azure_registration.CloudRegistrationAzureUpdateRegistrationNotFound); ok {
-			diags.Append(
-				newNotFoundError(
-					fmt.Sprintf(
-						"No registration found for tenant: %s.",
-						data.TenantId.ValueString(),
-					),
-				),
-			)
-			return nil, diags
-		}
-
-		diags.AddError(
-			"Failed to update registration",
-			fmt.Sprintf("Failed to update Azure tenant registration: %s", falcon.ErrorExplain(err)),
-		)
-
+		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, azureRegistrationScopes))
 		return nil, diags
 	}
 
-	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
-		diags.AddError(
-			"Failed to update registration",
-			"Update registration api call returned a successful status code, but no registration information was returned. Please report this issue here: https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues",
-		)
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
+		return nil, diags
+	}
 
+	if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Update, res.Payload.Errors); diag != nil {
+		diags.Append(diag)
 		return nil, diags
 	}
 

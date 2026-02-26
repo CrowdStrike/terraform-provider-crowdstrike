@@ -26,6 +26,7 @@ import (
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
+	usergroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/user_group"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/function"
@@ -305,6 +306,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		cloudsecurity.NewCloudSecurityCustomRuleResource,
 		cloudsecurity.NewCloudSecurityKacPolicyResource,
 		cloudsecurity.NewCloudSecurityKacPolicyPrecedenceResource,
+		cloudsecurity.NewCloudSecurityKacCustomRuleResource,
 		cloudcompliance.NewCloudComplianceCustomFrameworkResource,
 		cloudgroup.NewCloudGroupResource,
 		cloudsecurity.NewCloudSecuritySuppressionRuleResource,
@@ -312,6 +314,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		responsepolicy.NewResponsePolicyResource,
 		responsepolicy.NewResponsePolicyPrecedenceResource,
 		ioarulegroup.NewIOARuleGroupResource,
+		usergroup.NewUserGroupResource,
 	}
 }
 

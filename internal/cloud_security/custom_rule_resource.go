@@ -11,6 +11,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
@@ -28,7 +29,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
@@ -136,6 +136,7 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 				ElementType:         types.StringType,
 				MarkdownDescription: "A list of the alert logic and detection criteria for rule violations. Do not include numbering within this list. The Falcon console will automatically add numbering.When `alert_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `alert_info`.",
 				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
 					listvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
 					),
@@ -175,6 +176,7 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 				MarkdownDescription: "Specific attack types associated with the rule. If `parent_rule_id` is defined, `attack_types` will be inherited from the parent rule and cannot be specified using this field. ",
 				ElementType:         types.StringType,
 				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
 					setvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
 					),
@@ -231,6 +233,7 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 				ElementType:         types.StringType,
 				MarkdownDescription: "Information about how to remediate issues detected by this rule. Do not include numbering within this list. The Falcon console will automatically add numbering. When `remediation_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `remediation_info`.",
 				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
 					listvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
 					),
@@ -458,11 +461,21 @@ func (m *cloudSecurityCustomRuleResourceModel) wrap(
 	m.Domain = types.StringPointerValue(rule.Domain)
 	m.Subdomain = types.StringPointerValue(rule.Subdomain)
 	m.CloudProvider = types.StringPointerValue(rule.Provider)
-	m.RemediationInfo = convertAlertRemediationInfoToTerraformState(rule.Remediation)
-	m.AlertInfo = convertAlertRemediationInfoToTerraformState(rule.AlertInfo)
+
+	m.RemediationInfo, diags = flex.FlattenStringValueList(ctx, convertAlertRemediationInfoToTerraformState(rule.Remediation))
+	if diags.HasError() {
+		return diags
+	}
+
+	m.AlertInfo, diags = flex.FlattenStringValueList(ctx, convertAlertRemediationInfoToTerraformState(rule.AlertInfo))
+	if diags.HasError() {
+		return diags
+	}
 
 	if rule.Severity != nil {
 		m.Severity = types.StringValue(int32ToSeverity[int32(*rule.Severity)])
+	} else {
+		m.Severity = types.StringNull()
 	}
 
 	if rule.ParentRuleShortUUID != "" {
@@ -908,70 +921,4 @@ func (r *cloudSecurityCustomRuleResource) deleteCloudPolicyRule(ctx context.Cont
 	}
 
 	return diags
-}
-
-func convertAlertInfoToAPIFormat(ctx context.Context, alertInfo basetypes.ListValue, includeNumbering bool) (string, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	var alertInfoStrings []string
-	var convertedAlertInfo string
-
-	if alertInfo.IsNull() || alertInfo.IsUnknown() || len(alertInfo.Elements()) == 0 {
-		return "", diags
-	}
-
-	// Duplicate rules require the numbering with |\n delimiters
-	// for Alert Info while custom rules only require | without
-	// newlines or numbering
-	if includeNumbering {
-		for i, elem := range alertInfo.Elements() {
-			str, ok := elem.(types.String)
-			if !ok {
-				diags.AddError(
-					"Error converting AlertInfo",
-					fmt.Sprintf("Failed to convert element %d to string", i),
-				)
-				return "", diags
-			}
-			alertInfoStrings = append(alertInfoStrings, fmt.Sprintf("%d. %s", i+1, str.ValueString()))
-		}
-
-		convertedAlertInfo = strings.Join(alertInfoStrings, "|\n")
-	} else {
-		diags = alertInfo.ElementsAs(ctx, &alertInfoStrings, false)
-		convertedAlertInfo = strings.Join(alertInfoStrings, "|")
-	}
-	return convertedAlertInfo, diags
-}
-
-func convertRemediationInfoToAPIFormat(ctx context.Context, info basetypes.ListValue, includeNumbering bool) (string, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	var infoStrings []string
-	var convertedInfo string
-
-	if info.IsNull() || info.IsUnknown() || len(info.Elements()) == 0 {
-		return "", diags
-	}
-
-	// Duplicate rules require the numbering with |\n delimiters
-	// for Remediation info while custom rules only require | without
-	// newlines or numbering
-	if includeNumbering {
-		for i, elem := range info.Elements() {
-			str, ok := elem.(types.String)
-			if !ok {
-				diags.AddError(
-					"Error converting RemediationInfo",
-					fmt.Sprintf("Failed to convert element %d to string", i),
-				)
-				return "", diags
-			}
-			infoStrings = append(infoStrings, fmt.Sprintf("Step %d. %s", i+1, str.ValueString()))
-		}
-		convertedInfo = strings.Join(infoStrings, "|\n")
-	} else {
-		diags = info.ElementsAs(ctx, &infoStrings, false)
-		convertedInfo = strings.Join(infoStrings, "|")
-	}
-
-	return convertedInfo, diags
 }

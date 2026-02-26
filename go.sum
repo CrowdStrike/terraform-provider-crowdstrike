@@ -33,8 +33,8 @@ github.com/bufbuild/protocompile v0.14.1 h1:iA73zAf/fyljNjQKwYzUHD6AD4R8KMasmwa/
 github.com/bufbuild/protocompile v0.14.1/go.mod h1:ppVdAIhbr2H8asPk6k4pY7t9zB1OU5DoEw9xY/FUi1c=
 github.com/cloudflare/circl v1.6.1 h1:zqIqSPIndyBh1bjLVVDHMPpVKqp8Su/V+6MeDzzQBQ0=
 github.com/cloudflare/circl v1.6.1/go.mod h1:uddAzsPgqdMAYatqJ0lsjX1oECcQLIlRpzZh3pJrofs=
-github.com/crowdstrike/gofalcon v0.19.1-0.20260224183631-b24b7b2b5460 h1:fLLpAjwIOmwkb3itPVLUZ/RmR2TqH1rXFFKYFBuaqZU=
-github.com/crowdstrike/gofalcon v0.19.1-0.20260224183631-b24b7b2b5460/go.mod h1:a12GB+md+hRSgVCb3Pv6CakeTIsDIUCIVWRlJelIhY0=
+github.com/crowdstrike/gofalcon v0.19.1-0.20260225154029-7d54dc7f51d8 h1:cbT3TEdAYrZaAaaFSQXigRI7vYYe5YkO5lAGOOdLs30=
+github.com/crowdstrike/gofalcon v0.19.1-0.20260225154029-7d54dc7f51d8/go.mod h1:a12GB+md+hRSgVCb3Pv6CakeTIsDIUCIVWRlJelIhY0=
 github.com/cyphar/filepath-securejoin v0.4.1 h1:JyxxyPEaktOD+GAnqIqTf9A8tHyAG22rowi7HkoSU1s=
 github.com/cyphar/filepath-securejoin v0.4.1/go.mod h1:Sdj7gXlvMcPZsbhwhQ33GguGLDGQL7h7bg04C/+u9jI=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

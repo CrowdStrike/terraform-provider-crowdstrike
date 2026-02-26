@@ -1,8 +1,9 @@
-package cidgroup
+package usergroup
 
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/mssp"
@@ -10,7 +11,6 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
@@ -25,36 +25,29 @@ import (
 )
 
 var (
-	_ resource.Resource                = &cidGroupResource{}
-	_ resource.ResourceWithConfigure   = &cidGroupResource{}
-	_ resource.ResourceWithImportState = &cidGroupResource{}
+	_ resource.Resource                = &userGroupResource{}
+	_ resource.ResourceWithConfigure   = &userGroupResource{}
+	_ resource.ResourceWithImportState = &userGroupResource{}
 )
 
-var apiScopes = []scopes.Scope{
-	{
-		Name:  "Flight Control",
-		Read:  true,
-		Write: true,
-	},
+func NewUserGroupResource() resource.Resource {
+	return &userGroupResource{}
 }
 
-func NewCIDGroupResource() resource.Resource {
-	return &cidGroupResource{}
-}
-
-type cidGroupResource struct {
+type userGroupResource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-type CIDGroupResourceModel struct {
+type userGroupResourceModel struct {
 	ID          types.String `tfsdk:"id"`
 	Name        types.String `tfsdk:"name"`
 	Description types.String `tfsdk:"description"`
-	CIDs        types.Set    `tfsdk:"cids"`
-	CID         types.String `tfsdk:"cid"`
+	UserIDs     types.Set    `tfsdk:"user_ids"`
+	Cid         types.String `tfsdk:"cid"`
+	LastUpdated types.String `tfsdk:"last_updated"`
 }
 
-func (r *cidGroupResource) Configure(
+func (r *userGroupResource) Configure(
 	ctx context.Context,
 	req resource.ConfigureRequest,
 	resp *resource.ConfigureResponse,
@@ -80,102 +73,96 @@ func (r *cidGroupResource) Configure(
 	r.client = config.Client
 }
 
-func (r *cidGroupResource) Metadata(
+func (r *userGroupResource) Metadata(
 	_ context.Context,
 	req resource.MetadataRequest,
 	resp *resource.MetadataResponse,
 ) {
-	resp.TypeName = req.ProviderTypeName + "_cid_group"
+	resp.TypeName = req.ProviderTypeName + "_user_group"
 }
 
-func (r *cidGroupResource) Schema(
+func (r *userGroupResource) Schema(
 	_ context.Context,
 	_ resource.SchemaRequest,
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
-			"Host Setup and Management",
-			"Manages CID groups in CrowdStrike Falcon Flight Control. CID groups allow MSPs to organize and manage child CIDs for multi-tenant environments.",
+			"Flight Control",
+			"This resource manages user groups in CrowdStrike Falcon Flight Control.",
 			apiScopes,
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "The ID of the CID group.",
+				MarkdownDescription: "The unique identifier for the user group.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"name": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "The name of the CID group.",
+				MarkdownDescription: "The name of the user group.",
 				Validators: []validator.String{
 					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"description": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "The description of the CID group.",
+				MarkdownDescription: "A description for the user group.",
 				Validators: []validator.String{
 					fwvalidators.StringNotWhitespace(),
 				},
 			},
-			"cids": schema.SetAttribute{
-				ElementType:         types.StringType,
+			"user_ids": schema.SetAttribute{
 				Optional:            true,
-				MarkdownDescription: "Set of CID identifiers that are members of this group.",
+				MarkdownDescription: "A set of user UUIDs that are members of this user group. Maximum 500 members allowed.",
+				ElementType:         types.StringType,
 				Validators: []validator.Set{
+					setvalidator.SizeAtMost(500),
 					setvalidator.ValueStringsAre(fwvalidators.StringNotWhitespace()),
 				},
 			},
 			"cid": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "The CID associated with this group.",
+				MarkdownDescription: "The customer ID associated with the user group.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
+			},
+			"last_updated": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "The RFC850 timestamp of the last update to this resource by Terraform.",
 			},
 		},
 	}
 }
 
-func (m *CIDGroupResourceModel) wrap(cidGroup *models.DomainCIDGroup) {
-	if cidGroup.CidGroupID != nil {
-		m.ID = types.StringValue(*cidGroup.CidGroupID)
-	}
-	if cidGroup.Name != nil {
-		m.Name = types.StringValue(*cidGroup.Name)
-	}
-	m.Description = flex.StringPointerToFramework(cidGroup.Description)
-	m.CID = types.StringValue(cidGroup.Cid)
-}
-
-func (r *cidGroupResource) Create(
+func (r *userGroupResource) Create(
 	ctx context.Context,
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-	var plan CIDGroupResourceModel
+	var plan userGroupResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	res, multi, err := r.client.Mssp.CreateCIDGroups(&mssp.CreateCIDGroupsParams{
-		Context: ctx,
-		Body: &models.DomainCIDGroupsRequestV1{
-			Resources: []*models.DomainCIDGroup{
-				{
-					Name:        flex.FrameworkToStringPointer(plan.Name),
-					Description: plan.Description.ValueStringPointer(),
-				},
+	createParams := mssp.NewCreateUserGroupsParams()
+	createParams.Context = ctx
+	createParams.Body = &models.DomainUserGroupsRequestV1{
+		Resources: []*models.DomainUserGroup{
+			{
+				Name:        plan.Name.ValueStringPointer(),
+				Description: plan.Description.ValueStringPointer(),
 			},
 		},
-	})
+	}
+
+	res, multi, err := r.client.Mssp.CreateUserGroups(createParams)
 	if err != nil {
-		diag := tferrors.NewDiagnosticFromAPIError(tferrors.Create, err, apiScopes)
-		resp.Diagnostics.Append(diag)
+		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Create, err, apiScopes))
 		return
 	}
 
@@ -196,58 +183,46 @@ func (r *cidGroupResource) Create(
 		return
 	}
 
-	plan.wrap(res.Payload.Resources[0])
+	userGroup := res.Payload.Resources[0]
+	plan.wrap(userGroup)
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if !plan.CIDs.IsNull() && len(plan.CIDs.Elements()) > 0 {
-		var cids []string
-		resp.Diagnostics.Append(plan.CIDs.ElementsAs(ctx, &cids, false)...)
+	if !plan.UserIDs.IsNull() && len(plan.UserIDs.Elements()) > 0 {
+		var userUuids []string
+		resp.Diagnostics.Append(plan.UserIDs.ElementsAs(ctx, &userUuids, false)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 
-		if diag := r.addCIDGroupMembers(ctx, plan.ID.ValueString(), cids); diag != nil {
+		if diag := r.addUserGroupMembers(ctx, plan.ID.ValueString(), userUuids); diag != nil {
 			resp.Diagnostics.Append(diag)
 			return
 		}
-
-		memberCIDs, diag := r.getCIDGroupMembers(ctx, plan.ID.ValueString())
-		if diag != nil {
-			resp.Diagnostics.Append(diag)
-			return
-		}
-
-		cidsSet, d := flex.FlattenStringValueSet(ctx, memberCIDs)
-		resp.Diagnostics.Append(d...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		plan.CIDs = cidsSet
 	}
 
+	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
-func (r *cidGroupResource) Read(
+func (r *userGroupResource) Read(
 	ctx context.Context,
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-	var state CIDGroupResourceModel
+	var state userGroupResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	cidGroupID := state.ID.ValueString()
-
-	cidGroup, diag := r.getCIDGroupByID(ctx, cidGroupID)
+	userGroup, diag := r.getUserGroupByID(ctx, state.ID.ValueString())
 	if diag != nil {
 		if diag.Summary() == tferrors.NotFoundErrorSummary {
+			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -255,51 +230,57 @@ func (r *cidGroupResource) Read(
 		return
 	}
 
-	state.wrap(cidGroup)
+	state.wrap(userGroup)
 
-	memberCIDs, diag := r.getCIDGroupMembers(ctx, cidGroupID)
+	memberUuids, diag := r.getUserGroupMembers(ctx, state.ID.ValueString())
 	if diag != nil {
 		resp.Diagnostics.Append(diag)
 		return
 	}
 
-	cidsSet, d := flex.FlattenStringValueSet(ctx, memberCIDs)
-	resp.Diagnostics.Append(d...)
-	if resp.Diagnostics.HasError() {
-		return
+	if len(memberUuids) > 0 {
+		userUuids, diags := types.SetValueFrom(ctx, types.StringType, memberUuids)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		state.UserIDs = userUuids
+	} else {
+		state.UserIDs = types.SetNull(types.StringType)
 	}
-	state.CIDs = cidsSet
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (r *cidGroupResource) Update(
+func (r *userGroupResource) Update(
 	ctx context.Context,
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	var plan, state CIDGroupResourceModel
+	var plan userGroupResourceModel
+	var state userGroupResourceModel
+
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	res, multi, err := r.client.Mssp.UpdateCIDGroups(&mssp.UpdateCIDGroupsParams{
-		Context: ctx,
-		Body: &models.DomainCIDGroupsRequestV1{
-			Resources: []*models.DomainCIDGroup{
-				{
-					CidGroupID:  flex.FrameworkToStringPointer(plan.ID),
-					Name:        flex.FrameworkToStringPointer(plan.Name),
-					Description: plan.Description.ValueStringPointer(),
-				},
+	updateParams := mssp.NewUpdateUserGroupsParams()
+	updateParams.Context = ctx
+	updateParams.Body = &models.DomainUserGroupsRequestV1{
+		Resources: []*models.DomainUserGroup{
+			{
+				UserGroupID: plan.ID.ValueString(),
+				Name:        plan.Name.ValueStringPointer(),
+				Description: plan.Description.ValueStringPointer(),
 			},
 		},
-	})
+	}
+
+	res, multi, err := r.client.Mssp.UpdateUserGroups(updateParams)
 	if err != nil {
-		diag := tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, apiScopes)
-		resp.Diagnostics.Append(diag)
+		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, apiScopes))
 		return
 	}
 
@@ -320,74 +301,73 @@ func (r *cidGroupResource) Update(
 		return
 	}
 
-	plan.wrap(res.Payload.Resources[0])
+	userGroup := res.Payload.Resources[0]
+	plan.wrap(userGroup)
 
-	if !plan.CIDs.Equal(state.CIDs) {
-		toAdd, toRemove, d := utils.SetIDsToModify(ctx, plan.CIDs, state.CIDs)
-		resp.Diagnostics.Append(d...)
+	if !plan.UserIDs.Equal(state.UserIDs) {
+		var planUuids, stateUuids []string
+
+		if !plan.UserIDs.IsNull() {
+			resp.Diagnostics.Append(plan.UserIDs.ElementsAs(ctx, &planUuids, false)...)
+		}
+		if !state.UserIDs.IsNull() {
+			resp.Diagnostics.Append(state.UserIDs.ElementsAs(ctx, &stateUuids, false)...)
+		}
 		if resp.Diagnostics.HasError() {
 			return
 		}
 
+		toRemove := difference(stateUuids, planUuids)
+		toAdd := difference(planUuids, stateUuids)
+
 		if len(toRemove) > 0 {
-			if diag := r.deleteCIDGroupMembers(ctx, plan.ID.ValueString(), toRemove); diag != nil {
+			if diag := r.deleteUserGroupMembers(ctx, plan.ID.ValueString(), toRemove); diag != nil {
 				resp.Diagnostics.Append(diag)
 				return
 			}
 		}
 
 		if len(toAdd) > 0 {
-			if diag := r.addCIDGroupMembers(ctx, plan.ID.ValueString(), toAdd); diag != nil {
+			if diag := r.addUserGroupMembers(ctx, plan.ID.ValueString(), toAdd); diag != nil {
 				resp.Diagnostics.Append(diag)
 				return
 			}
 		}
-
-		memberCIDs, diag := r.getCIDGroupMembers(ctx, plan.ID.ValueString())
-		if diag != nil {
-			resp.Diagnostics.Append(diag)
-			return
-		}
-
-		cidsSet, d := flex.FlattenStringValueSet(ctx, memberCIDs)
-		resp.Diagnostics.Append(d...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		plan.CIDs = cidsSet
 	}
 
+	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
-func (r *cidGroupResource) Delete(
+func (r *userGroupResource) Delete(
 	ctx context.Context,
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-	var state CIDGroupResourceModel
+	var state userGroupResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if !state.CIDs.IsNull() && len(state.CIDs.Elements()) > 0 {
-		var cids []string
-		resp.Diagnostics.Append(state.CIDs.ElementsAs(ctx, &cids, false)...)
+	if !state.UserIDs.IsNull() && len(state.UserIDs.Elements()) > 0 {
+		var userUuids []string
+		resp.Diagnostics.Append(state.UserIDs.ElementsAs(ctx, &userUuids, false)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 
-		if diag := r.deleteCIDGroupMembers(ctx, state.ID.ValueString(), cids); diag != nil {
+		if diag := r.deleteUserGroupMembers(ctx, state.ID.ValueString(), userUuids); diag != nil {
 			resp.Diagnostics.Append(diag)
 			return
 		}
 	}
 
-	_, multi, err := r.client.Mssp.DeleteCIDGroups(&mssp.DeleteCIDGroupsParams{
-		Context:     ctx,
-		CidGroupIds: []string{state.ID.ValueString()},
-	})
+	deleteParams := mssp.NewDeleteUserGroupsParams()
+	deleteParams.Context = ctx
+	deleteParams.UserGroupIds = []string{state.ID.ValueString()}
+
+	_, multi, err := r.client.Mssp.DeleteUserGroups(deleteParams)
 	if err != nil {
 		diag := tferrors.NewDiagnosticFromAPIError(tferrors.Delete, err, apiScopes)
 		if diag.Summary() == tferrors.NotFoundErrorSummary {
@@ -408,7 +388,7 @@ func (r *cidGroupResource) Delete(
 	}
 }
 
-func (r *cidGroupResource) ImportState(
+func (r *userGroupResource) ImportState(
 	ctx context.Context,
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
@@ -416,11 +396,12 @@ func (r *cidGroupResource) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r *cidGroupResource) getCIDGroupByID(ctx context.Context, cidGroupID string) (*models.DomainCIDGroup, diag.Diagnostic) {
-	res, multi, err := r.client.Mssp.GetCIDGroupByIDV2(&mssp.GetCIDGroupByIDV2Params{
-		Context: ctx,
-		Ids:     []string{cidGroupID},
-	})
+func (r *userGroupResource) getUserGroupByID(ctx context.Context, userGroupID string) (*models.DomainUserGroup, diag.Diagnostic) {
+	getParams := mssp.NewGetUserGroupsByIDParams()
+	getParams.Context = ctx
+	getParams.UserGroupIds = []string{userGroupID}
+
+	res, multi, err := r.client.Mssp.GetUserGroupsByID(getParams)
 	if err != nil {
 		return nil, tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopes)
 	}
@@ -440,11 +421,12 @@ func (r *cidGroupResource) getCIDGroupByID(ctx context.Context, cidGroupID strin
 	return res.Payload.Resources[0], nil
 }
 
-func (r *cidGroupResource) getCIDGroupMembers(ctx context.Context, cidGroupID string) ([]string, diag.Diagnostic) {
-	res, multi, err := r.client.Mssp.GetCIDGroupMembersByV2(&mssp.GetCIDGroupMembersByV2Params{
-		Context: ctx,
-		Ids:     []string{cidGroupID},
-	})
+func (r *userGroupResource) getUserGroupMembers(ctx context.Context, userGroupID string) ([]string, diag.Diagnostic) {
+	getMembersParams := mssp.NewGetUserGroupMembersByIDParams()
+	getMembersParams.Context = ctx
+	getMembersParams.UserGroupIds = []string{userGroupID}
+
+	res, multi, err := r.client.Mssp.GetUserGroupMembersByID(getMembersParams)
 	if err != nil {
 		diag := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopes)
 		if diag != nil && diag.Summary() != tferrors.NotFoundErrorSummary {
@@ -459,30 +441,29 @@ func (r *cidGroupResource) getCIDGroupMembers(ctx context.Context, cidGroupID st
 		}
 	}
 
-	var memberCIDs []string
+	var memberUuids []string
 	if res != nil && res.Payload != nil && len(res.Payload.Resources) > 0 {
-		for _, memberGroup := range res.Payload.Resources {
-			if memberGroup != nil {
-				memberCIDs = append(memberCIDs, memberGroup.Cids...)
-			}
+		if res.Payload.Resources[0] != nil {
+			memberUuids = append(memberUuids, res.Payload.Resources[0].UserUuids...)
 		}
 	}
 
-	return memberCIDs, nil
+	return memberUuids, nil
 }
 
-func (r *cidGroupResource) addCIDGroupMembers(ctx context.Context, cidGroupID string, cids []string) diag.Diagnostic {
-	res, multi, err := r.client.Mssp.AddCIDGroupMembers(&mssp.AddCIDGroupMembersParams{
-		Context: ctx,
-		Body: &models.DomainCIDGroupMembersRequestV1{
-			Resources: []*models.DomainCIDGroupMembers{
-				{
-					CidGroupID: &cidGroupID,
-					Cids:       cids,
-				},
+func (r *userGroupResource) addUserGroupMembers(ctx context.Context, userGroupID string, userUuids []string) diag.Diagnostic {
+	addParams := mssp.NewAddUserGroupMembersParams()
+	addParams.Context = ctx
+	addParams.Body = &models.DomainUserGroupMembersRequestV1{
+		Resources: []*models.DomainUserGroupMembers{
+			{
+				UserGroupID: &userGroupID,
+				UserUuids:   userUuids,
 			},
 		},
-	})
+	}
+
+	res, multi, err := r.client.Mssp.AddUserGroupMembers(addParams)
 	if err != nil {
 		return tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, apiScopes)
 	}
@@ -504,18 +485,19 @@ func (r *cidGroupResource) addCIDGroupMembers(ctx context.Context, cidGroupID st
 	return nil
 }
 
-func (r *cidGroupResource) deleteCIDGroupMembers(ctx context.Context, cidGroupID string, cids []string) diag.Diagnostic {
-	res, multi, err := r.client.Mssp.DeleteCIDGroupMembersV2(&mssp.DeleteCIDGroupMembersV2Params{
-		Context: ctx,
-		Body: &models.DomainCIDGroupMembersRequestV1{
-			Resources: []*models.DomainCIDGroupMembers{
-				{
-					CidGroupID: &cidGroupID,
-					Cids:       cids,
-				},
+func (r *userGroupResource) deleteUserGroupMembers(ctx context.Context, userGroupID string, userUuids []string) diag.Diagnostic {
+	deleteParams := mssp.NewDeleteUserGroupMembersParams()
+	deleteParams.Context = ctx
+	deleteParams.Body = &models.DomainUserGroupMembersRequestV1{
+		Resources: []*models.DomainUserGroupMembers{
+			{
+				UserGroupID: &userGroupID,
+				UserUuids:   userUuids,
 			},
 		},
-	})
+	}
+
+	res, multi, err := r.client.Mssp.DeleteUserGroupMembers(deleteParams)
 	if err != nil {
 		return tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, apiScopes)
 	}
@@ -535,4 +517,25 @@ func (r *cidGroupResource) deleteCIDGroupMembers(ctx context.Context, cidGroupID
 	}
 
 	return nil
+}
+
+func (m *userGroupResourceModel) wrap(userGroup *models.DomainUserGroup) {
+	m.ID = types.StringValue(userGroup.UserGroupID)
+	m.Name = types.StringPointerValue(userGroup.Name)
+	m.Description = flex.StringPointerToFramework(userGroup.Description)
+	m.Cid = types.StringValue(userGroup.Cid)
+}
+
+func difference(a, b []string) []string {
+	mb := make(map[string]struct{}, len(b))
+	for _, x := range b {
+		mb[x] = struct{}{}
+	}
+	var diff []string
+	for _, x := range a {
+		if _, found := mb[x]; !found {
+			diff = append(diff, x)
+		}
+	}
+	return diff
 }
