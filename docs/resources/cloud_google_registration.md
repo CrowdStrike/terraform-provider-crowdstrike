@@ -45,8 +45,8 @@ resource "crowdstrike_cloud_google_registration" "example_project" {
 
 
   excluded_project_patterns = [
-    "sys-test-.*",
-    "sys-.*-sandbox$"
+    "test-*",
+    "*-sandbox"
   ]
 
 
@@ -77,7 +77,7 @@ resource "crowdstrike_cloud_google_registration" "example_folder" {
   wif_project_number = "123456789012"
   deployment_method  = "terraform-native"
 
-  excluded_project_patterns = ["sys-.*-dev$"]
+  excluded_project_patterns = ["*-dev"]
 }
 
 resource "crowdstrike_cloud_google_registration" "example_organization" {
@@ -89,8 +89,8 @@ resource "crowdstrike_cloud_google_registration" "example_organization" {
   deployment_method  = "terraform-native"
 
   excluded_project_patterns = [
-    "sys-.*-dev$",
-    "sys-.*-test$"
+    "*-dev",
+    "*-test"
   ]
 }
 
@@ -122,7 +122,7 @@ resource "crowdstrike_cloud_google_registration" "example_infrastructure_manager
 ### Optional
 
 - `deployment_method` (String) The deployment method for the registration. Can be either terraform-native or infrastructure-manager. Defaults to terraform-native
-- `excluded_project_patterns` (List of String) Regex patterns to exclude specific projects from registration. Each pattern must start with 'sys-' (case insensitive)
+- `excluded_project_patterns` (List of String) Wildcard patterns to exclude specific projects from registration. Each pattern must contain only lowercase letters, hyphens, numbers, and wildcard (*). A pattern containing only a wildcard is not valid
 - `folders` (Set of String) Google Cloud folder IDs to register. Each must be numeric. Mutually exclusive with `organization` and `projects`
 - `infrastructure_manager_region` (String) The Google Cloud region for Infrastructure Manager. Required when deployment_method is infrastructure-manager
 - `labels` (Map of String) Google Cloud labels to apply to created resources

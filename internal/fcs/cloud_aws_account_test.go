@@ -12,7 +12,11 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-testing/compare"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -696,6 +700,169 @@ resource "crowdstrike_cloud_aws_account" "test" {
   account_id = %[1]q
 }
 `, accountID)
+}
+
+// TestAccCloudAWSAccount_CloudTrailBucketNameUpdatesOnRegionChange validates that
+// cloudtrail_bucket_name is re-read from the backend when cloudtrail_region changes,
+// rather than preserving the stale state value.
+func TestAccCloudAWSAccount_CloudTrailBucketNameUpdatesOnRegionChange(t *testing.T) {
+	resourceName := "crowdstrike_cloud_aws_account.test"
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+
+	bucketNameChanges := statecheck.CompareValue(compare.ValuesDiffer())
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			// Step 1: Enable realtime visibility in us-east-1, capture bucket name.
+			{
+				Config: testAccCloudAWSAccountConfigRealtimeVisibility(accountID, true, "us-east-1"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "us-east-1"),
+					resource.TestCheckResourceAttrSet(resourceName, "cloudtrail_bucket_name"),
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					bucketNameChanges.AddStateValue(resourceName, tfjsonpath.New("cloudtrail_bucket_name")),
+				},
+			},
+			// Step 2: Change region to us-west-2. The bucket name should be re-read
+			// from the backend (not stale from step 1).
+			{
+				Config: testAccCloudAWSAccountConfigRealtimeVisibility(accountID, true, "us-west-2"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectUnknownValue(resourceName, tfjsonpath.New("cloudtrail_bucket_name")),
+					},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "us-west-2"),
+					resource.TestCheckResourceAttrSet(resourceName, "cloudtrail_bucket_name"),
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					bucketNameChanges.AddStateValue(resourceName, tfjsonpath.New("cloudtrail_bucket_name")),
+				},
+			},
+			// Step 3: Change region again to eu-west-1 to confirm continued refresh.
+			{
+				Config: testAccCloudAWSAccountConfigRealtimeVisibility(accountID, true, "eu-west-1"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectUnknownValue(resourceName, tfjsonpath.New("cloudtrail_bucket_name")),
+					},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "eu-west-1"),
+					resource.TestCheckResourceAttrSet(resourceName, "cloudtrail_bucket_name"),
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					bucketNameChanges.AddStateValue(resourceName, tfjsonpath.New("cloudtrail_bucket_name")),
+				},
+			},
+		},
+	})
+}
+
+// TestAccCloudAWSAccount_UseExistingCloudTrailDefaultsTrue validates that
+// use_existing_cloudtrail defaults to true when not explicitly set, and that
+// the value is preserved across updates (e.g. region changes).
+func TestAccCloudAWSAccount_UseExistingCloudTrailDefaultsTrue(t *testing.T) {
+	resourceName := "crowdstrike_cloud_aws_account.test"
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			// Step 1: Create with use_existing_cloudtrail omitted — should default to true.
+			{
+				Config: testAccCloudAWSAccountConfigDefaultUseExistingCloudTrail(accountID, "us-east-1"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
+				),
+			},
+			// Step 2: Change region while keeping use_existing_cloudtrail omitted.
+			// This verifies the default persists across updates.
+			{
+				Config: testAccCloudAWSAccountConfigDefaultUseExistingCloudTrail(accountID, "us-west-2"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.cloudtrail_region", "us-west-2"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
+				),
+			},
+		},
+	})
+}
+
+// TestAccCloudAWSAccount_UseExistingCloudTrailToggle validates that
+// use_existing_cloudtrail can be toggled from true to false via update.
+func TestAccCloudAWSAccount_UseExistingCloudTrailToggle(t *testing.T) {
+	resourceName := "crowdstrike_cloud_aws_account.test"
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			// Step 1: Create with use_existing_cloudtrail = true.
+			{
+				Config: testAccCloudAWSAccountConfigUseExistingCloudTrail(accountID, "us-east-1", true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
+				),
+			},
+			// Step 2: Toggle to use_existing_cloudtrail = false.
+			{
+				Config: testAccCloudAWSAccountConfigUseExistingCloudTrail(accountID, "us-east-1", false),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "false"),
+				),
+			},
+			// Step 3: Toggle back to use_existing_cloudtrail = true.
+			{
+				Config: testAccCloudAWSAccountConfigUseExistingCloudTrail(accountID, "us-east-1", true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.use_existing_cloudtrail", "true"),
+				),
+			},
+		},
+	})
+}
+
+func testAccCloudAWSAccountConfigUseExistingCloudTrail(accountID, cloudtrailRegion string, useExistingCloudtrail bool) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id   = %[1]q
+  realtime_visibility = {
+    enabled                 = true
+    cloudtrail_region       = %[2]q
+    use_existing_cloudtrail = %[3]t
+  }
+}
+`, accountID, cloudtrailRegion, useExistingCloudtrail)
+}
+
+func testAccCloudAWSAccountConfigDefaultUseExistingCloudTrail(accountID, cloudtrailRegion string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id   = %[1]q
+  realtime_visibility = {
+    enabled           = true
+    cloudtrail_region = %[2]q
+  }
+}
+`, accountID, cloudtrailRegion)
 }
 
 // S3 Log Ingestion test configurations.
