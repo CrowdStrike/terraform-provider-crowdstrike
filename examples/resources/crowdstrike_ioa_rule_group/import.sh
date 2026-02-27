@@ -1,0 +1,1 @@
+terraform import crowdstrike_ioa_rule_group.example abc123
