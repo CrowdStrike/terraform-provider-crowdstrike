@@ -97,7 +97,7 @@ resource "crowdstrike_cloud_security_kac_custom_rule" "privileged_container_dete
   name        = "detect-privileged-containers"
   description = "Detects containers configured to run in privileged mode"
   severity    = "critical"
-  logic       = file("../rego/detect-host-network-usage.rego")
+  logic       = file("../rego/detect-privileged-container.rego")
   remediation_info = [
     "Review the pod specification",
     "Remove or set securityContext.privileged to false",
