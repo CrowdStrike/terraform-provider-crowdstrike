@@ -53,7 +53,7 @@ result := message if {
 #########################################################################################
 
 violations contains message if {
-	some cntr in nput.request.object.spec.containers
+	some cntr in input.request.object.spec.containers
 	cntr.securityContext.privileged
 	message = sprintf("container: %v", [cntr.name])
 }
@@ -104,16 +104,16 @@ violations contains message if {
 EOF
   remediation_info = [
     "Review the pod specification",
-    "Remove or set hostNetwork to false",
-    "Use Kubernetes services for network connectivity instead"
+    "Remove or set securityContext.privileged to false",
+    "Run containers with minimum required privileges"
   ]
   alert_info = [
-    "Pod is configured to use the host network namespace",
-    "This grants the pod access to the host's network interfaces"
+    "Container is configured to run in privileged mode",
+    "This grants the container unrestricted access to host resources"
   ]
   attack_types = [
-    "Network Attack",
-    "Lateral Movement"
+    "Privilege Escalation",
+    "Container Escape"
   ]
 }
 
@@ -124,16 +124,16 @@ resource "crowdstrike_cloud_security_kac_custom_rule" "privileged_container_dete
   logic       = file("../rego/detect-host-network-usage.rego")
   remediation_info = [
     "Review the pod specification",
-    "Remove or set hostNetwork to false",
-    "Use Kubernetes services for network connectivity instead"
+    "Remove or set securityContext.privileged to false",
+    "Run containers with minimum required privileges"
   ]
   alert_info = [
-    "Pod is configured to use the host network namespace",
-    "This grants the pod access to the host's network interfaces"
+    "Container is configured to run in privileged mode",
+    "This grants the container unrestricted access to host resources"
   ]
   attack_types = [
-    "Network Attack",
-    "Lateral Movement"
+    "Privilege Escalation",
+    "Container Escape"
   ]
 }
 ```
