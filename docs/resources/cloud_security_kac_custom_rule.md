@@ -34,9 +34,9 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
-resource "crowdstrike_cloud_security_kac_custom_rule" "host_network_detection" {
-  name        = "detect-host-network-usage"
-  description = "Detects pods using host network namespace"
+resource "crowdstrike_cloud_security_kac_custom_rule" "privileged_container_detection" {
+  name        = "detect-privileged-containers"
+  description = "Detects containers configured to run in privileged mode"
   severity    = "critical"
   logic       = <<EOF
 package crowdstrike
@@ -117,9 +117,9 @@ EOF
   ]
 }
 
-resource "crowdstrike_cloud_security_kac_custom_rule" "host_network_detection_by_file" {
-  name        = "detect-host-network-usage-by-file"
-  description = "Detects pods using host network namespace"
+resource "crowdstrike_cloud_security_kac_custom_rule" "privileged_container_detection_by_file" {
+  name        = "detect-privileged-containers"
+  description = "Detects containers configured to run in privileged mode"
   severity    = "critical"
   logic       = file("../rego/detect-host-network-usage.rego")
   remediation_info = [
