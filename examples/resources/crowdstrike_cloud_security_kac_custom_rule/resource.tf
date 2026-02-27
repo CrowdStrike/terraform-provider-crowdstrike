@@ -10,13 +10,10 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
-resource "crowdstrike_cloud_security_kac_custom_rule" "privileged_container_detection" {
-  name        = "detect-privileged-containers"
-  description = "Detects containers configured to run in privileged mode"
+resource "crowdstrike_cloud_security_kac_custom_rule" "host_network_detection" {
+  name        = "detect-host-network-usage"
+  description = "Detects pods using host network namespace"
   severity    = "critical"
-  domain      = "Runtime"
-  subdomain   = "IOM"
-  platform    = "Kubernetes"
   logic       = <<EOF
 package crowdstrike
 
@@ -80,7 +77,6 @@ violations contains message if {
 	cntr.securityContext.privileged
 	message = sprintf("initContainer: %v", [cntr.name])
 }
-
 EOF
   remediation_info = [
     "Review the pod specification",
@@ -101,9 +97,6 @@ resource "crowdstrike_cloud_security_kac_custom_rule" "host_network_detection_by
   name        = "detect-host-network-usage-by-file"
   description = "Detects pods using host network namespace"
   severity    = "critical"
-  domain      = "Runtime"
-  subdomain   = "IOM"
-  platform    = "Kubernetes"
   logic       = file("../rego/detect-host-network-usage.rego")
   remediation_info = [
     "Review the pod specification",
