@@ -14,9 +14,6 @@ resource "crowdstrike_cloud_security_kac_custom_rule" "privileged_container_dete
   name        = "detect-privileged-containers"
   description = "Detects containers configured to run in privileged mode"
   severity    = "critical"
-  domain      = "Runtime"
-  subdomain   = "IOM"
-  platform    = "Kubernetes"
   logic       = <<EOF
 package crowdstrike
 
@@ -32,7 +29,7 @@ result := message if {
 #########################################################################################
 
 violations contains message if {
-	some cntr in nput.request.object.spec.containers
+	some cntr in input.request.object.spec.containers
 	cntr.securityContext.privileged
 	message = sprintf("container: %v", [cntr.name])
 }
@@ -80,42 +77,38 @@ violations contains message if {
 	cntr.securityContext.privileged
 	message = sprintf("initContainer: %v", [cntr.name])
 }
-
 EOF
   remediation_info = [
     "Review the pod specification",
-    "Remove or set hostNetwork to false",
-    "Use Kubernetes services for network connectivity instead"
+    "Remove or set securityContext.privileged to false",
+    "Run containers with minimum required privileges"
   ]
   alert_info = [
-    "Pod is configured to use the host network namespace",
-    "This grants the pod access to the host's network interfaces"
+    "Container is configured to run in privileged mode",
+    "This grants the container unrestricted access to host resources"
   ]
   attack_types = [
-    "Network Attack",
-    "Lateral Movement"
+    "Privilege Escalation",
+    "Container Escape"
   ]
 }
 
-resource "crowdstrike_cloud_security_kac_custom_rule" "host_network_detection_by_file" {
-  name        = "detect-host-network-usage-by-file"
-  description = "Detects pods using host network namespace"
+resource "crowdstrike_cloud_security_kac_custom_rule" "privileged_container_detection_by_file" {
+  name        = "detect-privileged-containers"
+  description = "Detects containers configured to run in privileged mode"
   severity    = "critical"
-  domain      = "Runtime"
-  subdomain   = "IOM"
-  platform    = "Kubernetes"
-  logic       = file("../rego/detect-host-network-usage.rego")
+  logic       = file("../rego/detect-privileged-container.rego")
   remediation_info = [
     "Review the pod specification",
-    "Remove or set hostNetwork to false",
-    "Use Kubernetes services for network connectivity instead"
+    "Remove or set securityContext.privileged to false",
+    "Run containers with minimum required privileges"
   ]
   alert_info = [
-    "Pod is configured to use the host network namespace",
-    "This grants the pod access to the host's network interfaces"
+    "Container is configured to run in privileged mode",
+    "This grants the container unrestricted access to host resources"
   ]
   attack_types = [
-    "Network Attack",
-    "Lateral Movement"
+    "Privilege Escalation",
+    "Container Escape"
   ]
 }
