@@ -3,6 +3,8 @@ package cloudsecurity
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon"
@@ -53,6 +55,23 @@ var (
 		"1": SeverityHigh,
 		"2": SeverityMedium,
 		"3": SeverityInformational,
+	}
+	suppressionRuleSubdomainDefault = "IOM"
+	suppressionRuleDomainDefault    = "CSPM"
+	suppressionRuleReasonValues     = []string{
+		"accept-risk",
+		"compensating-control",
+		"false-positive",
+	}
+	ruleSeverityValues = []string{
+		SeverityCritical,
+		SeverityHigh,
+		SeverityMedium,
+		SeverityInformational,
+	}
+	ruleOriginValues = []string{
+		"Custom",
+		"Default",
 	}
 )
 
@@ -250,4 +269,15 @@ func deleteCloudPolicyRule(client *client.CrowdStrikeAPISpecification, params cl
 	}
 
 	return diags
+}
+
+// GetPageLimit returns the page limit for API requests. It checks the TF_CROWDSTRIKE_PAGE_LIMIT
+// environment variable and falls back to 100 if not set or invalid.
+func GetPageLimit() int64 {
+	if envLimit := os.Getenv("TF_CROWDSTRIKE_PAGE_LIMIT"); envLimit != "" {
+		if limit, err := strconv.ParseInt(envLimit, 10, 64); err == nil && limit > 0 {
+			return limit
+		}
+	}
+	return 100
 }
