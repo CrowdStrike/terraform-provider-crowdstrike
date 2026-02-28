@@ -280,6 +280,12 @@ func (r *dataProtectionSensitivityLabelResource) Read(
 		return
 	}
 
+	if res.Payload.Resources[0].Deleted != nil && *res.Payload.Resources[0].Deleted {
+		resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
 	state.wrap(*res.Payload.Resources[0])
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
