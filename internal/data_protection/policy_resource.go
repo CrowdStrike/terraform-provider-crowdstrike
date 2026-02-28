@@ -622,6 +622,11 @@ func (r *dataProtectionPolicyResource) Read(
 	}
 
 	if diag := dataProtectionPolicyPayloadDiagnostic(tferrors.Read, res.Payload.Errors); diag != nil {
+		if diag.Summary() == tferrors.NotFoundErrorSummary {
+			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.Append(diag)
 		return
 	}

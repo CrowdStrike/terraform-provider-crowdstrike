@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -108,5 +109,47 @@ func TestDataProtectionPolicyResourceModelWrapAndExpand(t *testing.T) {
 	}
 	if expanded.EujHeaderText == nil || len(expanded.EujHeaderText.Headers) != 1 {
 		t.Fatal("expected one expanded header entry")
+	}
+}
+
+func TestDataProtectionPolicyPayloadDiagnostic_NotFound(t *testing.T) {
+	errCode := int32(404)
+	errMessage := "policy not found"
+
+	diag := dataProtectionPolicyPayloadDiagnostic(tferrors.Read, []*models.PolicymanagerError{
+		{
+			Code:    &errCode,
+			Message: &errMessage,
+		},
+	})
+	if diag == nil {
+		t.Fatal("expected diagnostic for payload 404")
+	}
+	if diag.Summary() != tferrors.NotFoundErrorSummary {
+		t.Fatalf("expected summary %q, got %q", tferrors.NotFoundErrorSummary, diag.Summary())
+	}
+	if diag.Detail() != errMessage {
+		t.Fatalf("expected detail %q, got %q", errMessage, diag.Detail())
+	}
+}
+
+func TestDataProtectionPolicyPayloadDiagnostic_NonNotFound(t *testing.T) {
+	errCode := int32(400)
+	errMessage := "bad request"
+
+	diag := dataProtectionPolicyPayloadDiagnostic(tferrors.Update, []*models.PolicymanagerError{
+		{
+			Code:    &errCode,
+			Message: &errMessage,
+		},
+	})
+	if diag == nil {
+		t.Fatal("expected diagnostic for payload error")
+	}
+	if diag.Summary() != "Failed to update" {
+		t.Fatalf("expected summary %q, got %q", "Failed to update", diag.Summary())
+	}
+	if diag.Detail() != errMessage {
+		t.Fatalf("expected detail %q, got %q", errMessage, diag.Detail())
 	}
 }
