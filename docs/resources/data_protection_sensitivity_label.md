@@ -22,6 +22,18 @@ The following API scopes are required:
 ## Example Usage
 
 ```terraform
+terraform {
+  required_providers {
+    crowdstrike = {
+      source = "registry.terraform.io/crowdstrike/crowdstrike"
+    }
+  }
+}
+
+provider "crowdstrike" {
+  cloud = "us-2"
+}
+
 resource "crowdstrike_data_protection_sensitivity_label" "confidential" {
   name                     = "confidential"
   display_name             = "Confidential"
@@ -38,13 +50,16 @@ resource "crowdstrike_data_protection_sensitivity_label" "confidential" {
 
 ### Required
 
-- `co_authoring` (Boolean) Whether co-authoring is enabled for the sensitivity label.
-- `display_name` (String) Human-readable display name of the sensitivity label.
-- `external_id` (String) External identifier for the sensitivity label in the upstream label provider.
 - `label_provider` (String) Source system that provides the sensitivity label.
 - `name` (String) Canonical name of the sensitivity label.
-- `plugins_configuration_id` (String) Plugin configuration identifier associated with the sensitivity label provider.
 - `synced` (Boolean) Whether the sensitivity label is synchronized from the upstream label provider.
+
+### Optional
+
+- `co_authoring` (Boolean) Whether co-authoring is enabled for the sensitivity label.
+- `display_name` (String) Human-readable display name of the sensitivity label. When omitted, the API falls back to the label name.
+- `external_id` (String) External identifier for the sensitivity label in the upstream label provider.
+- `plugins_configuration_id` (String) Plugin configuration identifier associated with the sensitivity label provider.
 
 ### Read-Only
 

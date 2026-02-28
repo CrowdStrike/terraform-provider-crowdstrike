@@ -13,6 +13,8 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -24,9 +26,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = &dataProtectionSensitivityLabelResource{}
-	_ resource.ResourceWithConfigure   = &dataProtectionSensitivityLabelResource{}
-	_ resource.ResourceWithImportState = &dataProtectionSensitivityLabelResource{}
+	_ resource.Resource                   = &dataProtectionSensitivityLabelResource{}
+	_ resource.ResourceWithConfigure      = &dataProtectionSensitivityLabelResource{}
+	_ resource.ResourceWithImportState    = &dataProtectionSensitivityLabelResource{}
+	_ resource.ResourceWithValidateConfig = &dataProtectionSensitivityLabelResource{}
 )
 
 var sensitivityLabelResourceRequiredScopes = []scopes.Scope{
@@ -121,8 +124,9 @@ func (r *dataProtectionSensitivityLabelResource) Schema(
 				},
 			},
 			"display_name": schema.StringAttribute{
-				Required:    true,
-				Description: "Human-readable display name of the sensitivity label.",
+				Optional:    true,
+				Computed:    true,
+				Description: "Human-readable display name of the sensitivity label. When omitted, the API falls back to the label name.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -131,7 +135,7 @@ func (r *dataProtectionSensitivityLabelResource) Schema(
 				},
 			},
 			"external_id": schema.StringAttribute{
-				Required:    true,
+				Optional:    true,
 				Description: "External identifier for the sensitivity label in the upstream label provider.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -148,10 +152,11 @@ func (r *dataProtectionSensitivityLabelResource) Schema(
 				},
 				Validators: []validator.String{
 					fwvalidators.StringNotWhitespace(),
+					stringvalidator.OneOf("microsoft", "google"),
 				},
 			},
 			"plugins_configuration_id": schema.StringAttribute{
-				Required:    true,
+				Optional:    true,
 				Description: "Plugin configuration identifier associated with the sensitivity label provider.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -161,7 +166,7 @@ func (r *dataProtectionSensitivityLabelResource) Schema(
 				},
 			},
 			"co_authoring": schema.BoolAttribute{
-				Required:    true,
+				Optional:    true,
 				Description: "Whether co-authoring is enabled for the sensitivity label.",
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.RequiresReplace(),
@@ -200,15 +205,7 @@ func (r *dataProtectionSensitivityLabelResource) Create(
 		return
 	}
 
-	createRequest := &models.APISensitivityLabelCreateRequestV2{
-		CoAuthoring:            plan.CoAuthoring.ValueBoolPointer(),
-		DisplayName:            plan.DisplayName.ValueStringPointer(),
-		ExternalID:             plan.ExternalID.ValueStringPointer(),
-		LabelProvider:          plan.LabelProvider.ValueStringPointer(),
-		Name:                   plan.Name.ValueStringPointer(),
-		PluginsConfigurationID: plan.PluginsConfigurationID.ValueStringPointer(),
-		Synced:                 plan.Synced.ValueBoolPointer(),
-	}
+	createRequest := buildSensitivityLabelCreateRequest(plan)
 
 	params := data_protection_configuration.NewEntitiesSensitivityLabelCreateV2Params().
 		WithContext(ctx).
@@ -337,6 +334,90 @@ func (r *dataProtectionSensitivityLabelResource) ImportState(
 	resp *resource.ImportStateResponse,
 ) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+func (r *dataProtectionSensitivityLabelResource) ValidateConfig(
+	ctx context.Context,
+	req resource.ValidateConfigRequest,
+	resp *resource.ValidateConfigResponse,
+) {
+	var config dataProtectionSensitivityLabelResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(validateSensitivityLabelConfig(config)...)
+}
+
+func validateSensitivityLabelConfig(
+	config dataProtectionSensitivityLabelResourceModel,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if config.Synced.IsNull() || config.Synced.IsUnknown() {
+		return diags
+	}
+
+	if config.Synced.ValueBool() {
+		if !utils.IsKnown(config.ExternalID) {
+			diags.AddAttributeError(
+				path.Root("external_id"),
+				"Missing Required Attribute for Synced Label",
+				"`external_id` must be set when `synced = true`.",
+			)
+		}
+
+		if !utils.IsKnown(config.PluginsConfigurationID) {
+			diags.AddAttributeError(
+				path.Root("plugins_configuration_id"),
+				"Missing Required Attribute for Synced Label",
+				"`plugins_configuration_id` must be set when `synced = true`.",
+			)
+		}
+
+		return diags
+	}
+
+	if utils.IsKnown(config.ExternalID) {
+		diags.AddAttributeError(
+			path.Root("external_id"),
+			"Invalid Attribute for Standard Label",
+			"`external_id` must not be set when `synced = false`.",
+		)
+	}
+
+	if utils.IsKnown(config.PluginsConfigurationID) {
+		diags.AddAttributeError(
+			path.Root("plugins_configuration_id"),
+			"Invalid Attribute for Standard Label",
+			"`plugins_configuration_id` must not be set when `synced = false`.",
+		)
+	}
+
+	if utils.IsKnown(config.CoAuthoring) {
+		diags.AddAttributeError(
+			path.Root("co_authoring"),
+			"Invalid Attribute for Standard Label",
+			"`co_authoring` must not be set when `synced = false`.",
+		)
+	}
+
+	return diags
+}
+
+func buildSensitivityLabelCreateRequest(
+	plan dataProtectionSensitivityLabelResourceModel,
+) *models.APISensitivityLabelCreateRequestV2 {
+	return &models.APISensitivityLabelCreateRequestV2{
+		CoAuthoring:            utils.Addr(plan.CoAuthoring.ValueBool()),
+		DisplayName:            flex.FrameworkToStringPointer(plan.DisplayName),
+		ExternalID:             flex.FrameworkToStringPointer(plan.ExternalID),
+		LabelProvider:          utils.Addr(plan.LabelProvider.ValueString()),
+		Name:                   utils.Addr(plan.Name.ValueString()),
+		PluginsConfigurationID: flex.FrameworkToStringPointer(plan.PluginsConfigurationID),
+		Synced:                 utils.Addr(plan.Synced.ValueBool()),
+	}
 }
 
 func (m *dataProtectionSensitivityLabelResourceModel) wrap(
