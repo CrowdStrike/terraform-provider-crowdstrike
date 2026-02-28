@@ -64,7 +64,7 @@ func sweepMLExclusions(
 		}
 
 		name := *exclusion.Value
-		if !strings.Contains(name, sweep.ResourcePrefix) {
+		if !isMLExclusionSweepableTestPattern(name) {
 			sweep.Trace("Skipping ML exclusion %s (not a test resource)", name)
 			continue
 		}
@@ -77,6 +77,21 @@ func sweepMLExclusions(
 	}
 
 	return sweepables, nil
+}
+
+func isMLExclusionSweepableTestPattern(value string) bool {
+	const (
+		testPrefix = "/tmp/" + sweep.ResourcePrefix
+		testSuffix = "/*"
+	)
+
+	if !strings.HasPrefix(value, testPrefix) || !strings.HasSuffix(value, testSuffix) {
+		return false
+	}
+
+	name := strings.TrimSuffix(strings.TrimPrefix(value, testPrefix), testSuffix)
+
+	return name != "" && !strings.Contains(name, "/")
 }
 
 func deleteMLExclusion(
