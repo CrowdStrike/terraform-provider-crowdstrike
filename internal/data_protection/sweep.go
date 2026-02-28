@@ -103,17 +103,7 @@ func deleteDataProtectionPolicy(ctx context.Context, client *client.CrowdStrikeA
 	platformName, id, err := decodeDataProtectionPolicySweepID(resourceID)
 	if err != nil {
 		if !strings.Contains(resourceID, ":") {
-			for _, fallbackPlatform := range []string{"win", "mac"} {
-				params := data_protection_configuration.NewEntitiesPolicyDeleteV2Params()
-				params.WithContext(ctx)
-				params.Ids = []string{resourceID}
-				params.PlatformName = fallbackPlatform
-
-				_, deleteErr := client.DataProtectionConfiguration.EntitiesPolicyDeleteV2(params)
-				if deleteErr == nil || sweep.ShouldIgnoreError(deleteErr) {
-					return nil
-				}
-			}
+			return deleteDataProtectionPolicyLegacyID(ctx, client, resourceID)
 		}
 		return err
 	}
@@ -133,4 +123,35 @@ func deleteDataProtectionPolicy(ctx context.Context, client *client.CrowdStrikeA
 	}
 
 	return nil
+}
+
+func deleteDataProtectionPolicyLegacyID(ctx context.Context, client *client.CrowdStrikeAPISpecification, resourceID string) error {
+	return tryDeleteDataProtectionPolicyAcrossPlatforms(resourceID, func(fallbackPlatform string) error {
+		params := data_protection_configuration.NewEntitiesPolicyDeleteV2Params()
+		params.WithContext(ctx)
+		params.Ids = []string{resourceID}
+		params.PlatformName = fallbackPlatform
+
+		_, deleteErr := client.DataProtectionConfiguration.EntitiesPolicyDeleteV2(params)
+		return deleteErr
+	})
+}
+
+func tryDeleteDataProtectionPolicyAcrossPlatforms(resourceID string, deleteFunc func(platform string) error) error {
+	var lastError error
+
+	for _, fallbackPlatform := range []string{"win", "mac"} {
+		deleteErr := deleteFunc(fallbackPlatform)
+		if deleteErr == nil {
+			return nil
+		}
+		if sweep.ShouldIgnoreError(deleteErr) {
+			sweep.Debug("Ignoring error for data protection policy %s on platform %s: %s", resourceID, fallbackPlatform, deleteErr)
+			continue
+		}
+
+		lastError = deleteErr
+	}
+
+	return lastError
 }
