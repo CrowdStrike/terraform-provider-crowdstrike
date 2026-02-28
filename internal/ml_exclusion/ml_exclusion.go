@@ -421,7 +421,7 @@ func (r *mlExclusionResource) Delete(
 	}
 
 	if deleteResp != nil && deleteResp.Payload != nil {
-		if payloadHasErrorCode(deleteResp.Payload.Errors, 404) {
+		if payloadHasNotFoundError(deleteResp.Payload.Errors) {
 			return
 		}
 
@@ -481,7 +481,7 @@ func (r *mlExclusionResource) ValidateConfig(
 	}
 }
 
-func buildExcludedFrom(excludeDetections bool, excludeUploads bool) []string {
+func buildExcludedFrom(excludeDetections, excludeUploads bool) []string {
 	excludedFrom := make([]string, 0, 2)
 	if excludeDetections {
 		excludedFrom = append(excludedFrom, mlExcludedFromBlocking)

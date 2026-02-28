@@ -56,21 +56,21 @@ func TestBuildExcludedFrom(t *testing.T) {
 	}
 }
 
-func TestPayloadHasErrorCode(t *testing.T) {
+func TestPayloadHasNotFoundError(t *testing.T) {
 	t.Parallel()
 
-	assert.True(t, payloadHasErrorCode([]*models.MsaAPIError{
+	assert.True(t, payloadHasNotFoundError([]*models.MsaAPIError{
 		{Code: utils.Addr(int32(404))},
-	}, 404))
+	}))
 
-	assert.False(t, payloadHasErrorCode([]*models.MsaAPIError{
+	assert.False(t, payloadHasNotFoundError([]*models.MsaAPIError{
 		{Code: utils.Addr(int32(400))},
-	}, 404))
+	}))
 
-	assert.False(t, payloadHasErrorCode([]*models.MsaAPIError{
+	assert.False(t, payloadHasNotFoundError([]*models.MsaAPIError{
 		nil,
 		{Code: nil},
-	}, 404))
+	}))
 }
 
 func TestMLExclusionWrap(t *testing.T) {

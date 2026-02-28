@@ -36,7 +36,7 @@ func getMLExclusion(
 		return nil, diags
 	}
 
-	if payloadHasErrorCode(getResp.Payload.Errors, 404) {
+	if payloadHasNotFoundError(getResp.Payload.Errors) {
 		diags.Append(
 			tferrors.NewNotFoundError(
 				fmt.Sprintf("ML exclusion with ID %s was not found.", exclusionID),
@@ -62,13 +62,13 @@ func getMLExclusion(
 	return getResp.Payload.Resources[0], diags
 }
 
-func payloadHasErrorCode(payloadErrors []*models.MsaAPIError, expectedCode int32) bool {
+func payloadHasNotFoundError(payloadErrors []*models.MsaAPIError) bool {
 	for _, payloadError := range payloadErrors {
 		if payloadError == nil || payloadError.Code == nil {
 			continue
 		}
 
-		if *payloadError.Code == expectedCode {
+		if *payloadError.Code == 404 {
 			return true
 		}
 	}
