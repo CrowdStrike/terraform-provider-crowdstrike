@@ -19,7 +19,6 @@ func TestTryDeleteDataProtectionPolicyAcrossPlatforms_IgnoreThenSuccess(t *testi
 
 		return nil
 	})
-
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -35,7 +34,6 @@ func TestTryDeleteDataProtectionPolicyAcrossPlatforms_AllIgnored(t *testing.T) {
 		calledPlatforms = append(calledPlatforms, platform)
 		return data_protection_configuration.NewEntitiesPolicyDeleteV2NotFound()
 	})
-
 	if err != nil {
 		t.Fatalf("expected nil error when all delete errors are ignored, got %v", err)
 	}
@@ -72,7 +70,6 @@ func TestTryDeleteDataProtectionPolicyAcrossPlatforms_ContinueAfterNonIgnorableO
 
 		return nil
 	})
-
 	if err != nil {
 		t.Fatalf("expected nil error when second platform succeeds, got %v", err)
 	}
