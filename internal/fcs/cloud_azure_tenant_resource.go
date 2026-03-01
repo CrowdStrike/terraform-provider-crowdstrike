@@ -320,9 +320,9 @@ func (m *cloudAzureTenantModel) wrap(
 	if m.RealtimeVisibility.IsNull() {
 		m.RealtimeVisibility = types.ObjectNull((&realtimeVisibilityModel{}).AttributeTypes())
 	} else {
-		rtvModel := realtimeVisibilityModel{}
-		rtvModel.Enabled = types.BoolValue(hasIOA)
-		rtvObj, d := rtvModel.ToObject(ctx)
+		rtv := realtimeVisibilityModel{}
+		rtv.Enabled = types.BoolValue(hasIOA)
+		rtvObj, d := rtv.ToObject(ctx)
 		diags.Append(d...)
 		m.RealtimeVisibility = rtvObj
 	}
