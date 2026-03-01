@@ -24,6 +24,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 var (
@@ -78,28 +79,56 @@ func (r *cloudAzureTenantResource) Metadata(
 }
 
 type cloudAzureTenantModel struct {
-	AccountType                 types.String        `tfsdk:"account_type"`
-	AppRegistrationId           types.String        `tfsdk:"cs_azure_client_id"`
-	CsInfraRegion               types.String        `tfsdk:"cs_infra_location"`
-	CsInfraSubscriptionId       types.String        `tfsdk:"cs_infra_subscription_id"`
-	Environment                 types.String        `tfsdk:"environment"`
-	ManagementGroupIds          types.List          `tfsdk:"management_group_ids"`
-	MicrosoftGraphPermissionIds types.List          `tfsdk:"microsoft_graph_permission_ids"`
-	ResourceNamePrefix          types.String        `tfsdk:"resource_name_prefix"`
-	ResourceNameSuffix          types.String        `tfsdk:"resource_name_suffix"`
-	SubscriptionIds             types.List          `tfsdk:"subscription_ids"`
-	Tags                        types.Map           `tfsdk:"tags"`
-	TenantId                    types.String        `tfsdk:"tenant_id"`
-	RealtimeVisibility          *realtimeVisibility `tfsdk:"realtime_visibility"`
-	DSPM                        *dspm               `tfsdk:"dspm"`
+	AccountType                 types.String `tfsdk:"account_type"`
+	AppRegistrationId           types.String `tfsdk:"cs_azure_client_id"`
+	CsInfraRegion               types.String `tfsdk:"cs_infra_location"`
+	CsInfraSubscriptionId       types.String `tfsdk:"cs_infra_subscription_id"`
+	Environment                 types.String `tfsdk:"environment"`
+	ManagementGroupIds          types.List   `tfsdk:"management_group_ids"`
+	MicrosoftGraphPermissionIds types.List   `tfsdk:"microsoft_graph_permission_ids"`
+	ResourceNamePrefix          types.String `tfsdk:"resource_name_prefix"`
+	ResourceNameSuffix          types.String `tfsdk:"resource_name_suffix"`
+	SubscriptionIds             types.List   `tfsdk:"subscription_ids"`
+	Tags                        types.Map    `tfsdk:"tags"`
+	TenantId                    types.String `tfsdk:"tenant_id"`
+	RealtimeVisibility          types.Object `tfsdk:"realtime_visibility"`
+	DSPM                        types.Object `tfsdk:"dspm"`
 }
 
-type realtimeVisibility struct {
+type realtimeVisibilityModel struct {
 	Enabled types.Bool `tfsdk:"enabled"`
 }
 
-type dspm struct {
+func (r *realtimeVisibilityModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled": types.BoolType,
+	}
+}
+
+func (r *realtimeVisibilityModel) ToObject(ctx context.Context) (types.Object, diag.Diagnostics) {
+	return types.ObjectValueFrom(ctx, r.AttributeTypes(), r)
+}
+
+func (r *realtimeVisibilityModel) FromObject(ctx context.Context, obj types.Object) diag.Diagnostics {
+	return obj.As(ctx, r, basetypes.ObjectAsOptions{})
+}
+
+type dspmModel struct {
 	Enabled types.Bool `tfsdk:"enabled"`
+}
+
+func (r *dspmModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled": types.BoolType,
+	}
+}
+
+func (r *dspmModel) ToObject(ctx context.Context) (types.Object, diag.Diagnostics) {
+	return types.ObjectValueFrom(ctx, r.AttributeTypes(), r)
+}
+
+func (r *dspmModel) FromObject(ctx context.Context, obj types.Object) diag.Diagnostics {
+	return obj.As(ctx, r, basetypes.ObjectAsOptions{})
 }
 
 func (r *cloudAzureTenantResource) Schema(
@@ -273,27 +302,39 @@ func (m *cloudAzureTenantModel) wrap(
 	m.MicrosoftGraphPermissionIds = graphPermissionIDs
 	m.Tags = tags
 
-	if m.RealtimeVisibility == nil {
-		m.RealtimeVisibility = &realtimeVisibility{}
-	}
-	m.RealtimeVisibility.Enabled = types.BoolValue(false)
-
-	if m.DSPM == nil {
-		m.DSPM = &dspm{}
-	}
-	m.DSPM.Enabled = types.BoolValue(false)
-
+	hasIOA := false
+	hasDSPM := false
 	for _, product := range registration.Products {
 		if *product.Product == "cspm" {
 			for _, feature := range product.Features {
 				switch feature {
 				case "ioa":
-					m.RealtimeVisibility.Enabled = types.BoolValue(true)
+					hasIOA = true
 				case "dspm":
-					m.DSPM.Enabled = types.BoolValue(true)
+					hasDSPM = true
 				}
 			}
 		}
+	}
+
+	if m.RealtimeVisibility.IsNull() {
+		m.RealtimeVisibility = types.ObjectNull((&realtimeVisibilityModel{}).AttributeTypes())
+	} else {
+		rtvModel := realtimeVisibilityModel{}
+		rtvModel.Enabled = types.BoolValue(hasIOA)
+		rtvObj, d := rtvModel.ToObject(ctx)
+		diags.Append(d...)
+		m.RealtimeVisibility = rtvObj
+	}
+
+	if m.DSPM.IsNull() {
+		m.DSPM = types.ObjectNull((&dspmModel{}).AttributeTypes())
+	} else {
+		dspm := dspmModel{}
+		dspm.Enabled = types.BoolValue(hasDSPM)
+		dspmObj, d := dspm.ToObject(ctx)
+		diags.Append(d...)
+		m.DSPM = dspmObj
 	}
 
 	return diags
@@ -549,12 +590,26 @@ func (r *cloudAzureTenantResource) createRegistration(
 		Features: []string{"iom"},
 	}
 
-	if data.RealtimeVisibility != nil && data.RealtimeVisibility.Enabled.ValueBool() {
-		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "ioa")
+	if !data.RealtimeVisibility.IsNull() {
+		var rtv realtimeVisibilityModel
+		diags.Append(rtv.FromObject(ctx, data.RealtimeVisibility)...)
+		if diags.HasError() {
+			return nil, diags
+		}
+		if rtv.Enabled.ValueBool() {
+			cspmProductFeatures.Features = append(cspmProductFeatures.Features, "ioa")
+		}
 	}
 
-	if data.DSPM != nil && data.DSPM.Enabled.ValueBool() {
-		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "dspm")
+	if !data.DSPM.IsNull() {
+		var dspm dspmModel
+		diags.Append(dspm.FromObject(ctx, data.DSPM)...)
+		if diags.HasError() {
+			return nil, diags
+		}
+		if dspm.Enabled.ValueBool() {
+			cspmProductFeatures.Features = append(cspmProductFeatures.Features, "dspm")
+		}
 	}
 
 	params := cloud_azure_registration.CloudRegistrationAzureCreateRegistrationParams{
@@ -618,12 +673,26 @@ func (r *cloudAzureTenantResource) updateRegistration(
 		Features: []string{"iom"},
 	}
 
-	if data.RealtimeVisibility != nil && data.RealtimeVisibility.Enabled.ValueBool() {
-		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "ioa")
+	if !data.RealtimeVisibility.IsNull() {
+		var rtv realtimeVisibilityModel
+		diags.Append(rtv.FromObject(ctx, data.RealtimeVisibility)...)
+		if diags.HasError() {
+			return nil, diags
+		}
+		if rtv.Enabled.ValueBool() {
+			cspmProductFeatures.Features = append(cspmProductFeatures.Features, "ioa")
+		}
 	}
 
-	if data.DSPM != nil && data.DSPM.Enabled.ValueBool() {
-		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "dspm")
+	if !data.DSPM.IsNull() {
+		var dspm dspmModel
+		diags.Append(dspm.FromObject(ctx, data.DSPM)...)
+		if diags.HasError() {
+			return nil, diags
+		}
+		if dspm.Enabled.ValueBool() {
+			cspmProductFeatures.Features = append(cspmProductFeatures.Features, "dspm")
+		}
 	}
 
 	params := cloud_azure_registration.CloudRegistrationAzureUpdateRegistrationParams{
