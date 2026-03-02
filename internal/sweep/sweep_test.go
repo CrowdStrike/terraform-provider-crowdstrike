@@ -12,6 +12,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
+	installtoken "github.com/crowdstrike/terraform-provider-crowdstrike/internal/install_token"
 	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
 	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
@@ -28,6 +29,7 @@ func TestMain(m *testing.M) {
 
 func registerSweepers() {
 	hostgroups.RegisterSweepers()
+	installtoken.RegisterSweepers()
 	preventionpolicy.RegisterSweepers()
 	sensorupdatepolicy.RegisterSweepers()
 	contentupdatepolicy.RegisterSweepers()
