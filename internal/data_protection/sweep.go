@@ -3,6 +3,7 @@ package dataprotection
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/data_protection_configuration"
@@ -12,6 +13,7 @@ import (
 
 func RegisterSweepers() {
 	sweep.Register("crowdstrike_data_protection_content_pattern", sweepDataProtectionContentPatterns)
+	sweep.Register("crowdstrike_data_protection_policy", sweepDataProtectionPolicies)
 }
 
 func sweepDataProtectionContentPatterns(ctx context.Context, client *client.CrowdStrikeAPISpecification) ([]sweep.Sweepable, error) {
@@ -60,4 +62,96 @@ func deleteDataProtectionContentPattern(ctx context.Context, client *client.Crow
 	}
 
 	return nil
+}
+
+func sweepDataProtectionPolicies(ctx context.Context, client *client.CrowdStrikeAPISpecification) ([]sweep.Sweepable, error) {
+	var sweepables []sweep.Sweepable
+
+	for _, platformName := range []string{"win", "mac"} {
+		params := data_protection_configuration.NewQueriesPolicyGetV2Params()
+		params.WithContext(ctx)
+		params.PlatformName = platformName
+		params.Filter = utils.Addr(fmt.Sprintf("name:~'%s'", sweep.ResourcePrefix))
+
+		resp, err := client.DataProtectionConfiguration.QueriesPolicyGetV2(params)
+		if sweep.SkipSweepError(err) {
+			sweep.Warn("Skipping Data Protection Policy sweep for platform %s: %s", platformName, err)
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error listing data protection policies for platform %s: %w", platformName, err)
+		}
+
+		if resp == nil || resp.Payload == nil || resp.Payload.Resources == nil {
+			continue
+		}
+
+		for _, id := range resp.Payload.Resources {
+			resourceID := encodeDataProtectionPolicySweepID(platformName, id)
+			sweepables = append(sweepables, sweep.NewSweepResource(
+				resourceID,
+				resourceID,
+				deleteDataProtectionPolicy,
+			))
+		}
+	}
+
+	return sweepables, nil
+}
+
+func deleteDataProtectionPolicy(ctx context.Context, client *client.CrowdStrikeAPISpecification, resourceID string) error {
+	platformName, id, err := decodeDataProtectionPolicySweepID(resourceID)
+	if err != nil {
+		if !strings.Contains(resourceID, ":") {
+			return deleteDataProtectionPolicyLegacyID(ctx, client, resourceID)
+		}
+		return err
+	}
+
+	params := data_protection_configuration.NewEntitiesPolicyDeleteV2Params()
+	params.WithContext(ctx)
+	params.Ids = []string{id}
+	params.PlatformName = platformName
+
+	_, err = client.DataProtectionConfiguration.EntitiesPolicyDeleteV2(params)
+	if err != nil {
+		if sweep.ShouldIgnoreError(err) {
+			sweep.Debug("Ignoring error for data protection policy %s: %s", resourceID, err)
+			return nil
+		}
+		return err
+	}
+
+	return nil
+}
+
+func deleteDataProtectionPolicyLegacyID(ctx context.Context, client *client.CrowdStrikeAPISpecification, resourceID string) error {
+	return tryDeleteDataProtectionPolicyAcrossPlatforms(resourceID, func(fallbackPlatform string) error {
+		params := data_protection_configuration.NewEntitiesPolicyDeleteV2Params()
+		params.WithContext(ctx)
+		params.Ids = []string{resourceID}
+		params.PlatformName = fallbackPlatform
+
+		_, deleteErr := client.DataProtectionConfiguration.EntitiesPolicyDeleteV2(params)
+		return deleteErr
+	})
+}
+
+func tryDeleteDataProtectionPolicyAcrossPlatforms(resourceID string, deleteFunc func(platform string) error) error {
+	var lastError error
+
+	for _, fallbackPlatform := range []string{"win", "mac"} {
+		deleteErr := deleteFunc(fallbackPlatform)
+		if deleteErr == nil {
+			return nil
+		}
+		if sweep.ShouldIgnoreError(deleteErr) {
+			sweep.Debug("Ignoring error for data protection policy %s on platform %s: %s", resourceID, fallbackPlatform, deleteErr)
+			continue
+		}
+
+		lastError = deleteErr
+	}
+
+	return lastError
 }
