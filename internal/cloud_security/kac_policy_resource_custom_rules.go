@@ -24,9 +24,9 @@ var customRulesSchema = schema.SetNestedAttribute{
 	Computed: true,
 	Optional: true,
 	Default:  setdefault.StaticValue(types.SetNull(types.ObjectType{AttrTypes: customRulesAttrMap})),
-	MarkdownDescription: "Manage custom rules for your KAC policy. Adding a custom rule to one " +
-		"rule group also adds the custom rule to all other rule groups in the same policy. " +
-		"Custom rules are set to `\"Disabled\"` by default. Action must be one of:\n" +
+	MarkdownDescription: "Defines custom rules for the KAC policy. All custom rules attached to the policy must " +
+		"be included in every `rule_groups` block that defines `custom_rules`. Any `rule_groups` block that omits " +
+		"`custom_rules` will have all custom rules set to `\"Disabled\"` by default. Action must be one of:\n" +
 		" - `\"Disabled\"`: Do nothing\n" +
 		" - `\"Alert\"`: Send an alert\n" +
 		" - `\"Prevent\"`: Prevent the object from running",

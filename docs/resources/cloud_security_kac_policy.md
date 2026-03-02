@@ -120,7 +120,7 @@ output "cloud_security_kac_policy" {
 
 Optional:
 
-- `custom_rules` (Attributes Set) Manage custom rules for your KAC policy. Adding a custom rule to one rule group also adds the custom rule to all other rule groups in the same policy. Custom rules are set to `"Disabled"` by default. Action must be one of:
+- `custom_rules` (Attributes Set) Defines custom rules for the KAC policy. All custom rules attached to the policy must be included in every `rule_groups` block that defines `custom_rules`. Any `rule_groups` block that omits `custom_rules` will have all custom rules set to `"Disabled"` by default. Action must be one of:
  - `"Disabled"`: Do nothing
  - `"Alert"`: Send an alert
  - `"Prevent"`: Prevent the object from running (see [below for nested schema](#nestedatt--default_rule_group--custom_rules))
@@ -213,7 +213,7 @@ Required:
 
 Optional:
 
-- `custom_rules` (Attributes Set) Manage custom rules for your KAC policy. Adding a custom rule to one rule group also adds the custom rule to all other rule groups in the same policy. Custom rules are set to `"Disabled"` by default. Action must be one of:
+- `custom_rules` (Attributes Set) Defines custom rules for the KAC policy. All custom rules attached to the policy must be included in every `rule_groups` block that defines `custom_rules`. Any `rule_groups` block that omits `custom_rules` will have all custom rules set to `"Disabled"` by default. Action must be one of:
  - `"Disabled"`: Do nothing
  - `"Alert"`: Send an alert
  - `"Prevent"`: Prevent the object from running (see [below for nested schema](#nestedatt--rule_groups--custom_rules))
