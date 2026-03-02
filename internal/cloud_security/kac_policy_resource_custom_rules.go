@@ -117,6 +117,13 @@ func (r *cloudSecurityKacPolicyResource) validateCustomRulesPropagation(
 		})
 
 		for _, cr := range customRules {
+			// When custom rules are created in the same terraform apply as it is added to a KAC policy custom rule
+			// propagation cannot be validated until all custom rule IDs are known. However, validation will rerun
+			// after the dependent custom rules are created and the custom rule IDs are known.
+			if cr.ID.IsUnknown() {
+				return diags
+			}
+
 			uniqueCustomRuleIDs[cr.ID.ValueString()] = true
 		}
 	}
@@ -170,7 +177,7 @@ func (r *cloudSecurityKacPolicyResource) propagateCustomRules(
 	}
 
 	planRuleGroups = append(planRuleGroups, defaultRG)
-	customRuleIDs := make([]string, 0, 10)
+	customRuleIDs := make([]types.String, 0, 10)
 	for _, rg := range planRuleGroups {
 		if rg.CustomRules.IsNull() || rg.CustomRules.IsUnknown() {
 			continue
@@ -182,7 +189,7 @@ func (r *cloudSecurityKacPolicyResource) propagateCustomRules(
 		}
 
 		for _, cr := range customRules {
-			customRuleIDs = append(customRuleIDs, cr.ID.ValueString())
+			customRuleIDs = append(customRuleIDs, cr.ID)
 		}
 
 		// we only need the custom rules from the first rule group with custom rules configured
@@ -202,7 +209,7 @@ func (r *cloudSecurityKacPolicyResource) propagateCustomRules(
 		propagatedCustomRules := make([]customRuleTFModel, 0, len(customRuleIDs))
 		for _, customRuleID := range customRuleIDs {
 			customRuleCopy := customRuleTFModel{
-				ID:     types.StringValue(customRuleID),
+				ID:     customRuleID,
 				Action: types.StringValue("Disabled"),
 			}
 

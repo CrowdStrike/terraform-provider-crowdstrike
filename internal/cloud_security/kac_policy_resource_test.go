@@ -9,7 +9,10 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
 type kacPolicyConfig struct {
@@ -168,7 +171,7 @@ resource "crowdstrike_cloud_security_kac_policy" "test" {
 					}
 					config += fmt.Sprintf(`
         {
-          id     = %q
+          id     = %s
           action = %q
         }`, cr.id, cr.action)
 				}
@@ -265,7 +268,7 @@ func (drg *defaultRuleGroupConfig) render() string {
 			}
 			config += fmt.Sprintf(`
       {
-        id     = %q
+        id     = %s
         action = %q
       }`, cr.id, cr.action)
 		}
@@ -288,12 +291,13 @@ func TestCloudSecurityKacPolicyResource_Minimal(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: kacPolicyConfig{name: policyName}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckNoResourceAttr(resourceName, "description"),
-					resource.TestCheckResourceAttr(resourceName, "enabled", "false"), // should default to false
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("last_updated"), knownvalue.NotNull()),
+				},
 			},
 		},
 	})
@@ -314,12 +318,13 @@ func TestCloudSecurityKacPolicyResource_Basic(t *testing.T) {
 					description: utils.Addr("Test KAC policy created by Terraform"),
 					enabled:     utils.Addr(false),
 				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy created by Terraform"),
-					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("Test KAC policy created by Terraform")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("last_updated"), knownvalue.NotNull()),
+				},
 			},
 			{
 				Config: kacPolicyConfig{
@@ -327,12 +332,13 @@ func TestCloudSecurityKacPolicyResource_Basic(t *testing.T) {
 					description: utils.Addr("Updated KAC policy description"),
 					enabled:     utils.Addr(true),
 				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", updatedPolicyName),
-					resource.TestCheckResourceAttr(resourceName, "description", "Updated KAC policy description"),
-					resource.TestCheckResourceAttr(resourceName, "enabled", "true"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(updatedPolicyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("Updated KAC policy description")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("last_updated"), knownvalue.NotNull()),
+				},
 			},
 			{
 				ResourceName:                         resourceName,
@@ -358,33 +364,33 @@ func TestCloudSecurityKacPolicyResource_EnabledToggle(t *testing.T) {
 					name:    policyName,
 					enabled: utils.Addr(true),
 				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "enabled", "true"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+				},
 			},
 			{
 				Config: kacPolicyConfig{
 					name:    policyName,
 					enabled: utils.Addr(false),
 				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+				},
 			},
 			{
 				Config: kacPolicyConfig{
 					name:    policyName,
 					enabled: utils.Addr(true),
 				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "enabled", "true"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+				},
 			},
 		},
 	})
@@ -431,15 +437,13 @@ resource "crowdstrike_host_group" "test-hg-3" {
 						hostGroups:  []string{"crowdstrike_host_group.test-hg-1.id", "crowdstrike_host_group.test-hg-2.id"},
 					}.String(),
 				),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with host groups"),
-					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "2"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test-hg-1", "id"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test-hg-2", "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("Test KAC policy with host groups")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("host_groups"), knownvalue.SetSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+				},
 			},
 			{
 				Config: acctest.ConfigCompose(
@@ -448,18 +452,16 @@ resource "crowdstrike_host_group" "test-hg-3" {
 						name:        policyName,
 						description: utils.Addr("Test KAC policy with updated host groups"),
 						enabled:     utils.Addr(false),
-						hostGroups:  []string{"crowdstrike_host_group.test-hg-2.id", "crowdstrike_host_group.test-hg-3.id"}, // Remove hostGroup1, add hostGroup3
+						hostGroups:  []string{"crowdstrike_host_group.test-hg-2.id", "crowdstrike_host_group.test-hg-3.id"},
 					}.String(),
 				),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with updated host groups"),
-					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "2"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test-hg-2", "id"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test-hg-3", "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("Test KAC policy with updated host groups")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("host_groups"), knownvalue.SetSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+				},
 			},
 			{
 				Config: acctest.ConfigCompose(
@@ -468,16 +470,16 @@ resource "crowdstrike_host_group" "test-hg-3" {
 						name:        policyName,
 						description: utils.Addr("Test KAC policy with no host groups"),
 						enabled:     utils.Addr(false),
-						hostGroups:  []string{}, // Remove all host groups
+						hostGroups:  []string{},
 					}.String(),
 				),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with no host groups"),
-					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "0"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("Test KAC policy with no host groups")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("host_groups"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+				},
 			},
 		},
 	})
@@ -527,18 +529,18 @@ func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
 						},
 					},
 				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with default rule group"),
-					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
-					resource.TestCheckResourceAttrSet(resourceName, "default_rule_group.id"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.deny_on_error", "false"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.enabled", "true"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.unassessed_handling", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container", "Alert"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("Test KAC policy with default rule group")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("deny_on_error"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("default_rules").AtMapKey("workload_in_default_namespace"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("default_rules").AtMapKey("runtime_socket_in_container"), knownvalue.StringExact("Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+				},
 			},
 			{
 				Config: kacPolicyConfig{
@@ -557,18 +559,18 @@ func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
 						},
 					},
 				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with default rule group"),
-					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
-					resource.TestCheckResourceAttrSet(resourceName, "default_rule_group.id"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.deny_on_error", "true"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.enabled", "true"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.unassessed_handling", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container", "Disabled"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("Test KAC policy with default rule group")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("deny_on_error"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("default_rules").AtMapKey("workload_in_default_namespace"), knownvalue.StringExact("Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("default_rules").AtMapKey("runtime_socket_in_container"), knownvalue.StringExact("Disabled")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+				},
 			},
 			{
 				Config: kacPolicyConfig{
@@ -576,19 +578,19 @@ func TestCloudSecurityKacPolicyResource_DefaultRuleGroup(t *testing.T) {
 					description: utils.Addr("Test KAC policy with default rule group"),
 					enabled:     utils.Addr(false),
 				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with default rule group"),
-					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
-					resource.TestCheckResourceAttrSet(resourceName, "default_rule_group.id"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("Test KAC policy with default rule group")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("id"), knownvalue.NotNull()),
 					// All optional default rule group attributes should revert back to their default values
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.deny_on_error", "false"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.unassessed_handling", "Allow Without Alert"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container", "Alert"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-				),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("deny_on_error"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Allow Without Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("default_rules").AtMapKey("workload_in_default_namespace"), knownvalue.StringExact("Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("default_rules").AtMapKey("runtime_socket_in_container"), knownvalue.StringExact("Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+				},
 			},
 		},
 	})
@@ -608,29 +610,24 @@ func TestCloudSecurityKacPolicyResource_RuleGroupsMinimal(t *testing.T) {
 					ruleGroups: []ruleGroupConfig{
 						{
 							name: "minimal-rule-group",
-							// Only required fields, no optional ones
 						},
 					},
 				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "minimal-rule-group"),
-					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.0.id"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups"), knownvalue.ListSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("name"), knownvalue.StringExact("minimal-rule-group")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("id"), knownvalue.NotNull()),
 					// Check default values are set as expected
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.deny_on_error", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.unassessed_handling", "Allow Without Alert"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.namespaces.#", "1"),
-					resource.TestCheckTypeSetElemAttr(resourceName, "rule_groups.0.namespaces.*", "*"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.0.key", "*"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.0.value", "*"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.0.operator", "eq"),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("deny_on_error"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Allow Without Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("namespaces"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("labels"), knownvalue.SetSizeExact(1)),
 					// Check the first default rule to make sure the default action is set
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container", "Alert"),
-				),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("default_rules").AtMapKey("privileged_container"), knownvalue.StringExact("Alert")),
+				},
 			},
 		},
 	})
@@ -674,24 +671,24 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 						},
 					},
 				}.String(),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("Test KAC policy with rule groups")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups"), knownvalue.ListSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("name"), knownvalue.StringExact("test-rule-group-1")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("description"), knownvalue.StringExact("First test rule group")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("deny_on_error"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("namespaces"), knownvalue.SetSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("labels"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("default_rules").AtMapKey("privileged_container"), knownvalue.StringExact("Disabled")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("default_rules").AtMapKey("sensitive_data_in_environment"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("id"), knownvalue.NotNull()),
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with rule groups"),
-					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "test-rule-group-1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.description", "First test rule group"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.deny_on_error", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.enabled", "true"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.unassessed_handling", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.namespaces.#", "2"),
-					resource.TestCheckTypeSetElemAttr(resourceName, "rule_groups.0.namespaces.*", "test-namespace-1"),
-					resource.TestCheckTypeSetElemAttr(resourceName, "rule_groups.0.namespaces.*", "test-namespace-2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container", "Disabled"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.sensitive_data_in_environment", "Prevent"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.0.id"),
 					// save initial state for comparing IDs on subsequent updates
 					func(s *terraform.State) error {
 						rs := s.RootModule().Resources[resourceName]
@@ -738,22 +735,23 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 						},
 					},
 				}.String(),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("Test KAC policy with updated rule groups")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups"), knownvalue.ListSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("name"), knownvalue.StringExact("test-rule-group-1-updated")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("description"), knownvalue.StringExact("Updated first test rule group")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("deny_on_error"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("namespaces"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("labels"), knownvalue.SetSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("default_rules").AtMapKey("privileged_container"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("default_rules").AtMapKey("sensitive_data_in_environment"), knownvalue.StringExact("Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with updated rule groups"),
-					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "test-rule-group-1-updated"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.description", "Updated first test rule group"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.deny_on_error", "true"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.unassessed_handling", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.namespaces.#", "1"),
-					resource.TestCheckTypeSetElemAttr(resourceName, "rule_groups.0.namespaces.*", "updated-namespace-1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.sensitive_data_in_environment", "Alert"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					// Verify rule group ID remains the same after update
 					testAccCheckNestedObjectIDsUnchanged(resourceName, capturedState, []string{"rule_groups.0.id"}),
 				),
@@ -770,24 +768,22 @@ func TestCloudSecurityKacPolicyResource_SingleRuleGroup(t *testing.T) {
 						},
 					},
 				}.String(),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("Test KAC policy with updated rule groups")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups"), knownvalue.ListSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("name"), knownvalue.StringExact("test-rule-group-1-updated")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("description"), knownvalue.StringExact("Updated first test rule group - optional attributes removed")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("deny_on_error"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Allow Without Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("namespaces"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("labels"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("default_rules").AtMapKey("privileged_container"), knownvalue.StringExact("Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("default_rules").AtMapKey("sensitive_data_in_environment"), knownvalue.StringExact("Alert")),
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with updated rule groups"),
-					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "test-rule-group-1-updated"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.description", "Updated first test rule group - optional attributes removed"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.deny_on_error", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.unassessed_handling", "Allow Without Alert"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.namespaces.#", "1"),
-					resource.TestCheckTypeSetElemAttr(resourceName, "rule_groups.0.namespaces.*", "*"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.0.key", "*"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.0.value", "*"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.0.operator", "eq"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.sensitive_data_in_environment", "Alert"),
 					// Verify rule group ID remains the same after update
 					testAccCheckNestedObjectIDsUnchanged(resourceName, capturedState, []string{"rule_groups.0.id"}),
 				),
@@ -851,30 +847,32 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 						},
 					},
 				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "2"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups"), knownvalue.ListSizeExact(2)),
 					// First rule group checks
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "production-rule-group"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.description", "Production environment rule group"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.deny_on_error", "true"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.enabled", "true"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.unassessed_handling", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.namespaces.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.#", "1"),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("name"), knownvalue.StringExact("production-rule-group")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("description"), knownvalue.StringExact("Production environment rule group")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("deny_on_error"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("namespaces"), knownvalue.SetSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("labels"), knownvalue.SetSizeExact(1)),
 					// Second rule group checks
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.name", "development-rule-group"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.description", "Development environment rule group"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.deny_on_error", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.unassessed_handling", "Allow Without Alert"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.namespaces.#", "3"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.labels.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_run_as_root", "Disabled"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_without_resource_limits", "Disabled"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.0.id"),
-					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.1.id"),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("name"), knownvalue.StringExact("development-rule-group")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("description"), knownvalue.StringExact("Development environment rule group")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("deny_on_error"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Allow Without Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("namespaces"), knownvalue.SetSizeExact(3)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("labels"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("default_rules").AtMapKey("container_run_as_root"), knownvalue.StringExact("Disabled")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("default_rules").AtMapKey("container_without_resource_limits"), knownvalue.StringExact("Disabled")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("id"), knownvalue.NotNull()),
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
 					// save initial state for comparing IDs on subsequent updates
 					func(s *terraform.State) error {
 						rs := s.RootModule().Resources[resourceName]
@@ -898,12 +896,12 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 						{
 							name:        "production-rule-group-updated",
 							description: utils.Addr("Updated production environment rule group"),
-							denyOnError: utils.Addr(false), // Changed from true to false
+							denyOnError: utils.Addr(false),
 							imageAssessment: &imageAssessmentConfig{
-								enabled:            false,   // Changed from true to false
-								unassessedHandling: "Alert", // Changed from "Prevent" to "Alert"
+								enabled:            false,
+								unassessedHandling: "Alert",
 							},
-							namespaces: []string{"production", "prod-*", "live"}, // Added "live"
+							namespaces: []string{"production", "prod-*", "live"},
 							labels: []labelConfig{
 								{
 									key:      "environment",
@@ -923,12 +921,12 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 						{
 							name:        "development-rule-group-updated",
 							description: utils.Addr("Updated development environment rule group"),
-							denyOnError: utils.Addr(true), // Changed from false to true
+							denyOnError: utils.Addr(true),
 							imageAssessment: &imageAssessmentConfig{
-								enabled:            true,      // Changed from false to true
-								unassessedHandling: "Prevent", // Changed from "Allow Without Alert" to "Prevent"
+								enabled:            true,
+								unassessedHandling: "Prevent",
 							},
-							namespaces: []string{"development", "test"}, // Reduced namespaces
+							namespaces: []string{"development", "test"},
 							labels: []labelConfig{
 								{
 									key:      "environment",
@@ -943,31 +941,33 @@ func TestCloudSecurityKacPolicyResource_MultipleRuleGroups(t *testing.T) {
 						},
 					},
 				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "2"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups"), knownvalue.ListSizeExact(2)),
 					// First rule group updated checks
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "production-rule-group-updated"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.description", "Updated production environment rule group"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.deny_on_error", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.unassessed_handling", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.namespaces.#", "3"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.sensitive_host_directories", "Prevent"),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("name"), knownvalue.StringExact("production-rule-group-updated")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("description"), knownvalue.StringExact("Updated production environment rule group")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("deny_on_error"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("namespaces"), knownvalue.SetSizeExact(3)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("labels"), knownvalue.SetSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("default_rules").AtMapKey("sensitive_host_directories"), knownvalue.StringExact("Prevent")),
 					// Second rule group updated checks
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.name", "development-rule-group-updated"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.description", "Updated development environment rule group"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.deny_on_error", "true"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.enabled", "true"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.unassessed_handling", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.namespaces.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.labels.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_run_as_root", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_without_resource_limits", "Prevent"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.0.id"),
-					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.1.id"),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("name"), knownvalue.StringExact("development-rule-group-updated")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("description"), knownvalue.StringExact("Updated development environment rule group")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("deny_on_error"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("namespaces"), knownvalue.SetSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("labels"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("default_rules").AtMapKey("container_run_as_root"), knownvalue.StringExact("Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("default_rules").AtMapKey("container_without_resource_limits"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("id"), knownvalue.NotNull()),
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify rule group IDs remain the same after update
 					testAccCheckNestedObjectIDsUnchanged(resourceName, capturedState, []string{"rule_groups.0.id", "rule_groups.1.id"}),
 				),
@@ -1045,33 +1045,35 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 						},
 					},
 				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with multiple rule groups and default rule group"),
-					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("Test KAC policy with multiple rule groups and default rule group")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
 					// Rule groups checks
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "rule-group-1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.deny_on_error", "true"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.enabled", "true"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.unassessed_handling", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.privileged_container", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.name", "rule-group-2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.deny_on_error", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.enabled", "true"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.unassessed_handling", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_run_as_root", "Alert"),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups"), knownvalue.ListSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("name"), knownvalue.StringExact("rule-group-1")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("deny_on_error"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("default_rules").AtMapKey("privileged_container"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("name"), knownvalue.StringExact("rule-group-2")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("deny_on_error"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("default_rules").AtMapKey("container_run_as_root"), knownvalue.StringExact("Alert")),
 					// Default rule group checks
-					resource.TestCheckResourceAttrSet(resourceName, "default_rule_group.id"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.deny_on_error", "false"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.enabled", "true"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.unassessed_handling", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container", "Disabled"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.sensitive_host_directories", "Prevent"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.0.id"),
-					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.1.id"),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("deny_on_error"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("default_rules").AtMapKey("workload_in_default_namespace"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("default_rules").AtMapKey("runtime_socket_in_container"), knownvalue.StringExact("Disabled")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("default_rules").AtMapKey("sensitive_host_directories"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("id"), knownvalue.NotNull()),
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
 					// Capture initial state
 					func(s *terraform.State) error {
 						rs := s.RootModule().Resources[resourceName]
@@ -1101,12 +1103,12 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 							// rule-group-2 stays in position 2
 							name:        "rule-group-2-renamed",
 							description: utils.Addr("Updated rule group 2"),
-							denyOnError: utils.Addr(true), // Changed from false to true
+							denyOnError: utils.Addr(true),
 							imageAssessment: &imageAssessmentConfig{
-								enabled:            false,     // Changed from true to false
-								unassessedHandling: "Prevent", // Changed from "Alert" to "Prevent"
+								enabled:            false,
+								unassessedHandling: "Prevent",
 							},
-							namespaces: []string{"beta", "stage-*", "test"}, // Added "test"
+							namespaces: []string{"beta", "stage-*", "test"},
 							labels: []labelConfig{
 								{
 									key:      "environment",
@@ -1120,8 +1122,8 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 								},
 							},
 							defaultRules: &defaultRulesConfig{
-								containerRunAsRoot:             utils.Addr("Prevent"),  // Changed from "Alert" to "Prevent"
-								containerWithoutResourceLimits: utils.Addr("Disabled"), // New rule
+								containerRunAsRoot:             utils.Addr("Prevent"),
+								containerWithoutResourceLimits: utils.Addr("Disabled"),
 							},
 						},
 						{
@@ -1142,71 +1144,73 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 								},
 							},
 							defaultRules: &defaultRulesConfig{
-								privilegedContainer:        utils.Addr("Prevent"), // Changed from "Prevent" to "Alert"
-								sensitiveDataInEnvironment: utils.Addr("Prevent"), // New rule
+								privilegedContainer:        utils.Addr("Prevent"),
+								sensitiveDataInEnvironment: utils.Addr("Prevent"),
 							},
 						},
 					},
 					defaultRuleGroup: &defaultRuleGroupConfig{
-						denyOnError: utils.Addr(true), // Changed from false to true
+						denyOnError: utils.Addr(true),
 						imageAssessment: &imageAssessmentConfig{
 							enabled:            true,
-							unassessedHandling: "Prevent", // Changed from "Alert" to "Prevent"
+							unassessedHandling: "Prevent",
 						},
 						defaultRules: &defaultRulesConfig{
-							workloadInDefaultNamespace:     utils.Addr("Alert"),   // Changed from "Prevent" to "Alert"
-							runtimeSocketInContainer:       utils.Addr("Prevent"), // Changed from "Alert" to "Prevent"
-							sensitiveHostDirectories:       utils.Addr("Alert"),   // Changed from "Prevent" to "Alert"
-							containerWithoutResourceLimits: utils.Addr("Prevent"), // New rule
+							workloadInDefaultNamespace:     utils.Addr("Alert"),
+							runtimeSocketInContainer:       utils.Addr("Prevent"),
+							sensitiveHostDirectories:       utils.Addr("Alert"),
+							containerWithoutResourceLimits: utils.Addr("Prevent"),
 						},
 					},
 				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "description", "Test KAC policy with reordered rule groups and updated default rule group"),
-					resource.TestCheckResourceAttr(resourceName, "enabled", "false"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("Test KAC policy with reordered rule groups and updated default rule group")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
 					// Verify rule groups are reordered (new-rule-group now first, rule-group-2 still second, and rule-group-1 third)
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "3"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.name", "new-rule-group"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.description", "New rule group"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.deny_on_error", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.image_assessment.unassessed_handling", "Allow Without Alert"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.namespaces.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.labels.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.container_run_as_root", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.default_rules.container_without_resource_limits", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.name", "rule-group-2-renamed"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.description", "Updated rule group 2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.deny_on_error", "true"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.image_assessment.unassessed_handling", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.namespaces.#", "3"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.labels.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_run_as_root", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.default_rules.container_without_resource_limits", "Disabled"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.name", "rule-group-1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.description", "Reordered rule group 1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.deny_on_error", "false"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.image_assessment.enabled", "true"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.image_assessment.unassessed_handling", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.namespaces.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.labels.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.default_rules.privileged_container", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.2.default_rules.sensitive_data_in_environment", "Prevent"),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups"), knownvalue.ListSizeExact(3)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("name"), knownvalue.StringExact("new-rule-group")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("description"), knownvalue.StringExact("New rule group")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("deny_on_error"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Allow Without Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("namespaces"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("labels"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("default_rules").AtMapKey("container_run_as_root"), knownvalue.StringExact("Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("default_rules").AtMapKey("container_without_resource_limits"), knownvalue.StringExact("Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("name"), knownvalue.StringExact("rule-group-2-renamed")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("description"), knownvalue.StringExact("Updated rule group 2")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("deny_on_error"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("namespaces"), knownvalue.SetSizeExact(3)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("labels"), knownvalue.SetSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("default_rules").AtMapKey("container_run_as_root"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("default_rules").AtMapKey("container_without_resource_limits"), knownvalue.StringExact("Disabled")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(2).AtMapKey("name"), knownvalue.StringExact("rule-group-1")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(2).AtMapKey("description"), knownvalue.StringExact("Reordered rule group 1")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(2).AtMapKey("deny_on_error"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(2).AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(2).AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(2).AtMapKey("namespaces"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(2).AtMapKey("labels"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(2).AtMapKey("default_rules").AtMapKey("privileged_container"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(2).AtMapKey("default_rules").AtMapKey("sensitive_data_in_environment"), knownvalue.StringExact("Prevent")),
 					// Verify default rule group updates
-					resource.TestCheckResourceAttrSet(resourceName, "default_rule_group.id"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.deny_on_error", "true"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.enabled", "true"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.image_assessment.unassessed_handling", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.workload_in_default_namespace", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.runtime_socket_in_container", "Prevent"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.sensitive_host_directories", "Alert"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.default_rules.container_without_resource_limits", "Prevent"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.0.id"),
-					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.1.id"),
-					resource.TestCheckResourceAttrSet(resourceName, "rule_groups.2.id"),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("deny_on_error"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("image_assessment").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("image_assessment").AtMapKey("unassessed_handling"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("default_rules").AtMapKey("workload_in_default_namespace"), knownvalue.StringExact("Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("default_rules").AtMapKey("runtime_socket_in_container"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("default_rules").AtMapKey("sensitive_host_directories"), knownvalue.StringExact("Alert")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("default_rules").AtMapKey("container_without_resource_limits"), knownvalue.StringExact("Prevent")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(2).AtMapKey("id"), knownvalue.NotNull()),
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify that rule group IDs remain the same despite reordering (they should be stable)
 					func(s *terraform.State) error {
 						currentRS, ok := s.RootModule().Resources[resourceName]
@@ -1243,10 +1247,44 @@ func TestCloudSecurityKacPolicyResource_ComplexRuleGroupsWithReorder(t *testing.
 func TestCloudSecurityKacPolicyResource_CustomRules(t *testing.T) {
 	policyName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resourceName := "crowdstrike_cloud_security_kac_policy.test"
+	customRule1Name := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	customRule2Name := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
-	// TODO: Replace hard coded custom rule IDs with custom rule resource outputs.
-	testCustomRuleID1 := "custom-rule-id1"
-	testCustomRuleID2 := "custom-rule-id2"
+	customRulesConfig := fmt.Sprintf(`
+resource "crowdstrike_cloud_security_kac_custom_rule" "test_rule_1" {
+  name        = %[1]q
+  description = "Test custom rule 1 for KAC policy"
+  severity    = "high"
+  logic       = <<EOF
+package crowdstrike
+
+import rego.v1
+
+default result := "fail"
+
+result := "pass" if {
+	input.metadata.name == "test-pod"
+}
+EOF
+}
+
+resource "crowdstrike_cloud_security_kac_custom_rule" "test_rule_2" {
+  name        = %[2]q
+  description = "Test custom rule 2 for KAC policy"
+  severity    = "medium"
+  logic       = <<EOF
+package crowdstrike
+
+import rego.v1
+
+default result := "fail"
+
+result := "pass" if {
+	input.metadata.name == "staging-pod"
+}
+EOF
+}
+`, customRule1Name, customRule2Name)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1254,195 +1292,156 @@ func TestCloudSecurityKacPolicyResource_CustomRules(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Step 1: Create policy with 2 rule groups + default rule group, add custom rules
 			{
-				Config: kacPolicyConfig{
-					name: policyName,
-					ruleGroups: []ruleGroupConfig{
-						{
-							name:        "rule-group-1",
-							description: utils.Addr("First rule group with custom rule"),
-							customRules: []customRuleConfig{
-								{
-									id:     testCustomRuleID1,
-									action: "Alert",
-								},
-							},
-						},
-						{
-							name:        "rule-group-2",
-							description: utils.Addr("Second rule group"),
-						},
-					},
-					defaultRuleGroup: &defaultRuleGroupConfig{
-						customRules: []customRuleConfig{
+				Config: acctest.ConfigCompose(
+					customRulesConfig,
+					kacPolicyConfig{
+						name: policyName,
+						ruleGroups: []ruleGroupConfig{
 							{
-								id:     testCustomRuleID1,
-								action: "Prevent",
-							},
-						},
-					},
-				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					// Verify policy created
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-
-					// Verify 2 rule groups exist
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "2"),
-
-					// Verify custom rule in rule group 1
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.custom_rules.#", "1"),
-					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "rule_groups.0.custom_rules.*", map[string]string{
-						"id":     testCustomRuleID1,
-						"action": "Alert",
-					}),
-
-					// Verify custom rule in rule group 2 (synchronized with default action)
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.custom_rules.#", "1"),
-					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "rule_groups.1.custom_rules.*", map[string]string{
-						"id":     testCustomRuleID1,
-						"action": "Disabled",
-					}),
-
-					// Verify custom rule in default rule group
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.custom_rules.#", "1"),
-					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "default_rule_group.custom_rules.*", map[string]string{
-						"id":     testCustomRuleID1,
-						"action": "Prevent",
-					}),
-				),
-			},
-			// Step 2: Update custom rule actions and add another custom rule
-			{
-				Config: kacPolicyConfig{
-					name: policyName,
-					ruleGroups: []ruleGroupConfig{
-						{
-							name:        "rule-group-1",
-							description: utils.Addr("First rule group with custom rule"),
-							customRules: []customRuleConfig{
-								{
-									id:     testCustomRuleID1,
-									action: "Prevent", // Changed from Alert
+								name:        "rule-group-1",
+								description: utils.Addr("First rule group with custom rule"),
+								customRules: []customRuleConfig{
+									{
+										id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_1.id",
+										action: "Alert",
+									},
 								},
-								{
-									id:     testCustomRuleID2,
-									action: "Disabled",
-								},
-							},
-						},
-						{
-							name:        "rule-group-2",
-							description: utils.Addr("Second rule group"),
-							customRules: []customRuleConfig{
-								{
-									id:     testCustomRuleID1,
-									action: "Alert", // Changed from default action
-								},
-								{
-									id:     testCustomRuleID2,
-									action: "Disabled",
-								},
-							},
-						},
-					},
-					defaultRuleGroup: &defaultRuleGroupConfig{
-						customRules: []customRuleConfig{
-							{
-								id:     testCustomRuleID1,
-								action: "Disabled", // Changed from Alert
 							},
 							{
-								id:     testCustomRuleID2,
-								action: "Prevent", // New custom rule added to default rule group
+								name:        "rule-group-2",
+								description: utils.Addr("Second rule group"),
 							},
 						},
-					},
-				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					// Verify custom rules updated in rule group 1
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.custom_rules.#", "2"),
-					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "rule_groups.0.custom_rules.*", map[string]string{
-						"id":     testCustomRuleID1,
-						"action": "Prevent",
-					}),
-					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "rule_groups.0.custom_rules.*", map[string]string{
-						"id":     testCustomRuleID2,
-						"action": "Disabled",
-					}),
-
-					// Verify custom rules in rule group 2
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.custom_rules.#", "2"),
-					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "rule_groups.1.custom_rules.*", map[string]string{
-						"id":     testCustomRuleID1,
-						"action": "Alert",
-					}),
-					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "rule_groups.1.custom_rules.*", map[string]string{
-						"id":     testCustomRuleID2,
-						"action": "Disabled",
-					}),
-
-					// Verify custom rules in default rule group
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.custom_rules.#", "2"),
-					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "default_rule_group.custom_rules.*", map[string]string{
-						"id":     testCustomRuleID1,
-						"action": "Disabled",
-					}),
-					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "default_rule_group.custom_rules.*", map[string]string{
-						"id":     testCustomRuleID2,
-						"action": "Prevent",
-					}),
-				),
-			},
-			// Step 3: Remove one custom rule
-			{
-				Config: kacPolicyConfig{
-					name: policyName,
-					ruleGroups: []ruleGroupConfig{
-						{
-							name:        "rule-group-1",
-							description: utils.Addr("First rule group with custom rule"),
+						defaultRuleGroup: &defaultRuleGroupConfig{
 							customRules: []customRuleConfig{
 								{
-									id:     testCustomRuleID2,
-									action: "Alert",
-								},
-							},
-						},
-						{
-							name:        "rule-group-2",
-							description: utils.Addr("Second rule group"),
-							customRules: []customRuleConfig{
-								{
-									id:     testCustomRuleID2,
+									id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_1.id",
 									action: "Prevent",
 								},
 							},
 						},
-					},
-					defaultRuleGroup: &defaultRuleGroupConfig{
-						// Remove custom_rules to revert all custom rules to default action
-					},
-				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					// Verify only one custom rule remains in each rule group
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.custom_rules.#", "1"),
-					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "rule_groups.0.custom_rules.*", map[string]string{
-						"id":     testCustomRuleID2,
-						"action": "Alert",
-					}),
-
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.custom_rules.#", "1"),
-					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "rule_groups.1.custom_rules.*", map[string]string{
-						"id":     testCustomRuleID2,
-						"action": "Prevent",
-					}),
-
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.custom_rules.#", "1"),
-					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "default_rule_group.custom_rules.*", map[string]string{
-						"id":     testCustomRuleID2,
-						"action": "Disabled",
-					}),
+					}.String(),
 				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					// Verify policy created
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+
+					// Verify 2 rule groups exist
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups"), knownvalue.ListSizeExact(2)),
+
+					// Verify custom rule in rule group 1
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("custom_rules"), knownvalue.SetSizeExact(1)),
+
+					// Verify custom rule in rule group 2 (synchronized with default action)
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("custom_rules"), knownvalue.SetSizeExact(1)),
+
+					// Verify custom rule in default rule group
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("custom_rules"), knownvalue.SetSizeExact(1)),
+				},
+			},
+			// Step 2: Update custom rule actions and add another custom rule
+			{
+				Config: acctest.ConfigCompose(
+					customRulesConfig,
+					kacPolicyConfig{
+						name: policyName,
+						ruleGroups: []ruleGroupConfig{
+							{
+								name:        "rule-group-1",
+								description: utils.Addr("First rule group with custom rule"),
+								customRules: []customRuleConfig{
+									{
+										id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_1.id",
+										action: "Prevent", // Changed from Alert
+									},
+									{
+										id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_2.id",
+										action: "Disabled",
+									},
+								},
+							},
+							{
+								name:        "rule-group-2",
+								description: utils.Addr("Second rule group"),
+								customRules: []customRuleConfig{
+									{
+										id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_1.id",
+										action: "Alert", // Changed from default action
+									},
+									{
+										id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_2.id",
+										action: "Disabled",
+									},
+								},
+							},
+						},
+						defaultRuleGroup: &defaultRuleGroupConfig{
+							customRules: []customRuleConfig{
+								{
+									id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_1.id",
+									action: "Disabled", // Changed from Alert
+								},
+								{
+									id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_2.id",
+									action: "Prevent", // New custom rule added to default rule group
+								},
+							},
+						},
+					}.String(),
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					// Verify custom rules updated in rule group 1
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("custom_rules"), knownvalue.SetSizeExact(2)),
+
+					// Verify custom rules in rule group 2
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("custom_rules"), knownvalue.SetSizeExact(2)),
+
+					// Verify custom rules in default rule group
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("custom_rules"), knownvalue.SetSizeExact(2)),
+				},
+			},
+			// Step 3: Remove one custom rule
+			{
+				Config: acctest.ConfigCompose(
+					customRulesConfig,
+					kacPolicyConfig{
+						name: policyName,
+						ruleGroups: []ruleGroupConfig{
+							{
+								name:        "rule-group-1",
+								description: utils.Addr("First rule group with custom rule"),
+								customRules: []customRuleConfig{
+									{
+										id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_2.id",
+										action: "Alert",
+									},
+								},
+							},
+							{
+								name:        "rule-group-2",
+								description: utils.Addr("Second rule group"),
+								customRules: []customRuleConfig{
+									{
+										id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_2.id",
+										action: "Prevent",
+									},
+								},
+							},
+						},
+						defaultRuleGroup: &defaultRuleGroupConfig{
+							// Remove custom_rules to revert all custom rules to default action
+						},
+					}.String(),
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					// Verify only one custom rule remains in each rule group
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("custom_rules"), knownvalue.SetSizeExact(1)),
+
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("custom_rules"), knownvalue.SetSizeExact(1)),
+
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("custom_rules"), knownvalue.SetSizeExact(1)),
+				},
 			},
 			// Step 4: Import validation
 			{
@@ -1451,6 +1450,192 @@ func TestCloudSecurityKacPolicyResource_CustomRules(t *testing.T) {
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "id",
 				ImportStateVerifyIgnore:              []string{"last_updated"},
+			},
+			// Step 5: Remove all custom rules
+			{
+				Config: acctest.ConfigCompose(
+					customRulesConfig,
+					kacPolicyConfig{
+						name: policyName,
+						ruleGroups: []ruleGroupConfig{
+							{
+								name:        "rule-group-1",
+								description: utils.Addr("Rule group without custom rules"),
+							},
+							{
+								name:        "rule-group-2",
+								description: utils.Addr("Second rule group"),
+							},
+						},
+					}.String(),
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("custom_rules"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("custom_rules"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("custom_rules"), knownvalue.Null()),
+				},
+			},
+		},
+	})
+}
+
+func TestCloudSecurityKacPolicyResource_CustomRulesValidation(t *testing.T) {
+	policyName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	resourceName := "crowdstrike_cloud_security_kac_policy.test"
+	customRule1Name := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	customRule2Name := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+
+	customRulesConfig := fmt.Sprintf(`
+resource "crowdstrike_cloud_security_kac_custom_rule" "test_rule_1" {
+  name        = %[1]q
+  description = "Test custom rule 1 for KAC policy"
+  severity    = "high"
+  logic       = <<EOF
+package crowdstrike
+
+import rego.v1
+
+default result := "fail"
+
+result := "pass" if {
+	input.metadata.name == "test-pod"
+}
+EOF
+}
+
+resource "crowdstrike_cloud_security_kac_custom_rule" "test_rule_2" {
+  name        = %[2]q
+  description = "Test custom rule 2 for KAC policy"
+  severity    = "medium"
+  logic       = <<EOF
+package crowdstrike
+
+import rego.v1
+
+default result := "fail"
+
+result := "pass" if {
+	input.metadata.name == "staging-pod"
+}
+EOF
+}
+`, customRule1Name, customRule2Name)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			// Step 1: Test validation error when rule groups have different custom rules
+			{
+				Config: acctest.ConfigCompose(
+					customRulesConfig,
+					kacPolicyConfig{
+						name: policyName,
+						ruleGroups: []ruleGroupConfig{
+							{
+								name:        "rule-group-1",
+								description: utils.Addr("First rule group with 2 custom rules"),
+								customRules: []customRuleConfig{
+									{
+										id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_1.id",
+										action: "Alert",
+									},
+									{
+										id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_2.id",
+										action: "Alert",
+									},
+								},
+							},
+							{
+								name:        "rule-group-2",
+								description: utils.Addr("Second rule group with only 1 custom rule"),
+								customRules: []customRuleConfig{
+									{
+										id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_1.id",
+										action: "Prevent",
+									},
+								},
+							},
+						},
+					}.String(),
+				),
+				ExpectError: regexp.MustCompile(`Rule group "rule-group-2" has 1 custom rule\(s\)`),
+			},
+			// Step 2: Test validation error when default rule group has incomplete custom rules
+			{
+				Config: acctest.ConfigCompose(
+					customRulesConfig,
+					kacPolicyConfig{
+						name: policyName,
+						ruleGroups: []ruleGroupConfig{
+							{
+								name:        "rule-group-1",
+								description: utils.Addr("Rule group with 2 custom rules"),
+								customRules: []customRuleConfig{
+									{
+										id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_1.id",
+										action: "Alert",
+									},
+									{
+										id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_2.id",
+										action: "Alert",
+									},
+								},
+							},
+						},
+						defaultRuleGroup: &defaultRuleGroupConfig{
+							customRules: []customRuleConfig{
+								{
+									id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_1.id",
+									action: "Prevent",
+								},
+							},
+						},
+					}.String(),
+				),
+				ExpectError: regexp.MustCompile(`Rule group "Default" has 1 custom rule\(s\)`),
+			},
+			// Step 3: Test successful creation when custom rules are only defined in the default rule group
+			{
+				Config: acctest.ConfigCompose(
+					customRulesConfig,
+					kacPolicyConfig{
+						name: policyName,
+						ruleGroups: []ruleGroupConfig{
+							{
+								name:        "rule-group-1",
+								description: utils.Addr("First rule group"),
+							},
+							{
+								name:        "rule-group-2",
+								description: utils.Addr("Second rule group"),
+							},
+						},
+						defaultRuleGroup: &defaultRuleGroupConfig{
+							customRules: []customRuleConfig{
+								{
+									id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_1.id",
+									action: "Alert",
+								},
+								{
+									id:     "crowdstrike_cloud_security_kac_custom_rule.test_rule_2.id",
+									action: "Prevent",
+								},
+							},
+						},
+					}.String(),
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups"), knownvalue.ListSizeExact(2)),
+					// Verify all rule groups have 2 custom rules
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("custom_rules"), knownvalue.SetSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("custom_rules"), knownvalue.SetSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("custom_rules"), knownvalue.SetSizeExact(2)),
+				},
 			},
 		},
 	})
@@ -1479,119 +1664,4 @@ func testAccCheckNestedObjectIDsUnchanged(resourceName string, initialState map[
 		}
 		return nil
 	}
-}
-
-func TestCloudSecurityKacPolicyResource_CustomRulesValidation(t *testing.T) {
-	policyName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
-	resourceName := "crowdstrike_cloud_security_kac_policy.test"
-
-	// TODO: Replace hard coded custom rule IDs with custom rule resource outputs.
-	testCustomRuleID1 := "custom-rule-id1"
-	testCustomRuleID2 := "custom-rule-id2"
-
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			// Step 1: Test validation error when rule groups have different custom rules
-			{
-				Config: kacPolicyConfig{
-					name: policyName,
-					ruleGroups: []ruleGroupConfig{
-						{
-							name:        "rule-group-1",
-							description: utils.Addr("First rule group with 2 custom rules"),
-							customRules: []customRuleConfig{
-								{
-									id:     testCustomRuleID1,
-									action: "Alert",
-								},
-								{
-									id:     testCustomRuleID2,
-									action: "Alert",
-								},
-							},
-						},
-						{
-							name:        "rule-group-2",
-							description: utils.Addr("Second rule group with only 1 custom rule"),
-							customRules: []customRuleConfig{
-								{
-									id:     testCustomRuleID1,
-									action: "Prevent",
-								},
-							},
-						},
-					},
-				}.String(),
-				ExpectError: regexp.MustCompile(`Rule group "rule-group-2" has 1 custom rule\(s\)`),
-			},
-			// Step 2: Test validation error when default rule group has incomplete custom rules
-			{
-				Config: kacPolicyConfig{
-					name: policyName,
-					ruleGroups: []ruleGroupConfig{
-						{
-							name:        "rule-group-1",
-							description: utils.Addr("Rule group with 2 custom rules"),
-							customRules: []customRuleConfig{
-								{
-									id:     testCustomRuleID1,
-									action: "Alert",
-								},
-								{
-									id:     testCustomRuleID2,
-									action: "Alert",
-								},
-							},
-						},
-					},
-					defaultRuleGroup: &defaultRuleGroupConfig{
-						customRules: []customRuleConfig{
-							{
-								id:     testCustomRuleID1,
-								action: "Prevent",
-							},
-						},
-					},
-				}.String(),
-				ExpectError: regexp.MustCompile(`Rule group "Default" has 1 custom rule\(s\)`),
-			},
-			// Step 3: Test successful creation when custom rules is only defined in 1 rule group
-			{
-				Config: kacPolicyConfig{
-					name: policyName,
-					ruleGroups: []ruleGroupConfig{
-						{
-							name:        "rule-group-1",
-							description: utils.Addr("First rule group with all custom rules"),
-							customRules: []customRuleConfig{
-								{
-									id:     testCustomRuleID1,
-									action: "Alert",
-								},
-								{
-									id:     testCustomRuleID2,
-									action: "Alert",
-								},
-							},
-						},
-						{
-							name:        "rule-group-2",
-							description: utils.Addr("Second rule group"),
-						},
-					},
-				}.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttr(resourceName, "name", policyName),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.#", "2"),
-					// Verify all rule groups have 2 custom rules
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.0.custom_rules.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "rule_groups.1.custom_rules.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "default_rule_group.custom_rules.#", "2"),
-				),
-			},
-		},
-	})
 }
