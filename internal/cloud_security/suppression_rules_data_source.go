@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
+	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwtypes "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/types"
@@ -371,6 +372,138 @@ func (r *cloudSecuritySuppressionRulesDataSource) Read(
 	}
 }
 
+func buildRuleSelectionFilterObject(ctx context.Context, filter *models.ApimodelsRuleSelectionFilter) (types.Object, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if filter == nil {
+		return types.ObjectNull(ruleSelectionFilterModel{}.AttributeTypes()), diags
+	}
+
+	ruleSelectionFilter := make(map[string]attr.Value)
+
+	// Convert rule severities using the stringToSeverity map
+	convertedRuleSeverities := make([]string, 0, len(filter.RuleSeverities))
+	for _, severity := range filter.RuleSeverities {
+		if converted, ok := stringToSeverity[severity]; ok {
+			convertedRuleSeverities = append(convertedRuleSeverities, converted)
+		} else {
+			convertedRuleSeverities = append(convertedRuleSeverities, severity)
+		}
+	}
+
+	ruleSelectionFilter["ids"], diags = fwtypes.OptionalStringSet(ctx, filter.RuleIds)
+	if diags.HasError() {
+		return types.ObjectNull(ruleSelectionFilterModel{}.AttributeTypes()), diags
+	}
+
+	ruleSelectionFilter["names"], diags = fwtypes.OptionalStringSet(ctx, filter.RuleNames)
+	if diags.HasError() {
+		return types.ObjectNull(ruleSelectionFilterModel{}.AttributeTypes()), diags
+	}
+
+	ruleSelectionFilter["origins"], diags = fwtypes.OptionalStringSet(ctx, filter.RuleOrigins)
+	if diags.HasError() {
+		return types.ObjectNull(ruleSelectionFilterModel{}.AttributeTypes()), diags
+	}
+
+	ruleSelectionFilter["providers"], diags = fwtypes.OptionalStringSet(ctx, filter.RuleProviders)
+	if diags.HasError() {
+		return types.ObjectNull(ruleSelectionFilterModel{}.AttributeTypes()), diags
+	}
+
+	ruleSelectionFilter["services"], diags = fwtypes.OptionalStringSet(ctx, filter.RuleServices)
+	if diags.HasError() {
+		return types.ObjectNull(ruleSelectionFilterModel{}.AttributeTypes()), diags
+	}
+
+	ruleSelectionFilter["severities"], diags = fwtypes.OptionalStringSet(ctx, convertedRuleSeverities)
+	if diags.HasError() {
+		return types.ObjectNull(ruleSelectionFilterModel{}.AttributeTypes()), diags
+	}
+
+	return types.ObjectValueMust(
+		ruleSelectionFilterModel{}.AttributeTypes(),
+		ruleSelectionFilter,
+	), diags
+}
+
+func buildScopeAssetFilterObject(ctx context.Context, filter *models.ApimodelsAssetFilter) (types.Object, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if filter == nil {
+		return types.ObjectNull(scopeAssetFilterModel{}.AttributeTypes()), diags
+	}
+
+	// Extract cloud group IDs
+	cloudGroupIDs := make([]string, 0)
+	for _, cloudGroup := range filter.CloudGroups {
+		if cloudGroup != nil && cloudGroup.ID != nil {
+			cloudGroupIDs = append(cloudGroupIDs, *cloudGroup.ID)
+		}
+	}
+
+	scopeAssetFilter := make(map[string]attr.Value)
+
+	scopeAssetFilter["account_ids"], diags = fwtypes.OptionalStringSet(ctx, filter.AccountIds)
+	if diags.HasError() {
+		return types.ObjectNull(scopeAssetFilterModel{}.AttributeTypes()), diags
+	}
+
+	scopeAssetFilter["cloud_group_ids"], diags = fwtypes.OptionalStringSet(ctx, cloudGroupIDs)
+	if diags.HasError() {
+		return types.ObjectNull(scopeAssetFilterModel{}.AttributeTypes()), diags
+	}
+
+	scopeAssetFilter["cloud_providers"], diags = fwtypes.OptionalStringSet(ctx, filter.CloudProviders)
+	if diags.HasError() {
+		return types.ObjectNull(scopeAssetFilterModel{}.AttributeTypes()), diags
+	}
+
+	scopeAssetFilter["regions"], diags = fwtypes.OptionalStringSet(ctx, filter.Regions)
+	if diags.HasError() {
+		return types.ObjectNull(scopeAssetFilterModel{}.AttributeTypes()), diags
+	}
+
+	scopeAssetFilter["resource_ids"], diags = fwtypes.OptionalStringSet(ctx, filter.ResourceIds)
+	if diags.HasError() {
+		return types.ObjectNull(scopeAssetFilterModel{}.AttributeTypes()), diags
+	}
+
+	scopeAssetFilter["resource_names"], diags = fwtypes.OptionalStringSet(ctx, filter.ResourceNames)
+	if diags.HasError() {
+		return types.ObjectNull(scopeAssetFilterModel{}.AttributeTypes()), diags
+	}
+
+	scopeAssetFilter["resource_types"], diags = fwtypes.OptionalStringSet(ctx, filter.ResourceTypes)
+	if diags.HasError() {
+		return types.ObjectNull(scopeAssetFilterModel{}.AttributeTypes()), diags
+	}
+
+	scopeAssetFilter["service_categories"], diags = fwtypes.OptionalStringSet(ctx, filter.ServiceCategories)
+	if diags.HasError() {
+		return types.ObjectNull(scopeAssetFilterModel{}.AttributeTypes()), diags
+	}
+
+	// Parse tags from "key=value" format into a map
+	tagsMap := make(map[string]attr.Value)
+	for _, tag := range filter.Tags {
+		if parts := strings.SplitN(tag, "=", 2); len(parts) == 2 {
+			tagsMap[parts[0]] = types.StringValue(parts[1])
+		}
+	}
+
+	if len(tagsMap) == 0 {
+		scopeAssetFilter["tags"] = types.MapNull(types.StringType)
+	} else {
+		scopeAssetFilter["tags"] = types.MapValueMust(types.StringType, tagsMap)
+	}
+
+	return types.ObjectValueMust(
+		scopeAssetFilterModel{}.AttributeTypes(),
+		scopeAssetFilter,
+	), diags
+}
+
 func (r *cloudSecuritySuppressionRulesDataSource) getSuppressionRules(
 	ctx context.Context,
 	fql string,
@@ -379,7 +512,7 @@ func (r *cloudSecuritySuppressionRulesDataSource) getSuppressionRules(
 	var rules []cloudSecuritySuppressionRulesDataSourceRuleModel
 	var diags diag.Diagnostics
 	var filter string
-	limit := GetPageLimit()
+	limit := int64(50)
 	offset := int64(0)
 	defaultResponse := types.SetValueMust(types.ObjectType{AttrTypes: cloudSecuritySuppressionRulesDataSourceRuleModel{}.AttributeTypes()}, []attr.Value{})
 
@@ -424,7 +557,7 @@ func (r *cloudSecuritySuppressionRulesDataSource) getSuppressionRules(
 		}
 
 		if queryResp == nil || queryResp.Payload == nil || len(queryResp.Payload.Resources) == 0 {
-			return defaultResponse, diags
+			break
 		}
 
 		queryPayload := queryResp.GetPayload()
@@ -477,129 +610,14 @@ func (r *cloudSecuritySuppressionRulesDataSource) getSuppressionRules(
 				return defaultResponse, diags
 			}
 
-			if resource.RuleSelectionFilter != nil {
-				ruleSelectionFilter := make(map[string]attr.Value)
-
-				convertedRuleSeverities := make([]string, 0, len(resource.RuleSelectionFilter.RuleSeverities))
-				for _, severity := range resource.RuleSelectionFilter.RuleSeverities {
-					if converted, ok := stringToSeverity[severity]; ok {
-						convertedRuleSeverities = append(convertedRuleSeverities, converted)
-					} else {
-						convertedRuleSeverities = append(convertedRuleSeverities, severity)
-					}
-				}
-
-				ruleSelectionFilter["ids"], diags = fwtypes.OptionalStringSet(ctx, resource.RuleSelectionFilter.RuleIds)
-				if diags.HasError() {
-					return defaultResponse, diags
-				}
-
-				ruleSelectionFilter["names"], diags = fwtypes.OptionalStringSet(ctx, resource.RuleSelectionFilter.RuleNames)
-				if diags.HasError() {
-					return defaultResponse, diags
-				}
-
-				ruleSelectionFilter["origins"], diags = fwtypes.OptionalStringSet(ctx, resource.RuleSelectionFilter.RuleOrigins)
-				if diags.HasError() {
-					return defaultResponse, diags
-				}
-
-				ruleSelectionFilter["providers"], diags = fwtypes.OptionalStringSet(ctx, resource.RuleSelectionFilter.RuleProviders)
-				if diags.HasError() {
-					return defaultResponse, diags
-				}
-
-				ruleSelectionFilter["services"], diags = fwtypes.OptionalStringSet(ctx, resource.RuleSelectionFilter.RuleServices)
-				if diags.HasError() {
-					return defaultResponse, diags
-				}
-
-				ruleSelectionFilter["severities"], diags = fwtypes.OptionalStringSet(ctx, convertedRuleSeverities)
-				if diags.HasError() {
-					return defaultResponse, diags
-				}
-
-				rule.RuleSelectionFilter = types.ObjectValueMust(
-					ruleSelectionFilterModel{}.AttributeTypes(),
-					ruleSelectionFilter,
-				)
-			} else {
-				rule.RuleSelectionFilter = types.ObjectNull(ruleSelectionFilterModel{}.AttributeTypes())
+			rule.RuleSelectionFilter, diags = buildRuleSelectionFilterObject(ctx, resource.RuleSelectionFilter)
+			if diags.HasError() {
+				return defaultResponse, diags
 			}
 
-			if resource.ScopeAssetFilter != nil {
-				cloudGroupIDs := make([]string, 0)
-				if len(resource.ScopeAssetFilter.CloudGroups) != 0 {
-					for _, cloudGroup := range resource.ScopeAssetFilter.CloudGroups {
-						if cloudGroup != nil && cloudGroup.ID != nil {
-							cloudGroupIDs = append(cloudGroupIDs, *cloudGroup.ID)
-						}
-					}
-				}
-
-				scopeAssetFilter := make(map[string]attr.Value)
-
-				scopeAssetFilter["account_ids"], diags = fwtypes.OptionalStringSet(ctx, resource.ScopeAssetFilter.AccountIds)
-				if diags.HasError() {
-					return defaultResponse, diags
-				}
-
-				scopeAssetFilter["cloud_group_ids"], diags = fwtypes.OptionalStringSet(ctx, cloudGroupIDs)
-				if diags.HasError() {
-					return defaultResponse, diags
-				}
-
-				scopeAssetFilter["cloud_providers"], diags = fwtypes.OptionalStringSet(ctx, resource.ScopeAssetFilter.CloudProviders)
-				if diags.HasError() {
-					return defaultResponse, diags
-				}
-
-				scopeAssetFilter["regions"], diags = fwtypes.OptionalStringSet(ctx, resource.ScopeAssetFilter.Regions)
-				if diags.HasError() {
-					return defaultResponse, diags
-				}
-
-				scopeAssetFilter["resource_ids"], diags = fwtypes.OptionalStringSet(ctx, resource.ScopeAssetFilter.ResourceIds)
-				if diags.HasError() {
-					return defaultResponse, diags
-				}
-
-				scopeAssetFilter["resource_names"], diags = fwtypes.OptionalStringSet(ctx, resource.ScopeAssetFilter.ResourceNames)
-				if diags.HasError() {
-					return defaultResponse, diags
-				}
-
-				scopeAssetFilter["resource_types"], diags = fwtypes.OptionalStringSet(ctx, resource.ScopeAssetFilter.ResourceTypes)
-				if diags.HasError() {
-					return defaultResponse, diags
-				}
-
-				scopeAssetFilter["service_categories"], diags = fwtypes.OptionalStringSet(ctx, resource.ScopeAssetFilter.ServiceCategories)
-				if diags.HasError() {
-					return defaultResponse, diags
-				}
-
-				tagsMap := make(map[string]attr.Value)
-				if resource.ScopeAssetFilter.Tags != nil {
-					for _, tag := range resource.ScopeAssetFilter.Tags {
-						if parts := strings.SplitN(tag, "=", 2); len(parts) == 2 {
-							tagsMap[parts[0]] = types.StringValue(parts[1])
-						}
-					}
-				}
-
-				if len(tagsMap) == 0 {
-					scopeAssetFilter["tags"] = types.MapNull(types.StringType)
-				} else {
-					scopeAssetFilter["tags"] = types.MapValueMust(types.StringType, tagsMap)
-				}
-
-				rule.AssetFilter = types.ObjectValueMust(
-					scopeAssetFilterModel{}.AttributeTypes(),
-					scopeAssetFilter,
-				)
-			} else {
-				rule.AssetFilter = types.ObjectNull(scopeAssetFilterModel{}.AttributeTypes())
+			rule.AssetFilter, diags = buildScopeAssetFilterObject(ctx, resource.ScopeAssetFilter)
+			if diags.HasError() {
+				return defaultResponse, diags
 			}
 
 			rules = append(rules, rule)

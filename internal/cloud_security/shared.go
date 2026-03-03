@@ -2,8 +2,6 @@ package cloudsecurity
 
 import (
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -91,15 +89,4 @@ func convertAlertRemediationInfoToTerraformState(input *string) basetypes.ListVa
 	}
 
 	return types.ListValueMust(types.StringType, values)
-}
-
-// GetPageLimit returns the page limit for API requests. It checks the TF_CROWDSTRIKE_PAGE_LIMIT
-// environment variable and falls back to 100 if not set or invalid.
-func GetPageLimit() int64 {
-	if envLimit := os.Getenv("TF_CROWDSTRIKE_PAGE_LIMIT"); envLimit != "" {
-		if limit, err := strconv.ParseInt(envLimit, 10, 64); err == nil && limit > 0 {
-			return limit
-		}
-	}
-	return 100
 }
