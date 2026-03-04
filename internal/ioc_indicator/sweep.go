@@ -35,6 +35,9 @@ func sweepIOCIndicators(
 		return sweepables, nil
 	}
 
+	// NOTE: Sweeper matches on Description prefix. Acceptance test configs must
+	// set description to a value starting with sweep.ResourcePrefix (e.g. via
+	// acctest.RandomResourceName()) for cleanup to work.
 	for _, indicator := range res.Payload.Resources {
 		if !strings.HasPrefix(indicator.Description, sweep.ResourcePrefix) {
 			continue

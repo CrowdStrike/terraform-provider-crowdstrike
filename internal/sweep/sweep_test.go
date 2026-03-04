@@ -13,6 +13,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
+	iocindicator "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioc_indicator"
 	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
@@ -42,4 +43,5 @@ func registerSweepers() {
 	cloudsecurity.RegisterSweepers()
 	itautomation.RegisterSweepers()
 	usergroup.RegisterSweepers()
+	iocindicator.RegisterSweepers()
 }
