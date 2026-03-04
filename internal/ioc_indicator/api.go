@@ -27,7 +27,6 @@ func getIOCIndicator(
 
 	params := ioc.NewIndicatorGetV1Params().WithIds([]string{id})
 	res, err := client.Ioc.IndicatorGetV1(params)
-
 	if err != nil {
 		if strings.Contains(err.Error(), "status 404") {
 			diags.Append(

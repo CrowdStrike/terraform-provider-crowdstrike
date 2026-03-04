@@ -9,7 +9,6 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/ioc"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/go-openapi/strfmt"
@@ -21,6 +20,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -86,7 +86,7 @@ func (m *iocIndicatorResourceModel) wrap(
 	m.ModifiedBy = types.StringValue(indicator.ModifiedBy)
 	m.ModifiedOn = types.StringValue(indicator.ModifiedOn.String())
 
-	if indicator.Expiration.String() != "0001-01-01T00:00:00.000Z" {
+	if !time.Time(indicator.Expiration).IsZero() {
 		m.Expiration = types.StringValue(indicator.Expiration.String())
 	} else {
 		m.Expiration = types.StringNull()
@@ -162,9 +162,10 @@ func (r *iocIndicatorResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: fmt.Sprintf(
-			"IOC Management --- Manages IOC (Indicator of Compromise) indicators in CrowdStrike Falcon. IOC indicators allow you to create custom indicators based on SHA256 hashes, MD5 hashes, domains, IPv4 addresses, or IPv6 addresses with actions such as allow, detect, or prevent.\n\n%s",
-			scopes.GenerateScopeDescription(apiScopes),
+		MarkdownDescription: utils.MarkdownDescription(
+			"IOC Management",
+			"Manages IOC (Indicator of Compromise) indicators in CrowdStrike Falcon. IOC indicators allow you to create custom indicators based on SHA256 hashes, MD5 hashes, domains, IPv4 addresses, or IPv6 addresses with actions such as allow, detect, or prevent.",
+			apiScopes,
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -213,9 +214,11 @@ func (r *iocIndicatorResource) Schema(
 			"severity": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
+				Default:             stringdefault.StaticString(""),
 				MarkdownDescription: "The severity level of the IOC indicator. Valid values are: `informational`, `low`, `medium`, `high`, `critical`.",
 				Validators: []validator.String{
 					stringvalidator.OneOf(
+						"",
 						"informational",
 						"low",
 						"medium",
@@ -227,6 +230,7 @@ func (r *iocIndicatorResource) Schema(
 			"description": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
+				Default:             stringdefault.StaticString(""),
 				MarkdownDescription: "A description of the IOC indicator.",
 			},
 			"platforms": schema.SetAttribute{
@@ -264,6 +268,7 @@ func (r *iocIndicatorResource) Schema(
 			"source": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
+				Default:             stringdefault.StaticString(""),
 				MarkdownDescription: "The source of the IOC indicator.",
 			},
 			"tags": schema.SetAttribute{
@@ -607,12 +612,7 @@ func (r *iocIndicatorResource) Update(
 		return
 	}
 
-	// Re-read the resource to get the canonical state from the API.
-	updatedIndicator, diags := getIOCIndicator(ctx, r.client, id)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	updatedIndicator := payload.Resources[0]
 
 	tflog.Info(ctx, "Updated IOC indicator", map[string]any{
 		"id": id,
