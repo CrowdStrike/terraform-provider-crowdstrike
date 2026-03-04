@@ -1,0 +1,1 @@
+terraform import crowdstrike_ioc_indicator.example indicator-id-here
