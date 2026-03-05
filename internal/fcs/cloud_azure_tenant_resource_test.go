@@ -6,142 +6,136 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
-	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
 const (
-	// Terraform resource name.
-	resourceName = "crowdstrike_cloud_azure_tenant.test"
-	// User.Read.All Microsoft Graph permission ID.
-	userReadAllPermissionID = "df021288-bdef-4463-88db-98f22de89214"
+	cloudAzureTenantResourceName = "crowdstrike_cloud_azure_tenant.test"
+	userReadAllPermissionID      = "df021288-bdef-4463-88db-98f22de89214"
 )
 
-func testAccCloudAzureTenantConfig_withSubscription(tenantID, subscriptionID string) string {
-	return fmt.Sprintf(`
-resource "crowdstrike_cloud_azure_tenant" "test" {
-  tenant_id                      = "%s"
-  microsoft_graph_permission_ids = ["%s"]
-  subscription_ids               = ["%s"]
-}
-`, tenantID, userReadAllPermissionID, subscriptionID)
-}
-
-func testAccCloudAzureTenantConfig_featuresEnabled(tenantID, subscriptionID string) string {
-	return fmt.Sprintf(`
-resource "crowdstrike_cloud_azure_tenant" "test" {
-  tenant_id                      = "%s"
-  microsoft_graph_permission_ids = ["%s"]
-  subscription_ids               = ["%s"]
-  realtime_visibility = {
-    enabled = true
-  }
-  dspm = {
-    enabled = true
-  }
-}
-`, tenantID, userReadAllPermissionID, subscriptionID)
-}
-
-func TestAccCloudAzureTenantResource_Sanity(t *testing.T) {
-	tenantID := uuid.NewString()
+func TestAccCloudAzureTenant_basic(t *testing.T) {
+	tenantID := acctest.RandomUUID()
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
-			// Create and Read testing
 			{
-				Config: testAccCloudAzureTenantConfig_withSubscription(tenantID, uuid.NewString()),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "tenant_id", tenantID),
-					resource.TestCheckResourceAttr(resourceName, "account_type", "commercial"),
-					resource.TestCheckResourceAttr(resourceName, "microsoft_graph_permission_ids.#", "1"),
-					resource.TestCheckResourceAttrSet(resourceName, "cs_azure_client_id"),
-					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "dspm.enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "resource_name_prefix", ""),
-					resource.TestCheckResourceAttr(resourceName, "resource_name_suffix", ""),
-					resource.TestCheckResourceAttr(resourceName, "environment", ""),
-				),
+				Config: testAccCloudAzureTenantConfig_basic(tenantID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("microsoft_graph_permission_ids"), knownvalue.ListSizeExact(1)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("cs_azure_client_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("account_type"), knownvalue.StringExact("commercial")),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("realtime_visibility").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("resource_name_prefix"), knownvalue.StringExact("")),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("resource_name_suffix"), knownvalue.StringExact("")),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("environment"), knownvalue.StringExact("")),
+				},
 			},
-			// Import testing
 			{
-				ResourceName:                         resourceName,
+				ResourceName:                         cloudAzureTenantResourceName,
 				ImportState:                          true,
 				ImportStateId:                        tenantID,
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "tenant_id",
 			},
-			// Update testing - enable features
-			{
-				Config: testAccCloudAzureTenantConfig_featuresEnabled(tenantID, uuid.NewString()),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "tenant_id", tenantID),
-					resource.TestCheckResourceAttr(resourceName, "microsoft_graph_permission_ids.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "subscription_ids.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
-					resource.TestCheckResourceAttr(resourceName, "dspm.enabled", "true"),
-					resource.TestCheckResourceAttrSet(resourceName, "cs_azure_client_id"),
-				),
-			},
-			// Update testing - back to default
-			{
-				Config: testAccCloudAzureTenantConfig_withSubscription(tenantID, uuid.NewString()),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "tenant_id", tenantID),
-					resource.TestCheckResourceAttr(resourceName, "account_type", "commercial"),
-					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "dspm.enabled", "false"),
-				),
-			},
 		},
 	})
 }
 
-func testAccCloudAzureTenantConfig_withManagementGroup(tenantID, managementGroupID string) string {
-	return fmt.Sprintf(`
-resource "crowdstrike_cloud_azure_tenant" "test" {
-  tenant_id                      = "%s"
-  microsoft_graph_permission_ids = ["%s"]
-  management_group_ids           = ["%s"]
-}
-`, tenantID, userReadAllPermissionID, managementGroupID)
-}
-
-func TestAccCloudAzureTenantResource_ManagementGroups(t *testing.T) {
-	tenantID := uuid.NewString()
+func TestAccCloudAzureTenant_update(t *testing.T) {
+	tenantID := acctest.RandomUUID()
+	subID1 := acctest.RandomUUID()
+	subID2 := acctest.RandomUUID()
+	subID3 := acctest.RandomUUID()
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccCloudAzureTenantConfig_withManagementGroup(tenantID, uuid.NewString()),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "tenant_id", tenantID),
-					resource.TestCheckResourceAttr(resourceName, "management_group_ids.#", "1"),
-				),
+				Config: testAccCloudAzureTenantConfig_withSubscription(tenantID, subID1),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("microsoft_graph_permission_ids"), knownvalue.ListSizeExact(1)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("subscription_ids"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact(subID1)})),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("cs_azure_client_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("account_type"), knownvalue.StringExact("commercial")),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("realtime_visibility").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tags"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("management_group_ids"), knownvalue.Null()),
+				},
+			},
+			{
+				Config: testAccCloudAzureTenantConfig_updated(tenantID, subID2),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("microsoft_graph_permission_ids"), knownvalue.ListSizeExact(1)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("subscription_ids"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact(subID2)})),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("realtime_visibility").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("resource_name_prefix"), knownvalue.StringExact("cs")),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("resource_name_suffix"), knownvalue.StringExact("dev")),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("environment"), knownvalue.StringExact("prod")),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tags"), knownvalue.MapExact(map[string]knownvalue.Check{
+						"env":  knownvalue.StringExact("test"),
+						"team": knownvalue.StringExact("security"),
+					})),
+				},
+			},
+			{
+				Config: testAccCloudAzureTenantConfig_withSubscription(tenantID, subID3),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("subscription_ids"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact(subID3)})),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("realtime_visibility").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("resource_name_prefix"), knownvalue.StringExact("")),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("resource_name_suffix"), knownvalue.StringExact("")),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("environment"), knownvalue.StringExact("")),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tags"), knownvalue.Null()),
+				},
+			},
+			{
+				ResourceName:                         cloudAzureTenantResourceName,
+				ImportState:                          true,
+				ImportStateId:                        tenantID,
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "tenant_id",
 			},
 		},
 	})
 }
 
-func testAccCloudAzureTenantConfig_withTags(tenantID string) string {
-	return fmt.Sprintf(`
-resource "crowdstrike_cloud_azure_tenant" "test" {
-  tenant_id                      = "%s"
-  microsoft_graph_permission_ids = ["%s"]
-  tags = {
-    env  = "test"
-    team = "security"
-  }
-}
-`, tenantID, userReadAllPermissionID)
+func TestAccCloudAzureTenant_managementGroups(t *testing.T) {
+	tenantID := acctest.RandomUUID()
+	mgID := acctest.RandomUUID()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAzureTenantConfig_withManagementGroup(tenantID, mgID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("management_group_ids"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact(mgID)})),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("subscription_ids"), knownvalue.Null()),
+				},
+			},
+		},
+	})
 }
 
-func TestAccCloudAzureTenantResource_Tags(t *testing.T) {
-	tenantID := uuid.NewString()
+func TestAccCloudAzureTenant_tags(t *testing.T) {
+	tenantID := acctest.RandomUUID()
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -149,29 +143,20 @@ func TestAccCloudAzureTenantResource_Tags(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCloudAzureTenantConfig_withTags(tenantID),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "tenant_id", tenantID),
-					resource.TestCheckResourceAttr(resourceName, "tags.env", "test"),
-					resource.TestCheckResourceAttr(resourceName, "tags.team", "security"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tags"), knownvalue.MapExact(map[string]knownvalue.Check{
+						"env":  knownvalue.StringExact("test"),
+						"team": knownvalue.StringExact("security"),
+					})),
+				},
 			},
 		},
 	})
 }
 
-func testAccCloudAzureTenantConfig_withAffixes(tenantID, prefix, suffix string) string {
-	return fmt.Sprintf(`
-resource "crowdstrike_cloud_azure_tenant" "test" {
-  tenant_id                      = "%s"
-  microsoft_graph_permission_ids = ["%s"]
-  resource_name_prefix           = "%s"
-  resource_name_suffix           = "%s"
-}
-`, tenantID, userReadAllPermissionID, prefix, suffix)
-}
-
-func TestAccCloudAzureTenantResource_Affixes(t *testing.T) {
-	tenantID := uuid.NewString()
+func TestAccCloudAzureTenant_affixes(t *testing.T) {
+	tenantID := acctest.RandomUUID()
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -183,28 +168,18 @@ func TestAccCloudAzureTenantResource_Affixes(t *testing.T) {
 			},
 			{
 				Config: testAccCloudAzureTenantConfig_withAffixes(tenantID, "cs", "dev"),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "tenant_id", tenantID),
-					resource.TestCheckResourceAttr(resourceName, "resource_name_prefix", "cs"),
-					resource.TestCheckResourceAttr(resourceName, "resource_name_suffix", "dev"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("resource_name_prefix"), knownvalue.StringExact("cs")),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("resource_name_suffix"), knownvalue.StringExact("dev")),
+				},
 			},
 		},
 	})
 }
 
-func testAccCloudAzureTenantConfig_withEnvironment(tenantID, env string) string {
-	return fmt.Sprintf(`
-resource "crowdstrike_cloud_azure_tenant" "test" {
-  tenant_id                      = "%s"
-  microsoft_graph_permission_ids = ["%s"]
-  environment                    = "%s"
-}
-`, tenantID, userReadAllPermissionID, env)
-}
-
-func TestAccCloudAzureTenantResource_Environment(t *testing.T) {
-	tenantID := uuid.NewString()
+func TestAccCloudAzureTenant_environment(t *testing.T) {
+	tenantID := acctest.RandomUUID()
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -216,120 +191,81 @@ func TestAccCloudAzureTenantResource_Environment(t *testing.T) {
 			},
 			{
 				Config: testAccCloudAzureTenantConfig_withEnvironment(tenantID, "prod"),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "tenant_id", tenantID),
-					resource.TestCheckResourceAttr(resourceName, "environment", "prod"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("environment"), knownvalue.StringExact("prod")),
+				},
 			},
 		},
 	})
 }
 
-func testAccCloudAzureTenantConfig_rtvEnabled(tenantID string, rtvEnabled bool) string {
-	return fmt.Sprintf(`
-resource "crowdstrike_cloud_azure_tenant" "test" {
-  tenant_id                      = "%s"
-  microsoft_graph_permission_ids = ["%s"]
-  realtime_visibility = {
-    enabled = %t
-  }
-}
-`, tenantID, userReadAllPermissionID, rtvEnabled)
-}
-
-func TestAccCloudAzureTenantResource_RealtimeVisibility(t *testing.T) {
-	tenantID := uuid.NewString()
+func TestAccCloudAzureTenant_realtimeVisibility(t *testing.T) {
+	tenantID := acctest.RandomUUID()
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
-			// Create with RTV&D disabled (default)
 			{
-				Config: testAccCloudAzureTenantConfig_withSubscription(tenantID, uuid.NewString()),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "tenant_id", tenantID),
-					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "false"),
-				),
+				Config: testAccCloudAzureTenantConfig_basic(tenantID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("realtime_visibility").AtMapKey("enabled"), knownvalue.Bool(false)),
+				},
 			},
-			// Enable RTV&D
 			{
 				Config: testAccCloudAzureTenantConfig_rtvEnabled(tenantID, true),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "tenant_id", tenantID),
-					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("realtime_visibility").AtMapKey("enabled"), knownvalue.Bool(true)),
+				},
 			},
-			// Disable RTV&D
 			{
 				Config: testAccCloudAzureTenantConfig_rtvEnabled(tenantID, false),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "tenant_id", tenantID),
-					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "false"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("realtime_visibility").AtMapKey("enabled"), knownvalue.Bool(false)),
+				},
 			},
 		},
 	})
 }
 
-func testAccCloudAzureTenantConfig_dspmEnabled(tenantID string, dspmEnabled bool) string {
-	return fmt.Sprintf(`
-resource "crowdstrike_cloud_azure_tenant" "test" {
-  tenant_id                      = "%s"
-  microsoft_graph_permission_ids = ["%s"]
-  dspm = {
-    enabled = %t
-  }
-}
-`, tenantID, userReadAllPermissionID, dspmEnabled)
-}
-
-func TestAccCloudAzureTenantResource_DSPM(t *testing.T) {
-	tenantID := uuid.NewString()
+func TestAccCloudAzureTenant_dspm(t *testing.T) {
+	tenantID := acctest.RandomUUID()
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
-			// Create with DSPM disabled (default)
 			{
-				Config: testAccCloudAzureTenantConfig_withSubscription(tenantID, uuid.NewString()),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "tenant_id", tenantID),
-					resource.TestCheckResourceAttr(resourceName, "dspm.enabled", "false"),
-				),
+				Config: testAccCloudAzureTenantConfig_basic(tenantID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(false)),
+				},
 			},
-			// Enable DSPM
 			{
 				Config: testAccCloudAzureTenantConfig_dspmEnabled(tenantID, true),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "tenant_id", tenantID),
-					resource.TestCheckResourceAttr(resourceName, "dspm.enabled", "true"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(true)),
+				},
 			},
-			// Disable DSPM
 			{
 				Config: testAccCloudAzureTenantConfig_dspmEnabled(tenantID, false),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "tenant_id", tenantID),
-					resource.TestCheckResourceAttr(resourceName, "dspm.enabled", "false"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(false)),
+				},
 			},
 		},
 	})
 }
 
-func testAccCloudAzureTenantConfig_emptyGraphPermissions(tenantID string) string {
-	return fmt.Sprintf(`
-resource "crowdstrike_cloud_azure_tenant" "test" {
-  tenant_id                      = "%s"
-  microsoft_graph_permission_ids = []
-}
-`, tenantID)
-}
-
-func TestAccCloudAzureTenantResource_EmptyGraphPermissions(t *testing.T) {
-	tenantID := uuid.NewString()
+func TestAccCloudAzureTenant_emptyGraphPermissions(t *testing.T) {
+	tenantID := acctest.RandomUUID()
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -337,11 +273,122 @@ func TestAccCloudAzureTenantResource_EmptyGraphPermissions(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCloudAzureTenantConfig_emptyGraphPermissions(tenantID),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "tenant_id", tenantID),
-					resource.TestCheckResourceAttr(resourceName, "microsoft_graph_permission_ids.#", "0"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("microsoft_graph_permission_ids"), knownvalue.ListSizeExact(0)),
+				},
 			},
 		},
 	})
+}
+
+// Config helpers
+
+func testAccCloudAzureTenantConfig_basic(tenantID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                      = %[1]q
+  microsoft_graph_permission_ids = [%[2]q]
+}`, tenantID, userReadAllPermissionID)
+}
+
+func testAccCloudAzureTenantConfig_withSubscription(tenantID, subscriptionID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                      = %[1]q
+  microsoft_graph_permission_ids = [%[2]q]
+  subscription_ids               = [%[3]q]
+}`, tenantID, userReadAllPermissionID, subscriptionID)
+}
+
+func testAccCloudAzureTenantConfig_updated(tenantID, subscriptionID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                      = %[1]q
+  microsoft_graph_permission_ids = [%[2]q]
+  subscription_ids               = [%[3]q]
+  realtime_visibility = {
+    enabled = true
+  }
+  dspm = {
+    enabled = true
+  }
+  resource_name_prefix = "cs"
+  resource_name_suffix = "dev"
+  environment          = "prod"
+  tags = {
+    env  = "test"
+    team = "security"
+  }
+}`, tenantID, userReadAllPermissionID, subscriptionID)
+}
+
+func testAccCloudAzureTenantConfig_withManagementGroup(tenantID, managementGroupID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                      = %[1]q
+  microsoft_graph_permission_ids = [%[2]q]
+  management_group_ids           = [%[3]q]
+}`, tenantID, userReadAllPermissionID, managementGroupID)
+}
+
+func testAccCloudAzureTenantConfig_withTags(tenantID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                      = %[1]q
+  microsoft_graph_permission_ids = [%[2]q]
+  tags = {
+    env  = "test"
+    team = "security"
+  }
+}`, tenantID, userReadAllPermissionID)
+}
+
+func testAccCloudAzureTenantConfig_withAffixes(tenantID, prefix, suffix string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                      = %[1]q
+  microsoft_graph_permission_ids = [%[2]q]
+  resource_name_prefix           = %[3]q
+  resource_name_suffix           = %[4]q
+}`, tenantID, userReadAllPermissionID, prefix, suffix)
+}
+
+func testAccCloudAzureTenantConfig_withEnvironment(tenantID, env string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                      = %[1]q
+  microsoft_graph_permission_ids = [%[2]q]
+  environment                    = %[3]q
+}`, tenantID, userReadAllPermissionID, env)
+}
+
+func testAccCloudAzureTenantConfig_rtvEnabled(tenantID string, enabled bool) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                      = %[1]q
+  microsoft_graph_permission_ids = [%[2]q]
+  realtime_visibility = {
+    enabled = %[3]t
+  }
+}`, tenantID, userReadAllPermissionID, enabled)
+}
+
+func testAccCloudAzureTenantConfig_dspmEnabled(tenantID string, enabled bool) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                      = %[1]q
+  microsoft_graph_permission_ids = [%[2]q]
+  dspm = {
+    enabled = %[3]t
+  }
+}`, tenantID, userReadAllPermissionID, enabled)
+}
+
+func testAccCloudAzureTenantConfig_emptyGraphPermissions(tenantID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                      = %[1]q
+  microsoft_graph_permission_ids = []
+}`, tenantID)
 }
