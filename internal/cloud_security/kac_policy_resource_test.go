@@ -1,12 +1,14 @@
 package cloudsecurity_test
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	tfjson "github.com/hashicorp/terraform-json"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
@@ -1286,11 +1288,45 @@ EOF
 }
 `, customRule1Name, customRule2Name)
 
+	customRule1ResourceName := "crowdstrike_cloud_security_kac_custom_rule.test_rule_1"
+	customRule2ResourceName := "crowdstrike_cloud_security_kac_custom_rule.test_rule_2"
+
+	rg1CustomRulesPath := tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("custom_rules")
+	rg2CustomRulesPath := tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("custom_rules")
+	defaultRGCustomRulesPath := tfjsonpath.New("default_rule_group").AtMapKey("custom_rules")
+
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
-			// Step 1: Create policy with 2 rule groups + default rule group, add custom rules
+			// Step 1: Create policy without custom rules
+			{
+				Config: acctest.ConfigCompose(
+					customRulesConfig,
+					kacPolicyConfig{
+						name: policyName,
+						ruleGroups: []ruleGroupConfig{
+							{
+								name:        "rule-group-1",
+								description: utils.Addr("First rule group"),
+							},
+							{
+								name:        "rule-group-2",
+								description: utils.Addr("Second rule group"),
+							},
+						},
+					}.String(),
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups"), knownvalue.ListSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, rg1CustomRulesPath, knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, rg2CustomRulesPath, knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, defaultRGCustomRulesPath, knownvalue.Null()),
+				},
+			},
+			// Step 2: Add custom rules to existing policy
 			{
 				Config: acctest.ConfigCompose(
 					customRulesConfig,
@@ -1323,24 +1359,24 @@ EOF
 					}.String(),
 				),
 				ConfigStateChecks: []statecheck.StateCheck{
-					// Verify policy created
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
-
-					// Verify 2 rule groups exist
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups"), knownvalue.ListSizeExact(2)),
 
-					// Verify custom rule in rule group 1
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("custom_rules"), knownvalue.SetSizeExact(1)),
+					// rule-group-1: test_rule_1 explicitly set to Alert
+					statecheck.ExpectKnownValue(resourceName, rg1CustomRulesPath, knownvalue.SetSizeExact(1)),
+					expectCustomRuleAction{resourceName, rg1CustomRulesPath, customRule1ResourceName, "Alert"},
 
-					// Verify custom rule in rule group 2 (synchronized with default action)
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("custom_rules"), knownvalue.SetSizeExact(1)),
+					// rule-group-2: test_rule_1 propagated as Disabled
+					statecheck.ExpectKnownValue(resourceName, rg2CustomRulesPath, knownvalue.SetSizeExact(1)),
+					expectCustomRuleAction{resourceName, rg2CustomRulesPath, customRule1ResourceName, "Disabled"},
 
-					// Verify custom rule in default rule group
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("custom_rules"), knownvalue.SetSizeExact(1)),
+					// default rule group: test_rule_1 explicitly set to Prevent
+					statecheck.ExpectKnownValue(resourceName, defaultRGCustomRulesPath, knownvalue.SetSizeExact(1)),
+					expectCustomRuleAction{resourceName, defaultRGCustomRulesPath, customRule1ResourceName, "Prevent"},
 				},
 			},
-			// Step 2: Update custom rule actions and add another custom rule
+			// Step 3: Update custom rule actions and add another custom rule
 			{
 				Config: acctest.ConfigCompose(
 					customRulesConfig,
@@ -1391,17 +1427,23 @@ EOF
 					}.String(),
 				),
 				ConfigStateChecks: []statecheck.StateCheck{
-					// Verify custom rules updated in rule group 1
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("custom_rules"), knownvalue.SetSizeExact(2)),
+					// rule-group-1: test_rule_1=Prevent, test_rule_2=Disabled
+					statecheck.ExpectKnownValue(resourceName, rg1CustomRulesPath, knownvalue.SetSizeExact(2)),
+					expectCustomRuleAction{resourceName, rg1CustomRulesPath, customRule1ResourceName, "Prevent"},
+					expectCustomRuleAction{resourceName, rg1CustomRulesPath, customRule2ResourceName, "Disabled"},
 
-					// Verify custom rules in rule group 2
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("custom_rules"), knownvalue.SetSizeExact(2)),
+					// rule-group-2: test_rule_1=Alert, test_rule_2=Disabled
+					statecheck.ExpectKnownValue(resourceName, rg2CustomRulesPath, knownvalue.SetSizeExact(2)),
+					expectCustomRuleAction{resourceName, rg2CustomRulesPath, customRule1ResourceName, "Alert"},
+					expectCustomRuleAction{resourceName, rg2CustomRulesPath, customRule2ResourceName, "Disabled"},
 
-					// Verify custom rules in default rule group
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("custom_rules"), knownvalue.SetSizeExact(2)),
+					// default rule group: test_rule_1=Disabled, test_rule_2=Prevent
+					statecheck.ExpectKnownValue(resourceName, defaultRGCustomRulesPath, knownvalue.SetSizeExact(2)),
+					expectCustomRuleAction{resourceName, defaultRGCustomRulesPath, customRule1ResourceName, "Disabled"},
+					expectCustomRuleAction{resourceName, defaultRGCustomRulesPath, customRule2ResourceName, "Prevent"},
 				},
 			},
-			// Step 3: Remove one custom rule
+			// Step 4: Remove one custom rule
 			{
 				Config: acctest.ConfigCompose(
 					customRulesConfig,
@@ -1435,15 +1477,20 @@ EOF
 					}.String(),
 				),
 				ConfigStateChecks: []statecheck.StateCheck{
-					// Verify only one custom rule remains in each rule group
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("custom_rules"), knownvalue.SetSizeExact(1)),
+					// rule-group-1: test_rule_2=Alert
+					statecheck.ExpectKnownValue(resourceName, rg1CustomRulesPath, knownvalue.SetSizeExact(1)),
+					expectCustomRuleAction{resourceName, rg1CustomRulesPath, customRule2ResourceName, "Alert"},
 
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("custom_rules"), knownvalue.SetSizeExact(1)),
+					// rule-group-2: test_rule_2=Prevent
+					statecheck.ExpectKnownValue(resourceName, rg2CustomRulesPath, knownvalue.SetSizeExact(1)),
+					expectCustomRuleAction{resourceName, rg2CustomRulesPath, customRule2ResourceName, "Prevent"},
 
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("custom_rules"), knownvalue.SetSizeExact(1)),
+					// default rule group: test_rule_2 propagated as Disabled
+					statecheck.ExpectKnownValue(resourceName, defaultRGCustomRulesPath, knownvalue.SetSizeExact(1)),
+					expectCustomRuleAction{resourceName, defaultRGCustomRulesPath, customRule2ResourceName, "Disabled"},
 				},
 			},
-			// Step 4: Import validation
+			// Step 5: Import validation
 			{
 				ResourceName:                         resourceName,
 				ImportState:                          true,
@@ -1451,7 +1498,7 @@ EOF
 				ImportStateVerifyIdentifierAttribute: "id",
 				ImportStateVerifyIgnore:              []string{"last_updated"},
 			},
-			// Step 5: Remove all custom rules
+			// Step 6: Remove all custom rules
 			{
 				Config: acctest.ConfigCompose(
 					customRulesConfig,
@@ -1472,9 +1519,9 @@ EOF
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("custom_rules"), knownvalue.Null()),
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("custom_rules"), knownvalue.Null()),
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("custom_rules"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, rg1CustomRulesPath, knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, rg2CustomRulesPath, knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, defaultRGCustomRulesPath, knownvalue.Null()),
 				},
 			},
 		},
@@ -1631,10 +1678,17 @@ EOF
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(policyName)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups"), knownvalue.ListSizeExact(2)),
-					// Verify all rule groups have 2 custom rules
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("custom_rules"), knownvalue.SetSizeExact(2)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("custom_rules"), knownvalue.SetSizeExact(2)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("default_rule_group").AtMapKey("custom_rules"), knownvalue.SetSizeExact(2)),
+					// Verify propagated rule groups have Disabled actions
+					expectCustomRuleAction{resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("custom_rules"), "crowdstrike_cloud_security_kac_custom_rule.test_rule_1", "Disabled"},
+					expectCustomRuleAction{resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(0).AtMapKey("custom_rules"), "crowdstrike_cloud_security_kac_custom_rule.test_rule_2", "Disabled"},
+					expectCustomRuleAction{resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("custom_rules"), "crowdstrike_cloud_security_kac_custom_rule.test_rule_1", "Disabled"},
+					expectCustomRuleAction{resourceName, tfjsonpath.New("rule_groups").AtSliceIndex(1).AtMapKey("custom_rules"), "crowdstrike_cloud_security_kac_custom_rule.test_rule_2", "Disabled"},
+					// Verify default rule group has explicitly set actions
+					expectCustomRuleAction{resourceName, tfjsonpath.New("default_rule_group").AtMapKey("custom_rules"), "crowdstrike_cloud_security_kac_custom_rule.test_rule_1", "Alert"},
+					expectCustomRuleAction{resourceName, tfjsonpath.New("default_rule_group").AtMapKey("custom_rules"), "crowdstrike_cloud_security_kac_custom_rule.test_rule_2", "Prevent"},
 				},
 			},
 		},
@@ -1664,4 +1718,69 @@ func testAccCheckNestedObjectIDsUnchanged(resourceName string, initialState map[
 		}
 		return nil
 	}
+}
+
+type expectCustomRuleAction struct {
+	resourceAddress     string
+	collectionPath      tfjsonpath.Path
+	ruleResourceAddress string
+	expectedAction      string
+}
+
+func (e expectCustomRuleAction) CheckState(_ context.Context, req statecheck.CheckStateRequest, resp *statecheck.CheckStateResponse) {
+	var targetResource, ruleResource *tfjson.StateResource
+
+	for _, r := range req.State.Values.RootModule.Resources {
+		if r.Address == e.resourceAddress {
+			targetResource = r
+		}
+		if r.Address == e.ruleResourceAddress {
+			ruleResource = r
+		}
+	}
+
+	if targetResource == nil {
+		resp.Error = fmt.Errorf("resource %s not found in state", e.resourceAddress)
+		return
+	}
+	if ruleResource == nil {
+		resp.Error = fmt.Errorf("resource %s not found in state", e.ruleResourceAddress)
+		return
+	}
+
+	ruleID, ok := ruleResource.AttributeValues["id"].(string)
+	if !ok {
+		resp.Error = fmt.Errorf("resource %s has no string id attribute", e.ruleResourceAddress)
+		return
+	}
+
+	result, err := tfjsonpath.Traverse(targetResource.AttributeValues, e.collectionPath)
+	if err != nil {
+		resp.Error = fmt.Errorf("failed to traverse path %s: %w", e.collectionPath.String(), err)
+		return
+	}
+
+	customRules, ok := result.([]any)
+	if !ok {
+		resp.Error = fmt.Errorf("expected []any at path %s, got %T", e.collectionPath.String(), result)
+		return
+	}
+
+	for _, item := range customRules {
+		obj, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if obj["id"] == ruleID {
+			if obj["action"] != e.expectedAction {
+				resp.Error = fmt.Errorf(
+					"custom rule %s in %s: expected action %q, got %q",
+					e.ruleResourceAddress, e.collectionPath.String(), e.expectedAction, obj["action"],
+				)
+			}
+			return
+		}
+	}
+
+	resp.Error = fmt.Errorf("custom rule with ID %s (%s) not found in %s", ruleID, e.ruleResourceAddress, e.collectionPath.String())
 }
