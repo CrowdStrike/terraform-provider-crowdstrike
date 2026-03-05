@@ -28,7 +28,7 @@ func ExpandSetAs[T any](
 // using a converter function to transform each element from the Terraform model type
 // to the desired output type.
 // If the set is null or unknown, it returns an empty slice.
-func ExpandSetWithConverter[TSource any, TDest any](
+func ExpandSetWithConverter[TSource, TDest any](
 	ctx context.Context,
 	set types.Set,
 	converter func(TSource) (TDest, diag.Diagnostics),
@@ -143,7 +143,7 @@ func FlattenStringValueSet(
 // FlattenObjectValueSetFrom converts a slice of source objects to a Terraform set of objects
 // using a converter function to transform each element.
 // Returns null if the slice is empty or nil, or if diagnostics has errors.
-func FlattenObjectValueSetFrom[TSource any, TDest any](
+func FlattenObjectValueSetFrom[TSource, TDest any](
 	ctx context.Context,
 	objectType types.ObjectType,
 	sources []TSource,
