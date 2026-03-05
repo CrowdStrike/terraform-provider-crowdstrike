@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	// terraform resource name
+	// Terraform resource name.
 	resourceName = "crowdstrike_cloud_azure_tenant.test"
-	// User.Read.All Microsoft Graph permission ID
+	// User.Read.All Microsoft Graph permission ID.
 	userReadAllPermissionID = "df021288-bdef-4463-88db-98f22de89214"
 )
 
