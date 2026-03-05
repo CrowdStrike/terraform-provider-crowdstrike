@@ -17,6 +17,7 @@ import (
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
 	customioc "github.com/crowdstrike/terraform-provider-crowdstrike/internal/custom_ioc"
 	dataprotection "github.com/crowdstrike/terraform-provider-crowdstrike/internal/data_protection"
+	falconcontainerimage "github.com/crowdstrike/terraform-provider-crowdstrike/internal/falcon_container_image"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
@@ -331,6 +332,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		usergroup.NewUserGroupResource,
 		installtoken.NewInstallTokenResource,
 		customioc.NewCustomIOCResource,
+		falconcontainerimage.NewFalconContainerImageResource,
 	}
 }
 
