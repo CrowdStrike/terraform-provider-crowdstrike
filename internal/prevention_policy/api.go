@@ -329,7 +329,7 @@ func mapPreventionSettings(
 
 type updatePreventionPolicyOptions struct {
 	Name        string
-	Description string
+	Description *string
 }
 
 // updatePreventionPolicy updates a prevention policy with the provided settings.
