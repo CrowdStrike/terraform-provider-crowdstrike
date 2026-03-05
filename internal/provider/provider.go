@@ -14,6 +14,7 @@ import (
 	cloudgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_group"
 	cloudsecurity "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_security"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	falconcontainerimage "github.com/crowdstrike/terraform-provider-crowdstrike/internal/falcon_container_image"
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
 	dataprotection "github.com/crowdstrike/terraform-provider-crowdstrike/internal/data_protection"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
@@ -333,6 +334,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		cloudcompliance.NewCloudComplianceFrameworkControlDataSource,
 		preventionpolicy.NewPreventionPoliciesDataSource,
 		fim.NewFilevantagePoliciesDataSource,
+		falconcontainerimage.NewFalconContainerImageDataSource,
 	}
 }
 
