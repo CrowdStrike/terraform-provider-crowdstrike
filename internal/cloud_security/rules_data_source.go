@@ -435,7 +435,7 @@ func (r *cloudSecurityRulesDataSource) getRules(
 	for {
 		queryResp, err := r.client.CloudPolicies.QueryRule(queryParams)
 		if err != nil {
-			diag := tferrors.NewDiagnosticFromAPIError(tferrors.Create, err, cloudSecurityRuleScopes)
+			diag := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, cloudSecurityRuleScopes)
 			if diag != nil {
 				diags.Append(diag)
 				return defaultResponse, diags
@@ -443,7 +443,7 @@ func (r *cloudSecurityRulesDataSource) getRules(
 		}
 
 		if queryResp == nil || queryResp.Payload == nil || len(queryResp.Payload.Resources) == 0 {
-			return defaultResponse, diags
+			break
 		}
 
 		queryPayload := queryResp.GetPayload()
@@ -458,7 +458,7 @@ func (r *cloudSecurityRulesDataSource) getRules(
 			Ids:     queryPayload.Resources,
 		})
 		if err != nil {
-			diag := tferrors.NewDiagnosticFromAPIError(tferrors.Create, err, cloudSecurityRuleScopes)
+			diag := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, cloudSecurityRuleScopes)
 			if diag != nil {
 				diags.Append(diag)
 				return defaultResponse, diags
