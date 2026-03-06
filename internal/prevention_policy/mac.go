@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -147,7 +148,7 @@ func (r *preventionPolicyMacResource) Create(
 
 	preventionPolicy := res.Payload.Resources[0]
 	plan.ID = types.StringValue(*preventionPolicy.ID)
-	plan.Description = types.StringValue(*preventionPolicy.Description)
+	plan.Description = flex.StringPointerToFramework(preventionPolicy.Description)
 	plan.Name = types.StringValue(*preventionPolicy.Name)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
@@ -236,7 +237,7 @@ func (r *preventionPolicyMacResource) Read(
 
 	state.ID = types.StringValue(*policy.ID)
 	state.Name = types.StringValue(*policy.Name)
-	state.Description = types.StringValue(*policy.Description)
+	state.Description = flex.StringPointerToFramework(policy.Description)
 	state.Enabled = types.BoolValue(*policy.Enabled)
 	resp.Diagnostics.Append(r.assignPreventionSettings(ctx, &state, policy.PreventionSettings)...)
 	if resp.Diagnostics.HasError() {
@@ -308,7 +309,7 @@ func (r *preventionPolicyMacResource) Update(
 		plan.ID.ValueString(),
 		updatePreventionPolicyOptions{
 			Name:        plan.Name.ValueString(),
-			Description: plan.Description.ValueString(),
+			Description: flex.FrameworkToStringPointer(plan.Description),
 		},
 	)
 
@@ -318,7 +319,7 @@ func (r *preventionPolicyMacResource) Update(
 	}
 
 	plan.ID = types.StringValue(*preventionPolicy.ID)
-	plan.Description = types.StringValue(*preventionPolicy.Description)
+	plan.Description = flex.StringPointerToFramework(preventionPolicy.Description)
 	plan.Name = types.StringValue(*preventionPolicy.Name)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	resp.Diagnostics.Append(r.assignPreventionSettings(ctx, &plan, preventionPolicy.PreventionSettings)...)
