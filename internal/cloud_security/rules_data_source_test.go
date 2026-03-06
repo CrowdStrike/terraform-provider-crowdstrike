@@ -8,7 +8,10 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
 func TestCloudSecurityRulesDatasourceConfigConflicts(t *testing.T) {
@@ -88,23 +91,9 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 		  resource_type  = "%[2]s"
 		}
 		`, config.cloudProvider, config.resourceType),
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet(resourceName, "rules.#"),
-				resource.TestMatchResourceAttr(resourceName, "rules.#", regexp.MustCompile(`^[2-9]|\d{2,}$`)),
-				func(s *terraform.State) error {
-					rs, ok := s.RootModule().Resources[resourceName]
-					if !ok {
-						return fmt.Errorf("Not found: %s", resourceName)
-					}
-					for i := 0; ; i++ {
-						key := fmt.Sprintf("rules.%d.id", i)
-						if _, ok := rs.Primary.Attributes[key]; !ok {
-							break
-						}
-					}
-					return nil
-				},
-			),
+			ConfigStateChecks: []statecheck.StateCheck{
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules"), knownvalue.NotNull()),
+			},
 		},
 		{
 			Config: fmt.Sprintf(`
@@ -113,21 +102,21 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 				  rule_name = "%[2]s"
 				}
 				`, config.cloudProvider, config.ruleName),
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr(resourceName, "rules.#", "1"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.id"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.remediation_info.#"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.alert_info.#"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.severity"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.domain"),
-				resource.TestCheckResourceAttr(resourceName, "rules.0.name", config.ruleName),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.controls.#"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.cloud_provider"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.attack_types.#"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.resource_type"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.subdomain"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.rule_origin"),
-			),
+			ConfigStateChecks: []statecheck.StateCheck{
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules"), knownvalue.ListSizeExact(1)),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("id"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("remediation_info"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("alert_info"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("severity"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("domain"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("name"), knownvalue.StringExact(config.ruleName)),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("controls"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("cloud_provider"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("attack_types"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("resource_type"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("subdomain"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("rule_origin"), knownvalue.NotNull()),
+			},
 		},
 		{
 			Config: fmt.Sprintf(`
@@ -139,21 +128,21 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 		  service = "%[5]s"
 		}
 		`, config.cloudProvider, config.ruleName, config.benchmark, config.framework, config.service),
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr(resourceName, "rules.#", "1"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.id"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.remediation_info.#"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.alert_info.#"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.severity"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.domain"),
-				resource.TestCheckResourceAttr(resourceName, "rules.0.name", config.ruleName),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.controls.#"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.cloud_provider"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.attack_types.#"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.resource_type"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.subdomain"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.rule_origin"),
-			),
+			ConfigStateChecks: []statecheck.StateCheck{
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules"), knownvalue.ListSizeExact(1)),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("id"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("remediation_info"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("alert_info"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("severity"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("domain"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("name"), knownvalue.StringExact(config.ruleName)),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("controls"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("cloud_provider"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("attack_types"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("resource_type"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("subdomain"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("rule_origin"), knownvalue.NotNull()),
+			},
 		},
 		{
 			Config: fmt.Sprintf(`
@@ -161,21 +150,21 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 		  fql = "rule_name:'%s'"
 		}
 		`, config.cloudProvider, config.ruleName),
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr(resourceName, "rules.#", "1"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.id"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.remediation_info.#"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.alert_info.#"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.severity"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.domain"),
-				resource.TestCheckResourceAttr(resourceName, "rules.0.name", config.ruleName),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.controls.#"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.cloud_provider"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.attack_types.#"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.resource_type"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.subdomain"),
-				resource.TestCheckResourceAttrSet(resourceName, "rules.0.rule_origin"),
-			),
+			ConfigStateChecks: []statecheck.StateCheck{
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules"), knownvalue.ListSizeExact(1)),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("id"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("remediation_info"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("alert_info"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("severity"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("domain"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("name"), knownvalue.StringExact(config.ruleName)),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("controls"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("cloud_provider"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("attack_types"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("resource_type"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("subdomain"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("rule_origin"), knownvalue.NotNull()),
+			},
 		},
 		{
 			Config: fmt.Sprintf(`
@@ -195,8 +184,10 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 		  rule_origin = "Custom"
 		}
 		`, config.cloudProvider, config.cloudProvider, config.ruleName, config.benchmark, config.resourceType, rName),
+			ConfigStateChecks: []statecheck.StateCheck{
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules"), knownvalue.NotNull()),
+			},
 			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet(resourceName, "rules.#"),
 				func(s *terraform.State) error {
 					rs, ok := s.RootModule().Resources[resourceName]
 					if !ok {
@@ -218,6 +209,114 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 	}
 
 	return steps
+}
+
+func TestCloudSecurityRulesDatasourceWithSuppressionRule(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long-running test in short mode")
+	}
+	randomSuffix := sdkacctest.RandString(8)
+	customRuleName := fmt.Sprintf("%s Custom Rule With Suppression %s", acctest.ResourcePrefix, randomSuffix)
+	suppressionRuleName := fmt.Sprintf("TF Test Suppression for Custom Rule %s", randomSuffix)
+	customRuleResourceName := "crowdstrike_cloud_security_custom_rule.test_with_suppression"
+	suppressionResourceName := "crowdstrike_cloud_security_suppression_rule.test_suppression"
+	dataSourceName := "data.crowdstrike_cloud_security_rules.test_with_suppression"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testCloudRulesWithSuppressionConfig(customRuleName, suppressionRuleName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					// Initial custom rule
+					statecheck.ExpectKnownValue(customRuleResourceName, tfjsonpath.New("name"), knownvalue.StringExact(customRuleName)),
+					statecheck.ExpectKnownValue(customRuleResourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+
+					// Initial Suppression rule
+					statecheck.ExpectKnownValue(suppressionResourceName, tfjsonpath.New("name"), knownvalue.StringExact(suppressionRuleName)),
+					statecheck.ExpectKnownValue(suppressionResourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+
+					// Check initial suppression rule id
+					statecheck.ExpectKnownValue(dataSourceName, tfjsonpath.New("rules"), knownvalue.ListSizeExact(1)),
+					statecheck.ExpectKnownValue(dataSourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(dataSourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("name"), knownvalue.StringExact(customRuleName)),
+
+					// Validate the suppression is now attached to the rule
+					statecheck.ExpectKnownValue(dataSourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("suppression_rule_ids"), knownvalue.ListSizeExact(1)),
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					func(s *terraform.State) error {
+						suppressionRS, ok := s.RootModule().Resources[suppressionResourceName]
+						if !ok {
+							return fmt.Errorf("Not found: %s", suppressionResourceName)
+						}
+						suppressionID := suppressionRS.Primary.ID
+
+						dataSourceRS, ok := s.RootModule().Resources[dataSourceName]
+						if !ok {
+							return fmt.Errorf("Not found: %s", dataSourceName)
+						}
+
+						suppressionRuleIDKey := "rules.0.suppression_rule_ids.0"
+						if dataSourceSuppressionID, ok := dataSourceRS.Primary.Attributes[suppressionRuleIDKey]; ok {
+							if dataSourceSuppressionID != suppressionID {
+								return fmt.Errorf("Expected suppression_rule_id to be '%s', got '%s'", suppressionID, dataSourceSuppressionID)
+							}
+						} else {
+							return fmt.Errorf("suppression_rule_ids not found in data source output")
+						}
+
+						return nil
+					},
+				),
+			},
+		},
+	})
+}
+
+func testCloudRulesWithSuppressionConfig(customRuleName, suppressionRuleName string) string {
+	return fmt.Sprintf(`
+# First, find a parent rule to base our custom rule on
+data "crowdstrike_cloud_security_rules" "parent_rule" {
+  rule_name = "IAM root user has an active access key"
+  cloud_provider = "AWS"
+}
+
+# Create a custom rule
+resource "crowdstrike_cloud_security_custom_rule" "test_with_suppression" {
+  resource_type    = "AWS::IAM::CredentialReport"
+  name             = "%[1]s"
+  description      = "Test custom rule for suppression data source test"
+  cloud_provider   = "AWS"
+  parent_rule_id   = one(data.crowdstrike_cloud_security_rules.parent_rule.rules).id
+}
+
+# Create a suppression rule that applies to the custom rule
+resource "crowdstrike_cloud_security_suppression_rule" "test_suppression" {
+  name              = "%[2]s"
+  type              = "IOM"
+  description       = "Test suppression rule for data source verification"
+  reason            = "false-positive"
+
+  rule_selection_filter = {
+    ids = [crowdstrike_cloud_security_custom_rule.test_with_suppression.id]
+  }
+
+  asset_filter = {
+    cloud_providers = ["aws"]
+    regions        = ["us-east-1"]
+  }
+}
+
+# Query for the custom rule using the data source
+data "crowdstrike_cloud_security_rules" "test_with_suppression" {
+  rule_name = "%[1]s"
+
+  # Ensure the suppression rule is created before we query
+  depends_on = [crowdstrike_cloud_security_suppression_rule.test_suppression]
+}
+`, customRuleName, suppressionRuleName)
 }
 
 func testDatasourceConfigConflicts() []resource.TestStep {
@@ -305,9 +404,9 @@ data "crowdstrike_cloud_security_rules" "empty" {
   rule_name = "NonExistentRuleThatShouldNeverExist12345"
 }
 			`,
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr("data.crowdstrike_cloud_security_rules.empty", "rules.#", "0"),
-			),
+			ConfigStateChecks: []statecheck.StateCheck{
+				statecheck.ExpectKnownValue("data.crowdstrike_cloud_security_rules.empty", tfjsonpath.New("rules"), knownvalue.Null()),
+			},
 		},
 	}
 }
@@ -322,10 +421,9 @@ data "crowdstrike_cloud_security_rules" "wildcard" {
   rule_name = "%[2]s"
 }
 `, config.cloudProvider, "NLB/ALB*"),
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttrSet(resourceName, "rules.#"),
-				resource.TestMatchResourceAttr(resourceName, "rules.#", regexp.MustCompile(`^[1-9]\d*$`)),
-			),
+			ConfigStateChecks: []statecheck.StateCheck{
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules"), knownvalue.NotNull()),
+			},
 		},
 	}
 }

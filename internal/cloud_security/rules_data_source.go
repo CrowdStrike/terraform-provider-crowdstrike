@@ -11,6 +11,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -49,23 +50,24 @@ type cloudSecurityRulesDataSourceModel struct {
 }
 
 type cloudSecurityRulesDataSourceRuleModel struct {
-	ID              types.String `tfsdk:"id"`
-	RuleOrigin      types.String `tfsdk:"rule_origin"`
-	AlertInfo       types.List   `tfsdk:"alert_info"`
-	Controls        types.Set    `tfsdk:"controls"`
-	Description     types.String `tfsdk:"description"`
-	AutoRemediable  types.Bool   `tfsdk:"auto_remediable"`
-	Domain          types.String `tfsdk:"domain"`
-	Logic           types.String `tfsdk:"logic"`
-	Name            types.String `tfsdk:"name"`
-	ParentRuleID    types.String `tfsdk:"parent_rule_id"`
-	CloudPlatform   types.String `tfsdk:"cloud_platform"`
-	CloudProvider   types.String `tfsdk:"cloud_provider"`
-	RemediationInfo types.List   `tfsdk:"remediation_info"`
-	ResourceType    types.String `tfsdk:"resource_type"`
-	Severity        types.String `tfsdk:"severity"`
-	Subdomain       types.String `tfsdk:"subdomain"`
-	AttackTypes     types.Set    `tfsdk:"attack_types"`
+	ID                 types.String `tfsdk:"id"`
+	RuleOrigin         types.String `tfsdk:"rule_origin"`
+	AlertInfo          types.List   `tfsdk:"alert_info"`
+	Controls           types.Set    `tfsdk:"controls"`
+	Description        types.String `tfsdk:"description"`
+	AutoRemediable     types.Bool   `tfsdk:"auto_remediable"`
+	Domain             types.String `tfsdk:"domain"`
+	Logic              types.String `tfsdk:"logic"`
+	Name               types.String `tfsdk:"name"`
+	ParentRuleID       types.String `tfsdk:"parent_rule_id"`
+	CloudPlatform      types.String `tfsdk:"cloud_platform"`
+	CloudProvider      types.String `tfsdk:"cloud_provider"`
+	RemediationInfo    types.List   `tfsdk:"remediation_info"`
+	ResourceType       types.String `tfsdk:"resource_type"`
+	Severity           types.String `tfsdk:"severity"`
+	Subdomain          types.String `tfsdk:"subdomain"`
+	AttackTypes        types.Set    `tfsdk:"attack_types"`
+	SuppressionRuleIds types.List   `tfsdk:"suppression_rule_ids"`
 }
 
 type fqlFilters struct {
@@ -103,6 +105,9 @@ func (m cloudSecurityRulesDataSourceRuleModel) AttributeTypes() map[string]attr.
 		"severity":      types.StringType,
 		"subdomain":     types.StringType,
 		"attack_types": types.SetType{
+			ElemType: types.StringType,
+		},
+		"suppression_rule_ids": types.ListType{
 			ElemType: types.StringType,
 		},
 	}
@@ -310,6 +315,11 @@ func (r *cloudSecurityRulesDataSource) Schema(
 							Computed:    true,
 							Description: "Subdomain for the policy rule. Valid values are 'IOM' (Indicators of Misconfiguration) or 'IAC' (Infrastructure as Code).",
 						},
+						"suppression_rule_ids": schema.ListAttribute{
+							Computed:    true,
+							Description: "Suppression rule ids assigned to this rule",
+							ElementType: types.StringType,
+						},
 					},
 				},
 			},
@@ -392,7 +402,7 @@ func (r *cloudSecurityRulesDataSource) getRules(
 	offset := int64(0)
 	defaultResponse := types.SetValueMust(types.ObjectType{AttrTypes: cloudSecurityRulesDataSourceRuleModel{}.AttributeTypes()}, []attr.Value{})
 
-	queryParams := cloud_policies.QueryRuleParams{
+	queryParams := &cloud_policies.QueryRuleParams{
 		Context: ctx,
 		Limit:   &limit,
 		Offset:  &offset,
@@ -423,81 +433,47 @@ func (r *cloudSecurityRulesDataSource) getRules(
 	}
 
 	for {
-		queryResp, err := r.client.CloudPolicies.QueryRule(&queryParams)
+		queryResp, err := r.client.CloudPolicies.QueryRule(queryParams)
 		if err != nil {
-			if badRequest, ok := err.(*cloud_policies.QueryRuleBadRequest); ok {
-				diags.AddError(
-					"Error Querying Rules",
-					fmt.Sprintf("Failed to query rules: %s", *badRequest.Payload.Errors[0].Message),
-				)
-				return types.SetValueMust(types.ObjectType{AttrTypes: cloudSecurityRulesDataSourceRuleModel{}.AttributeTypes()}, []attr.Value{}), diags
-			}
-
-			if internalServerError, ok := err.(*cloud_policies.QueryRuleInternalServerError); ok {
-				diags.AddError(
-					"Error Querying Rules",
-					fmt.Sprintf("Failed to query rules: %s", *internalServerError.Payload.Errors[0].Message),
-				)
+			diag := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, cloudSecurityRuleScopes)
+			if diag != nil {
+				diags.Append(diag)
 				return defaultResponse, diags
 			}
-
-			diags.AddError(
-				"Error Querying Rules",
-				fmt.Sprintf("Failed to query rules: %s", err),
-			)
-
-			return defaultResponse, diags
 		}
 
 		if queryResp == nil || queryResp.Payload == nil || len(queryResp.Payload.Resources) == 0 {
-			return defaultResponse, diags
+			break
 		}
 
 		queryPayload := queryResp.GetPayload()
 
 		if err = falcon.AssertNoError(queryPayload.Errors); err != nil {
-			diags.AddError(
-				"Error Querying Rules",
-				fmt.Sprintf("Failed to query rules: %s", err.Error()),
-			)
+			diags.Append(tferrors.NewOperationError(tferrors.Read, err))
 			return defaultResponse, diags
 		}
 
-		if len(queryPayload.Resources) == 0 {
-			return defaultResponse, diags
-		}
-
-		ruleParams := cloud_policies.GetRuleParams{
+		getRulesResp, err := r.client.CloudPolicies.GetRule(&cloud_policies.GetRuleParams{
 			Context: ctx,
 			Ids:     queryPayload.Resources,
-		}
-
-		getRulesResp, err := r.client.CloudPolicies.GetRule(&ruleParams)
+		})
 		if err != nil {
-			if !strings.Contains(err.Error(), "rule resource doesn't exist") {
-				diags.AddError(
-					"Failed to Fetch Rule Information",
-					fmt.Sprintf("Failed to fetch rule information: %s", err),
-				)
+			diag := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, cloudSecurityRuleScopes)
+			if diag != nil {
+				diags.Append(diag)
+				return defaultResponse, diags
 			}
-			return defaultResponse, diags
 		}
 
 		if getRulesResp == nil || getRulesResp.Payload == nil || len(getRulesResp.Payload.Resources) == 0 {
-			diags.AddError(
-				"Error Fetching Rule Information",
-				"Failed to fetch rule information: The API returned an empty payload.",
-			)
+			diags.Append(tferrors.NewEmptyResponseError(tferrors.Read))
 			return defaultResponse, diags
 		}
 
 		getRulesPayload := getRulesResp.GetPayload()
 
 		if err = falcon.AssertNoError(getRulesPayload.Errors); err != nil {
-			diags.AddError(
-				"Error Fetching Rule Information",
-				fmt.Sprintf("Failed to fetch rule information: %s", err.Error()),
-			)
+			diags.Append(tferrors.NewOperationError(tferrors.Read, err))
 			return defaultResponse, diags
 		}
 
@@ -557,6 +533,19 @@ func (r *cloudSecurityRulesDataSource) getRules(
 
 			if resource.Severity != nil {
 				rule.Severity = types.StringValue(int64ToSeverity[*resource.Severity])
+			}
+
+			var suppressionRuleIds []string
+			if len(resource.Overrides) > 0 {
+				for _, override := range resource.Overrides {
+					if override.SuppressionRuleID != "" {
+						suppressionRuleIds = append(suppressionRuleIds, override.SuppressionRuleID)
+					}
+				}
+			}
+			rule.SuppressionRuleIds, diags = flex.FlattenStringValueList(ctx, suppressionRuleIds)
+			if diags.HasError() {
+				return defaultResponse, diags
 			}
 
 			rules = append(rules, rule)
