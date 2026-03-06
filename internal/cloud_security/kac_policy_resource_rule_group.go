@@ -24,6 +24,11 @@ var labelsAttrMap = map[string]attr.Type{
 	"operator": types.StringType,
 }
 
+var customRulesAttrMap = map[string]attr.Type{
+	"id":     types.StringType,
+	"action": types.StringType,
+}
+
 var ruleGroupAttrMap = map[string]attr.Type{
 	"id":            types.StringType,
 	"name":          types.StringType,
@@ -35,6 +40,9 @@ var ruleGroupAttrMap = map[string]attr.Type{
 	"namespaces": types.SetType{ElemType: types.StringType},
 	"labels": types.SetType{ElemType: types.ObjectType{
 		AttrTypes: labelsAttrMap,
+	}},
+	"custom_rules": types.SetType{ElemType: types.ObjectType{
+		AttrTypes: customRulesAttrMap,
 	}},
 	"default_rules": types.ObjectType{
 		AttrTypes: defaultRulesAttributeMap,
@@ -141,6 +149,25 @@ func (m *ruleGroupTFModel) wrapRuleGroup(ctx context.Context, rg *models.ModelsK
 		m.DefaultRules = defaultRulesObj
 	}
 
+	if len(rg.CustomRules) > 0 {
+		customRules := make([]customRuleTFModel, len(rg.CustomRules))
+		for i, cr := range rg.CustomRules {
+			customRule := customRuleTFModel{}
+			customRule.wrapCustomRule(cr)
+			customRules[i] = customRule
+		}
+
+		customRuleSet, setDiags := types.SetValueFrom(ctx, types.ObjectType{
+			AttrTypes: customRulesAttrMap,
+		}, customRules)
+		diags.Append(setDiags...)
+		if !diags.HasError() {
+			m.CustomRules = customRuleSet
+		}
+	} else {
+		m.CustomRules = types.SetNull(types.ObjectType{AttrTypes: customRulesAttrMap})
+	}
+
 	return diags
 }
 
@@ -211,6 +238,19 @@ func (m *ruleGroupTFModel) toApiModel(ctx context.Context) (models.ModelsKACPoli
 				apiModel.DefaultRules[i] = &models.ModelsKACDefaultPolicyRule{
 					Code:   apiAction.Code,
 					Action: apiAction.Action,
+				}
+			}
+		}
+	}
+
+	if !m.CustomRules.IsUnknown() {
+		tfCustomRules := flex.ExpandSetAs[customRuleTFModel](ctx, m.CustomRules, &diags)
+		if !diags.HasError() {
+			apiModel.CustomRules = make([]*models.ModelsKACCustomPolicyRule, len(tfCustomRules))
+			for i, tfCustomRule := range tfCustomRules {
+				apiModel.CustomRules[i] = &models.ModelsKACCustomPolicyRule{
+					ID:     tfCustomRule.ID.ValueStringPointer(),
+					Action: tfCustomRule.Action.ValueStringPointer(),
 				}
 			}
 		}

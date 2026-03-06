@@ -83,6 +83,7 @@ type ruleGroupTFModel struct {
 	Namespaces      types.Set    `tfsdk:"namespaces"`
 	Labels          types.Set    `tfsdk:"labels"`
 	DefaultRules    types.Object `tfsdk:"default_rules"`
+	CustomRules     types.Set    `tfsdk:"custom_rules"`
 }
 
 type imageAssessmentTFModel struct {
@@ -94,6 +95,11 @@ type labelTFModel struct {
 	Key      types.String `tfsdk:"key"`
 	Value    types.String `tfsdk:"value"`
 	Operator types.String `tfsdk:"operator"`
+}
+
+type customRuleTFModel struct {
+	ID     types.String `tfsdk:"id"`
+	Action types.String `tfsdk:"action"`
 }
 
 func (m *cloudSecurityKacPolicyResourceModel) wrap(
@@ -366,6 +372,7 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 							},
 						},
 						"default_rules": defaultRulesSchema,
+						"custom_rules":  customRulesSchema,
 					},
 				},
 			},
@@ -390,6 +397,7 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 							),
 							"namespaces":    types.SetUnknown(types.StringType),
 							"labels":        types.SetUnknown(types.ObjectType{AttrTypes: labelsAttrMap}),
+							"custom_rules":  types.SetNull(types.ObjectType{AttrTypes: customRulesAttrMap}),
 							"default_rules": defaultRulesDefaultValue,
 						},
 					),
@@ -482,6 +490,7 @@ func (r *cloudSecurityKacPolicyResource) Schema(
 						},
 					},
 					"default_rules": defaultRulesSchema,
+					"custom_rules":  customRulesSchema,
 				},
 			},
 			"last_updated": schema.StringAttribute{
@@ -788,6 +797,11 @@ func (r *cloudSecurityKacPolicyResource) ValidateConfig(
 ) {
 	var kacPolicyConfig cloudSecurityKacPolicyResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &kacPolicyConfig)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(r.validateCustomRulesPropagation(ctx, kacPolicyConfig)...)
 }
 
 func (r *cloudSecurityKacPolicyResource) ModifyPlan(
@@ -795,49 +809,54 @@ func (r *cloudSecurityKacPolicyResource) ModifyPlan(
 	req resource.ModifyPlanRequest,
 	resp *resource.ModifyPlanResponse,
 ) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+	if req.Plan.Raw.IsNull() || req.Plan.Raw.Equal(req.State.Raw) {
 		return
 	}
 
-	if req.Plan.Raw.Equal(req.State.Raw) {
-		return
-	}
-
-	var originalPlan, plan, state cloudSecurityKacPolicyResourceModel
-
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &originalPlan)...)
+	var plan, state cloudSecurityKacPolicyResourceModel
+	var diags diag.Diagnostics
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+
+	plan, diags = r.propagateCustomRules(ctx, plan)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Computed+Optional object attributes (default_rule_group) cause constant plan diffs
-	// This causes computed values that need to be set on update (LastUpdated) to be marked
-	// as Unknown, resulting in constant plan diffs.
-	// When there are no plan changes and LastUpdated is Unknown revert it to prior state value.
-	if plan.LastUpdated.IsUnknown() {
-		plan.LastUpdated = state.LastUpdated
-
-		resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+	if !req.State.Raw.IsNull() {
+		resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 
-		// Revert if LastUpdated is not the only change
-		if !resp.Plan.Raw.Equal(req.State.Raw) {
-			plan = originalPlan
-			resp.Diagnostics.Append(resp.Plan.Set(ctx, originalPlan)...)
+		// Computed+Optional object attributes (default_rule_group) cause constant plan diffs
+		// This causes computed values that need to be set on update (LastUpdated) to be marked
+		// as Unknown, resulting in constant plan diffs.
+		// When there are no plan changes and LastUpdated is Unknown revert it to prior state value.
+		if plan.LastUpdated.IsUnknown() {
+			planLastUpdated := plan.LastUpdated
+			plan.LastUpdated = state.LastUpdated
+
+			resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+
+			// Revert if LastUpdated is not the only change
+			if !resp.Plan.Raw.Equal(req.State.Raw) {
+				plan.LastUpdated = planLastUpdated
+				resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
+			}
+		}
+
+		plan, diags = r.matchRuleGroupIDsByName(ctx, plan, state)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
 		}
 	}
 
-	modifiedPlan, modifyDiags := r.matchRuleGroupIDsByName(ctx, plan, state)
-	resp.Diagnostics.Append(modifyDiags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	resp.Diagnostics.Append(resp.Plan.Set(ctx, modifiedPlan)...)
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
 }
 
 func (r *cloudSecurityKacPolicyResource) matchRuleGroupIDsByName(
@@ -1160,6 +1179,15 @@ func (r *cloudSecurityKacPolicyResource) reconcileRuleGroupUpdates(
 	}
 
 	updatedApiKacPolicy = r.replaceRuleGroupSelectors(ctx, &diags, plan.ID.ValueString(), replaceSelectorParams)
+	if updatedApiKacPolicy != nil {
+		apiKacPolicy = updatedApiKacPolicy
+	}
+
+	updatedApiKacPolicy, customRulesDiags := r.reconcileCustomRules(ctx, plan.ID.ValueString(), planTFRuleGroups, apiKacPolicy)
+	diags.Append(customRulesDiags...)
+	if diags.HasError() {
+		return nil, diags
+	}
 	if updatedApiKacPolicy != nil {
 		apiKacPolicy = updatedApiKacPolicy
 	}
