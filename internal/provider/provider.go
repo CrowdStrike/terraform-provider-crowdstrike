@@ -305,6 +305,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		itautomation.NewItAutomationDefaultPolicyResource,
 		itautomation.NewItAutomationPolicyPrecedenceResource,
 		cloudsecurity.NewCloudSecurityCustomRuleResource,
+		cloudsecurity.NewCloudSecurityIomCustomRuleResource,
 		cloudsecurity.NewCloudSecurityKacPolicyResource,
 		cloudsecurity.NewCloudSecurityKacPolicyPrecedenceResource,
 		cloudsecurity.NewCloudSecurityKacCustomRuleResource,
