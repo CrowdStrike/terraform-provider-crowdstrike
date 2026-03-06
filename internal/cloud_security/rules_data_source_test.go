@@ -220,6 +220,116 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 	return steps
 }
 
+func TestCloudSecurityRulesDatasourceWithSuppressionRule(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping long-running test in short mode")
+	}
+	randomSuffix := sdkacctest.RandString(8)
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    testCloudRulesWithSuppression(randomSuffix),
+	})
+}
+
+func testCloudRulesWithSuppression(suffix string) []resource.TestStep {
+	customRuleName := fmt.Sprintf("%s Custom Rule With Suppression %s", acctest.ResourcePrefix, suffix)
+	suppressionRuleName := fmt.Sprintf("TF Test Suppression for Custom Rule %s", suffix)
+	customRuleResourceName := "crowdstrike_cloud_security_custom_rule.test_with_suppression"
+	suppressionResourceName := "crowdstrike_cloud_security_suppression_rule.test_suppression"
+	dataSourceName := "data.crowdstrike_cloud_security_rules.test_with_suppression"
+
+	return []resource.TestStep{
+		{
+			Config: testCloudRulesWithSuppressionConfig(customRuleName, suppressionRuleName),
+			Check: resource.ComposeAggregateTestCheckFunc(
+				// Initial custom rule
+				resource.TestCheckResourceAttr(customRuleResourceName, "name", customRuleName),
+				resource.TestCheckResourceAttrSet(customRuleResourceName, "id"),
+
+				// Initial Suppression rule
+				resource.TestCheckResourceAttr(suppressionResourceName, "name", suppressionRuleName),
+				resource.TestCheckResourceAttrSet(suppressionResourceName, "id"),
+
+				// Check initial suppression rule id
+				resource.TestCheckResourceAttr(dataSourceName, "rules.#", "1"),
+				resource.TestCheckResourceAttrSet(dataSourceName, "rules.0.id"),
+				resource.TestCheckResourceAttr(dataSourceName, "rules.0.name", customRuleName),
+
+				// Validate the suppression is now attached to the rule
+				resource.TestCheckResourceAttr(dataSourceName, "rules.0.suppression_rule_ids.#", "1"),
+				func(s *terraform.State) error {
+					suppressionRS, ok := s.RootModule().Resources[suppressionResourceName]
+					if !ok {
+						return fmt.Errorf("Not found: %s", suppressionResourceName)
+					}
+					suppressionID := suppressionRS.Primary.ID
+
+					dataSourceRS, ok := s.RootModule().Resources[dataSourceName]
+					if !ok {
+						return fmt.Errorf("Not found: %s", dataSourceName)
+					}
+
+					suppressionRuleIDKey := "rules.0.suppression_rule_ids.0"
+					if dataSourceSuppressionID, ok := dataSourceRS.Primary.Attributes[suppressionRuleIDKey]; ok {
+						if dataSourceSuppressionID != suppressionID {
+							return fmt.Errorf("Expected suppression_rule_id to be '%s', got '%s'", suppressionID, dataSourceSuppressionID)
+						}
+					} else {
+						return fmt.Errorf("suppression_rule_ids not found in data source output")
+					}
+
+					return nil
+				},
+			),
+		},
+	}
+}
+
+func testCloudRulesWithSuppressionConfig(customRuleName, suppressionRuleName string) string {
+	return fmt.Sprintf(`
+# First, find a parent rule to base our custom rule on
+data "crowdstrike_cloud_security_rules" "parent_rule" {
+  rule_name = "IAM root user has an active access key"
+  cloud_provider = "AWS"
+}
+
+# Create a custom rule
+resource "crowdstrike_cloud_security_custom_rule" "test_with_suppression" {
+  resource_type    = "AWS::IAM::CredentialReport"
+  name             = "%[1]s"
+  description      = "Test custom rule for suppression data source test"
+  cloud_provider   = "AWS"
+  parent_rule_id   = one(data.crowdstrike_cloud_security_rules.parent_rule.rules).id
+}
+
+# Create a suppression rule that applies to the custom rule
+resource "crowdstrike_cloud_security_suppression_rule" "test_suppression" {
+  name              = "%[2]s"
+  type              = "IOM"
+  description       = "Test suppression rule for data source verification"
+  reason            = "false-positive"
+
+  rule_selection_filter = {
+    ids = [crowdstrike_cloud_security_custom_rule.test_with_suppression.id]
+  }
+
+  asset_filter = {
+    cloud_providers = ["aws"]
+    regions        = ["us-east-1"]
+  }
+}
+
+# Query for the custom rule using the data source
+data "crowdstrike_cloud_security_rules" "test_with_suppression" {
+  rule_name = "%[1]s"
+
+  # Ensure the suppression rule is created before we query
+  depends_on = [crowdstrike_cloud_security_suppression_rule.test_suppression]
+}
+`, customRuleName, suppressionRuleName)
+}
+
 func testDatasourceConfigConflicts() []resource.TestStep {
 	return []resource.TestStep{
 		{
