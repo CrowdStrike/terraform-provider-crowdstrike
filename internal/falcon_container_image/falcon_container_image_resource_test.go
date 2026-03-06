@@ -37,10 +37,26 @@ func TestAccFalconContainerImageResource_DockerHub(t *testing.T) {
 				},
 			},
 			{
-				ResourceName:            resourceName,
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"credential.details"},
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateVerifyIgnore: []string{
+					"credential.username",
+					"credential.password",
+					"credential.aws_iam_role",
+					"credential.aws_external_id",
+					"credential.aws_gov_using_commercial_connection",
+					"credential.domain_url",
+					"credential.credential_type",
+					"credential.project_id",
+					"credential.scope_name",
+					"credential.cert",
+					"credential.auth_type",
+					"credential.tenant_id",
+					"credential.client",
+					"credential.compartment_ids",
+					"credential.service_account_json",
+				},
 			},
 		},
 	})
@@ -69,10 +85,26 @@ func TestAccFalconContainerImageResource_ECR(t *testing.T) {
 				},
 			},
 			{
-				ResourceName:            resourceName,
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"credential.details"},
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateVerifyIgnore: []string{
+					"credential.username",
+					"credential.password",
+					"credential.aws_iam_role",
+					"credential.aws_external_id",
+					"credential.aws_gov_using_commercial_connection",
+					"credential.domain_url",
+					"credential.credential_type",
+					"credential.project_id",
+					"credential.scope_name",
+					"credential.cert",
+					"credential.auth_type",
+					"credential.tenant_id",
+					"credential.client",
+					"credential.compartment_ids",
+					"credential.service_account_json",
+				},
 			},
 		},
 	})
@@ -118,10 +150,8 @@ resource "crowdstrike_falcon_container_image" "test" {
   url_uniqueness_key = %[1]q
 
   credential {
-    details {
-      username = %[2]q
-      password = %[3]q
-    }
+    username = %[2]q
+    password = %[3]q
   }
 }
 `, alias, username, password)
@@ -136,10 +166,8 @@ resource "crowdstrike_falcon_container_image" "test" {
   user_defined_alias = %[1]q
 
   credential {
-    details {
-      aws_iam_role    = %[3]q
-      aws_external_id = %[4]q
-    }
+    aws_iam_role    = %[3]q
+    aws_external_id = %[4]q
   }
 }
 `, alias, url, iamRole, externalID)

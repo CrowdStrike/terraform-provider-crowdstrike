@@ -54,15 +54,6 @@ type falconContainerImageResourceModel struct {
 }
 
 type credentialModel struct {
-	Details                types.Object `tfsdk:"details"`
-	CredentialID           types.String `tfsdk:"credential_id"`
-	CredentialExpired      types.Bool   `tfsdk:"credential_expired"`
-	CredentialExpiredAt    types.String `tfsdk:"credential_expired_at"`
-	CredentialCreatedAt    types.String `tfsdk:"credential_created_at"`
-	CredentialUpdatedAt    types.String `tfsdk:"credential_updated_at"`
-}
-
-type credentialDetailsModel struct {
 	Username                         types.String `tfsdk:"username"`
 	Password                         types.String `tfsdk:"password"`
 	AWSIAMRole                       types.String `tfsdk:"aws_iam_role"`
@@ -78,6 +69,11 @@ type credentialDetailsModel struct {
 	Client                           types.String `tfsdk:"client"`
 	CompartmentIDs                   types.Set    `tfsdk:"compartment_ids"`
 	ServiceAccountJSON               types.Object `tfsdk:"service_account_json"`
+	CredentialID                     types.String `tfsdk:"credential_id"`
+	CredentialExpired                types.Bool   `tfsdk:"credential_expired"`
+	CredentialExpiredAt              types.String `tfsdk:"credential_expired_at"`
+	CredentialCreatedAt              types.String `tfsdk:"credential_created_at"`
+	CredentialUpdatedAt              types.String `tfsdk:"credential_updated_at"`
 }
 
 type serviceAccountJSONModel struct {
@@ -193,157 +189,151 @@ func (r *falconContainerImageResource) Schema(
 				Required:    true,
 				Description: "The credentials for accessing the registry.",
 				Attributes: map[string]schema.Attribute{
-					"details": schema.SingleNestedAttribute{
-						Required:    true,
-						Description: "The credential details. Required fields depend on the registry type.",
+					"username": schema.StringAttribute{
+						Optional:    true,
+						Description: "Username for authentication. Required for: `dockerhub`, `docker`, `github`, `gitlab`, `icr`, `artifactory`, `acr` (password auth), `mirantis`, `oracle`, `openshift`, `quay.io`, `nexus`, `harbor`.",
+						Validators: []validator.String{
+							validators.StringNotWhitespace(),
+						},
+					},
+					"password": schema.StringAttribute{
+						Optional:    true,
+						Sensitive:   true,
+						Description: "Password, API key, or access token. Required for: `dockerhub`, `docker`, `github`, `gitlab`, `icr`, `artifactory`, `acr` (password auth), `mirantis`, `oracle`, `openshift`, `quay.io`, `nexus`, `harbor`.",
+						Validators: []validator.String{
+							validators.StringNotWhitespace(),
+						},
+					},
+					"aws_iam_role": schema.StringAttribute{
+						Optional:    true,
+						Description: "AWS IAM role ARN. Required for: `ecr`.",
+						Validators: []validator.String{
+							validators.StringNotWhitespace(),
+						},
+					},
+					"aws_external_id": schema.StringAttribute{
+						Optional:    true,
+						Description: "AWS external ID. Required for: `ecr`.",
+						Validators: []validator.String{
+							validators.StringNotWhitespace(),
+						},
+					},
+					"aws_gov_using_commercial_connection": schema.BoolAttribute{
+						Optional:    true,
+						Computed:    true,
+						Description: "Whether AWS GovCloud uses commercial connection. Optional for: `ecr`.",
+						Default:     booldefault.StaticBool(false),
+					},
+					"domain_url": schema.StringAttribute{
+						Optional:    true,
+						Description: "Domain URL for API access. Required for: `github`, `gitlab`.",
+						Validators: []validator.String{
+							validators.StringNotWhitespace(),
+						},
+					},
+					"credential_type": schema.StringAttribute{
+						Optional:    true,
+						Description: "Type of credential. Required for: `github`, `gitlab`. Valid value: `PAT`.",
+						Validators: []validator.String{
+							stringvalidator.OneOf("PAT"),
+						},
+					},
+					"project_id": schema.StringAttribute{
+						Optional:    true,
+						Description: "GCP project ID. Required for: `gar`, `gcr`.",
+						Validators: []validator.String{
+							validators.StringNotWhitespace(),
+						},
+					},
+					"scope_name": schema.StringAttribute{
+						Optional:    true,
+						Description: "Scope name. Required for: `gar`, `oracle`.",
+						Validators: []validator.String{
+							validators.StringNotWhitespace(),
+						},
+					},
+					"cert": schema.StringAttribute{
+						Optional:    true,
+						Sensitive:   true,
+						Description: "Azure service principal certificate as base64-encoded PEM. Required for: `acr` (certificate auth).",
+						Validators: []validator.String{
+							validators.StringNotWhitespace(),
+						},
+					},
+					"auth_type": schema.StringAttribute{
+						Optional:    true,
+						Description: "Authentication type. Required for: `acr` (certificate auth). Valid value: `cert`.",
+						Validators: []validator.String{
+							stringvalidator.OneOf("cert"),
+						},
+					},
+					"tenant_id": schema.StringAttribute{
+						Optional:    true,
+						Description: "Azure tenant ID. Required for: `acr` (certificate auth).",
+						Validators: []validator.String{
+							validators.StringNotWhitespace(),
+						},
+					},
+					"client": schema.StringAttribute{
+						Optional:    true,
+						Description: "Azure client ID. Required for: `acr` (certificate auth).",
+						Validators: []validator.String{
+							validators.StringNotWhitespace(),
+						},
+					},
+					"compartment_ids": schema.SetAttribute{
+						ElementType: types.StringType,
+						Optional:    true,
+						Description: "Oracle compartment IDs. Required for: `oracle`.",
+						Validators: []validator.Set{
+							setvalidator.ValueStringsAre(validators.StringNotWhitespace()),
+						},
+					},
+					"service_account_json": schema.SingleNestedAttribute{
+						Optional:    true,
+						Description: "GCP service account JSON. Required for: `gar`, `gcr`.",
 						Attributes: map[string]schema.Attribute{
-							"username": schema.StringAttribute{
+							"type": schema.StringAttribute{
 								Optional:    true,
-								Description: "Username for authentication. Required for: `dockerhub`, `docker`, `github`, `gitlab`, `icr`, `artifactory`, `acr` (password auth), `mirantis`, `oracle`, `openshift`, `quay.io`, `nexus`, `harbor`.",
+								Description: "Service account type. Typically `service_account`.",
 								Validators: []validator.String{
 									validators.StringNotWhitespace(),
 								},
 							},
-							"password": schema.StringAttribute{
+							"private_key_id": schema.StringAttribute{
+								Optional:    true,
+								Description: "Private key ID.",
+								Validators: []validator.String{
+									validators.StringNotWhitespace(),
+								},
+							},
+							"private_key": schema.StringAttribute{
 								Optional:    true,
 								Sensitive:   true,
-								Description: "Password, API key, or access token. Required for: `dockerhub`, `docker`, `github`, `gitlab`, `icr`, `artifactory`, `acr` (password auth), `mirantis`, `oracle`, `openshift`, `quay.io`, `nexus`, `harbor`.",
+								Description: "Private key.",
 								Validators: []validator.String{
 									validators.StringNotWhitespace(),
 								},
 							},
-							"aws_iam_role": schema.StringAttribute{
+							"client_email": schema.StringAttribute{
 								Optional:    true,
-								Description: "AWS IAM role ARN. Required for: `ecr`.",
+								Description: "Client email.",
 								Validators: []validator.String{
-									validators.StringNotWhitespace(),
+									validators.StringIsEmailAddress(),
 								},
 							},
-							"aws_external_id": schema.StringAttribute{
+							"client_id": schema.StringAttribute{
 								Optional:    true,
-								Description: "AWS external ID. Required for: `ecr`.",
+								Description: "Client ID.",
 								Validators: []validator.String{
 									validators.StringNotWhitespace(),
-								},
-							},
-							"aws_gov_using_commercial_connection": schema.BoolAttribute{
-								Optional:    true,
-								Computed:    true,
-								Description: "Whether AWS GovCloud uses commercial connection. Optional for: `ecr`.",
-								Default:     booldefault.StaticBool(false),
-							},
-							"domain_url": schema.StringAttribute{
-								Optional:    true,
-								Description: "Domain URL for API access. Required for: `github`, `gitlab`.",
-								Validators: []validator.String{
-									validators.StringNotWhitespace(),
-								},
-							},
-							"credential_type": schema.StringAttribute{
-								Optional:    true,
-								Description: "Type of credential. Required for: `github`, `gitlab`. Valid value: `PAT`.",
-								Validators: []validator.String{
-									stringvalidator.OneOf("PAT"),
 								},
 							},
 							"project_id": schema.StringAttribute{
 								Optional:    true,
-								Description: "GCP project ID. Required for: `gar`, `gcr`.",
+								Description: "Project ID.",
 								Validators: []validator.String{
 									validators.StringNotWhitespace(),
-								},
-							},
-							"scope_name": schema.StringAttribute{
-								Optional:    true,
-								Description: "Scope name. Required for: `gar`, `oracle`.",
-								Validators: []validator.String{
-									validators.StringNotWhitespace(),
-								},
-							},
-							"cert": schema.StringAttribute{
-								Optional:    true,
-								Sensitive:   true,
-								Description: "Azure service principal certificate as base64-encoded PEM. Required for: `acr` (certificate auth).",
-								Validators: []validator.String{
-									validators.StringNotWhitespace(),
-								},
-							},
-							"auth_type": schema.StringAttribute{
-								Optional:    true,
-								Description: "Authentication type. Required for: `acr` (certificate auth). Valid value: `cert`.",
-								Validators: []validator.String{
-									stringvalidator.OneOf("cert"),
-								},
-							},
-							"tenant_id": schema.StringAttribute{
-								Optional:    true,
-								Description: "Azure tenant ID. Required for: `acr` (certificate auth).",
-								Validators: []validator.String{
-									validators.StringNotWhitespace(),
-								},
-							},
-							"client": schema.StringAttribute{
-								Optional:    true,
-								Description: "Azure client ID. Required for: `acr` (certificate auth).",
-								Validators: []validator.String{
-									validators.StringNotWhitespace(),
-								},
-							},
-							"compartment_ids": schema.SetAttribute{
-								ElementType: types.StringType,
-								Optional:    true,
-								Description: "Oracle compartment IDs. Required for: `oracle`.",
-								Validators: []validator.Set{
-									setvalidator.ValueStringsAre(validators.StringNotWhitespace()),
-								},
-							},
-							"service_account_json": schema.SingleNestedAttribute{
-								Optional:    true,
-								Description: "GCP service account JSON. Required for: `gar`, `gcr`.",
-								Attributes: map[string]schema.Attribute{
-									"type": schema.StringAttribute{
-										Optional:    true,
-										Description: "Service account type. Typically `service_account`.",
-										Validators: []validator.String{
-											validators.StringNotWhitespace(),
-										},
-									},
-									"private_key_id": schema.StringAttribute{
-										Optional:    true,
-										Description: "Private key ID.",
-										Validators: []validator.String{
-											validators.StringNotWhitespace(),
-										},
-									},
-									"private_key": schema.StringAttribute{
-										Optional:    true,
-										Sensitive:   true,
-										Description: "Private key.",
-										Validators: []validator.String{
-											validators.StringNotWhitespace(),
-										},
-									},
-									"client_email": schema.StringAttribute{
-										Optional:    true,
-										Description: "Client email.",
-										Validators: []validator.String{
-											validators.StringIsEmailAddress(),
-										},
-									},
-									"client_id": schema.StringAttribute{
-										Optional:    true,
-										Description: "Client ID.",
-										Validators: []validator.String{
-											validators.StringNotWhitespace(),
-										},
-									},
-									"project_id": schema.StringAttribute{
-										Optional:    true,
-										Description: "Project ID.",
-										Validators: []validator.String{
-											validators.StringNotWhitespace(),
-										},
-									},
 								},
 							},
 						},
@@ -604,51 +594,41 @@ func (r *falconContainerImageResource) ValidateConfig(
 		return
 	}
 
-	if !utils.IsKnown(cred.Details) {
-		return
-	}
-
-	var details credentialDetailsModel
-	resp.Diagnostics.Append(cred.Details.As(ctx, &details, basetypes.ObjectAsOptions{})...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
 	validateCredentials := func(required []string) {
 		for _, field := range required {
 			var isSet bool
 			switch field {
 			case "username":
-				isSet = utils.IsKnown(details.Username)
+				isSet = utils.IsKnown(cred.Username)
 			case "password":
-				isSet = utils.IsKnown(details.Password)
+				isSet = utils.IsKnown(cred.Password)
 			case "aws_iam_role":
-				isSet = utils.IsKnown(details.AWSIAMRole)
+				isSet = utils.IsKnown(cred.AWSIAMRole)
 			case "aws_external_id":
-				isSet = utils.IsKnown(details.AWSExternalID)
+				isSet = utils.IsKnown(cred.AWSExternalID)
 			case "domain_url":
-				isSet = utils.IsKnown(details.DomainURL)
+				isSet = utils.IsKnown(cred.DomainURL)
 			case "credential_type":
-				isSet = utils.IsKnown(details.CredentialType)
+				isSet = utils.IsKnown(cred.CredentialType)
 			case "project_id":
-				isSet = utils.IsKnown(details.ProjectID)
+				isSet = utils.IsKnown(cred.ProjectID)
 			case "scope_name":
-				isSet = utils.IsKnown(details.ScopeName)
+				isSet = utils.IsKnown(cred.ScopeName)
 			case "cert":
-				isSet = utils.IsKnown(details.Cert)
+				isSet = utils.IsKnown(cred.Cert)
 			case "auth_type":
-				isSet = utils.IsKnown(details.AuthType)
+				isSet = utils.IsKnown(cred.AuthType)
 			case "tenant_id":
-				isSet = utils.IsKnown(details.TenantID)
+				isSet = utils.IsKnown(cred.TenantID)
 			case "client":
-				isSet = utils.IsKnown(details.Client)
+				isSet = utils.IsKnown(cred.Client)
 			case "compartment_ids":
-				isSet = utils.IsKnown(details.CompartmentIDs)
+				isSet = utils.IsKnown(cred.CompartmentIDs)
 			case "service_account_json":
-				isSet = utils.IsKnown(details.ServiceAccountJSON)
+				isSet = utils.IsKnown(cred.ServiceAccountJSON)
 				if isSet {
 					var sa serviceAccountJSONModel
-					if d := details.ServiceAccountJSON.As(ctx, &sa, basetypes.ObjectAsOptions{}); d.HasError() {
+					if d := cred.ServiceAccountJSON.As(ctx, &sa, basetypes.ObjectAsOptions{}); d.HasError() {
 						resp.Diagnostics.Append(d...)
 						return
 					}
@@ -656,7 +636,7 @@ func (r *falconContainerImageResource) ValidateConfig(
 						!utils.IsKnown(sa.PrivateKey) || !utils.IsKnown(sa.ClientEmail) ||
 						!utils.IsKnown(sa.ClientID) || !utils.IsKnown(sa.ProjectID) {
 						resp.Diagnostics.AddAttributeError(
-							path.Root("credential").AtName("details").AtName("service_account_json"),
+							path.Root("credential").AtName("service_account_json"),
 							"Missing Required Service Account Fields",
 							fmt.Sprintf("For registry type %q, all service_account_json fields (type, private_key_id, private_key, client_email, client_id, project_id) are required.", registryType),
 						)
@@ -667,7 +647,7 @@ func (r *falconContainerImageResource) ValidateConfig(
 
 			if !isSet {
 				resp.Diagnostics.AddAttributeError(
-					path.Root("credential").AtName("details").AtName(field),
+					path.Root("credential").AtName(field),
 					"Missing Required Credential Field",
 					fmt.Sprintf("For registry type %q, the field %q is required in credential details.", registryType, field),
 				)
@@ -692,13 +672,13 @@ func (r *falconContainerImageResource) ValidateConfig(
 		validateCredentials([]string{"project_id", "service_account_json"})
 
 	case "acr":
-		hasUsernamePassword := utils.IsKnown(details.Username) && utils.IsKnown(details.Password)
-		hasCertAuth := utils.IsKnown(details.Cert) && utils.IsKnown(details.AuthType) &&
-			utils.IsKnown(details.TenantID) && utils.IsKnown(details.Client)
+		hasUsernamePassword := utils.IsKnown(cred.Username) && utils.IsKnown(cred.Password)
+		hasCertAuth := utils.IsKnown(cred.Cert) && utils.IsKnown(cred.AuthType) &&
+			utils.IsKnown(cred.TenantID) && utils.IsKnown(cred.Client)
 
 		if !hasUsernamePassword && !hasCertAuth {
 			resp.Diagnostics.AddAttributeError(
-				path.Root("credential").AtName("details"),
+				path.Root("credential"),
 				"Invalid ACR Credentials",
 				"For registry type \"acr\", either (username + password) OR (cert + auth_type + tenant_id + client) must be provided.",
 			)
@@ -741,19 +721,26 @@ func (m *falconContainerImageResourceModel) wrap(
 			"credential_updated_at": types.StringPointerValue(registry.Credential.UpdatedAt),
 		}
 
-		var credDetails types.Object
-		if m.Credential.IsNull() {
-			credDetails = types.ObjectNull(credentialDetailsAttrTypes())
-		} else {
+		if !m.Credential.IsNull() {
 			var existingCred credentialModel
-			diags.Append(m.Credential.As(ctx, &existingCred, basetypes.ObjectAsOptions{})...)
-			if !diags.HasError() {
-				credDetails = existingCred.Details
-			} else {
-				credDetails = types.ObjectNull(credentialDetailsAttrTypes())
+			if d := m.Credential.As(ctx, &existingCred, basetypes.ObjectAsOptions{}); !d.HasError() {
+				credAttrs["username"] = existingCred.Username
+				credAttrs["password"] = existingCred.Password
+				credAttrs["aws_iam_role"] = existingCred.AWSIAMRole
+				credAttrs["aws_external_id"] = existingCred.AWSExternalID
+				credAttrs["aws_gov_using_commercial_connection"] = existingCred.AWSGovUsingCommercialConnection
+				credAttrs["domain_url"] = existingCred.DomainURL
+				credAttrs["credential_type"] = existingCred.CredentialType
+				credAttrs["project_id"] = existingCred.ProjectID
+				credAttrs["scope_name"] = existingCred.ScopeName
+				credAttrs["cert"] = existingCred.Cert
+				credAttrs["auth_type"] = existingCred.AuthType
+				credAttrs["tenant_id"] = existingCred.TenantID
+				credAttrs["client"] = existingCred.Client
+				credAttrs["compartment_ids"] = existingCred.CompartmentIDs
+				credAttrs["service_account_json"] = existingCred.ServiceAccountJSON
 			}
 		}
-		credAttrs["details"] = credDetails
 
 		credObj, d := types.ObjectValue(credAttrTypes, credAttrs)
 		diags.Append(d...)
@@ -764,17 +751,6 @@ func (m *falconContainerImageResourceModel) wrap(
 }
 
 func credentialAttrTypes() map[string]attr.Type {
-	return map[string]attr.Type{
-		"details":                types.ObjectType{AttrTypes: credentialDetailsAttrTypes()},
-		"credential_id":          types.StringType,
-		"credential_expired":     types.BoolType,
-		"credential_expired_at":  types.StringType,
-		"credential_created_at":  types.StringType,
-		"credential_updated_at":  types.StringType,
-	}
-}
-
-func credentialDetailsAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"username":                            types.StringType,
 		"password":                            types.StringType,
@@ -791,6 +767,11 @@ func credentialDetailsAttrTypes() map[string]attr.Type {
 		"client":                              types.StringType,
 		"compartment_ids":                     types.SetType{ElemType: types.StringType},
 		"service_account_json":                types.ObjectType{AttrTypes: serviceAccountJSONAttrTypes()},
+		"credential_id":                       types.StringType,
+		"credential_expired":                  types.BoolType,
+		"credential_expired_at":               types.StringType,
+		"credential_created_at":               types.StringType,
+		"credential_updated_at":               types.StringType,
 	}
 }
 
@@ -814,63 +795,57 @@ func buildCredentialDetails(ctx context.Context, m *falconContainerImageResource
 		return nil, diags
 	}
 
-	var details credentialDetailsModel
-	diags.Append(cred.Details.As(ctx, &details, basetypes.ObjectAsOptions{})...)
-	if diags.HasError() {
-		return nil, diags
-	}
-
 	result := make(map[string]interface{})
 
-	if utils.IsKnown(details.Username) {
-		result["username"] = details.Username.ValueString()
+	if utils.IsKnown(cred.Username) {
+		result["username"] = cred.Username.ValueString()
 	}
-	if utils.IsKnown(details.Password) {
-		result["password"] = details.Password.ValueString()
+	if utils.IsKnown(cred.Password) {
+		result["password"] = cred.Password.ValueString()
 	}
-	if utils.IsKnown(details.AWSIAMRole) {
-		result["aws_iam_role"] = details.AWSIAMRole.ValueString()
+	if utils.IsKnown(cred.AWSIAMRole) {
+		result["aws_iam_role"] = cred.AWSIAMRole.ValueString()
 	}
-	if utils.IsKnown(details.AWSExternalID) {
-		result["aws_external_id"] = details.AWSExternalID.ValueString()
+	if utils.IsKnown(cred.AWSExternalID) {
+		result["aws_external_id"] = cred.AWSExternalID.ValueString()
 	}
-	if utils.IsKnown(details.AWSGovUsingCommercialConnection) {
-		result["aws_gov_using_commercial_connection"] = details.AWSGovUsingCommercialConnection.ValueBool()
+	if utils.IsKnown(cred.AWSGovUsingCommercialConnection) {
+		result["aws_gov_using_commercial_connection"] = cred.AWSGovUsingCommercialConnection.ValueBool()
 	}
-	if utils.IsKnown(details.DomainURL) {
-		result["domain_url"] = details.DomainURL.ValueString()
+	if utils.IsKnown(cred.DomainURL) {
+		result["domain_url"] = cred.DomainURL.ValueString()
 	}
-	if utils.IsKnown(details.CredentialType) {
-		result["credential_type"] = details.CredentialType.ValueString()
+	if utils.IsKnown(cred.CredentialType) {
+		result["credential_type"] = cred.CredentialType.ValueString()
 	}
-	if utils.IsKnown(details.ProjectID) {
-		result["project_id"] = details.ProjectID.ValueString()
+	if utils.IsKnown(cred.ProjectID) {
+		result["project_id"] = cred.ProjectID.ValueString()
 	}
-	if utils.IsKnown(details.ScopeName) {
-		result["scope_name"] = details.ScopeName.ValueString()
+	if utils.IsKnown(cred.ScopeName) {
+		result["scope_name"] = cred.ScopeName.ValueString()
 	}
-	if utils.IsKnown(details.Cert) {
-		result["cert"] = details.Cert.ValueString()
+	if utils.IsKnown(cred.Cert) {
+		result["cert"] = cred.Cert.ValueString()
 	}
-	if utils.IsKnown(details.AuthType) {
-		result["auth_type"] = details.AuthType.ValueString()
+	if utils.IsKnown(cred.AuthType) {
+		result["auth_type"] = cred.AuthType.ValueString()
 	}
-	if utils.IsKnown(details.TenantID) {
-		result["tenant_id"] = details.TenantID.ValueString()
+	if utils.IsKnown(cred.TenantID) {
+		result["tenant_id"] = cred.TenantID.ValueString()
 	}
-	if utils.IsKnown(details.Client) {
-		result["client"] = details.Client.ValueString()
+	if utils.IsKnown(cred.Client) {
+		result["client"] = cred.Client.ValueString()
 	}
-	if utils.IsKnown(details.CompartmentIDs) {
+	if utils.IsKnown(cred.CompartmentIDs) {
 		var compartments []string
-		diags.Append(details.CompartmentIDs.ElementsAs(ctx, &compartments, false)...)
+		diags.Append(cred.CompartmentIDs.ElementsAs(ctx, &compartments, false)...)
 		if len(compartments) > 0 {
 			result["compartment_ids"] = compartments
 		}
 	}
-	if utils.IsKnown(details.ServiceAccountJSON) {
+	if utils.IsKnown(cred.ServiceAccountJSON) {
 		var sa serviceAccountJSONModel
-		diags.Append(details.ServiceAccountJSON.As(ctx, &sa, basetypes.ObjectAsOptions{})...)
+		diags.Append(cred.ServiceAccountJSON.As(ctx, &sa, basetypes.ObjectAsOptions{})...)
 		if !diags.HasError() {
 			saMap := make(map[string]interface{})
 			if utils.IsKnown(sa.Type) {
