@@ -216,67 +216,63 @@ func TestCloudSecurityRulesDatasourceWithSuppressionRule(t *testing.T) {
 		t.Skip("skipping long-running test in short mode")
 	}
 	randomSuffix := sdkacctest.RandString(8)
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    testCloudRulesWithSuppression(randomSuffix),
-	})
-}
-
-func testCloudRulesWithSuppression(suffix string) []resource.TestStep {
-	customRuleName := fmt.Sprintf("%s Custom Rule With Suppression %s", acctest.ResourcePrefix, suffix)
-	suppressionRuleName := fmt.Sprintf("TF Test Suppression for Custom Rule %s", suffix)
+	customRuleName := fmt.Sprintf("%s Custom Rule With Suppression %s", acctest.ResourcePrefix, randomSuffix)
+	suppressionRuleName := fmt.Sprintf("TF Test Suppression for Custom Rule %s", randomSuffix)
 	customRuleResourceName := "crowdstrike_cloud_security_custom_rule.test_with_suppression"
 	suppressionResourceName := "crowdstrike_cloud_security_suppression_rule.test_suppression"
 	dataSourceName := "data.crowdstrike_cloud_security_rules.test_with_suppression"
 
-	return []resource.TestStep{
-		{
-			Config: testCloudRulesWithSuppressionConfig(customRuleName, suppressionRuleName),
-			ConfigStateChecks: []statecheck.StateCheck{
-				// Initial custom rule
-				statecheck.ExpectKnownValue(customRuleResourceName, tfjsonpath.New("name"), knownvalue.StringExact(customRuleName)),
-				statecheck.ExpectKnownValue(customRuleResourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testCloudRulesWithSuppressionConfig(customRuleName, suppressionRuleName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					// Initial custom rule
+					statecheck.ExpectKnownValue(customRuleResourceName, tfjsonpath.New("name"), knownvalue.StringExact(customRuleName)),
+					statecheck.ExpectKnownValue(customRuleResourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
 
-				// Initial Suppression rule
-				statecheck.ExpectKnownValue(suppressionResourceName, tfjsonpath.New("name"), knownvalue.StringExact(suppressionRuleName)),
-				statecheck.ExpectKnownValue(suppressionResourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					// Initial Suppression rule
+					statecheck.ExpectKnownValue(suppressionResourceName, tfjsonpath.New("name"), knownvalue.StringExact(suppressionRuleName)),
+					statecheck.ExpectKnownValue(suppressionResourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
 
-				// Check initial suppression rule id
-				statecheck.ExpectKnownValue(dataSourceName, tfjsonpath.New("rules"), knownvalue.ListSizeExact(1)),
-				statecheck.ExpectKnownValue(dataSourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("id"), knownvalue.NotNull()),
-				statecheck.ExpectKnownValue(dataSourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("name"), knownvalue.StringExact(customRuleName)),
+					// Check initial suppression rule id
+					statecheck.ExpectKnownValue(dataSourceName, tfjsonpath.New("rules"), knownvalue.ListSizeExact(1)),
+					statecheck.ExpectKnownValue(dataSourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(dataSourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("name"), knownvalue.StringExact(customRuleName)),
 
-				// Validate the suppression is now attached to the rule
-				statecheck.ExpectKnownValue(dataSourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("suppression_rule_ids"), knownvalue.ListSizeExact(1)),
-			},
-			Check: resource.ComposeAggregateTestCheckFunc(
-				func(s *terraform.State) error {
-					suppressionRS, ok := s.RootModule().Resources[suppressionResourceName]
-					if !ok {
-						return fmt.Errorf("Not found: %s", suppressionResourceName)
-					}
-					suppressionID := suppressionRS.Primary.ID
-
-					dataSourceRS, ok := s.RootModule().Resources[dataSourceName]
-					if !ok {
-						return fmt.Errorf("Not found: %s", dataSourceName)
-					}
-
-					suppressionRuleIDKey := "rules.0.suppression_rule_ids.0"
-					if dataSourceSuppressionID, ok := dataSourceRS.Primary.Attributes[suppressionRuleIDKey]; ok {
-						if dataSourceSuppressionID != suppressionID {
-							return fmt.Errorf("Expected suppression_rule_id to be '%s', got '%s'", suppressionID, dataSourceSuppressionID)
-						}
-					} else {
-						return fmt.Errorf("suppression_rule_ids not found in data source output")
-					}
-
-					return nil
+					// Validate the suppression is now attached to the rule
+					statecheck.ExpectKnownValue(dataSourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("suppression_rule_ids"), knownvalue.ListSizeExact(1)),
 				},
-			),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					func(s *terraform.State) error {
+						suppressionRS, ok := s.RootModule().Resources[suppressionResourceName]
+						if !ok {
+							return fmt.Errorf("Not found: %s", suppressionResourceName)
+						}
+						suppressionID := suppressionRS.Primary.ID
+
+						dataSourceRS, ok := s.RootModule().Resources[dataSourceName]
+						if !ok {
+							return fmt.Errorf("Not found: %s", dataSourceName)
+						}
+
+						suppressionRuleIDKey := "rules.0.suppression_rule_ids.0"
+						if dataSourceSuppressionID, ok := dataSourceRS.Primary.Attributes[suppressionRuleIDKey]; ok {
+							if dataSourceSuppressionID != suppressionID {
+								return fmt.Errorf("Expected suppression_rule_id to be '%s', got '%s'", suppressionID, dataSourceSuppressionID)
+							}
+						} else {
+							return fmt.Errorf("suppression_rule_ids not found in data source output")
+						}
+
+						return nil
+					},
+				),
+			},
 		},
-	}
+	})
 }
 
 func testCloudRulesWithSuppressionConfig(customRuleName, suppressionRuleName string) string {
