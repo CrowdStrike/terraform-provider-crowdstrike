@@ -90,6 +90,7 @@ The following sweepers are currently registered:
 - `crowdstrike_ioa_rule_group` - Custom IOA rule groups
 - `crowdstrike_firewall_rule_group` - Firewall rule groups
 - `crowdstrike_sensor_visibility_exclusion` - Sensor visibility exclusions
+- `crowdstrike_ml_exclusion` - Machine learning exclusions
 - `crowdstrike_data_protection_content_pattern` - Data protection content patterns
 - `crowdstrike_cloud_compliance_custom_framework` - Cloud compliance custom frameworks
 - `crowdstrike_cloud_group` - Cloud groups
