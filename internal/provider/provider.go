@@ -17,6 +17,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	containerregistry "github.com/crowdstrike/terraform-provider-crowdstrike/internal/container_registry"
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
+	correlationrules "github.com/crowdstrike/terraform-provider-crowdstrike/internal/correlation_rules"
 	customioc "github.com/crowdstrike/terraform-provider-crowdstrike/internal/custom_ioc"
 	dataprotection "github.com/crowdstrike/terraform-provider-crowdstrike/internal/data_protection"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
@@ -289,6 +290,7 @@ func (p *CrowdStrikeProvider) Configure(
 func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		cidgroup.NewCIDGroupResource,
+		correlationrules.NewCorrelationRuleResource,
 		sensorupdatepolicy.NewSensorUpdatePolicyResource,
 		sensorupdatepolicy.NewDefaultSensorUpdatePolicyResource,
 		sensorupdatepolicy.NewSensorUpdatePolicyHostGroupAttachmentResource,
@@ -372,6 +374,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		itautomation.NewItAutomationPoliciesDataSource,
 		itautomation.NewItAutomationTasksDataSource,
 		containerregistry.NewContainerRegistryDataSource,
+		correlationrules.NewCorrelationRulesDataSource,
 	}
 }
 
