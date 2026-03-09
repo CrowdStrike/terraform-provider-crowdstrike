@@ -2,7 +2,6 @@ package cloudsecurity_test
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -13,410 +12,384 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-// skipIfRegoNotEnabled skips the test if the ENABLE_REGO_TESTS environment variable is not set.
-// This is used for tests that use custom Rego logic, which requires the custom policy feature
-// flag to be enabled in the CrowdStrike environment.
-// To enable these tests, set: export ENABLE_REGO_TESTS=1.
-func skipIfRegoNotEnabled(t *testing.T) {
-	if os.Getenv("ENABLE_REGO_TESTS") == "" {
-		t.Skip("Skipping test: ENABLE_REGO_TESTS environment variable not set. These tests require the custom policy feature flag to be enabled for your CID.")
-	}
-}
-
-type ruleBaseConfig struct {
-	ruleNamePrefix  string
-	description     []string
-	subdomain       string
-	domain          string
-	severity        []string
-	remediationInfo [][]string
-	controls        []control
-	logic           []string
-	alertInfo       [][]string
-	attackTypes     [][]string
-}
-
-type ruleCustomConfig struct {
-	ruleBaseConfig
-	parentId      string
-	cloudProvider string
-	cloudPlatform string
-	resourceType  string
-	parentRule    dataRuleConfig
-}
-
-type control struct {
-	authority string
-	code      string
-}
-
-var commonConfig = ruleBaseConfig{
-	ruleNamePrefix: acctest.ResourcePrefix,
-	description: []string{
-		"This is a description",
-		"This is an updated description",
-	},
-	subdomain: "IOM",
-	domain:    "CSPM",
-	severity:  []string{"critical", "informational"},
-	remediationInfo: [][]string{
-		{"This is the first step", "This is the second step"},
-		{"This is the first step", "This is the second step", "This is the third step."},
-	},
-	controls: []control{
-		{
-			authority: "CIS",
-			code:      "791",
-		},
-		{
-			authority: "CIS",
-			code:      "98",
-		},
-	},
-	logic: []string{
-		"package crowdstrike\ndefault result = \"pass\"\nresult = \"fail\" if {\n input.tags[_] == \"catch-me\"\n }",
-		"package crowdstrike\ndefault result = \"pass\"\nresult = \"fail\" if {\n input.tags[_] == \"catch-me-again\"\n }",
-	},
-	alertInfo: [][]string{
-		{
-			"List all Auto Scaling Groups in the account.",
-			"Check if multiple instance types are included in the configuration.",
-			"Check if multiple availability zones are configured.",
-		},
-		{
-			"Check if multiple instance types are included in the configuration.",
-			"List all Auto Scaling Groups in the account.",
-			"Check if multiple availability zones are configured.",
-			"Alert when any of the above conditions are met.",
-		},
-	},
-	attackTypes: [][]string{
-		{"Look it's an attack type"},
-		{"Look it's an attack type", "This is a second attack type"},
-	},
-}
-
-var awsCopyConfig = ruleCustomConfig{
-	ruleBaseConfig: commonConfig,
-	parentId:       "0473a26b-7f29-43c7-9581-105f8c9c0b7d",
-	cloudProvider:  "AWS",
-	cloudPlatform:  "AWS",
-	resourceType:   "AWS::EC2::Instance",
-	parentRule:     awsConfig,
-}
-
-var azureCopyConfig = ruleCustomConfig{
-	ruleBaseConfig: commonConfig,
-	parentId:       "1c9516e9-490b-461c-8644-9239ff3cf0d3",
-	cloudProvider:  "Azure",
-	cloudPlatform:  "Azure",
-	resourceType:   "Microsoft.Compute/virtualMachines",
-	parentRule:     azureConfig,
-}
-
-var gcpCopyConfig = ruleCustomConfig{
-	ruleBaseConfig: commonConfig,
-	parentId:       "0260ffa9-eb65-42f4-a02a-7456d280049a",
-	cloudProvider:  "GCP",
-	cloudPlatform:  "GCP",
-	resourceType:   "sqladmin.googleapis.com/Instance",
-	parentRule:     gcpConfig,
-}
-
-var ociCopyConfig = ruleCustomConfig{
-	ruleBaseConfig: commonConfig,
-	parentId:       "190c2d3d-8b0e-4838-bf11-4c6e044b9cb1",
-	cloudProvider:  "OCI",
-	cloudPlatform:  "OCI",
-	resourceType:   "OCI::IAM::Domain",
-	parentRule:     ociConfig,
-}
-
 // AWS Tests.
-func TestCloudSecurityCustomRuleResource_AWS_Copy(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_AWS_Copy(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyTests(awsCopyConfig, "AWS"),
+		Steps:                    generateIomRuleCopyTests(awsCopyConfig, "AWS"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_AWS_Rego(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_AWS_Rego(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleLogicTests(awsCopyConfig, "AWS_Rego"),
+		Steps:                    generateIomRuleLogicTests(awsCopyConfig, "AWS_Rego"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_AWS_Minimal(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_AWS_Minimal(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateMinimalRuleCopyTests(awsCopyConfig, "AWS_Min"),
+		Steps:                    generateMinimalIomRuleCopyTests(awsCopyConfig, "AWS_Min"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_AWS_MinimalRego(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_AWS_MinimalRego(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateMinimalRuleLogicTests(awsCopyConfig, "AWS_Min_Rego"),
+		Steps:                    generateMinimalIomRuleLogicTests(awsCopyConfig, "AWS_Min_Rego"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_AWS_DefinedToOmitted(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_AWS_DefinedToOmitted(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyDefinedToOmittedTests(awsCopyConfig, "AWS_Omit"),
+		Steps:                    generateIomRuleCopyDefinedToOmittedTests(awsCopyConfig, "AWS_Omit"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_AWS_RegoDefinedToOmitted(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_AWS_RegoDefinedToOmitted(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleRegoDefinedToOmittedTests(awsCopyConfig, "AWS_Omit_Rego"),
+		Steps:                    generateIomRuleRegoDefinedToOmittedTests(awsCopyConfig, "AWS_Omit_Rego"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_AWS_RegoDefinedToEmpty(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_AWS_RegoDefinedToEmpty(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleRegoDefinedToEmptyTests(awsCopyConfig, "AWS_Empty_Rego"),
+		Steps:                    generateIomRuleRegoDefinedToEmptyTests(awsCopyConfig, "AWS_Empty_Rego"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_AWS_CopyDefinedToEmpty(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_AWS_CopyDefinedToEmpty(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyDefinedToEmptyTests(awsCopyConfig),
+		Steps:                    generateIomRuleCopyDefinedToEmptyTests(awsCopyConfig),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_AWS_CopyDefinedAttackType(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_AWS_CopyDefinedAttackType(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyDefinedAttackTypeTests(awsCopyConfig),
+		Steps:                    generateIomRuleCopyDefinedAttackTypeTests(awsCopyConfig),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_AWS_CopyInheritToEmptyToInherit(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_AWS_CopyInheritToEmptyToInherit(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyInheritToEmptyToInheritTests(awsCopyConfig, "AWS_InheritCycle"),
+		Steps:                    generateIomRuleCopyInheritToEmptyToInheritTests(awsCopyConfig, "AWS_InheritCycle"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_AWS_CopyEmptyOnCreate(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_AWS_CopyEmptyOnCreate(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyEmptyOnCreateTests(awsCopyConfig, "AWS_EmptyCreate"),
+		Steps:                    generateIomRuleCopyEmptyOnCreateTests(awsCopyConfig, "AWS_EmptyCreate"),
 	})
 }
 
 // Azure Tests.
-func TestCloudSecurityCustomRuleResource_Azure_Copy(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_Azure_Copy(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyTests(azureCopyConfig, "Azure"),
+		Steps:                    generateIomRuleCopyTests(azureCopyConfig, "Azure"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_Azure_Rego(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_Azure_Rego(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleLogicTests(azureCopyConfig, "Azure_Rego"),
+		Steps:                    generateIomRuleLogicTests(azureCopyConfig, "Azure_Rego"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_Azure_Minimal(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_Azure_Minimal(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateMinimalRuleCopyTests(azureCopyConfig, "Azure_Min"),
+		Steps:                    generateMinimalIomRuleCopyTests(azureCopyConfig, "Azure_Min"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_Azure_MinimalRego(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_Azure_MinimalRego(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateMinimalRuleLogicTests(azureCopyConfig, "Azure_Min_Rego"),
+		Steps:                    generateMinimalIomRuleLogicTests(azureCopyConfig, "Azure_Min_Rego"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_Azure_DefinedToOmitted(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_Azure_DefinedToOmitted(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyDefinedToOmittedTests(azureCopyConfig, "Azure_Omit"),
+		Steps:                    generateIomRuleCopyDefinedToOmittedTests(azureCopyConfig, "Azure_Omit"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_Azure_RegoDefinedToOmitted(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_Azure_RegoDefinedToOmitted(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleRegoDefinedToOmittedTests(azureCopyConfig, "Azure_Omit_Rego"),
+		Steps:                    generateIomRuleRegoDefinedToOmittedTests(azureCopyConfig, "Azure_Omit_Rego"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_Azure_RegoDefinedToEmpty(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_Azure_RegoDefinedToEmpty(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleRegoDefinedToEmptyTests(azureCopyConfig, "Azure_Empty_Rego"),
+		Steps:                    generateIomRuleRegoDefinedToEmptyTests(azureCopyConfig, "Azure_Empty_Rego"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_Azure_CopyDefinedToEmpty(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_Azure_CopyDefinedToEmpty(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyDefinedToEmptyTests(azureCopyConfig),
+		Steps:                    generateIomRuleCopyDefinedToEmptyTests(azureCopyConfig),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_Azure_CopyDefinedAttackType(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_Azure_CopyDefinedAttackType(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyDefinedAttackTypeTests(azureCopyConfig),
+		Steps:                    generateIomRuleCopyDefinedAttackTypeTests(azureCopyConfig),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_Azure_CopyInheritToEmptyToInherit(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_Azure_CopyInheritToEmptyToInherit(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyInheritToEmptyToInheritTests(azureCopyConfig, "Azure_InheritCycle"),
+		Steps:                    generateIomRuleCopyInheritToEmptyToInheritTests(azureCopyConfig, "Azure_InheritCycle"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_Azure_CopyEmptyOnCreate(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_Azure_CopyEmptyOnCreate(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyEmptyOnCreateTests(azureCopyConfig, "Azure_EmptyCreate"),
+		Steps:                    generateIomRuleCopyEmptyOnCreateTests(azureCopyConfig, "Azure_EmptyCreate"),
 	})
 }
 
 // GCP Tests.
-func TestCloudSecurityCustomRuleResource_GCP_Copy(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_GCP_Copy(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyTests(gcpCopyConfig, "GCP"),
+		Steps:                    generateIomRuleCopyTests(gcpCopyConfig, "GCP"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_GCP_Rego(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_GCP_Rego(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleLogicTests(gcpCopyConfig, "GCP_Rego"),
+		Steps:                    generateIomRuleLogicTests(gcpCopyConfig, "GCP_Rego"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_GCP_Minimal(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_GCP_Minimal(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateMinimalRuleCopyTests(gcpCopyConfig, "GCP_Min"),
+		Steps:                    generateMinimalIomRuleCopyTests(gcpCopyConfig, "GCP_Min"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_GCP_MinimalRego(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_GCP_MinimalRego(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateMinimalRuleLogicTests(gcpCopyConfig, "GCP_Min_Rego"),
+		Steps:                    generateMinimalIomRuleLogicTests(gcpCopyConfig, "GCP_Min_Rego"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_GCP_DefinedToOmitted(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_GCP_DefinedToOmitted(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyDefinedToOmittedTests(gcpCopyConfig, "GCP_Omit"),
+		Steps:                    generateIomRuleCopyDefinedToOmittedTests(gcpCopyConfig, "GCP_Omit"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_GCP_RegoDefinedToOmitted(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_GCP_RegoDefinedToOmitted(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleRegoDefinedToOmittedTests(gcpCopyConfig, "GCP_Omit_Rego"),
+		Steps:                    generateIomRuleRegoDefinedToOmittedTests(gcpCopyConfig, "GCP_Omit_Rego"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_GCP_RegoDefinedToEmpty(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_GCP_RegoDefinedToEmpty(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleRegoDefinedToEmptyTests(gcpCopyConfig, "GCP_Empty_Rego"),
+		Steps:                    generateIomRuleRegoDefinedToEmptyTests(gcpCopyConfig, "GCP_Empty_Rego"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_GCP_CopyDefinedToEmpty(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_GCP_CopyDefinedToEmpty(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyDefinedToEmptyTests(gcpCopyConfig),
+		Steps:                    generateIomRuleCopyDefinedToEmptyTests(gcpCopyConfig),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_GCP_CopyDefinedAttackType(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_GCP_CopyDefinedAttackType(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyDefinedAttackTypeTests(gcpCopyConfig),
+		Steps:                    generateIomRuleCopyDefinedAttackTypeTests(gcpCopyConfig),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_GCP_CopyInheritToEmptyToInherit(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_GCP_CopyInheritToEmptyToInherit(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyInheritToEmptyToInheritTests(gcpCopyConfig, "GCP_InheritCycle"),
+		Steps:                    generateIomRuleCopyInheritToEmptyToInheritTests(gcpCopyConfig, "GCP_InheritCycle"),
 	})
 }
 
-func TestCloudSecurityCustomRuleResource_GCP_CopyEmptyOnCreate(t *testing.T) {
+func TestCloudSecurityIomCustomRuleResource_GCP_CopyEmptyOnCreate(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateRuleCopyEmptyOnCreateTests(gcpCopyConfig, "GCP_EmptyCreate"),
+		Steps:                    generateIomRuleCopyEmptyOnCreateTests(gcpCopyConfig, "GCP_EmptyCreate"),
+	})
+}
+
+// OCI Tests.
+func TestCloudSecurityIomCustomRuleResource_OCI_Copy(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateIomRuleCopyTests(ociCopyConfig, "OCI"),
+	})
+}
+
+func TestCloudSecurityIomCustomRuleResource_OCI_Rego(t *testing.T) {
+	skipIfRegoNotEnabled(t)
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateIomRuleLogicTests(ociCopyConfig, "OCI_Rego"),
+	})
+}
+
+func TestCloudSecurityIomCustomRuleResource_OCI_Minimal(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateMinimalIomRuleCopyTests(ociCopyConfig, "OCI_Min"),
+	})
+}
+
+func TestCloudSecurityIomCustomRuleResource_OCI_MinimalRego(t *testing.T) {
+	skipIfRegoNotEnabled(t)
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateMinimalIomRuleLogicTests(ociCopyConfig, "OCI_Min_Rego"),
+	})
+}
+
+func TestCloudSecurityIomCustomRuleResource_OCI_DefinedToOmitted(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateIomRuleCopyDefinedToOmittedTests(ociCopyConfig, "OCI_Omit"),
+	})
+}
+
+func TestCloudSecurityIomCustomRuleResource_OCI_RegoDefinedToOmitted(t *testing.T) {
+	skipIfRegoNotEnabled(t)
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateIomRuleRegoDefinedToOmittedTests(ociCopyConfig, "OCI_Omit_Rego"),
+	})
+}
+
+func TestCloudSecurityIomCustomRuleResource_OCI_RegoDefinedToEmpty(t *testing.T) {
+	skipIfRegoNotEnabled(t)
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateIomRuleRegoDefinedToEmptyTests(ociCopyConfig, "OCI_Empty_Rego"),
+	})
+}
+
+func TestCloudSecurityIomCustomRuleResource_OCI_CopyDefinedToEmpty(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateIomRuleCopyDefinedToEmptyTests(ociCopyConfig),
+	})
+}
+
+func TestCloudSecurityIomCustomRuleResource_OCI_CopyDefinedAttackType(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateIomRuleCopyDefinedAttackTypeTests(ociCopyConfig),
+	})
+}
+
+func TestCloudSecurityIomCustomRuleResource_OCI_CopyInheritToEmptyToInherit(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateIomRuleCopyInheritToEmptyToInheritTests(ociCopyConfig, "OCI_InheritCycle"),
+	})
+}
+
+func TestCloudSecurityIomCustomRuleResource_OCI_CopyEmptyOnCreate(t *testing.T) {
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps:                    generateIomRuleCopyEmptyOnCreateTests(ociCopyConfig, "OCI_EmptyCreate"),
 	})
 }
 
 // In-place updates of user defined remediation_info, alert_info, and controls for duplicate rules.
-func generateRuleCopyTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
+func generateIomRuleCopyTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
 	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
-	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName
+	resourceName := "crowdstrike_cloud_security_iom_custom_rule.rule" + "_" + ruleName
 
 	for i := range 2 {
 		alertInfo := strings.Join([]string{
@@ -427,7 +400,7 @@ func generateRuleCopyTests(config ruleCustomConfig, ruleName string) []resource.
 		}, "")
 		resourceStep := resource.TestStep{
 			Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "rule_%s" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -449,8 +422,6 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 				testGenerateControlBlock(config.controls[i]), alertInfo,
 				config.parentRule.ruleName, config.parentRule.benchmark),
 			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr(resourceName, "subdomain", config.subdomain),
-				resource.TestCheckResourceAttr(resourceName, "domain", config.domain),
 				resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
 				resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
 				resource.TestCheckResourceAttr(resourceName, "description", config.description[i]),
@@ -488,11 +459,11 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 }
 
 // In-place updates of user defined remediation_info, alert_info, controls, and attack_types.
-func generateRuleLogicTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
+func generateIomRuleLogicTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
 	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
-	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName
+	resourceName := "crowdstrike_cloud_security_iom_custom_rule.rule" + "_" + ruleName
 
 	for i := range 2 {
 		alertInfo := strings.Join([]string{
@@ -506,7 +477,7 @@ func generateRuleLogicTests(config ruleCustomConfig, ruleName string) []resource
 		}, "")
 		resourceStep := resource.TestStep{
 			Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "rule_%s" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -526,8 +497,6 @@ EOF
 				config.cloudProvider, config.severity[i], remediationInfo, config.logic[i],
 				alertInfo, testGenerateControlBlock(config.controls[i]), attackTypes),
 			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr(resourceName, "subdomain", config.subdomain),
-				resource.TestCheckResourceAttr(resourceName, "domain", config.domain),
 				resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
 				resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
 				resource.TestCheckResourceAttr(resourceName, "description", config.description[i]),
@@ -567,16 +536,16 @@ EOF
 }
 
 // Minimum configuration for duplicate rules.
-func generateMinimalRuleCopyTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
+func generateMinimalIomRuleCopyTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
 	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
-	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName
+	resourceName := "crowdstrike_cloud_security_iom_custom_rule.rule" + "_" + ruleName
 
 	for i := range 2 {
 		newStep := resource.TestStep{
 			Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "rule_%s" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -590,8 +559,6 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName, config.description[i],
 				config.cloudProvider, config.parentRule.ruleName, config.parentRule.benchmark),
 			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr(resourceName, "subdomain", config.subdomain),
-				resource.TestCheckResourceAttr(resourceName, "domain", config.domain),
 				resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
 				resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
 				resource.TestCheckResourceAttr(resourceName, "description", config.description[i]),
@@ -612,16 +579,16 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 }
 
 // Minimum configuration for rego rules.
-func generateMinimalRuleLogicTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
+func generateMinimalIomRuleLogicTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
 	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
-	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName
+	resourceName := "crowdstrike_cloud_security_iom_custom_rule.rule" + "_" + ruleName
 
 	for i := range 2 {
 		resourceStep := resource.TestStep{
 			Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "rule_%s" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -633,8 +600,6 @@ EOF
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName, config.description[i],
 				config.cloudProvider, config.logic[i]),
 			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr(resourceName, "subdomain", config.subdomain),
-				resource.TestCheckResourceAttr(resourceName, "domain", config.domain),
 				resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
 				resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
 				resource.TestCheckResourceAttr(resourceName, "description", config.description[i]),
@@ -668,11 +633,11 @@ EOF
 }
 
 // Ensure duplicate rules will inherit fields from parent when fields are omitted in-place.
-func generateRuleCopyDefinedToOmittedTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
+func generateIomRuleCopyDefinedToOmittedTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
 	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
-	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName + "_definedToOmitted"
+	resourceName := "crowdstrike_cloud_security_iom_custom_rule.rule" + "_" + ruleName + "_definedToOmitted"
 
 	alertInfo := strings.Join([]string{
 		`"` + strings.Join(config.alertInfo[0], `","`) + `"`,
@@ -683,7 +648,7 @@ func generateRuleCopyDefinedToOmittedTests(config ruleCustomConfig, ruleName str
 
 	definedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_custom_rule" "rule_%s_definedToOmitted" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "rule_%s_definedToOmitted" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -705,8 +670,6 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 			testGenerateControlBlock(config.controls[0]), alertInfo,
 			config.parentRule.ruleName, config.parentRule.benchmark),
 		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(resourceName, "subdomain", config.subdomain),
-			resource.TestCheckResourceAttr(resourceName, "domain", config.domain),
 			resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
 			resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
 			resource.TestCheckResourceAttr(resourceName, "description", config.description[0]),
@@ -724,7 +687,7 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 
 	undefinedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_custom_rule" "rule_%s_definedToOmitted" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "rule_%s_definedToOmitted" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -739,8 +702,6 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName, config.description[0],
 			config.cloudProvider, config.severity[0], config.parentRule.ruleName, config.parentRule.benchmark),
 		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(resourceName, "subdomain", config.subdomain),
-			resource.TestCheckResourceAttr(resourceName, "domain", config.domain),
 			resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
 			resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
 			resource.TestCheckResourceAttr(resourceName, "description", config.description[0]),
@@ -762,11 +723,11 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 }
 
 // Duplicate rules can only be set to empty on update.
-func generateRuleCopyDefinedToEmptyTests(config ruleCustomConfig) []resource.TestStep {
+func generateIomRuleCopyDefinedToEmptyTests(config ruleCustomConfig) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := fmt.Sprintf("tfacc_definedToEmptyCopyRule_%s", randomSuffix)
-	fullResourceName := fmt.Sprintf("crowdstrike_cloud_security_custom_rule.%s", resourceName)
+	fullResourceName := fmt.Sprintf("crowdstrike_cloud_security_iom_custom_rule.%s", resourceName)
 
 	alertInfo := strings.Join([]string{
 		`"` + strings.Join(config.alertInfo[0], `","`) + `"`,
@@ -777,7 +738,7 @@ func generateRuleCopyDefinedToEmptyTests(config ruleCustomConfig) []resource.Tes
 
 	definedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_custom_rule" "%s" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "%s" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -799,8 +760,6 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 			testGenerateControlBlock(config.controls[0]), alertInfo,
 			config.parentRule.ruleName, config.parentRule.benchmark),
 		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(fullResourceName, "subdomain", config.subdomain),
-			resource.TestCheckResourceAttr(fullResourceName, "domain", config.domain),
 			resource.TestCheckResourceAttr(fullResourceName, "resource_type", config.resourceType),
 			resource.TestCheckResourceAttr(fullResourceName, "name", config.ruleNamePrefix+resourceName),
 			resource.TestCheckResourceAttr(fullResourceName, "description", config.description[0]),
@@ -818,13 +777,12 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 
 	undefinedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_custom_rule" "%s" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "%s" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
   cloud_provider   = "%s"
   severity         = "%s"
-  controls         = []
   parent_rule_id   = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
 }
 
@@ -835,15 +793,13 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 			config.cloudProvider, config.severity[0], testGenerateControlBlock(config.controls[0]),
 			remediationInfo, config.parentRule.ruleName, config.parentRule.benchmark),
 		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(fullResourceName, "subdomain", config.subdomain),
-			resource.TestCheckResourceAttr(fullResourceName, "domain", config.domain),
 			resource.TestCheckResourceAttr(fullResourceName, "resource_type", config.resourceType),
 			resource.TestCheckResourceAttr(fullResourceName, "name", config.ruleNamePrefix+resourceName),
 			resource.TestCheckResourceAttr(fullResourceName, "description", config.description[0]),
 			resource.TestCheckResourceAttr(fullResourceName, "cloud_platform", config.cloudPlatform),
 			resource.TestCheckResourceAttr(fullResourceName, "cloud_provider", config.cloudProvider),
 			resource.TestCheckResourceAttr(fullResourceName, "severity", config.severity[0]),
-			resource.TestCheckResourceAttr(fullResourceName, "controls.#", "0"),
+			resource.TestMatchResourceAttr(fullResourceName, "controls.#", regexp.MustCompile(`^[1-9]\d*$`)),
 			resource.TestMatchResourceAttr(fullResourceName, "alert_info.#", regexp.MustCompile(`^[1-9]\d*$`)),
 			resource.TestMatchResourceAttr(fullResourceName, "remediation_info.#", regexp.MustCompile(`^[1-9]\d*$`)),
 			resource.TestCheckResourceAttrSet(fullResourceName, "id"),
@@ -861,11 +817,11 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 }
 
 // Validating fields set to empty when omitted in-place.
-func generateRuleRegoDefinedToOmittedTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
+func generateIomRuleRegoDefinedToOmittedTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
 	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
-	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName + "_definedToOmitted"
+	resourceName := "crowdstrike_cloud_security_iom_custom_rule.rule" + "_" + ruleName + "_definedToOmitted"
 
 	alertInfo := strings.Join([]string{
 		`"` + strings.Join(config.alertInfo[0], `","`) + `"`,
@@ -876,7 +832,7 @@ func generateRuleRegoDefinedToOmittedTests(config ruleCustomConfig, ruleName str
 
 	definedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_custom_rule" "rule_%s_definedToOmitted" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "rule_%s_definedToOmitted" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -895,8 +851,6 @@ EOF
 			config.cloudProvider, config.severity[0], remediationInfo,
 			testGenerateControlBlock(config.controls[0]), alertInfo, config.logic[0]),
 		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(resourceName, "subdomain", config.subdomain),
-			resource.TestCheckResourceAttr(resourceName, "domain", config.domain),
 			resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
 			resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
 			resource.TestCheckResourceAttr(resourceName, "description", config.description[0]),
@@ -914,7 +868,7 @@ EOF
 
 	undefinedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_custom_rule" "rule_%s_definedToOmitted" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "rule_%s_definedToOmitted" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -927,8 +881,6 @@ EOF
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName, config.description[0],
 			config.cloudProvider, config.severity[0], config.logic[0]),
 		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(resourceName, "subdomain", config.subdomain),
-			resource.TestCheckResourceAttr(resourceName, "domain", config.domain),
 			resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
 			resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
 			resource.TestCheckResourceAttr(resourceName, "description", config.description[0]),
@@ -950,11 +902,11 @@ EOF
 }
 
 // Validating fields set to empty when set to empty list/set in-place.
-func generateRuleRegoDefinedToEmptyTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
+func generateIomRuleRegoDefinedToEmptyTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
 	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
-	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName + "_definedToEmpty"
+	resourceName := "crowdstrike_cloud_security_iom_custom_rule.rule" + "_" + ruleName + "_definedToEmpty"
 
 	alertInfo := strings.Join([]string{
 		`"` + strings.Join(config.alertInfo[0], `","`) + `"`,
@@ -965,7 +917,7 @@ func generateRuleRegoDefinedToEmptyTests(config ruleCustomConfig, ruleName strin
 
 	definedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_custom_rule" "rule_%s_definedToEmpty" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "rule_%s_definedToEmpty" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -984,8 +936,6 @@ EOF
 			config.cloudProvider, config.severity[0], remediationInfo,
 			testGenerateControlBlock(config.controls[0]), alertInfo, config.logic[0]),
 		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(resourceName, "subdomain", config.subdomain),
-			resource.TestCheckResourceAttr(resourceName, "domain", config.domain),
 			resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
 			resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
 			resource.TestCheckResourceAttr(resourceName, "description", config.description[0]),
@@ -1003,7 +953,7 @@ EOF
 
 	undefinedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_custom_rule" "rule_%s_definedToEmpty" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "rule_%s_definedToEmpty" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -1012,13 +962,10 @@ resource "crowdstrike_cloud_security_custom_rule" "rule_%s_definedToEmpty" {
   logic = <<EOF
 %s
 EOF
-  controls         = []
 }
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName, config.description[0],
 			config.cloudProvider, config.severity[0], config.logic[0]),
 		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(resourceName, "subdomain", config.subdomain),
-			resource.TestCheckResourceAttr(resourceName, "domain", config.domain),
 			resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
 			resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
 			resource.TestCheckResourceAttr(resourceName, "description", config.description[0]),
@@ -1040,7 +987,7 @@ EOF
 }
 
 // Validate attack_types cannot be set for duplicate rules.
-func generateRuleCopyDefinedAttackTypeTests(config ruleCustomConfig) []resource.TestStep {
+func generateIomRuleCopyDefinedAttackTypeTests(config ruleCustomConfig) []resource.TestStep {
 	randomSuffix := sdkacctest.RandString(8)
 	resourceName := fmt.Sprintf("tfacc_definedToEmptyAttackTypesCopyRule_%s", randomSuffix)
 
@@ -1054,7 +1001,7 @@ func generateRuleCopyDefinedAttackTypeTests(config ruleCustomConfig) []resource.
 	return []resource.TestStep{
 		{
 			Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_custom_rule" "%s" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "%s" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -1084,26 +1031,17 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 	}
 }
 
-func testGenerateControlBlock(c control) string {
-	return fmt.Sprintf(`
-    {
-		authority = "%s"
-		code = "%s"
-	}
-	`, c.authority, c.code)
-}
-
 // Test inheritance cycle: inherit from parent -> set to empty -> inherit from parent again.
-func generateRuleCopyInheritToEmptyToInheritTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
+func generateIomRuleCopyInheritToEmptyToInheritTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
 	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
-	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName
+	resourceName := "crowdstrike_cloud_security_iom_custom_rule.rule" + "_" + ruleName
 
 	// Step 1: Create minimal copy rule - should inherit controls, remediation_info, and alert_info from parent
 	inheritStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "rule_%s" {
   resource_type  = "%s"
   name           = "%s"
   description    = "%s - Step 1"
@@ -1119,8 +1057,6 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 			config.description[0], config.cloudProvider, config.severity[0],
 			config.parentRule.ruleName, config.parentRule.benchmark),
 		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(resourceName, "subdomain", config.subdomain),
-			resource.TestCheckResourceAttr(resourceName, "domain", config.domain),
 			resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
 			resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
 			resource.TestCheckResourceAttr(resourceName, "description", config.description[0]+" - Step 1"),
@@ -1138,13 +1074,12 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 	// Step 2: Set all fields to empty arrays - should override inherited values
 	emptyStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "rule_%s" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s - Step 2"
   cloud_provider   = "%s"
   severity         = "%s"
-  controls         = []
   parent_rule_id   = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
 }
 
@@ -1155,15 +1090,13 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 			config.description[0], config.cloudProvider, config.severity[0],
 			config.parentRule.ruleName, config.parentRule.benchmark),
 		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(resourceName, "subdomain", config.subdomain),
-			resource.TestCheckResourceAttr(resourceName, "domain", config.domain),
 			resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
 			resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
 			resource.TestCheckResourceAttr(resourceName, "description", config.description[0]+" - Step 2"),
 			resource.TestCheckResourceAttr(resourceName, "cloud_platform", config.cloudPlatform),
 			resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
 			resource.TestCheckResourceAttr(resourceName, "severity", config.severity[0]),
-			resource.TestCheckResourceAttr(resourceName, "controls.#", "0"), // Should be empty
+			resource.TestMatchResourceAttr(resourceName, "controls.#", regexp.MustCompile(`^[1-9]\d*$`)),
 			resource.TestMatchResourceAttr(resourceName, "alert_info.#", regexp.MustCompile(`^[1-9]\d*$`)),
 			resource.TestMatchResourceAttr(resourceName, "remediation_info.#", regexp.MustCompile(`^[1-9]\d*$`)),
 			resource.TestCheckResourceAttrSet(resourceName, "id"),
@@ -1174,7 +1107,7 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 	// Step 3: Remove the explicit fields - should inherit from parent again
 	inheritAgainStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "rule_%s" {
   resource_type  = "%s"
   name           = "%s"
   description    = "%s - Step 3"
@@ -1190,8 +1123,6 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 			config.description[0], config.cloudProvider, config.severity[0],
 			config.parentRule.ruleName, config.parentRule.benchmark),
 		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(resourceName, "subdomain", config.subdomain),
-			resource.TestCheckResourceAttr(resourceName, "domain", config.domain),
 			resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
 			resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
 			resource.TestCheckResourceAttr(resourceName, "description", config.description[0]+" - Step 3"),
@@ -1214,20 +1145,19 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 }
 
 // Test creating a rule with empty arrays from the start and verify no plan changes on refresh.
-func generateRuleCopyEmptyOnCreateTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
+func generateIomRuleCopyEmptyOnCreateTests(config ruleCustomConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
 	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
-	resourceName := "crowdstrike_cloud_security_custom_rule.rule" + "_" + ruleName
+	resourceName := "crowdstrike_cloud_security_iom_custom_rule.rule" + "_" + ruleName
 
 	configStr := fmt.Sprintf(`
-resource "crowdstrike_cloud_security_custom_rule" "rule_%s" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "rule_%s" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
   cloud_provider   = "%s"
   severity         = "%s"
-  controls         = []
   parent_rule_id   = one(data.crowdstrike_cloud_security_rules.rule_%[1]s.rules).id
 }
 
@@ -1241,15 +1171,13 @@ data "crowdstrike_cloud_security_rules" "rule_%[1]s" {
 	createStep := resource.TestStep{
 		Config: configStr,
 		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(resourceName, "subdomain", config.subdomain),
-			resource.TestCheckResourceAttr(resourceName, "domain", config.domain),
 			resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
 			resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
 			resource.TestCheckResourceAttr(resourceName, "description", config.description[0]),
 			resource.TestCheckResourceAttr(resourceName, "cloud_platform", config.cloudPlatform),
 			resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
 			resource.TestCheckResourceAttr(resourceName, "severity", config.severity[0]),
-			resource.TestCheckResourceAttr(resourceName, "controls.#", "0"),
+			resource.TestMatchResourceAttr(resourceName, "controls.#", regexp.MustCompile(`^[1-9]\d*$`)),
 			resource.TestMatchResourceAttr(resourceName, "alert_info.#", regexp.MustCompile(`^[1-9]\d*$`)),
 			resource.TestMatchResourceAttr(resourceName, "remediation_info.#", regexp.MustCompile(`^[1-9]\d*$`)),
 			resource.TestCheckResourceAttrSet(resourceName, "id"),
