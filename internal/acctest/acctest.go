@@ -29,7 +29,13 @@ type OptionalEnvVar string
 const (
 	RequireHostGroupID    OptionalEnvVar = "HOST_GROUP_ID"
 	RequireIOARuleGroupID OptionalEnvVar = "IOA_RULE_GROUP_ID"
+	RequireCustomerID     OptionalEnvVar = "FALCON_CUSTOMER_ID"
 )
+
+// CustomerID returns the FALCON_CUSTOMER_ID environment variable for tests.
+func CustomerID() string {
+	return os.Getenv("FALCON_CUSTOMER_ID")
+}
 
 // ConfigCompose can be called to concatenate multiple strings to build test configurations.
 func ConfigCompose(config ...string) string {
