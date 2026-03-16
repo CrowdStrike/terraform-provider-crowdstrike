@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_azure_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
@@ -77,7 +78,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) Metadata(
 
 type cloudAzureTenantEventhubSettingsModel struct {
 	TenantId types.String `tfsdk:"tenant_id"`
-	Settings types.List   `tfsdk:"settings"`
+	Settings types.Set    `tfsdk:"settings"`
 }
 
 type eventhubSettings struct {
@@ -109,7 +110,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) Schema(
 				Required:            true,
 				MarkdownDescription: "The Azure Tenant ID to attach the eventhub settings to.",
 			},
-			"settings": schema.ListNestedAttribute{
+			"settings": schema.SetNestedAttribute{
 				Optional:    true,
 				Description: "Eventhub settings for an Azure tenant registration.",
 				NestedObject: schema.NestedAttributeObject{
@@ -155,20 +156,24 @@ func (m *cloudAzureTenantEventhubSettingsModel) wrap(
 		})
 	}
 
-	eventhubSettingsList := utils.SliceToListTypeObject(
+	eventhubSettingsSet, err := types.SetValueFrom(
 		ctx,
+		types.ObjectType{AttrTypes: eventhubSettings{}.attrTypes()},
 		eventhubSettingsSlice,
-		eventhubSettings{}.attrTypes(),
-		&diags,
 	)
-	if m.Settings.IsNull() && len(eventhubSettingsList.Elements()) == 0 {
-		eventhubSettingsList = types.ListNull(
+	diags.Append(err...)
+	if diags.HasError() {
+		return diags
+	}
+
+	if m.Settings.IsNull() && len(eventhubSettingsSet.Elements()) == 0 {
+		eventhubSettingsSet = types.SetNull(
 			types.ObjectType{AttrTypes: eventhubSettings{}.attrTypes()},
 		)
 	}
 
 	m.TenantId = types.StringValue(*registration.TenantID)
-	m.Settings = eventhubSettingsList
+	m.Settings = eventhubSettingsSet
 
 	return diags
 }
@@ -259,7 +264,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) Delete(
 		return
 	}
 
-	data.Settings = types.ListNull(types.ObjectType{AttrTypes: eventhubSettings{}.attrTypes()})
+	data.Settings = types.SetNull(types.ObjectType{AttrTypes: eventhubSettings{}.attrTypes()})
 	registration, err := r.updateRegistration(ctx, &data)
 	resp.Diagnostics.Append(err...)
 
@@ -341,7 +346,7 @@ func (r *cloudAzureTenantEventhubSettingsResource) updateRegistration(
 ) (*models.AzureTenantRegistration, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	settings := utils.ListTypeAs[*eventhubSettings](ctx, data.Settings, &diags)
+	settings := flex.ExpandSetAs[*eventhubSettings](ctx, data.Settings, &diags)
 	if diags.HasError() {
 		return nil, diags
 	}
