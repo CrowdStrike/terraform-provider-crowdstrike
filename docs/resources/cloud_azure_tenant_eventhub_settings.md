@@ -69,7 +69,7 @@ output "eventhub_settings" {
 
 ### Optional
 
-- `settings` (Attributes List) Eventhub settings for an Azure tenant registration. (see [below for nested schema](#nestedatt--settings))
+- `settings` (Attributes Set) Eventhub settings for an Azure tenant registration. (see [below for nested schema](#nestedatt--settings))
 
 <a id="nestedatt--settings"></a>
 ### Nested Schema for `settings`
