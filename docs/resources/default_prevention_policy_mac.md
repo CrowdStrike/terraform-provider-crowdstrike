@@ -93,6 +93,7 @@ output "default_prevention_policy_mac" {
 - `description` (String) Description of the prevention policy.
 - `detect_on_write` (Boolean) Whether to enable the setting. Use machine learning to analyze suspicious files when they're written to disk. To adjust detection sensitivity, change Anti-malware Detection levels in Sensor Machine Learning and Cloud Machine Learning.
 - `empyre_backdoor` (Boolean) Whether to enable the setting. A process with behaviors indicative of the Empyre Backdoor was terminated.
+- `enhanced_network_visibility` (Boolean) Whether to enable the setting. Provides enhanced visibility into network activities and detections.
 - `hash_collector` (Boolean) Whether to enable the setting. An attempt to dump a user’s hashed password was blocked.
 - `intelligence_sourced_threats` (Boolean) Whether to enable the setting. Block processes that CrowdStrike Intelligence analysts classify as malicious. These are focused on static hash-based IOCs.
 - `kc_password_decoded` (Boolean) Whether to enable the setting. An attempt to recover a plaintext password via the kcpassword file was blocked.
