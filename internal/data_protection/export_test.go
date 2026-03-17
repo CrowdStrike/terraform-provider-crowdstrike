@@ -6,9 +6,7 @@ type (
 	DataProtectionSensitivityLabelResourceModel = dataProtectionSensitivityLabelResourceModel
 )
 
-var (
-	BuildSensitivityLabelCreateRequest = buildSensitivityLabelCreateRequest
-)
+var BuildSensitivityLabelCreateRequest = buildSensitivityLabelCreateRequest
 
 func (m *dataProtectionSensitivityLabelResourceModel) Wrap(
 	label models.APISensitivityLabelV2,

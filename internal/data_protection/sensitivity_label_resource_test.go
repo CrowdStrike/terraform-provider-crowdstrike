@@ -160,17 +160,17 @@ func TestDataProtectionSensitivityLabelWrap(t *testing.T) {
 	updated := strfmt.DateTime(time.Date(2026, time.February, 27, 12, 15, 0, 0, time.UTC))
 
 	tests := map[string]struct {
-		label                  models.APISensitivityLabelV2
-		wantID                 types.String
-		wantCID                types.String
-		wantName               types.String
-		wantExternalID         types.String
-		wantLabelProvider      types.String
-		wantPluginsConfigID    types.String
-		wantCoAuthoring        types.Bool
-		wantSynced             types.Bool
-		wantCreatedAt          types.String
-		wantLastUpdated        types.String
+		label               models.APISensitivityLabelV2
+		wantID              types.String
+		wantCID             types.String
+		wantName            types.String
+		wantExternalID      types.String
+		wantLabelProvider   types.String
+		wantPluginsConfigID types.String
+		wantCoAuthoring     types.Bool
+		wantSynced          types.Bool
+		wantCreatedAt       types.String
+		wantLastUpdated     types.String
 	}{
 		"standard": {
 			label: models.APISensitivityLabelV2{
