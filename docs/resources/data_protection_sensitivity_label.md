@@ -34,14 +34,18 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
-resource "crowdstrike_data_protection_sensitivity_label" "confidential" {
-  name                     = "confidential"
-  display_name             = "Confidential"
-  external_id              = "purview-confidential"
+# Standard sensitivity label (user-defined)
+resource "crowdstrike_data_protection_sensitivity_label" "standard" {
+  name           = "Confidential"
+  label_provider = "microsoft"
+}
+
+# Synced sensitivity label (from upstream provider connector)
+resource "crowdstrike_data_protection_sensitivity_label" "synced" {
+  name                     = "Confidential"
+  external_id              = "a1b2c3d4-label-id-from-provider"
   label_provider           = "microsoft"
   plugins_configuration_id = "plugin-config-id"
-  co_authoring             = true
-  synced                   = true
 }
 ```
 
@@ -51,22 +55,21 @@ resource "crowdstrike_data_protection_sensitivity_label" "confidential" {
 ### Required
 
 - `label_provider` (String) Source system that provides the sensitivity label.
-- `name` (String) Canonical name of the sensitivity label.
-- `synced` (Boolean) Whether the sensitivity label is synchronized from the upstream label provider.
+- `name` (String) Name of the sensitivity label.
 
 ### Optional
 
-- `co_authoring` (Boolean) Whether co-authoring is enabled for the sensitivity label.
-- `display_name` (String) Human-readable display name of the sensitivity label. When omitted, the API falls back to the label name.
-- `external_id` (String) External identifier for the sensitivity label in the upstream label provider.
-- `plugins_configuration_id` (String) Plugin configuration identifier associated with the sensitivity label provider.
+- `external_id` (String) External identifier for the label in the upstream provider.
+- `plugins_configuration_id` (String) Identifier of the plugin configuration for the provider connector.
 
 ### Read-Only
 
 - `cid` (String) CID that owns the sensitivity label.
+- `co_authoring` (Boolean) Whether co-authoring is enabled for the sensitivity label.
 - `created_at` (String) Timestamp when the sensitivity label was created.
 - `id` (String) Unique identifier of the sensitivity label.
 - `last_updated` (String) Timestamp when the sensitivity label was last updated in CrowdStrike.
+- `synced` (Boolean) Whether the label is synced from an upstream provider.
 
 ## Import
 

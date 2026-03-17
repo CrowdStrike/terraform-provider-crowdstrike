@@ -14,7 +14,6 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -26,10 +25,9 @@ import (
 )
 
 var (
-	_ resource.Resource                   = &dataProtectionSensitivityLabelResource{}
-	_ resource.ResourceWithConfigure      = &dataProtectionSensitivityLabelResource{}
-	_ resource.ResourceWithImportState    = &dataProtectionSensitivityLabelResource{}
-	_ resource.ResourceWithValidateConfig = &dataProtectionSensitivityLabelResource{}
+	_ resource.Resource                = &dataProtectionSensitivityLabelResource{}
+	_ resource.ResourceWithConfigure   = &dataProtectionSensitivityLabelResource{}
+	_ resource.ResourceWithImportState = &dataProtectionSensitivityLabelResource{}
 )
 
 var sensitivityLabelResourceRequiredScopes = []scopes.Scope{
@@ -48,7 +46,6 @@ type dataProtectionSensitivityLabelResourceModel struct {
 	ID                     types.String `tfsdk:"id"`
 	CID                    types.String `tfsdk:"cid"`
 	Name                   types.String `tfsdk:"name"`
-	DisplayName            types.String `tfsdk:"display_name"`
 	ExternalID             types.String `tfsdk:"external_id"`
 	LabelProvider          types.String `tfsdk:"label_provider"`
 	PluginsConfigurationID types.String `tfsdk:"plugins_configuration_id"`
@@ -115,18 +112,7 @@ func (r *dataProtectionSensitivityLabelResource) Schema(
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
-				Description: "Canonical name of the sensitivity label.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-				Validators: []validator.String{
-					fwvalidators.StringNotWhitespace(),
-				},
-			},
-			"display_name": schema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "Human-readable display name of the sensitivity label. When omitted, the API falls back to the label name.",
+				Description: "Name of the sensitivity label.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -136,12 +122,13 @@ func (r *dataProtectionSensitivityLabelResource) Schema(
 			},
 			"external_id": schema.StringAttribute{
 				Optional:    true,
-				Description: "External identifier for the sensitivity label in the upstream label provider.",
+				Description: "External identifier for the label in the upstream provider.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
 					fwvalidators.StringNotWhitespace(),
+					stringvalidator.AlsoRequires(path.MatchRoot("plugins_configuration_id")),
 				},
 			},
 			"label_provider": schema.StringAttribute{
@@ -157,26 +144,27 @@ func (r *dataProtectionSensitivityLabelResource) Schema(
 			},
 			"plugins_configuration_id": schema.StringAttribute{
 				Optional:    true,
-				Description: "Plugin configuration identifier associated with the sensitivity label provider.",
+				Description: "Identifier of the plugin configuration for the provider connector.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
 					fwvalidators.StringNotWhitespace(),
+					stringvalidator.AlsoRequires(path.MatchRoot("external_id")),
 				},
 			},
 			"co_authoring": schema.BoolAttribute{
-				Optional:    true,
+				Computed:    true,
 				Description: "Whether co-authoring is enabled for the sensitivity label.",
 				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.RequiresReplace(),
+					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"synced": schema.BoolAttribute{
-				Required:    true,
-				Description: "Whether the sensitivity label is synchronized from the upstream label provider.",
+				Computed:    true,
+				Description: "Whether the label is synced from an upstream provider.",
 				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.RequiresReplace(),
+					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"created_at": schema.StringAttribute{
@@ -336,88 +324,30 @@ func (r *dataProtectionSensitivityLabelResource) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r *dataProtectionSensitivityLabelResource) ValidateConfig(
-	ctx context.Context,
-	req resource.ValidateConfigRequest,
-	resp *resource.ValidateConfigResponse,
-) {
-	var config dataProtectionSensitivityLabelResourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	resp.Diagnostics.Append(validateSensitivityLabelConfig(config)...)
-}
-
-func validateSensitivityLabelConfig(
-	config dataProtectionSensitivityLabelResourceModel,
-) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	if config.Synced.IsNull() || config.Synced.IsUnknown() {
-		return diags
-	}
-
-	if config.Synced.ValueBool() {
-		if !utils.IsKnown(config.ExternalID) {
-			diags.AddAttributeError(
-				path.Root("external_id"),
-				"Missing Required Attribute for Synced Label",
-				"`external_id` must be set when `synced = true`.",
-			)
-		}
-
-		if !utils.IsKnown(config.PluginsConfigurationID) {
-			diags.AddAttributeError(
-				path.Root("plugins_configuration_id"),
-				"Missing Required Attribute for Synced Label",
-				"`plugins_configuration_id` must be set when `synced = true`.",
-			)
-		}
-
-		return diags
-	}
-
-	if utils.IsKnown(config.ExternalID) {
-		diags.AddAttributeError(
-			path.Root("external_id"),
-			"Invalid Attribute for Standard Label",
-			"`external_id` must not be set when `synced = false`.",
-		)
-	}
-
-	if utils.IsKnown(config.PluginsConfigurationID) {
-		diags.AddAttributeError(
-			path.Root("plugins_configuration_id"),
-			"Invalid Attribute for Standard Label",
-			"`plugins_configuration_id` must not be set when `synced = false`.",
-		)
-	}
-
-	if utils.IsKnown(config.CoAuthoring) {
-		diags.AddAttributeError(
-			path.Root("co_authoring"),
-			"Invalid Attribute for Standard Label",
-			"`co_authoring` must not be set when `synced = false`.",
-		)
-	}
-
-	return diags
-}
-
 func buildSensitivityLabelCreateRequest(
 	plan dataProtectionSensitivityLabelResourceModel,
 ) *models.APISensitivityLabelCreateRequestV2 {
-	return &models.APISensitivityLabelCreateRequestV2{
-		CoAuthoring:            utils.Addr(plan.CoAuthoring.ValueBool()),
-		DisplayName:            flex.FrameworkToStringPointer(plan.DisplayName),
+	// Synced labels come from an external provider (Microsoft/Google). The API
+	// uses "name" for the external ID and "display_name" for the human-readable
+	// name, so we swap them when synced. Standard labels send TF "name" as the
+	// API "name" directly.
+	isSynced := utils.IsKnown(plan.ExternalID) && utils.IsKnown(plan.PluginsConfigurationID)
+
+	req := &models.APISensitivityLabelCreateRequestV2{
+		DisplayName:            flex.FrameworkToStringPointer(plan.ExternalID),
 		ExternalID:             flex.FrameworkToStringPointer(plan.ExternalID),
-		LabelProvider:          utils.Addr(plan.LabelProvider.ValueString()),
-		Name:                   utils.Addr(plan.Name.ValueString()),
+		LabelProvider:          plan.LabelProvider.ValueStringPointer(),
+		Name:                   plan.Name.ValueStringPointer(),
 		PluginsConfigurationID: flex.FrameworkToStringPointer(plan.PluginsConfigurationID),
-		Synced:                 utils.Addr(plan.Synced.ValueBool()),
+		Synced:                 utils.Addr(isSynced),
 	}
+
+	if isSynced {
+		req.Name = plan.ExternalID.ValueStringPointer()
+		req.DisplayName = plan.Name.ValueStringPointer()
+	}
+
+	return req
 }
 
 func (m *dataProtectionSensitivityLabelResourceModel) wrap(
@@ -425,8 +355,7 @@ func (m *dataProtectionSensitivityLabelResourceModel) wrap(
 ) {
 	m.ID = flex.StringPointerToFramework(label.ID)
 	m.CID = flex.StringPointerToFramework(label.Cid)
-	m.Name = flex.StringPointerToFramework(label.Name)
-	m.DisplayName = flex.StringPointerToFramework(label.DisplayName)
+	m.Name = flex.StringPointerToFramework(label.DisplayName)
 	m.ExternalID = flex.StringPointerToFramework(label.ExternalID)
 	m.LabelProvider = flex.StringPointerToFramework(label.LabelProvider)
 	m.PluginsConfigurationID = flex.StringPointerToFramework(label.PluginsConfigurationID)
