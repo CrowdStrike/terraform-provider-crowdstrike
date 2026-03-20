@@ -2,6 +2,7 @@ package acctest
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -22,6 +23,9 @@ provider "crowdstrike" {}
 	// ResourcePrefix is imported from sweep package to maintain single source of truth
 	// and avoid import cycles.
 	ResourcePrefix = sweep.ResourcePrefix
+	// UUIDPrefix is a fixed prefix used to generate fake UUIDs for acceptance
+	// tests. Sweepers use this prefix to identify and clean up test resources.
+	UUIDPrefix = "00000000-0000-"
 )
 
 type OptionalEnvVar string
@@ -45,6 +49,17 @@ func ConfigCompose(config ...string) string {
 // RandomResourceName generates a random resource name with the standard prefix.
 func RandomResourceName() string {
 	return sdkacctest.RandomWithPrefix(ResourcePrefix)
+}
+
+// RandomUUID generates a UUID-like string with a fixed prefix for test
+// resource identification. Sweepers filter on UUIDPrefix to clean up.
+func RandomUUID() string {
+	return fmt.Sprintf("%s%s-%s-%s",
+		UUIDPrefix,
+		sdkacctest.RandStringFromCharSet(4, CharSetNum),
+		sdkacctest.RandStringFromCharSet(4, CharSetNum),
+		sdkacctest.RandStringFromCharSet(12, CharSetNum),
+	)
 }
 
 // ProtoV6ProviderFactories are used to instantiate a provider during

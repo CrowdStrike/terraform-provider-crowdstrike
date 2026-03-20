@@ -98,6 +98,7 @@ Read-Only:
 - `rule_origin` (String) Rule origin indicating whether this is a Default or Custom rule.
 - `severity` (String) Severity of the rule. Valid values are `critical`, `high`, `medium`, `informational`.
 - `subdomain` (String) Subdomain for the policy rule. Valid values are 'IOM' (Indicators of Misconfiguration) or 'IAC' (Infrastructure as Code).
+- `suppression_rule_ids` (List of String) Suppression rule ids assigned to this rule
 
 <a id="nestedatt--rules--controls"></a>
 ### Nested Schema for `rules.controls`

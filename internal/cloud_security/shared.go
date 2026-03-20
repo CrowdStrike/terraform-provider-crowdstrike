@@ -54,6 +54,23 @@ var (
 		"2": SeverityMedium,
 		"3": SeverityInformational,
 	}
+	suppressionRuleSubdomainDefault = "IOM"
+	suppressionRuleDomainDefault    = "CSPM"
+	suppressionRuleReasonValues     = []string{
+		"accept-risk",
+		"compensating-control",
+		"false-positive",
+	}
+	ruleSeverityValues = []string{
+		SeverityCritical,
+		SeverityHigh,
+		SeverityMedium,
+		SeverityInformational,
+	}
+	ruleOriginValues = []string{
+		"Custom",
+		"Default",
+	}
 )
 
 func convertAlertRemediationInfoToTerraformState(input *string) []string {

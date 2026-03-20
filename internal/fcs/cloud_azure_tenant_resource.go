@@ -24,6 +24,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 var (
@@ -39,7 +40,8 @@ func NewCloudAzureTenantResource() resource.Resource {
 }
 
 type cloudAzureTenantResource struct {
-	client *client.CrowdStrikeAPISpecification
+	client   *client.CrowdStrikeAPISpecification
+	clientId string
 }
 
 // Configure adds the provider configured client to the resource.
@@ -67,6 +69,7 @@ func (r *cloudAzureTenantResource) Configure(
 	}
 
 	r.client = config.Client
+	r.clientId = config.ClientId
 }
 
 func (r *cloudAzureTenantResource) Metadata(
@@ -78,23 +81,56 @@ func (r *cloudAzureTenantResource) Metadata(
 }
 
 type cloudAzureTenantModel struct {
-	AccountType                 types.String        `tfsdk:"account_type"`
-	AppRegistrationId           types.String        `tfsdk:"cs_azure_client_id"`
-	CsInfraRegion               types.String        `tfsdk:"cs_infra_location"`
-	CsInfraSubscriptionId       types.String        `tfsdk:"cs_infra_subscription_id"`
-	Environment                 types.String        `tfsdk:"environment"`
-	ManagementGroupIds          types.List          `tfsdk:"management_group_ids"`
-	MicrosoftGraphPermissionIds types.List          `tfsdk:"microsoft_graph_permission_ids"`
-	ResourceNamePrefix          types.String        `tfsdk:"resource_name_prefix"`
-	ResourceNameSuffix          types.String        `tfsdk:"resource_name_suffix"`
-	SubscriptionIds             types.List          `tfsdk:"subscription_ids"`
-	Tags                        types.Map           `tfsdk:"tags"`
-	TenantId                    types.String        `tfsdk:"tenant_id"`
-	RealtimeVisibility          *realtimeVisibility `tfsdk:"realtime_visibility"`
+	AccountType                 types.String `tfsdk:"account_type"`
+	AppRegistrationId           types.String `tfsdk:"cs_azure_client_id"`
+	CsInfraRegion               types.String `tfsdk:"cs_infra_location"`
+	CsInfraSubscriptionId       types.String `tfsdk:"cs_infra_subscription_id"`
+	Environment                 types.String `tfsdk:"environment"`
+	SubscriptionIds             types.List   `tfsdk:"subscription_ids"`
+	ManagementGroupIds          types.List   `tfsdk:"management_group_ids"`
+	MicrosoftGraphPermissionIds types.List   `tfsdk:"microsoft_graph_permission_ids"`
+	ResourceNamePrefix          types.String `tfsdk:"resource_name_prefix"`
+	ResourceNameSuffix          types.String `tfsdk:"resource_name_suffix"`
+	Tags                        types.Map    `tfsdk:"tags"`
+	TenantId                    types.String `tfsdk:"tenant_id"`
+	RealtimeVisibility          types.Object `tfsdk:"realtime_visibility"`
+	DSPM                        types.Object `tfsdk:"dspm"`
 }
 
-type realtimeVisibility struct {
+type realtimeVisibilityModel struct {
 	Enabled types.Bool `tfsdk:"enabled"`
+}
+
+func (r *realtimeVisibilityModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled": types.BoolType,
+	}
+}
+
+func (r *realtimeVisibilityModel) ToObject(ctx context.Context) (types.Object, diag.Diagnostics) {
+	return types.ObjectValueFrom(ctx, r.AttributeTypes(), r)
+}
+
+func (r *realtimeVisibilityModel) FromObject(ctx context.Context, obj types.Object) diag.Diagnostics {
+	return obj.As(ctx, r, basetypes.ObjectAsOptions{})
+}
+
+type dspmModel struct {
+	Enabled types.Bool `tfsdk:"enabled"`
+}
+
+func (r *dspmModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled": types.BoolType,
+	}
+}
+
+func (r *dspmModel) ToObject(ctx context.Context) (types.Object, diag.Diagnostics) {
+	return types.ObjectValueFrom(ctx, r.AttributeTypes(), r)
+}
+
+func (r *dspmModel) FromObject(ctx context.Context, obj types.Object) diag.Diagnostics {
+	return obj.As(ctx, r, basetypes.ObjectAsOptions{})
 }
 
 func (r *cloudAzureTenantResource) Schema(
@@ -122,12 +158,12 @@ func (r *cloudAzureTenantResource) Schema(
 				MarkdownDescription: "Client ID of CrowdStrike's multi-tenant application in Azure. This is used to establish the connection between Azure and Falcon Cloud Security.",
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			// reguired if realtime_visibility is enabled todo validate
+			// required if realtime_visibility is enabled todo validate
 			"cs_infra_location": schema.StringAttribute{
 				MarkdownDescription: "Azure location where CrowdStrike infrastructure resources (such as Event Hubs) were deployed.",
 				Optional:            true,
 			},
-			// reguired if realtime_visibility is enabled todo validate
+			// required if realtime_visibility is enabled todo validate
 			"cs_infra_subscription_id": schema.StringAttribute{
 				MarkdownDescription: "Azure subscription ID where CrowdStrike infrastructure resources (such as Event Hubs) were deployed.",
 				Optional:            true,
@@ -175,6 +211,27 @@ func (r *cloudAzureTenantResource) Schema(
 					objectplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"dspm": schema.SingleNestedAttribute{
+				Required: false,
+				Optional: true,
+				Computed: true,
+				Attributes: map[string]schema.Attribute{
+					"enabled": schema.BoolAttribute{
+						Required:    true,
+						Description: "Enable data security posture management (DSPM)",
+					},
+				},
+				Default: objectdefault.StaticValue(
+					types.ObjectValueMust(
+						map[string]attr.Type{
+							"enabled": types.BoolType,
+						},
+						map[string]attr.Value{
+							"enabled": types.BoolValue(false),
+						},
+					),
+				),
+			},
 			"resource_name_prefix": schema.StringAttribute{
 				MarkdownDescription: "The prefix added to resources created during onboarding. It will be used if you generate new .tfvars from the UI.",
 				Optional:            true,
@@ -209,24 +266,23 @@ func (m *cloudAzureTenantModel) wrap(
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	graphPermissionIDs := utils.SliceToListTypeString(
-		ctx,
-		registration.MicrosoftGraphPermissionIds,
-		&diags,
-	)
+	graphPermissionIDs := utils.SliceToListTypeString(ctx, registration.MicrosoftGraphPermissionIds, &diags)
 	if m.MicrosoftGraphPermissionIds.IsNull() && len(graphPermissionIDs.Elements()) == 0 {
 		graphPermissionIDs = types.ListNull(types.StringType)
 	}
+	m.MicrosoftGraphPermissionIds = graphPermissionIDs
 
 	subscriptionsIDs := utils.SliceToListTypeString(ctx, registration.SubscriptionIds, &diags)
 	if m.SubscriptionIds.IsNull() && len(subscriptionsIDs.Elements()) == 0 {
 		subscriptionsIDs = types.ListNull(types.StringType)
 	}
+	m.SubscriptionIds = subscriptionsIDs
 
 	managementGroupIDs := utils.SliceToListTypeString(ctx, registration.ManagementGroupIds, &diags)
 	if m.ManagementGroupIds.IsNull() && len(managementGroupIDs.Elements()) == 0 {
 		managementGroupIDs = types.ListNull(types.StringType)
 	}
+	m.ManagementGroupIds = managementGroupIDs
 
 	tags, err := types.MapValueFrom(ctx, types.StringType, registration.Tags)
 	if m.Tags.IsNull() && len(tags.Elements()) == 0 {
@@ -242,24 +298,32 @@ func (m *cloudAzureTenantModel) wrap(
 	m.Environment = types.StringPointerValue(registration.Environment)
 	m.ResourceNamePrefix = types.StringPointerValue(registration.ResourceNamePrefix)
 	m.ResourceNameSuffix = types.StringPointerValue(registration.ResourceNameSuffix)
-	m.MicrosoftGraphPermissionIds = graphPermissionIDs
 	m.Tags = tags
-	m.SubscriptionIds = subscriptionsIDs
-	m.ManagementGroupIds = managementGroupIDs
 
-	if m.RealtimeVisibility == nil {
-		m.RealtimeVisibility = &realtimeVisibility{}
-	}
-	m.RealtimeVisibility.Enabled = types.BoolValue(false)
+	hasIOA := false
+	hasDSPM := false
 	for _, product := range registration.Products {
 		if *product.Product == "cspm" {
 			for _, feature := range product.Features {
-				if feature == "ioa" {
-					m.RealtimeVisibility.Enabled = types.BoolValue(true)
+				switch feature {
+				case "ioa":
+					hasIOA = true
+				case "dspm":
+					hasDSPM = true
 				}
 			}
 		}
 	}
+
+	rtv := realtimeVisibilityModel{Enabled: types.BoolValue(hasIOA)}
+	rtvObj, d := rtv.ToObject(ctx)
+	diags.Append(d...)
+	m.RealtimeVisibility = rtvObj
+
+	dspm := dspmModel{Enabled: types.BoolValue(hasDSPM)}
+	dspmObj, d := dspm.ToObject(ctx)
+	diags.Append(d...)
+	m.DSPM = dspmObj
 
 	return diags
 }
@@ -499,23 +563,29 @@ func (r *cloudAzureTenantResource) createRegistration(
 ) (*models.AzureTenantRegistration, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	microsoftGraphPermissionIDs := utils.ListTypeAs[string](
-		ctx,
-		data.MicrosoftGraphPermissionIds,
-		&diags,
-	)
-
-	if diags.HasError() {
-		return nil, diags
-	}
-
 	cspmProductFeatures := models.DomainProductFeatures{
 		Product:  utils.Addr("cspm"),
 		Features: []string{"iom"},
 	}
 
-	if data.RealtimeVisibility.Enabled.ValueBool() {
+	// RTV&D
+	var rtv realtimeVisibilityModel
+	diags.Append(rtv.FromObject(ctx, data.RealtimeVisibility)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+	if rtv.Enabled.ValueBool() {
 		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "ioa")
+	}
+
+	// DSPM
+	var dspm dspmModel
+	diags.Append(dspm.FromObject(ctx, data.DSPM)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+	if dspm.Enabled.ValueBool() {
+		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "dspm")
 	}
 
 	params := cloud_azure_registration.CloudRegistrationAzureCreateRegistrationParams{
@@ -525,17 +595,15 @@ func (r *cloudAzureTenantResource) createRegistration(
 				TenantID:                    data.TenantId.ValueStringPointer(),
 				CsInfraRegion:               data.CsInfraRegion.ValueString(),
 				CsInfraSubscriptionID:       data.CsInfraSubscriptionId.ValueString(),
+				APIClientKeyID:              r.clientId,
+				APIClientKeyType:            "customer",
 				Environment:                 data.Environment.ValueStringPointer(),
 				ResourceNamePrefix:          data.ResourceNamePrefix.ValueStringPointer(),
 				ResourceNameSuffix:          data.ResourceNameSuffix.ValueStringPointer(),
-				MicrosoftGraphPermissionIds: microsoftGraphPermissionIDs,
 				DeploymentMethod:            utils.Addr("terraform-native"),
-				ManagementGroupIds: utils.ListTypeAs[string](
-					ctx,
-					data.ManagementGroupIds,
-					&diags,
-				),
-				SubscriptionIds: utils.ListTypeAs[string](ctx, data.SubscriptionIds, &diags),
+				SubscriptionIds:             utils.ListTypeAs[string](ctx, data.SubscriptionIds, &diags),
+				ManagementGroupIds:          utils.ListTypeAs[string](ctx, data.ManagementGroupIds, &diags),
+				MicrosoftGraphPermissionIds: utils.ListTypeAs[string](ctx, data.MicrosoftGraphPermissionIds, &diags),
 				Products: []*models.DomainProductFeatures{
 					&cspmProductFeatures,
 				},
@@ -579,32 +647,42 @@ func (r *cloudAzureTenantResource) updateRegistration(
 		Features: []string{"iom"},
 	}
 
-	if data.RealtimeVisibility != nil && data.RealtimeVisibility.Enabled.ValueBool() {
+	// RTV&D
+	var rtv realtimeVisibilityModel
+	diags.Append(rtv.FromObject(ctx, data.RealtimeVisibility)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+	if rtv.Enabled.ValueBool() {
 		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "ioa")
+	}
+
+	// DSPM
+	var dspm dspmModel
+	diags.Append(dspm.FromObject(ctx, data.DSPM)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+	if dspm.Enabled.ValueBool() {
+		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "dspm")
 	}
 
 	params := cloud_azure_registration.CloudRegistrationAzureUpdateRegistrationParams{
 		Body: &models.AzureAzureRegistrationUpdateRequestExtV1{
 			Resource: &models.AzureAzureRegistrationUpdateInput{
-				AccountType:           data.AccountType.ValueString(),
-				TenantID:              data.TenantId.ValueStringPointer(),
-				CsInfraRegion:         data.CsInfraRegion.ValueString(),
-				CsInfraSubscriptionID: data.CsInfraSubscriptionId.ValueString(),
-				Environment:           data.Environment.ValueStringPointer(),
-				ResourceNamePrefix:    data.ResourceNamePrefix.ValueStringPointer(),
-				ResourceNameSuffix:    data.ResourceNameSuffix.ValueStringPointer(),
-				MicrosoftGraphPermissionIds: utils.ListTypeAs[string](
-					ctx,
-					data.MicrosoftGraphPermissionIds,
-					&diags,
-				),
-				DeploymentMethod: "terraform-native",
-				ManagementGroupIds: utils.ListTypeAs[string](
-					ctx,
-					data.ManagementGroupIds,
-					&diags,
-				),
-				SubscriptionIds: utils.ListTypeAs[string](ctx, data.SubscriptionIds, &diags),
+				AccountType:                 data.AccountType.ValueString(),
+				TenantID:                    data.TenantId.ValueStringPointer(),
+				CsInfraRegion:               data.CsInfraRegion.ValueString(),
+				CsInfraSubscriptionID:       data.CsInfraSubscriptionId.ValueString(),
+				APIClientKeyID:              r.clientId,
+				APIClientKeyType:            "customer",
+				Environment:                 data.Environment.ValueStringPointer(),
+				ResourceNamePrefix:          data.ResourceNamePrefix.ValueStringPointer(),
+				ResourceNameSuffix:          data.ResourceNameSuffix.ValueStringPointer(),
+				DeploymentMethod:            "terraform-native",
+				SubscriptionIds:             utils.ListTypeAs[string](ctx, data.SubscriptionIds, &diags),
+				ManagementGroupIds:          utils.ListTypeAs[string](ctx, data.ManagementGroupIds, &diags),
+				MicrosoftGraphPermissionIds: utils.ListTypeAs[string](ctx, data.MicrosoftGraphPermissionIds, &diags),
 				Products: []*models.DomainProductFeatures{
 					&cspmProductFeatures,
 				},

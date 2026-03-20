@@ -180,10 +180,14 @@ var defaultRulesDefaultValue = types.ObjectValueMust(
 )
 
 var defaultRulesSchema = schema.SingleNestedAttribute{
-	Optional:    true,
-	Computed:    true,
-	Description: "Set the action Falcon KAC should take when assessing default rules. All default rules are set to \"Alert\" by default. Action must be one of:\n - \"Disabled\": Do nothing\n - \"Alert\": Send an alert\n - \"Prevent\": Prevent the object from running",
-	Default:     objectdefault.StaticValue(defaultRulesDefaultValue),
+	Optional: true,
+	Computed: true,
+	MarkdownDescription: "Set the action Falcon KAC should take when assessing default rules. All default rules are " +
+		"set to `\"Alert\"` by default. Action must be one of:\n" +
+		" - `\"Disabled\"`: Do nothing\n" +
+		" - `\"Alert\"`: Send an alert\n" +
+		" - `\"Prevent\"`: Prevent the object from running",
+	Default: objectdefault.StaticValue(defaultRulesDefaultValue),
 	Attributes: map[string]schema.Attribute{
 		"privileged_container":                         defaultRuleSchema("Privileged workload running in kubernetes. A privileged workload allows access to host resources and kernel capabilities which increases the attack surface significantly."),
 		"sensitive_data_in_environment":                defaultRuleSchema("Environment variables expose sensitive data. Secrets found in environment variables."),

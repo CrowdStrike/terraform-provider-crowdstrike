@@ -19,6 +19,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
+	installtoken "github.com/crowdstrike/terraform-provider-crowdstrike/internal/install_token"
 	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
 	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
 	mlexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ml_exclusion"
@@ -313,10 +314,12 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		cloudgroup.NewCloudGroupResource,
 		cloudsecurity.NewCloudSecuritySuppressionRuleResource,
 		dataprotection.NewDataProtectionContentPatternResource,
+		dataprotection.NewDataProtectionSensitivityLabelResource,
 		responsepolicy.NewResponsePolicyResource,
 		responsepolicy.NewResponsePolicyPrecedenceResource,
 		ioarulegroup.NewIOARuleGroupResource,
 		usergroup.NewUserGroupResource,
+		installtoken.NewInstallTokenResource,
 	}
 }
 
@@ -330,6 +333,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		contentupdatepolicy.NewContentCategoryVersionsDataSource,
 		contentupdatepolicy.NewContentUpdatePoliciesDataSource,
 		cloudsecurity.NewCloudSecurityRulesDataSource,
+		cloudsecurity.NewCloudSecuritySuppressionRulesDataSource,
 		cloudsecurity.NewCloudRiskFindingsDataSource,
 		cloudcompliance.NewCloudComplianceFrameworkControlDataSource,
 		preventionpolicy.NewPreventionPoliciesDataSource,
