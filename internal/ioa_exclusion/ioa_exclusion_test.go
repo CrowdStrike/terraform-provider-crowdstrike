@@ -80,8 +80,11 @@ func TestExpandCreateRequestUsesOptionalFields(t *testing.T) {
 	if *req.PatternName != "" {
 		t.Fatalf("expected empty pattern name, got %q", *req.PatternName)
 	}
-	if req.DetectionJSON != nil {
-		t.Fatalf("expected detection_json to be nil, got %v", req.DetectionJSON)
+	if req.DetectionJSON == nil {
+		t.Fatal("expected detection_json pointer to be set")
+	}
+	if *req.DetectionJSON != "" {
+		t.Fatalf("expected empty detection_json, got %q", *req.DetectionJSON)
 	}
 	if len(req.Groups) != 1 || req.Groups[0] != "all" {
 		t.Fatalf("expected groups to contain only all, got %#v", req.Groups)

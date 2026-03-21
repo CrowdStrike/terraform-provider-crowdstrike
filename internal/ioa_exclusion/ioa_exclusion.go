@@ -441,7 +441,7 @@ func expandCreateRequest(
 		IfnRegex:      utils.Addr(plan.IfnRegex.ValueString()),
 		Groups:        groups,
 		Comment:       optionalStringValue(plan.Comment),
-		DetectionJSON: nil,
+		DetectionJSON: detectionJSONPointer(),
 	}, diags
 }
 
@@ -464,7 +464,7 @@ func expandUpdateRequest(
 		IfnRegex:      utils.Addr(plan.IfnRegex.ValueString()),
 		Groups:        groups,
 		Comment:       optionalStringValue(plan.Comment),
-		DetectionJSON: nil,
+		DetectionJSON: detectionJSONPointer(),
 	}, diags
 }
 
@@ -509,6 +509,10 @@ func optionalStringValue(value types.String) string {
 	}
 
 	return value.ValueString()
+}
+
+func detectionJSONPointer() *string {
+	return utils.Addr("")
 }
 
 func dateTimeValue(value *strfmt.DateTime) types.String {
