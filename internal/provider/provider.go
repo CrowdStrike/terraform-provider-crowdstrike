@@ -8,6 +8,7 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
+	certificatebasedexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/certificate_based_exclusion"
 	cidgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cid_group"
 	cloudcompliance "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_compliance"
 	cloudgoogleregistration "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_google_registration"
@@ -297,6 +298,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		contentupdatepolicy.NewDefaultContentUpdatePolicyResource,
 		contentupdatepolicy.NewContentUpdatePolicyPrecedenceResource,
 		contentupdatepolicy.NewContentUpdatePolicyAttachmentResource,
+		certificatebasedexclusion.NewCertificateBasedExclusionResource,
 		sensorvisibilityexclusion.NewSensorVisibilityExclusionResource,
 		sensorvisibilityexclusion.NewSensorVisibilityExclusionAttachmentResource,
 		itautomation.NewItAutomationTaskResource,

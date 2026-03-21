@@ -3,6 +3,7 @@ package sweep_test
 import (
 	"testing"
 
+	certificatebasedexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/certificate_based_exclusion"
 	cloudcompliance "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_compliance"
 	cloudgoogleregistration "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_google_registration"
 	cloudgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_group"
@@ -39,6 +40,7 @@ func registerSweepers() {
 	fim.RegisterSweepers()
 	sensorvisibilityexclusion.RegisterSweepers()
 	dataprotection.RegisterSweepers()
+	certificatebasedexclusion.RegisterSweepers()
 	cloudcompliance.RegisterSweepers()
 	cloudgroup.RegisterSweepers()
 	cloudsecurity.RegisterSweepers()
