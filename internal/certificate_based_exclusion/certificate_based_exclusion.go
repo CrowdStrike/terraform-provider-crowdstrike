@@ -3,6 +3,7 @@ package certificatebasedexclusion
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/certificate_based_exclusions"
@@ -86,6 +87,14 @@ func (m *CertificateBasedExclusionResourceModel) wrap(
 	exclusion *models.APICertBasedExclusionV1,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
+	currentCertificate := certificateModel{
+		Issuer:     types.StringNull(),
+		Serial:     types.StringNull(),
+		Subject:    types.StringNull(),
+		Thumbprint: types.StringNull(),
+		ValidFrom:  types.StringNull(),
+		ValidTo:    types.StringNull(),
+	}
 
 	m.ID = types.StringPointerValue(exclusion.ID)
 	m.Name = types.StringValue(exclusion.Name)
@@ -106,7 +115,14 @@ func (m *CertificateBasedExclusionResourceModel) wrap(
 		m.HostGroups = hostGroups
 	}
 
-	certificateObj, certificateDiags := flattenCertificate(ctx, exclusion.Certificate)
+	if !m.Certificate.IsNull() && !m.Certificate.IsUnknown() {
+		diags.Append(m.Certificate.As(ctx, &currentCertificate, basetypes.ObjectAsOptions{})...)
+		if diags.HasError() {
+			return diags
+		}
+	}
+
+	certificateObj, certificateDiags := flattenCertificate(ctx, currentCertificate, exclusion.Certificate)
 	diags.Append(certificateDiags...)
 	if diags.HasError() {
 		return diags
@@ -544,7 +560,11 @@ func validateCertificateDate(attributePath path.Path, value types.String, diags 
 	}
 }
 
-func flattenCertificate(ctx context.Context, apiCertificate *models.APICertificateV1) (types.Object, diag.Diagnostics) {
+func flattenCertificate(
+	ctx context.Context,
+	currentCertificate certificateModel,
+	apiCertificate *models.APICertificateV1,
+) (types.Object, diag.Diagnostics) {
 	if apiCertificate == nil {
 		return types.ObjectNull(certificateModel{}.AttributeTypes()), nil
 	}
@@ -554,8 +574,8 @@ func flattenCertificate(ctx context.Context, apiCertificate *models.APICertifica
 		Serial:     types.StringPointerValue(apiCertificate.Serial),
 		Subject:    types.StringPointerValue(apiCertificate.Subject),
 		Thumbprint: types.StringPointerValue(apiCertificate.Thumbprint),
-		ValidFrom:  pointerDateTimeValue(apiCertificate.ValidFrom),
-		ValidTo:    pointerDateTimeValue(apiCertificate.ValidTo),
+		ValidFrom:  planAwareDateTimeValue(currentCertificate.ValidFrom, apiCertificate.ValidFrom),
+		ValidTo:    planAwareDateTimeValue(currentCertificate.ValidTo, apiCertificate.ValidTo),
 	}
 
 	return utils.ConvertModelToTerraformObject(ctx, &certificate)
@@ -611,9 +631,17 @@ func dateTimeValue(value strfmt.DateTime) types.String {
 	return types.StringValue(value.String())
 }
 
-func pointerDateTimeValue(value *strfmt.DateTime) types.String {
+func planAwareDateTimeValue(planned types.String, value *strfmt.DateTime) types.String {
 	if value == nil || value.IsZero() {
 		return types.StringNull()
 	}
+
+	if !planned.IsNull() && !planned.IsUnknown() {
+		plannedDateTime, err := strfmt.ParseDateTime(planned.ValueString())
+		if err == nil && time.Time(plannedDateTime).Equal(time.Time(*value)) {
+			return planned
+		}
+	}
+
 	return types.StringValue(value.String())
 }

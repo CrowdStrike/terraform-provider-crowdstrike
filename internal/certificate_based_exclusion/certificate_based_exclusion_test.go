@@ -79,6 +79,17 @@ func TestWrapPreservesOptionalNullsAndFlattensCertificate(t *testing.T) {
 		Description: types.StringNull(),
 		Comment:     types.StringNull(),
 		HostGroups:  types.SetNull(types.StringType),
+		Certificate: types.ObjectValueMust(
+			certificateModel{}.AttributeTypes(),
+			map[string]attr.Value{
+				"issuer":     types.StringValue("CN=Issuer,O=Example Corp,C=US"),
+				"serial":     types.StringValue("1234567890"),
+				"subject":    types.StringValue("CN=Subject,O=Example Corp,C=US"),
+				"thumbprint": types.StringValue("thumbprint-1234"),
+				"valid_from": types.StringValue("2024-01-01T00:00:00Z"),
+				"valid_to":   types.StringValue("2025-01-01T00:00:00Z"),
+			},
+		),
 	}
 
 	diags := model.wrap(ctx, &models.APICertBasedExclusionV1{
@@ -118,10 +129,20 @@ func TestWrapPreservesOptionalNullsAndFlattensCertificate(t *testing.T) {
 	if diags.HasError() {
 		t.Fatalf("expected certificate object to decode, got %v", diags)
 	}
-	if certificate.ValidFrom.ValueString() != "2024-01-01T00:00:00.000Z" {
+	if certificate.ValidFrom.ValueString() != "2024-01-01T00:00:00Z" {
 		t.Fatalf("unexpected flattened valid_from: %s", certificate.ValidFrom.ValueString())
 	}
-	if certificate.ValidTo.ValueString() != "2025-01-01T00:00:00.000Z" {
+	if certificate.ValidTo.ValueString() != "2025-01-01T00:00:00Z" {
 		t.Fatalf("unexpected flattened valid_to: %s", certificate.ValidTo.ValueString())
+	}
+}
+
+func TestPlanAwareDateTimeValueFallsBackToNormalizedAPIValue(t *testing.T) {
+	apiValue := strfmt.DateTime(time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC))
+
+	got := planAwareDateTimeValue(types.StringValue("2024-01-02T00:00:00Z"), &apiValue)
+
+	if got.ValueString() != "2024-01-01T00:00:00.000Z" {
+		t.Fatalf("expected normalized API value, got %s", got.ValueString())
 	}
 }
