@@ -128,19 +128,31 @@ func agentlessScanningRoleNameStateModifier() agentlessScanningRoleNameModifier 
 }
 
 func shouldInvalidateDSPMRoleField(plan, state cloudAWSAccountModel) bool {
-	shouldInvalidate := plan.DSPM != nil && state.DSPM != nil && !plan.DSPM.RoleName.Equal(state.DSPM.RoleName)
-	return shouldInvalidate
+	if plan.DSPM == nil && state.DSPM == nil {
+		return false
+	}
+	if plan.DSPM == nil || state.DSPM == nil {
+		return true
+	}
+	return !plan.DSPM.RoleName.Equal(state.DSPM.RoleName)
 }
 
 func shouldInvalidateVulnerabilityScanningRoleField(plan, state cloudAWSAccountModel) bool {
-	shouldInvalidate := plan.VulnerabilityScanning != nil && state.VulnerabilityScanning != nil &&
-		!plan.VulnerabilityScanning.RoleName.Equal(state.VulnerabilityScanning.RoleName)
-	return shouldInvalidate
+	if plan.VulnerabilityScanning == nil && state.VulnerabilityScanning == nil {
+		return false
+	}
+	if plan.VulnerabilityScanning == nil || state.VulnerabilityScanning == nil {
+		return true
+	}
+	return !plan.VulnerabilityScanning.RoleName.Equal(state.VulnerabilityScanning.RoleName)
 }
 
 func shouldInvalidateAgentlessScanningRoleField(plan, state cloudAWSAccountModel) bool {
-	shouldInvalidate := shouldInvalidateDSPMRoleField(plan, state) || shouldInvalidateVulnerabilityScanningRoleField(plan, state)
-	return shouldInvalidate
+	if shouldInvalidateDSPMRoleField(plan, state) || shouldInvalidateVulnerabilityScanningRoleField(plan, state) {
+		return true
+	}
+	return !plan.DSPM.Enabled.Equal(state.DSPM.Enabled) ||
+		!plan.VulnerabilityScanning.Enabled.Equal(state.VulnerabilityScanning.Enabled)
 }
 
 // cloudtrailRegionDefault is a plan modifier that sets the default cloudtrail_region based on account_type.
