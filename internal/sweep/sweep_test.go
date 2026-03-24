@@ -8,6 +8,7 @@ import (
 	cloudgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_group"
 	cloudsecurity "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_security"
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
+	correlation_rules "github.com/crowdstrike/terraform-provider-crowdstrike/internal/correlation_rules"
 	dataprotection "github.com/crowdstrike/terraform-provider-crowdstrike/internal/data_protection"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
@@ -33,6 +34,7 @@ func registerSweepers() {
 	preventionpolicy.RegisterSweepers()
 	sensorupdatepolicy.RegisterSweepers()
 	contentupdatepolicy.RegisterSweepers()
+	correlation_rules.RegisterSweepers()
 	fcs.RegisterSweepers()
 	cloudgoogleregistration.RegisterSweepers()
 	ioarulegroup.RegisterSweepers()

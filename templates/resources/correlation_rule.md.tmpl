@@ -1,0 +1,51 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+{{ if gt (len (split .Description " --- ")) 1 -}}
+subcategory: "{{ index (split .Description " --- ") 0 }}"
+{{- else -}}
+subcategory: ""
+{{- end }}
+description: |-
+{{ if gt (len (split .Description " --- ")) 1 -}}
+{{ index (split .Description " --- ") 1 | plainmarkdown | trimspace | prefixlines "  " }}
+{{- else -}}
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+{{- end }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ if gt (len (split .Description " --- ")) 1 -}}
+{{ index (split .Description " --- ") 1 | trimspace }}
+{{ else }}
+{{ .Description | trimspace }}
+{{- end }}
+
+## Notes
+There are two issues that are important to note:
+- The `trigger_on_create` attribute is write-only. It is sent to the API during creation but never stored in state and can't be retrieved from the API.
+- Several fields (`description`, `comment`, `case_template_id`, `use_ingest_time`, `stop_on`) cannot be cleared or set to false, once set. Removing these values requires the resource to be destroyed and recreated. Each affected field documents this in its description. This is due to limitations of the gofalcon library.
+
+The combination of these behaviours entail, that when `trigger_on_create` is set and a rule must be recreated, the rule might be triggered unintentionally.
+
+Further details of note:
+- The `tactic` and `technique` attributes are derived from the first `mitre_attack` entry and are read-only.
+- The `template_id` attribute is read-only and populated on import/read. It cannot be set in configuration.
+- Use the `crowdstrike_correlation_rules` data source to query existing rules.
+
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile (printf "%s%s%s" "examples/resources/" .Name "/resource.tf") }}
+{{- end }}
+
+{{ .SchemaMarkdown | trimspace }}
+{{- if .HasImport }}
+
+## Import
+
+Import is supported using the following syntax:
+
+{{ codefile "shell" (printf "%s%s%s" "examples/resources/" .Name "/import.sh") }}
+{{- end }}
