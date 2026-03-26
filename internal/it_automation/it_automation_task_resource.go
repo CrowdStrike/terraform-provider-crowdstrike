@@ -53,6 +53,25 @@ type itAutomationTaskResource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
+type taskParameterModel struct {
+	DefaultValue      types.String `tfsdk:"default_value"`
+	FormatHint        types.String `tfsdk:"format_hint"`
+	InputType         types.String `tfsdk:"input_type"`
+	Key               types.String `tfsdk:"key"`
+	Label             types.String `tfsdk:"label"`
+	Optional          types.Bool   `tfsdk:"optional"`
+	Options           types.List   `tfsdk:"options"`
+	Purpose           types.String `tfsdk:"purpose"`
+	ValidationMessage types.String `tfsdk:"validation_message"`
+	ValidationRegex   types.String `tfsdk:"validation_regex"`
+	ValidationType    types.String `tfsdk:"validation_type"`
+}
+
+type taskParameterOptionsModel struct {
+	Key   types.String `tfsdk:"key"`
+	Value types.String `tfsdk:"value"`
+}
+
 type scriptColumnModel struct {
 	Name types.String `tfsdk:"name"`
 }
@@ -94,6 +113,7 @@ type itAutomationTaskResourceModel struct {
 	MacScriptFileId          types.String `tfsdk:"mac_script_file_id"`
 	MacScriptLanguage        types.String `tfsdk:"mac_script_language"`
 	OsQuery                  types.String `tfsdk:"os_query"`
+	TaskParameters           types.List   `tfsdk:"task_parameters"`
 	ScriptColumns            types.Object `tfsdk:"script_columns"`
 	Target                   types.String `tfsdk:"target"`
 	TaskGroupID              types.String `tfsdk:"task_group_id"`
@@ -282,6 +302,20 @@ func (r *itAutomationTaskResource) constructUpdatePayload(
 		body.OutputParserConfig = outputParser
 	}
 
+	if !plan.TaskParameters.IsNull() && len(plan.TaskParameters.Elements()) > 0 {
+		taskParams, taskParamDiags := createTaskParams(
+			ctx,
+			plan.TaskParameters,
+		)
+
+		diags.Append(taskParamDiags...)
+		if !diags.HasError() {
+			body.TaskParameters = taskParams
+		}
+	} else if len(currentTask.TaskParameters) > 0 {
+		body.TaskParameters = currentTask.TaskParameters
+	}
+
 	switch apiType {
 	case "query":
 		if plan.OsQuery.IsNull() {
@@ -363,6 +397,16 @@ func (t *itAutomationTaskResourceModel) wrap(
 		}
 	} else {
 		t.VerificationCondition = types.ListNull(types.ObjectType{AttrTypes: verificationConditionAttrTypes()})
+	}
+
+	if task.HasTaskParameters {
+		taskParams, pDiags := extractTaskParams(ctx, task.TaskParameters)
+		diags.Append(pDiags...)
+		if !diags.HasError() {
+			t.TaskParameters = taskParams
+		}
+	} else {
+		t.TaskParameters = types.ListNull(types.ObjectType{AttrTypes: taskParametersAttrTypes()})
 	}
 
 	if task.OutputParserConfig != nil {
@@ -688,6 +732,116 @@ func (r *itAutomationTaskResource) Schema(
 					},
 				},
 			},
+			"task_parameters": schema.ListNestedAttribute{
+				Optional:    true,
+				Description: "Input parameters to pass into the query or action task.",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						// TODO: how to make this use dropdown instead of option
+						"input_type": schema.StringAttribute{
+							Required:    true,
+							Description: "Type of input field (text, option).",
+							Validators: []validator.String{
+								stringvalidator.OneOf("text", "option"),
+							},
+						},
+						"key": schema.StringAttribute{
+							Required:    true,
+							Description: "Unique identifier for the parameter, corresponds to placeholder used in task content.",
+							Validators: []validator.String{
+								stringvalidator.LengthAtLeast(1),
+								stringvalidator.RegexMatches(regexp.MustCompile(`^[a-zA-Z0-9_]+$`), "key can only contain letters, numbers and underscores."),
+							},
+						},
+						"label": schema.StringAttribute{
+							Required:    true,
+							Description: "Human readable label for the parameter.",
+							Validators: []validator.String{
+								stringvalidator.LengthAtLeast(2),
+							},
+						},
+						// Optional Types are also computed because gofalcon returns empty values for them
+						"purpose": schema.StringAttribute{
+							Optional:    true,
+							Computed:    true,
+							Description: "Describe parameter purpose (shows when running the task).",
+							Validators: []validator.String{
+								stringvalidator.LengthBetween(2, 200),
+							},
+						},
+						"optional": schema.BoolAttribute{
+							Optional:    true,
+							Computed:    true,
+							Description: "Whether the parameter is optional.",
+						},
+						"validation_type": schema.StringAttribute{
+							Optional:    true,
+							Computed:    true,
+							Description: "Type of validation to apply when input_type is text (alphanumeric, text, filepath, filepathunix, semver, uuid, winhost, integer, filepathwin, datetime,macaddress, port, dnshost, float, ip)",
+							Validators: []validator.String{
+								stringvalidator.OneOf("alphanumeric", "text", "filepath", "filepathunix", "semver", "uuid", "winhost", "integer", "filepathwin", "datetime", "macaddress", "port", "dnshost", "float", "ip"),
+							},
+						},
+						// TODO: does this work as default option as well?
+						"default_value": schema.StringAttribute{
+							Optional:    true,
+							Computed:    true,
+							Description: "Default value for the parameter when input_type is text.",
+							Validators: []validator.String{
+								stringvalidator.LengthAtLeast(2),
+							},
+						},
+						"format_hint": schema.StringAttribute{
+							Optional:    true,
+							Computed:    true,
+							Description: "Provide format requirements or example when input_type is text (shows when running the task).",
+							Validators: []validator.String{
+								stringvalidator.LengthAtLeast(2),
+							},
+						},
+						"options": schema.ListNestedAttribute{
+							Optional:    true,
+							Computed:    true,
+							Description: "Available options for dropdown inputs. Used only if input_type is option.",
+							NestedObject: schema.NestedAttributeObject{
+								Attributes: map[string]schema.Attribute{
+									"key": schema.StringAttribute{
+										Required:    true,
+										Description: "Unique identifier for the option.",
+										Validators: []validator.String{
+											stringvalidator.LengthAtLeast(1),
+											stringvalidator.RegexMatches(regexp.MustCompile(`^[a-zA-Z0-9_]+$`), "key can only contain letters, numbers and underscores."),
+										},
+									},
+									"value": schema.StringAttribute{
+										Required:    true,
+										Description: "Value for the option.",
+										Validators: []validator.String{
+											stringvalidator.LengthAtLeast(1),
+										},
+									},
+								},
+							},
+						},
+						"validation_message": schema.StringAttribute{
+							Optional:    true,
+							Computed:    true,
+							Description: "Message to show on failure of custom validation regex.",
+							Validators: []validator.String{
+								stringvalidator.LengthAtLeast(2),
+							},
+						},
+						"validation_regex": schema.StringAttribute{
+							Optional:    true,
+							Computed:    true,
+							Description: "Custom regex pattern to apply when input_type is text.",
+							Validators: []validator.String{
+								stringvalidator.LengthAtLeast(1),
+							},
+						},
+					},
+				},
+			},
 			"verification_condition": schema.ListNestedAttribute{
 				Optional:    true,
 				Description: "Verification conditions for action tasks to determine success (only valid for action tasks).",
@@ -892,6 +1046,16 @@ func (r *itAutomationTaskResource) Create(
 		}
 
 		body.OutputParserConfig = outputParser
+	}
+
+	if !plan.TaskParameters.IsNull() && len(plan.TaskParameters.Elements()) > 0 {
+		taskParams, taskParamDiags := createTaskParams(ctx, plan.TaskParameters)
+
+		resp.Diagnostics.Append(taskParamDiags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		body.TaskParameters = taskParams
 	}
 
 	switch apiType {
@@ -1246,6 +1410,72 @@ func (r *itAutomationTaskResource) ValidateConfig(
 			"Invalid argument", "script_columns cannot be used with os_query")
 	}
 
+	if !config.TaskParameters.IsNull() && !config.TaskParameters.IsUnknown() {
+		var taskParams []taskParameterModel
+		resp.Diagnostics.Append(config.TaskParameters.ElementsAs(ctx, &taskParams, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		for i, p := range taskParams {
+			paramPath := path.Root("task_parameters").AtListIndex(i)
+
+			switch p.InputType.ValueString() {
+			case "text":
+
+				if p.ValidationType.ValueString() != "text" {
+
+					if hasValue(p.ValidationRegex) {
+						resp.Diagnostics.AddAttributeError(paramPath.AtName("param"),
+							"Invalid argument", "validation_regex can only be used when validation type is \"text\"")
+					}
+
+					if hasValue(p.ValidationMessage) {
+						resp.Diagnostics.AddAttributeError(paramPath.AtName("param"),
+							"Invalid argument", "validation_message can only be used when validation type is \"text\"")
+					}
+
+				}
+
+				if !p.Options.IsNull() && !p.Options.IsUnknown() && len(p.Options.Elements()) > 0 {
+					resp.Diagnostics.AddAttributeError(
+						paramPath.AtName("options"),
+						"Invalid argument",
+						"options cannot be used when input_type is \"text\".",
+					)
+				}
+			case "option":
+				if p.Options.IsNull() || p.Options.IsUnknown() || len(p.Options.Elements()) == 0 {
+					resp.Diagnostics.AddAttributeError(
+						paramPath.AtName("options"),
+						"Missing required argument",
+						"options must be provided and non-empty when input_type is \"option\".",
+					)
+					return
+				}
+
+				for _, field := range []struct {
+					name  string
+					value types.String
+				}{
+					{name: "validation_type", value: p.ValidationType},
+					// {name: "default_value", value: p.DefaultValue},
+					{name: "validation_regex", value: p.ValidationRegex},
+					{name: "validation_message", value: p.ValidationMessage},
+					{name: "format_hint", value: p.FormatHint},
+				} {
+					if !field.value.IsNull() && !field.value.IsUnknown() && field.value.ValueString() != "" {
+						resp.Diagnostics.AddAttributeError(
+							paramPath.AtName(field.name),
+							"Invalid argument",
+							fmt.Sprintf("%s cannot be used when input_type is \"option\".", field.name),
+						)
+					}
+				}
+			}
+		}
+	}
+
 	switch config.Type.ValueString() {
 	case TaskTypeQuery:
 		if !config.AdditionalFileIds.IsNull() {
@@ -1290,6 +1520,59 @@ func (r *itAutomationTaskResource) ValidateConfig(
 				"Action tasks can only have scripts for one platform. Please specify scripts for only one of: Linux, Windows, or Mac.")
 		}
 	}
+}
+
+func createTaskParams(ctx context.Context, paramsList types.List) ([]*models.ItautomationTaskParameter, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	// return early if no parameters are provided
+	if paramsList.IsNull() || paramsList.IsUnknown() || len(paramsList.Elements()) == 0 {
+		return nil, diags
+	}
+
+	var params []taskParameterModel
+	diags.Append(paramsList.ElementsAs(ctx, &params, false)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	result := make([]*models.ItautomationTaskParameter, 0, len(params))
+	for _, p := range params {
+		var opts []taskParameterOptionsModel
+		if !p.Options.IsNull() && !p.Options.IsUnknown() && len(p.Options.Elements()) > 0 {
+			diags.Append(p.Options.ElementsAs(ctx, &opts, false)...)
+			if diags.HasError() {
+				return nil, diags
+			}
+		}
+
+		apiOpts := make([]*models.ItautomationParameterOption, 0, len(opts))
+		for _, opt := range opts {
+			apiOpt := &models.ItautomationParameterOption{
+				Key:   opt.Key.ValueStringPointer(),
+				Value: opt.Value.ValueStringPointer(),
+			}
+			apiOpts = append(apiOpts, apiOpt)
+		}
+
+		apiParam := &models.ItautomationTaskParameter{
+			CustomValidationMessage: p.ValidationMessage.ValueStringPointer(),
+			CustomValidationRegex:   p.ValidationRegex.ValueStringPointer(),
+			DefaultValue:            p.DefaultValue.ValueStringPointer(),
+			FormatHint:              p.FormatHint.ValueString(),
+			InputType:               p.InputType.ValueStringPointer(),
+			IsOptional:              p.Optional.ValueBool(),
+			Key:                     p.Key.ValueStringPointer(),
+			Label:                   p.Label.ValueStringPointer(),
+			Options:                 apiOpts,
+			Purpose:                 p.Purpose.ValueString(),
+			ValidationType:          p.ValidationType.ValueStringPointer(),
+		}
+
+		result = append(result, apiParam)
+	}
+
+	return result, diags
 }
 
 func createVerificationConditions(
@@ -1356,6 +1639,29 @@ func scriptColumnsAttrTypes() map[string]attr.Type {
 	}
 }
 
+func taskParametersOptionsAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"key":   types.StringType,
+		"value": types.StringType,
+	}
+}
+
+func taskParametersAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"default_value":      types.StringType,
+		"format_hint":        types.StringType,
+		"input_type":         types.StringType,
+		"key":                types.StringType,
+		"label":              types.StringType,
+		"optional":           types.BoolType,
+		"options":            types.ListType{ElemType: types.ObjectType{AttrTypes: taskParametersOptionsAttrTypes()}},
+		"purpose":            types.StringType,
+		"validation_message": types.StringType,
+		"validation_regex":   types.StringType,
+		"validation_type":    types.StringType,
+	}
+}
+
 func verificationStatementAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"data_comparator": types.StringType,
@@ -1371,6 +1677,54 @@ func verificationConditionAttrTypes() map[string]attr.Type {
 		"operator":   types.StringType,
 		"statements": types.ListType{ElemType: types.ObjectType{AttrTypes: verificationStatementAttrTypes()}},
 	}
+}
+
+func extractTaskParams(ctx context.Context, taskParams []*models.ItautomationTaskParameter) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	paramObjType := types.ObjectType{AttrTypes: taskParametersAttrTypes()}
+
+	if len(taskParams) == 0 {
+		emptyList, listDiags := types.ListValueFrom(ctx, paramObjType, []taskParameterModel{})
+		diags.Append(listDiags...)
+		return emptyList, diags
+	}
+
+	result := make([]taskParameterModel, 0, len(taskParams))
+	optsObjType := types.ObjectType{AttrTypes: taskParametersOptionsAttrTypes()}
+
+	for _, apiParam := range taskParams {
+		opts := make([]taskParameterOptionsModel, 0, len(apiParam.Options))
+		for _, apiOpt := range apiParam.Options {
+			opts = append(opts, taskParameterOptionsModel{
+				Key:   types.StringPointerValue(apiOpt.Key),
+				Value: types.StringPointerValue(apiOpt.Value),
+			})
+		}
+
+		optsList, listDiags := types.ListValueFrom(ctx, optsObjType, opts)
+		diags.Append(listDiags...)
+		if diags.HasError() {
+			return types.ListNull(paramObjType), diags
+		}
+
+		result = append(result, taskParameterModel{
+			ValidationMessage: types.StringPointerValue(apiParam.CustomValidationMessage),
+			ValidationRegex:   types.StringPointerValue(apiParam.CustomValidationRegex),
+			DefaultValue:      types.StringPointerValue(apiParam.DefaultValue),
+			FormatHint:        types.StringValue(apiParam.FormatHint),
+			InputType:         types.StringPointerValue(apiParam.InputType),
+			Optional:          types.BoolValue(apiParam.IsOptional),
+			Key:               types.StringPointerValue(apiParam.Key),
+			Label:             types.StringPointerValue(apiParam.Label),
+			Options:           optsList,
+			Purpose:           types.StringValue(apiParam.Purpose),
+			ValidationType:    types.StringPointerValue(apiParam.ValidationType),
+		})
+	}
+
+	resultList, listDiags := types.ListValueFrom(ctx, paramObjType, result)
+	diags.Append(listDiags...)
+	return resultList, diags
 }
 
 func extractVerificationConditions(

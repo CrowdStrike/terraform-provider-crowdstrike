@@ -19,6 +19,7 @@ type taskConfig struct {
 	AccessType            string
 	Description           string
 	Type                  string
+	TaskParameters        []taskParameterConfig
 	AssignedUserIds       []string
 	LinuxScriptLanguage   *string
 	LinuxScriptContent    *string
@@ -58,6 +59,25 @@ type verificationStatementConfig struct {
 	Value          string
 }
 
+type taskParameterConfig struct {
+	InputType         string
+	Key               string
+	Label             string
+	Purpose           *string
+	Optional          *bool
+	ValidationType    *string
+	DefaultValue      *string
+	FormatHint        *string
+	Options           []taskParameterOptionConfig
+	ValidationMessage *string
+	ValidationRegex   *string
+}
+
+type taskParameterOptionConfig struct {
+	Key   string
+	Value string
+}
+
 func ptrString(s string) *string {
 	return &s
 }
@@ -70,6 +90,65 @@ resource "crowdstrike_it_automation_task" "test" {
   description = %q
   type        = %q
 `, config.Name, config.AccessType, config.Description, config.Type)
+
+	if len(config.TaskParameters) > 0 {
+		result += "\n  task_parameters = ["
+		for _, param := range config.TaskParameters {
+			result += fmt.Sprintf(`
+    {
+      input_type = %q
+      key        = %q
+      label      = %q`, param.InputType, param.Key, param.Label)
+
+			if param.Purpose != nil {
+				result += fmt.Sprintf(`
+      purpose    = %q`, *param.Purpose)
+			}
+			if param.Optional != nil {
+				result += fmt.Sprintf(`
+      optional   = %t`, *param.Optional)
+			}
+			if param.ValidationType != nil {
+				result += fmt.Sprintf(`
+      validation_type = %q`, *param.ValidationType)
+			}
+			if param.DefaultValue != nil {
+				result += fmt.Sprintf(`
+      default_value = %q`, *param.DefaultValue)
+			}
+			if param.FormatHint != nil {
+				result += fmt.Sprintf(`
+      format_hint = %q`, *param.FormatHint)
+			}
+			if len(param.Options) > 0 {
+				result += `
+      options = [`
+				for _, opt := range param.Options {
+					result += fmt.Sprintf(`
+        {
+          key   = %q
+          value = %q
+        },`, opt.Key, opt.Value)
+				}
+				result += `
+      ]`
+			}
+			if param.ValidationMessage != nil {
+				result += fmt.Sprintf(`
+      validation_message = %q`, *param.ValidationMessage)
+			}
+			if param.ValidationRegex != nil {
+				result += fmt.Sprintf(`
+      validation_regex = %q`, *param.ValidationRegex)
+			}
+
+			result += `
+    },`
+		}
+		result += `
+  ]
+`
+	}
 
 	if len(config.AssignedUserIds) > 0 {
 		result += "\n  assigned_user_ids = [\n"
@@ -244,6 +323,12 @@ func (config *taskConfig) TestChecks() resource.TestCheckFunc {
 	if len(config.FileIds) > 0 {
 		checks = append(checks,
 			resource.TestCheckResourceAttr(taskResourceName, "additional_file_ids.#", fmt.Sprintf("%d", len(config.FileIds))),
+		)
+	}
+
+	if len(config.TaskParameters) > 0 {
+		checks = append(checks,
+			resource.TestCheckResourceAttr(taskResourceName, "task_parameters.#", fmt.Sprintf("%d", len(config.TaskParameters))),
 		)
 	}
 
@@ -1158,5 +1243,218 @@ resource "crowdstrike_it_automation_task" "test" {
 				),
 			},
 		},
+	})
+}
+
+func TestAccITAutomationTaskResource_TaskParameters(t *testing.T) {
+	sdk := createSDKFixtures(t)
+	defer sdk.Cleanup(t)
+
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	isOptional := true
+	isRequired := false
+
+	testCases := []struct {
+		name         string
+		config       taskConfig
+		configPrefix string
+	}{
+		{
+			name:         "task_parameters_query_initial",
+			configPrefix: "",
+			config: taskConfig{
+				Name:                rName + "-query",
+				AccessType:          "Shared",
+				Description:         "Query task with text task parameter",
+				Type:                "query",
+				LinuxScriptLanguage: ptrString("bash"),
+				LinuxScriptContent: ptrString(`#!/bin/bash
+echo "$TARGET_PATH"`),
+				AssignedUserIds: sdk.UserIDs,
+				TaskParameters: []taskParameterConfig{
+					{
+						InputType:      "text",
+						Key:            "TARGET_PATH",
+						Label:          "Target Path",
+						Purpose:        ptrString("Path to query"),
+						Optional:       &isOptional,
+						ValidationType: ptrString("text"),
+						DefaultValue:   ptrString("/tmp"),
+						FormatHint:     ptrString("Use an absolute path"),
+					},
+				},
+			},
+		},
+		{
+			name:         "task_parameters_query_updated",
+			configPrefix: "",
+			config: taskConfig{
+				Name:                rName + "-query-updated",
+				AccessType:          "Public",
+				Description:         "Query task with updated option task parameter",
+				Type:                "query",
+				LinuxScriptLanguage: ptrString("bash"),
+				LinuxScriptContent: ptrString(`#!/bin/bash
+echo "$TARGET_ENV"`),
+				TaskParameters: []taskParameterConfig{
+					{
+						InputType: "option",
+						Key:       "TARGET_ENV",
+						Label:     "Target Environment",
+						Purpose:   ptrString("Environment selector"),
+						Optional:  &isOptional,
+						Options: []taskParameterOptionConfig{
+							{
+								Key:   "prod",
+								Value: "Production",
+							},
+							{
+								Key:   "dev",
+								Value: "Development",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:         "task_parameters_action_initial",
+			configPrefix: "verification",
+			config: taskConfig{
+				Name:                rName + "-action",
+				AccessType:          "Public",
+				Description:         "Action task with mixed task parameters",
+				Type:                "action",
+				LinuxScriptFileId:   ptrString(sdk.ScriptFileIDs["linux"]),
+				LinuxScriptLanguage: ptrString("bash"),
+				FileIds:             []string{sdk.FileIDs["linux"]},
+				VerificationCondition: &verificationConditionConfig{
+					Operator: "AND",
+					Statements: []verificationStatementConfig{
+						{
+							DataComparator: "Equals",
+							DataType:       "StringType",
+							Key:            "script_output",
+							TaskID:         "placeholder",
+							Value:          "Success",
+						},
+					},
+				},
+				TaskParameters: []taskParameterConfig{
+					{
+						InputType:      "text",
+						Key:            "RETRY_COUNT",
+						Label:          "Retry Count",
+						Purpose:        ptrString("Retries before failure"),
+						Optional:       &isRequired,
+						ValidationType: ptrString("integer"),
+						DefaultValue:   ptrString("03"),
+						FormatHint:     ptrString("Integer value"),
+					},
+					{
+						InputType: "option",
+						Key:       "RESTART_SERVICE",
+						Label:     "Restart Service",
+						Optional:  &isOptional,
+						Options: []taskParameterOptionConfig{
+							{
+								Key:   "yes",
+								Value: "Yes",
+							},
+							{
+								Key:   "no",
+								Value: "No",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:         "task_parameters_action_updated",
+			configPrefix: "verification",
+			config: taskConfig{
+				Name:                rName + "-action-updated",
+				AccessType:          "Shared",
+				Description:         "Action task with updated task parameters",
+				Type:                "action",
+				LinuxScriptFileId:   ptrString(sdk.ScriptFileIDs["linux"]),
+				LinuxScriptLanguage: ptrString("bash"),
+				FileIds:             []string{sdk.FileIDs["linux"]},
+				AssignedUserIds:     sdk.UserIDs,
+				VerificationCondition: &verificationConditionConfig{
+					Operator: "OR",
+					Statements: []verificationStatementConfig{
+						{
+							DataComparator: "Contains",
+							DataType:       "StringType",
+							Key:            "script_output",
+							TaskID:         "placeholder",
+							Value:          "Complete",
+						},
+					},
+				},
+				TaskParameters: []taskParameterConfig{
+					{
+						InputType:      "text",
+						Key:            "RETRY_COUNT",
+						Label:          "Retry Count",
+						Purpose:        ptrString("Retries before failure"),
+						Optional:       &isRequired,
+						ValidationType: ptrString("integer"),
+						DefaultValue:   ptrString("05"),
+						FormatHint:     ptrString("Integer value"),
+					},
+					{
+						InputType: "option",
+						Key:       "RESTART_SERVICE",
+						Label:     "Restart Service",
+						Optional:  &isRequired,
+						Options: []taskParameterOptionConfig{
+							{
+								Key:   "force",
+								Value: "Force Restart",
+							},
+							{
+								Key:   "graceful",
+								Value: "Graceful Restart",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
+		},
+		Steps: func() []resource.TestStep {
+			var steps []resource.TestStep
+			fixtures := getTestFixtures()
+			for _, tc := range testCases {
+				config := acctest.ProviderConfig + tc.config.String()
+				if tc.configPrefix == "verification" {
+					config = acctest.ProviderConfig + fixtures.VerificationTasksOnly() + tc.config.String()
+				}
+
+				steps = append(steps, resource.TestStep{
+					Config: config,
+					Check:  tc.config.TestChecks(),
+				})
+			}
+			steps = append(steps, resource.TestStep{
+				ResourceName:      taskResourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+				ImportStateVerifyIgnore: []string{
+					"last_updated",
+				},
+			})
+			return steps
+		}(),
 	})
 }
