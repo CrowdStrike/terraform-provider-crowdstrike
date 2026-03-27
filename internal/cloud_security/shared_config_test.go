@@ -35,12 +35,3 @@ var gcpConfig = dataRuleConfig{
 	framework:     "CIS",
 	service:       "Google Kubernetes Engine",
 }
-
-var ociConfig = dataRuleConfig{
-	cloudProvider: "OCI",
-	ruleName:      "IAM password policy does not require a lowercase character",
-	resourceType:  "OCI::IAM::Domain",
-	benchmark:     "CIS*",
-	framework:     "CIS",
-	service:       "IAM",
-}

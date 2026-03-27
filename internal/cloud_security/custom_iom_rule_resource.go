@@ -233,7 +233,6 @@ func (r *cloudSecurityIomCustomRuleResource) Schema(
 						"AWS",
 						"Azure",
 						"GCP",
-						"OCI",
 					),
 				},
 				PlanModifiers: []planmodifier.String{

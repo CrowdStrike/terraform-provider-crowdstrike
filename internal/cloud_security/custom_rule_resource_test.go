@@ -123,15 +123,6 @@ var gcpCopyConfig = ruleCustomConfig{
 	parentRule:     gcpConfig,
 }
 
-var ociCopyConfig = ruleCustomConfig{
-	ruleBaseConfig: commonConfig,
-	parentId:       "190c2d3d-8b0e-4838-bf11-4c6e044b9cb1",
-	cloudProvider:  "OCI",
-	cloudPlatform:  "OCI",
-	resourceType:   "OCI::IAM::Domain",
-	parentRule:     ociConfig,
-}
-
 // AWS Tests.
 func TestCloudSecurityCustomRuleResource_AWS_Copy(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
