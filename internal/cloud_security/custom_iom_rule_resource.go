@@ -6,12 +6,12 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
@@ -19,7 +19,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -29,40 +28,43 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
-	_ resource.Resource                = &cloudSecurityCustomRuleResource{}
-	_ resource.ResourceWithConfigure   = &cloudSecurityCustomRuleResource{}
-	_ resource.ResourceWithImportState = &cloudSecurityCustomRuleResource{}
-	_ resource.ResourceWithModifyPlan  = &cloudSecurityCustomRuleResource{}
+	_ resource.Resource                = &cloudSecurityIomCustomRuleResource{}
+	_ resource.ResourceWithConfigure   = &cloudSecurityIomCustomRuleResource{}
+	_ resource.ResourceWithImportState = &cloudSecurityIomCustomRuleResource{}
+	_ resource.ResourceWithModifyPlan  = &cloudSecurityIomCustomRuleResource{}
+)
+
+const (
+	IomRuleDefaultDomain    = "CSPM"
+	IomRuleDefaultSubdomain = "IOM"
+	IomRuleDefaultSeverity  = "critical"
 )
 
 var (
-	documentationSection        string = "Falcon Cloud Security"
-	resourceMarkdownDescription string = "~> **Deprecated** This resource is deprecated and will be removed in a future version. Use `crowdstrike_cloud_security_iom_custom_rule` instead.\n\n" +
-		"This resource manages custom cloud security rules. " +
+	iomRuleDocumentationSection        string = "Falcon Cloud Security"
+	iomRuleResourceMarkdownDescription string = "This resource manages custom cloud security IOM rules. " +
 		"These rules can be created either by inheriting properties from a parent rule with minimal customization, or by fully customizing all attributes for maximum flexibility. " +
 		"To create a rule based on a parent rule, utilize the `crowdstrike_cloud_security_rules` data source to gather parent rule information to use in the new custom rule. " +
 		"The `crowdstrike_cloud_compliance_framework_controls` data source can be used to query Falcon for compliance benchmark controls to associate with custom rules created with this resource. "
-	requiredScopes []scopes.Scope = cloudSecurityRuleScopes
+	iomRuleRequiredScopes []scopes.Scope = cloudSecurityRuleScopes
 )
 
-func NewCloudSecurityCustomRuleResource() resource.Resource {
-	return &cloudSecurityCustomRuleResource{}
+func NewCloudSecurityIomCustomRuleResource() resource.Resource {
+	return &cloudSecurityIomCustomRuleResource{}
 }
 
-type cloudSecurityCustomRuleResource struct {
+type cloudSecurityIomCustomRuleResource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-type cloudSecurityCustomRuleResourceModel struct {
+type cloudSecurityIomCustomRuleResourceModel struct {
 	ID              types.String `tfsdk:"id"`
 	AlertInfo       types.List   `tfsdk:"alert_info"`
 	Controls        types.Set    `tfsdk:"controls"`
 	Description     types.String `tfsdk:"description"`
-	Domain          types.String `tfsdk:"domain"`
 	Logic           types.String `tfsdk:"logic"`
 	Name            types.String `tfsdk:"name"`
 	AttackTypes     types.Set    `tfsdk:"attack_types"`
@@ -72,10 +74,9 @@ type cloudSecurityCustomRuleResourceModel struct {
 	RemediationInfo types.List   `tfsdk:"remediation_info"`
 	ResourceType    types.String `tfsdk:"resource_type"`
 	Severity        types.String `tfsdk:"severity"`
-	Subdomain       types.String `tfsdk:"subdomain"`
 }
 
-func (r *cloudSecurityCustomRuleResource) Configure(
+func (r *cloudSecurityIomCustomRuleResource) Configure(
 	ctx context.Context,
 	req resource.ConfigureRequest,
 	resp *resource.ConfigureResponse,
@@ -101,22 +102,21 @@ func (r *cloudSecurityCustomRuleResource) Configure(
 	r.client = config.Client
 }
 
-func (r *cloudSecurityCustomRuleResource) Metadata(
+func (r *cloudSecurityIomCustomRuleResource) Metadata(
 	_ context.Context,
 	req resource.MetadataRequest,
 	resp *resource.MetadataResponse,
 ) {
-	resp.TypeName = req.ProviderTypeName + "_cloud_security_custom_rule"
+	resp.TypeName = req.ProviderTypeName + "_cloud_security_iom_custom_rule"
 }
 
-func (r *cloudSecurityCustomRuleResource) Schema(
+func (r *cloudSecurityIomCustomRuleResource) Schema(
 	_ context.Context,
 	_ resource.SchemaRequest,
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		DeprecationMessage:  "This resource is deprecated. Use crowdstrike_cloud_security_iom_custom_rule instead.",
-		MarkdownDescription: utils.MarkdownDescription(documentationSection, resourceMarkdownDescription, requiredScopes),
+		MarkdownDescription: utils.MarkdownDescription(iomRuleDocumentationSection, iomRuleResourceMarkdownDescription, iomRuleRequiredScopes),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:    true,
@@ -136,11 +136,11 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 				Optional:            true,
 				Computed:            true,
 				ElementType:         types.StringType,
-				MarkdownDescription: "A list of the alert logic and detection criteria for rule violations. Do not include numbering within this list. The Falcon console will automatically add numbering.When `alert_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `alert_info`.",
+				MarkdownDescription: "A list of the alert logic and detection criteria for rule violations. Do not include numbering within this list. The Falcon console will automatically add numbering. When `alert_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `alert_info`.",
 				Validators: []validator.List{
 					listvalidator.SizeAtLeast(1),
 					listvalidator.ValueStringsAre(
-						stringvalidator.LengthAtLeast(1),
+						validators.StringNotWhitespace(),
 					),
 				},
 			},
@@ -154,43 +154,53 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 							Optional:    true,
 							Computed:    true,
 							Description: "The compliance framework",
+							Validators: []validator.String{
+								validators.StringNotWhitespace(),
+							},
 						},
 						"code": schema.StringAttribute{
 							Optional:    true,
 							Computed:    true,
 							Description: "The compliance framework rule code",
+							Validators: []validator.String{
+								validators.StringNotWhitespace(),
+							},
 						},
 					},
+				},
+				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
 				},
 			},
 			"description": schema.StringAttribute{
 				Required:    true,
 				Description: "Description of the policy rule.",
 			},
-			"domain": schema.StringAttribute{
-				Computed:    true,
-				Default:     stringdefault.StaticString("CSPM"),
-				Description: "CrowdStrike domain for the custom rule. Default is CSPM",
-			},
 			"attack_types": schema.SetAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "Specific attack types associated with the rule. If `parent_rule_id` is defined, `attack_types` will be inherited from the parent rule and cannot be specified using this field. ",
+				MarkdownDescription: "Specific attack types associated with the rule. If `parent_rule_id` is defined, `attack_types` will be inherited from the parent rule and cannot be specified using this field.",
 				ElementType:         types.StringType,
 				Validators: []validator.Set{
 					setvalidator.SizeAtLeast(1),
 					setvalidator.ValueStringsAre(
-						stringvalidator.LengthAtLeast(1),
+						validators.StringNotWhitespace(),
 					),
 				},
 			},
 			"logic": schema.StringAttribute{
 				Optional:            true,
 				MarkdownDescription: "Rego logic for the rule. Either `logic` or `parent_rule_id` must be defined. When `parent_rule_id` is set, the rule inherits the Rego logic from the parent rule. Note: The API does not return Rego logic for rules created from a parent rule, so this field will not appear in state when using `parent_rule_id`.",
+				Validators: []validator.String{
+					validators.StringNotWhitespace(),
+				},
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
 				Description: "Name of the policy rule.",
+				Validators: []validator.String{
+					validators.StringNotWhitespace(),
+				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -237,13 +247,16 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 				Validators: []validator.List{
 					listvalidator.SizeAtLeast(1),
 					listvalidator.ValueStringsAre(
-						stringvalidator.LengthAtLeast(1),
+						validators.StringNotWhitespace(),
 					),
 				},
 			},
 			"resource_type": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "The full resource type. Examples: `AWS::IAM::CredentialReport`, `Microsoft.Compute/virtualMachines`, `container.googleapis.com/Cluster`",
+				Validators: []validator.String{
+					validators.StringNotWhitespace(),
+				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -251,27 +264,22 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 			"severity": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
-				Default:             stringdefault.StaticString("critical"),
+				Default:             stringdefault.StaticString(IomRuleDefaultSeverity),
 				MarkdownDescription: "Severity of the rule. Valid values are `critical`, `high`, `medium`, `informational`.",
 				Validators: []validator.String{
 					stringvalidator.OneOf("critical", "high", "medium", "informational"),
 				},
 			},
-			"subdomain": schema.StringAttribute{
-				Computed:    true,
-				Description: "Subdomain for the policy rule.",
-				Default:     stringdefault.StaticString("IOM"),
-			},
 		},
 	}
 }
 
-func (r *cloudSecurityCustomRuleResource) Create(
+func (r *cloudSecurityIomCustomRuleResource) Create(
 	ctx context.Context,
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-	var plan cloudSecurityCustomRuleResourceModel
+	var plan cloudSecurityIomCustomRuleResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -292,28 +300,23 @@ func (r *cloudSecurityCustomRuleResource) Create(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func (r *cloudSecurityCustomRuleResource) Read(
+func (r *cloudSecurityIomCustomRuleResource) Read(
 	ctx context.Context,
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-	var state cloudSecurityCustomRuleResourceModel
+	var state cloudSecurityIomCustomRuleResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	rule, diags := r.getCloudPolicyRule(ctx, state.ID.ValueString())
+
 	if diags.HasError() {
 		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 			resp.State.RemoveResource(ctx)
-			tflog.Warn(
-				ctx,
-				fmt.Sprintf(
-					"custom rule with ID %s not found, removing from state",
-					state.ID.ValueString(),
-				),
-			)
 			return
 		}
 		resp.Diagnostics.Append(diags...)
@@ -324,12 +327,12 @@ func (r *cloudSecurityCustomRuleResource) Read(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (r *cloudSecurityCustomRuleResource) Update(
+func (r *cloudSecurityIomCustomRuleResource) Update(
 	ctx context.Context,
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	var plan cloudSecurityCustomRuleResourceModel
+	var plan cloudSecurityIomCustomRuleResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -347,12 +350,12 @@ func (r *cloudSecurityCustomRuleResource) Update(
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
-func (r *cloudSecurityCustomRuleResource) Delete(
+func (r *cloudSecurityIomCustomRuleResource) Delete(
 	ctx context.Context,
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-	var state cloudSecurityCustomRuleResourceModel
+	var state cloudSecurityIomCustomRuleResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -361,7 +364,7 @@ func (r *cloudSecurityCustomRuleResource) Delete(
 	resp.Diagnostics.Append(r.deleteCloudPolicyRule(ctx, state.ID.ValueString())...)
 }
 
-func (r *cloudSecurityCustomRuleResource) ImportState(
+func (r *cloudSecurityIomCustomRuleResource) ImportState(
 	ctx context.Context,
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
@@ -369,7 +372,7 @@ func (r *cloudSecurityCustomRuleResource) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r cloudSecurityCustomRuleResource) ConfigValidators(ctx context.Context) []resource.ConfigValidator {
+func (r cloudSecurityIomCustomRuleResource) ConfigValidators(ctx context.Context) []resource.ConfigValidator {
 	return []resource.ConfigValidator{
 		resourcevalidator.ExactlyOneOf(
 			path.MatchRoot("logic"),
@@ -382,7 +385,7 @@ func (r cloudSecurityCustomRuleResource) ConfigValidators(ctx context.Context) [
 	}
 }
 
-func (r *cloudSecurityCustomRuleResource) ModifyPlan(
+func (r *cloudSecurityIomCustomRuleResource) ModifyPlan(
 	ctx context.Context,
 	req resource.ModifyPlanRequest,
 	resp *resource.ModifyPlanResponse,
@@ -396,7 +399,7 @@ func (r *cloudSecurityCustomRuleResource) ModifyPlan(
 		return
 	}
 
-	var plan, config cloudSecurityCustomRuleResourceModel
+	var plan, config cloudSecurityIomCustomRuleResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -409,7 +412,7 @@ func (r *cloudSecurityCustomRuleResource) ModifyPlan(
 
 	if utils.IsKnown(config.ParentRuleId) {
 		if utils.IsNull(config.AlertInfo) || utils.IsNull(config.Controls) || utils.IsNull(config.RemediationInfo) {
-			var parent cloudSecurityCustomRuleResourceModel
+			var parent cloudSecurityIomCustomRuleResourceModel
 			rule, diags := r.getCloudPolicyRule(ctx, plan.ParentRuleId.ValueString())
 			resp.Diagnostics.Append(diags...)
 			if resp.Diagnostics.HasError() {
@@ -434,16 +437,16 @@ func (r *cloudSecurityCustomRuleResource) ModifyPlan(
 			}
 		}
 	} else {
-		// If config value is null and plan value is not null and not an empty list, set to unknown to force update.
-		if utils.IsNull(config.AlertInfo) && utils.IsKnown(plan.AlertInfo) && len(plan.AlertInfo.Elements()) != 0 {
+		// Set values to unknown when parent rule is not yet known, allowing Update and Create to handle inherited values.
+		if utils.IsNull(config.AlertInfo) && utils.IsKnown(plan.AlertInfo) {
 			plan.AlertInfo = types.ListUnknown(plan.AlertInfo.ElementType(ctx))
 		}
 
-		if utils.IsNull(config.RemediationInfo) && utils.IsKnown(plan.RemediationInfo) && len(plan.RemediationInfo.Elements()) != 0 {
+		if utils.IsNull(config.RemediationInfo) && utils.IsKnown(plan.RemediationInfo) {
 			plan.RemediationInfo = types.ListUnknown(plan.RemediationInfo.ElementType(ctx))
 		}
 
-		if utils.IsNull(config.Controls) && utils.IsKnown(plan.Controls) && len(plan.Controls.Elements()) != 0 {
+		if utils.IsNull(config.Controls) && utils.IsKnown(plan.Controls) {
 			plan.Controls = types.SetUnknown(plan.Controls.ElementType(ctx))
 		}
 	}
@@ -451,7 +454,7 @@ func (r *cloudSecurityCustomRuleResource) ModifyPlan(
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }
 
-func (m *cloudSecurityCustomRuleResourceModel) wrap(
+func (m *cloudSecurityIomCustomRuleResourceModel) wrap(
 	ctx context.Context,
 	rule *models.ApimodelsRule,
 ) diag.Diagnostics {
@@ -460,8 +463,6 @@ func (m *cloudSecurityCustomRuleResourceModel) wrap(
 	m.ID = types.StringPointerValue(rule.UUID)
 	m.Name = types.StringPointerValue(rule.Name)
 	m.Description = types.StringPointerValue(rule.Description)
-	m.Domain = types.StringPointerValue(rule.Domain)
-	m.Subdomain = types.StringPointerValue(rule.Subdomain)
 	m.CloudProvider = types.StringPointerValue(rule.Provider)
 
 	m.RemediationInfo, diags = flex.FlattenStringValueList(ctx, convertAlertRemediationInfoToTerraformState(rule.Remediation))
@@ -486,42 +487,35 @@ func (m *cloudSecurityCustomRuleResourceModel) wrap(
 		m.Logic = types.StringValue(rule.Logic)
 	}
 
-	attackTypes := types.SetValueMust(types.StringType, []attr.Value{})
-	if len(rule.AttackTypes) > 0 {
-		filteredAttackTypes := make([]types.String, 0, len(rule.AttackTypes))
-		for _, attackType := range rule.AttackTypes {
-			if attackType != "" {
-				filteredAttackTypes = append(filteredAttackTypes, types.StringValue(attackType))
-			}
-		}
-		attackTypes, diags = types.SetValueFrom(ctx, types.StringType, filteredAttackTypes)
-		if diags.HasError() {
-			return diags
+	filteredAttackTypes := make([]string, 0, len(rule.AttackTypes))
+	for _, attackType := range rule.AttackTypes {
+		trimmed := strings.TrimSpace(attackType)
+		if trimmed != "" {
+			filteredAttackTypes = append(filteredAttackTypes, trimmed)
 		}
 	}
-	m.AttackTypes = attackTypes
 
-	controls := types.SetValueMust(types.ObjectType{AttrTypes: policyControl{}.AttributeTypes()}, []attr.Value{})
-	if len(rule.Controls) > 0 {
-		var policyControls []policyControl
-		for _, control := range rule.Controls {
-			policyControls = append(policyControls, policyControl{
+	m.AttackTypes, diags = flex.FlattenStringValueSet(ctx, filteredAttackTypes)
+	if diags.HasError() {
+		return diags
+	}
+
+	var controlsDiags diag.Diagnostics
+	m.Controls, controlsDiags = flex.FlattenObjectValueSetFrom(
+		ctx,
+		types.ObjectType{AttrTypes: policyControl{}.AttributeTypes()},
+		rule.Controls,
+		func(control *models.ApimodelsControl) (policyControl, diag.Diagnostics) {
+			return policyControl{
 				Authority: types.StringPointerValue(control.Authority),
 				Code:      types.StringPointerValue(control.Code),
-			})
-		}
-
-		controls, diags = types.SetValueFrom(
-			ctx,
-			types.ObjectType{AttrTypes: policyControl{}.AttributeTypes()},
-			policyControls,
-		)
-
-		if diags.HasError() {
-			return diags
-		}
+			}, nil
+		},
+	)
+	diags.Append(controlsDiags...)
+	if diags.HasError() {
+		return diags
 	}
-	m.Controls = controls
 
 	if len(rule.RuleLogicList) > 0 {
 		m.CloudPlatform = types.StringPointerValue(rule.RuleLogicList[0].Platform)
@@ -533,8 +527,7 @@ func (m *cloudSecurityCustomRuleResourceModel) wrap(
 	return diags
 }
 
-//nolint:gocyclo
-func (r *cloudSecurityCustomRuleResource) createCloudPolicyRule(ctx context.Context, plan *cloudSecurityCustomRuleResourceModel) (*models.ApimodelsRule, diag.Diagnostics) {
+func (r *cloudSecurityIomCustomRuleResource) createCloudPolicyRule(ctx context.Context, plan *cloudSecurityIomCustomRuleResourceModel) (*models.ApimodelsRule, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var newRule *models.ApimodelsRule
 	isDuplicateRule := !plan.ParentRuleId.IsNull()
@@ -545,12 +538,12 @@ func (r *cloudSecurityCustomRuleResource) createCloudPolicyRule(ctx context.Cont
 		Platform:     plan.CloudPlatform.ValueStringPointer(),
 		Provider:     plan.CloudProvider.ValueStringPointer(),
 		ResourceType: plan.ResourceType.ValueStringPointer(),
-		Domain:       plan.Domain.ValueStringPointer(),
-		Subdomain:    plan.Subdomain.ValueStringPointer(),
+		Domain:       utils.Addr(IomRuleDefaultDomain),
+		Subdomain:    utils.Addr(IomRuleDefaultSubdomain),
 	}
 
 	if isDuplicateRule {
-		var parent cloudSecurityCustomRuleResourceModel
+		var parent cloudSecurityIomCustomRuleResourceModel
 		body.ParentRuleID = plan.ParentRuleId.ValueStringPointer()
 
 		emptyRemediationInfo := plan.RemediationInfo.IsUnknown() || plan.RemediationInfo.IsNull()
@@ -603,88 +596,36 @@ func (r *cloudSecurityCustomRuleResource) createCloudPolicyRule(ctx context.Cont
 		return nil, diags
 	}
 
-	body.Controls = []*models.DbmodelsControlReference{}
-	if len(plan.Controls.Elements()) > 0 {
-		var controls []policyControl
-		diags = plan.Controls.ElementsAs(ctx, &controls, false)
-		if diags.HasError() {
-			return nil, diags
-		}
-		for _, control := range controls {
-			body.Controls = append(body.Controls, &models.DbmodelsControlReference{
+	body.Controls, diags = flex.ExpandSetWithConverter(
+		ctx,
+		plan.Controls,
+		func(control policyControl) (*models.DbmodelsControlReference, diag.Diagnostics) {
+			return &models.DbmodelsControlReference{
 				Authority: control.Authority.ValueStringPointer(),
 				Code:      control.Code.ValueStringPointer(),
-			})
-		}
+			}, nil
+		},
+	)
+	if diags.HasError() {
+		return nil, diags
 	}
 
 	body.Severity = severityToInt64[plan.Severity.ValueString()]
 
-	params := cloud_policies.CreateRuleMixin0Params{
+	newRule, diags = createCloudPolicyRule(r.client, cloud_policies.CreateRuleMixin0Params{
 		Context: ctx,
 		Body:    body,
-	}
-
-	resp, err := r.client.CloudPolicies.CreateRuleMixin0(&params)
-	if err != nil {
-		if badRequest, ok := err.(*cloud_policies.CreateRuleMixin0BadRequest); ok {
-			diags.AddError(
-				"Error Creating Rule",
-				fmt.Sprintf("Failed to create rule (400): %+v", *badRequest.Payload.Errors[0].Message),
-			)
-			return nil, diags
-		}
-
-		if ruleConflict, ok := err.(*cloud_policies.CreateRuleMixin0Conflict); ok {
-			diags.AddError(
-				"Error Creating Rule",
-				fmt.Sprintf("Failed to create rule (409): %+v", *ruleConflict.Payload.Errors[0].Message),
-			)
-			return nil, diags
-		}
-
-		if internalServerError, ok := err.(*cloud_policies.CreateRuleMixin0InternalServerError); ok {
-			diags.AddError(
-				"Error Creating Rule",
-				fmt.Sprintf("Failed to create rule (500): %+v", *internalServerError.Payload.Errors[0].Message),
-			)
-			return nil, diags
-		}
-
-		diags.AddError(
-			"Error Creating Rule",
-			fmt.Sprintf("Failed to create rule %s: %+v", plan.Name.ValueString(), err),
-		)
-
+	}, iomRuleRequiredScopes)
+	if diags.HasError() {
 		return nil, diags
 	}
-
-	if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 {
-		diags.AddError(
-			"Error Creating Rule",
-			"Failed to create rule: API returned an empty response",
-		)
-		return nil, diags
-	}
-
-	payload := resp.GetPayload()
-
-	if err = falcon.AssertNoError(payload.Errors); err != nil {
-		diags.AddError(
-			"Error Creating Rule. Body Error",
-			fmt.Sprintf("Failed to create rule: %s", err.Error()),
-		)
-		return nil, diags
-	}
-
-	newRule = payload.Resources[0]
 
 	// Duplicate rules can only set remediation_info and alert_info
 	// to empty during an update, not on initial creation
 	if isDuplicateRule {
 		configRemdiationInfo := plan.RemediationInfo
 		configAlertInfo := plan.AlertInfo
-		diags = plan.wrap(ctx, payload.Resources[0])
+		diags = plan.wrap(ctx, newRule)
 		if diags.HasError() {
 			return nil, diags
 		}
@@ -703,61 +644,14 @@ func (r *cloudSecurityCustomRuleResource) createCloudPolicyRule(ctx context.Cont
 	return newRule, diags
 }
 
-func (r *cloudSecurityCustomRuleResource) getCloudPolicyRule(ctx context.Context, id string) (*models.ApimodelsRule, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	params := cloud_policies.GetRuleParams{
+func (r *cloudSecurityIomCustomRuleResource) getCloudPolicyRule(ctx context.Context, id string) (*models.ApimodelsRule, diag.Diagnostics) {
+	return getCloudPolicyRule(r.client, cloud_policies.GetRuleParams{
 		Context: ctx,
 		Ids:     []string{id},
-	}
-
-	resp, err := r.client.CloudPolicies.GetRule(&params)
-	if err != nil {
-		if notFound, ok := err.(*cloud_policies.GetRuleNotFound); ok {
-			diags.Append(tferrors.NewNotFoundError(
-				fmt.Sprintf("Failed to retrieve rule (404): %s, %+v", id, *notFound.Payload.Errors[0].Message),
-			))
-			return nil, diags
-		}
-
-		if internalServerError, ok := err.(*cloud_policies.GetRuleInternalServerError); ok {
-			diags.AddError(
-				"Error Retrieving Rule",
-				fmt.Sprintf("Failed to retrieve rule (500): %s, %+v", id, *internalServerError.Payload.Errors[0].Message),
-			)
-			return nil, diags
-		}
-
-		diags.AddError(
-			"Error Retrieving Rule",
-			fmt.Sprintf("Failed to retrieve rule %s: %+v", id, err),
-		)
-
-		return nil, diags
-	}
-
-	if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 {
-		diags.AddError(
-			"Error Retrieving Rule",
-			fmt.Sprintf("Failed to retrieve rule %s: API returned an empty response", id),
-		)
-		return nil, diags
-	}
-
-	payload := resp.GetPayload()
-
-	if err = falcon.AssertNoError(payload.Errors); err != nil {
-		diags.AddError(
-			"Error Retrieving Rule",
-			fmt.Sprintf("Failed to retrieve rule: %s", err.Error()),
-		)
-		return nil, diags
-	}
-
-	return payload.Resources[0], diags
+	}, iomRuleRequiredScopes)
 }
 
-func (r *cloudSecurityCustomRuleResource) updateCloudPolicyRule(ctx context.Context, plan *cloudSecurityCustomRuleResourceModel) (*models.ApimodelsRule, diag.Diagnostics) {
+func (r *cloudSecurityIomCustomRuleResource) updateCloudPolicyRule(ctx context.Context, plan *cloudSecurityIomCustomRuleResourceModel) (*models.ApimodelsRule, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var remediationInfo, alertInfo string
 	isDuplicaterule := !plan.ParentRuleId.IsNull()
@@ -770,7 +664,7 @@ func (r *cloudSecurityCustomRuleResource) updateCloudPolicyRule(ctx context.Cont
 	}
 
 	if isDuplicaterule {
-		var parentRule cloudSecurityCustomRuleResourceModel
+		var parentRule cloudSecurityIomCustomRuleResourceModel
 		var ruleResp *models.ApimodelsRule
 		emptyRemediationInfo := plan.RemediationInfo.IsUnknown() || plan.RemediationInfo.IsNull()
 		emptyAlertInfo := plan.AlertInfo.IsUnknown() || plan.AlertInfo.IsNull()
@@ -830,97 +724,29 @@ func (r *cloudSecurityCustomRuleResource) updateCloudPolicyRule(ctx context.Cont
 		body.AttackTypes = attackTypes
 	}
 
-	body.Controls = []*models.ApimodelsControlReference{}
-	if len(plan.Controls.Elements()) > 0 {
-		var controls []policyControl
-		diags = plan.Controls.ElementsAs(ctx, &controls, false)
-		if diags.HasError() {
-			return nil, diags
-		}
-		for _, control := range controls {
-			body.Controls = append(body.Controls, &models.ApimodelsControlReference{
+	body.Controls, diags = flex.ExpandSetWithConverter(
+		ctx,
+		plan.Controls,
+		func(control policyControl) (*models.ApimodelsControlReference, diag.Diagnostics) {
+			return &models.ApimodelsControlReference{
 				Authority: control.Authority.ValueStringPointer(),
 				Code:      control.Code.ValueStringPointer(),
-			})
-		}
+			}, nil
+		},
+	)
+	if diags.HasError() {
+		return nil, diags
 	}
 
-	params := cloud_policies.UpdateRuleParams{
+	return updateCloudPolicyRule(r.client, cloud_policies.UpdateRuleParams{
 		Context: ctx,
 		Body:    body,
-	}
-
-	resp, err := r.client.CloudPolicies.UpdateRule(&params)
-	if err != nil {
-		if badRequest, ok := err.(*cloud_policies.UpdateRuleBadRequest); ok {
-			diags.AddError(
-				"Error Updating Rule",
-				fmt.Sprintf("Failed to update rule (400): %+v", *badRequest.Payload.Errors[0].Message),
-			)
-			return nil, diags
-		}
-
-		if ruleConflict, ok := err.(*cloud_policies.UpdateRuleConflict); ok {
-			diags.AddError(
-				"Error Updating Rule",
-				fmt.Sprintf("Failed to update rule (409): %+v", *ruleConflict.Payload.Errors[0].Message),
-			)
-			return nil, diags
-		}
-
-		if internalServerError, ok := err.(*cloud_policies.UpdateRuleInternalServerError); ok {
-			diags.AddError(
-				"Error Updating Rule",
-				fmt.Sprintf("Failed to update rule (500): %+v", *internalServerError.Payload.Errors[0].Message),
-			)
-			return nil, diags
-		}
-
-		diags.AddError(
-			"Error Updating Rule",
-			fmt.Sprintf("Failed to update rule: %s", err),
-		)
-		return nil, diags
-	}
-
-	if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 {
-		diags.AddError(
-			"Error Updating Rule",
-			fmt.Sprintf("Failed to update rule %s: API returned an empty response", plan.ID.ValueString()),
-		)
-		return nil, diags
-	}
-
-	payload := resp.GetPayload()
-
-	if err = falcon.AssertNoError(payload.Errors); err != nil {
-		diags.AddError(
-			"Error Updating Rule",
-			fmt.Sprintf("Failed to update rule: %s", err.Error()),
-		)
-		return nil, diags
-	}
-	return payload.Resources[0], diags
+	}, iomRuleRequiredScopes)
 }
 
-func (r *cloudSecurityCustomRuleResource) deleteCloudPolicyRule(ctx context.Context, id string) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	params := cloud_policies.DeleteRuleMixin0Params{
+func (r *cloudSecurityIomCustomRuleResource) deleteCloudPolicyRule(ctx context.Context, id string) diag.Diagnostics {
+	return deleteCloudPolicyRule(r.client, cloud_policies.DeleteRuleMixin0Params{
 		Context: ctx,
 		Ids:     []string{id},
-	}
-
-	_, err := r.client.CloudPolicies.DeleteRuleMixin0(&params)
-	if err != nil {
-		if _, ok := err.(*cloud_policies.DeleteRuleMixin0NotFound); ok {
-			return diags
-		}
-		diags.AddError(
-			"Error Deleting Rule",
-			fmt.Sprintf("Failed to delete rule %s: \n\n %s", id, err.Error()),
-		)
-	}
-
-	return diags
+	}, iomRuleRequiredScopes)
 }

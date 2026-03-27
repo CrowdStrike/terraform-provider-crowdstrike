@@ -245,7 +245,7 @@ func updateCloudPolicyRule(client *client.CrowdStrikeAPISpecification, params cl
 	payload := resp.GetPayload()
 
 	if err = falcon.AssertNoError(payload.Errors); err != nil {
-		diags.Append(tferrors.NewOperationError(tferrors.Read, err))
+		diags.Append(tferrors.NewOperationError(tferrors.Update, err))
 		return nil, diags
 	}
 
@@ -258,7 +258,6 @@ func deleteCloudPolicyRule(client *client.CrowdStrikeAPISpecification, params cl
 	_, err := client.CloudPolicies.DeleteRuleMixin0(&params)
 	diag := tferrors.NewDiagnosticFromAPIError(tferrors.Delete, err, scopes)
 	if diag != nil {
-		diag := tferrors.NewDiagnosticFromAPIError(tferrors.Delete, err, scopes)
 		if diag.Summary() == tferrors.NotFoundErrorSummary {
 			return diags
 		}
