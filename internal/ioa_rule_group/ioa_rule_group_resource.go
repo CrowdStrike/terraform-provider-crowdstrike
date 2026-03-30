@@ -157,6 +157,7 @@ var fileTypeLabelMap = map[string]string{
 	"BMP":    "Bitmap image format",
 	"CRX":    "CRX Chrome Extension file",
 	"DEB":    "Debian Package",
+	"DMG":    "Apple Disk Image",
 	"EARC":   "Email Archive format",
 	"EML":    "Email file format",
 	"GIF":    "GIF image format",
@@ -527,7 +528,7 @@ func (r *ioaRuleGroupResource) Schema(
 							Description: "File types to match. Only valid for File Creation rules.",
 							Validators: []validator.Set{
 								setvalidator.ValueStringsAre(
-									stringvalidator.OneOf("7ZIP", "ARC", "ARJ", "BMP", "BZIP2", "CAB", "CRX", "DEB", "DMP", "DOCX", "DWG", "DXF", "EARC", "EML", "ESE", "GIF", "HIVE", "IDW", "JAR", "JCLASS", "JPG", "LNK", "MACHO", "MSI", "OLE", "OOXML", "PDF", "PE", "PNG", "PPTX", "PYTHON", "RAR", "RPM", "RTF", "SCRIPT", "SLD", "TAR", "TIFF", "VDI", "VMDK", "VSDX", "XAR", "XLSX", "ZIP", "OTHER"),
+									stringvalidator.OneOf("7ZIP", "ARC", "ARJ", "BMP", "BZIP2", "CAB", "CRX", "DEB", "DMG", "DMP", "DOCX", "DWG", "DXF", "EARC", "EML", "ESE", "GIF", "HIVE", "IDW", "JAR", "JCLASS", "JPG", "LNK", "MACHO", "MSI", "OLE", "OOXML", "PDF", "PE", "PNG", "PPTX", "PYTHON", "RAR", "RPM", "RTF", "SCRIPT", "SLD", "TAR", "TIFF", "VDI", "VMDK", "VSDX", "XAR", "XLSX", "ZIP", "OTHER"),
 								),
 							},
 						},
