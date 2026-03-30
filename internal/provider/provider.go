@@ -22,6 +22,7 @@ import (
 	installtoken "github.com/crowdstrike/terraform-provider-crowdstrike/internal/install_token"
 	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
 	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
+	mlexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ml_exclusion"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	responsepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/response_policy"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
@@ -299,6 +300,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		contentupdatepolicy.NewContentUpdatePolicyAttachmentResource,
 		sensorvisibilityexclusion.NewSensorVisibilityExclusionResource,
 		sensorvisibilityexclusion.NewSensorVisibilityExclusionAttachmentResource,
+		mlexclusion.NewMLExclusionResource,
 		itautomation.NewItAutomationTaskResource,
 		itautomation.NewItAutomationTaskGroupResource,
 		itautomation.NewItAutomationPolicyResource,
