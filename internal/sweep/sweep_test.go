@@ -17,6 +17,7 @@ import (
 	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
 	mlfilepathexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ml_file_path_exclusion"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
+	reconrule "github.com/crowdstrike/terraform-provider-crowdstrike/internal/recon_rule"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
 	usergroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/user_group"
@@ -46,4 +47,5 @@ func registerSweepers() {
 	cloudsecurity.RegisterSweepers()
 	itautomation.RegisterSweepers()
 	usergroup.RegisterSweepers()
+	reconrule.RegisterSweepers()
 }
