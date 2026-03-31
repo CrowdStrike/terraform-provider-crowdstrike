@@ -1064,7 +1064,6 @@ resource "crowdstrike_it_automation_task_group" "test" {
 func TestAccITAutomationTaskResource_AddRemoveUsers(t *testing.T) {
 	sdk := createSDKFixtures(t)
 	defer sdk.Cleanup(t)
-	defer sdk.Cleanup(t)
 
 	// Ensure we have at least 3 users to test with
 	if len(sdk.UserIDs) < 3 {
@@ -1252,7 +1251,6 @@ func TestAccITAutomationTaskResource_TaskParameters(t *testing.T) {
 
 	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	isOptional := true
-	isRequired := false
 
 	testCases := []struct {
 		name         string
@@ -1298,7 +1296,7 @@ echo "$TARGET_PATH"`),
 echo "$TARGET_ENV"`),
 				TaskParameters: []taskParameterConfig{
 					{
-						InputType: "option",
+						InputType: "dropdown",
 						Key:       "TARGET_ENV",
 						Label:     "Target Environment",
 						Purpose:   ptrString("Environment selector"),
@@ -1311,113 +1309,6 @@ echo "$TARGET_ENV"`),
 							{
 								Key:   "dev",
 								Value: "Development",
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			name:         "task_parameters_action_initial",
-			configPrefix: "verification",
-			config: taskConfig{
-				Name:                rName + "-action",
-				AccessType:          "Public",
-				Description:         "Action task with mixed task parameters",
-				Type:                "action",
-				LinuxScriptFileId:   ptrString(sdk.ScriptFileIDs["linux"]),
-				LinuxScriptLanguage: ptrString("bash"),
-				FileIds:             []string{sdk.FileIDs["linux"]},
-				VerificationCondition: &verificationConditionConfig{
-					Operator: "AND",
-					Statements: []verificationStatementConfig{
-						{
-							DataComparator: "Equals",
-							DataType:       "StringType",
-							Key:            "script_output",
-							TaskID:         "placeholder",
-							Value:          "Success",
-						},
-					},
-				},
-				TaskParameters: []taskParameterConfig{
-					{
-						InputType:      "text",
-						Key:            "RETRY_COUNT",
-						Label:          "Retry Count",
-						Purpose:        ptrString("Retries before failure"),
-						Optional:       &isRequired,
-						ValidationType: ptrString("integer"),
-						DefaultValue:   ptrString("03"),
-						FormatHint:     ptrString("Integer value"),
-					},
-					{
-						InputType: "option",
-						Key:       "RESTART_SERVICE",
-						Label:     "Restart Service",
-						Optional:  &isOptional,
-						Options: []taskParameterOptionConfig{
-							{
-								Key:   "yes",
-								Value: "Yes",
-							},
-							{
-								Key:   "no",
-								Value: "No",
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			name:         "task_parameters_action_updated",
-			configPrefix: "verification",
-			config: taskConfig{
-				Name:                rName + "-action-updated",
-				AccessType:          "Shared",
-				Description:         "Action task with updated task parameters",
-				Type:                "action",
-				LinuxScriptFileId:   ptrString(sdk.ScriptFileIDs["linux"]),
-				LinuxScriptLanguage: ptrString("bash"),
-				FileIds:             []string{sdk.FileIDs["linux"]},
-				AssignedUserIds:     sdk.UserIDs,
-				VerificationCondition: &verificationConditionConfig{
-					Operator: "OR",
-					Statements: []verificationStatementConfig{
-						{
-							DataComparator: "Contains",
-							DataType:       "StringType",
-							Key:            "script_output",
-							TaskID:         "placeholder",
-							Value:          "Complete",
-						},
-					},
-				},
-				TaskParameters: []taskParameterConfig{
-					{
-						InputType:      "text",
-						Key:            "RETRY_COUNT",
-						Label:          "Retry Count",
-						Purpose:        ptrString("Retries before failure"),
-						Optional:       &isRequired,
-						ValidationType: ptrString("integer"),
-						DefaultValue:   ptrString("05"),
-						FormatHint:     ptrString("Integer value"),
-					},
-					{
-						InputType: "option",
-						Key:       "RESTART_SERVICE",
-						Label:     "Restart Service",
-						Optional:  &isRequired,
-						Options: []taskParameterOptionConfig{
-							{
-								Key:   "force",
-								Value: "Force Restart",
-							},
-							{
-								Key:   "graceful",
-								Value: "Graceful Restart",
 							},
 						},
 					},

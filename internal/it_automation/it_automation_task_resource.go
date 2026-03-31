@@ -126,10 +126,21 @@ type itAutomationTaskResourceModel struct {
 
 // convertType converts the type value to the Terraform or API expected values.
 func convertType(typeValue, dest string) string {
-	if dest == "terraform" && typeValue == TaskTypeRemediation {
-		typeValue = TaskTypeAction
-	} else if dest == "api" && typeValue == TaskTypeAction {
-		typeValue = TaskTypeRemediation
+	switch dest {
+	case "terraform":
+		switch typeValue {
+		case TaskTypeRemediation:
+			typeValue = TaskTypeAction
+		case ParamsTypeOption:
+			typeValue = ParamsTypeDropdown
+		}
+	case "api":
+		switch typeValue {
+		case TaskTypeAction:
+			typeValue = TaskTypeRemediation
+		case ParamsTypeDropdown:
+			typeValue = ParamsTypeOption
+		}
 	}
 	return typeValue
 }
@@ -737,12 +748,11 @@ func (r *itAutomationTaskResource) Schema(
 				Description: "Input parameters to pass into the query or action task.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						// TODO: how to make this use dropdown instead of option
 						"input_type": schema.StringAttribute{
 							Required:    true,
 							Description: "Type of input field (text, option).",
 							Validators: []validator.String{
-								stringvalidator.OneOf("text", "option"),
+								stringvalidator.OneOf("text", "dropdown"),
 							},
 						},
 						"key": schema.StringAttribute{
@@ -782,7 +792,6 @@ func (r *itAutomationTaskResource) Schema(
 								stringvalidator.OneOf("alphanumeric", "text", "filepath", "filepathunix", "semver", "uuid", "winhost", "integer", "filepathwin", "datetime", "macaddress", "port", "dnshost", "float", "ip"),
 							},
 						},
-						// TODO: does this work as default option as well?
 						"default_value": schema.StringAttribute{
 							Optional:    true,
 							Computed:    true,
@@ -1444,7 +1453,7 @@ func (r *itAutomationTaskResource) ValidateConfig(
 						"options cannot be used when input_type is \"text\".",
 					)
 				}
-			case "option":
+			case "dropdown":
 				if p.Options.IsNull() || p.Options.IsUnknown() || len(p.Options.Elements()) == 0 {
 					resp.Diagnostics.AddAttributeError(
 						paramPath.AtName("options"),
@@ -1459,7 +1468,6 @@ func (r *itAutomationTaskResource) ValidateConfig(
 					value types.String
 				}{
 					{name: "validation_type", value: p.ValidationType},
-					// {name: "default_value", value: p.DefaultValue},
 					{name: "validation_regex", value: p.ValidationRegex},
 					{name: "validation_message", value: p.ValidationMessage},
 					{name: "format_hint", value: p.FormatHint},
@@ -1555,12 +1563,17 @@ func createTaskParams(ctx context.Context, paramsList types.List) ([]*models.Ita
 			apiOpts = append(apiOpts, apiOpt)
 		}
 
+		inputType := p.InputType.ValueString()
+		if inputType == ParamsTypeDropdown {
+			inputType = convertType(ParamsTypeDropdown, "api")
+		}
+
 		apiParam := &models.ItautomationTaskParameter{
 			CustomValidationMessage: p.ValidationMessage.ValueStringPointer(),
 			CustomValidationRegex:   p.ValidationRegex.ValueStringPointer(),
 			DefaultValue:            p.DefaultValue.ValueStringPointer(),
 			FormatHint:              p.FormatHint.ValueString(),
-			InputType:               p.InputType.ValueStringPointer(),
+			InputType:               &inputType,
 			IsOptional:              p.Optional.ValueBool(),
 			Key:                     p.Key.ValueStringPointer(),
 			Label:                   p.Label.ValueStringPointer(),
@@ -1707,12 +1720,17 @@ func extractTaskParams(ctx context.Context, taskParams []*models.ItautomationTas
 			return types.ListNull(paramObjType), diags
 		}
 
+		inputType := *apiParam.InputType
+		if inputType == ParamsTypeOption {
+			inputType = convertType(ParamsTypeOption, "terraform")
+		}
+
 		result = append(result, taskParameterModel{
 			ValidationMessage: types.StringPointerValue(apiParam.CustomValidationMessage),
 			ValidationRegex:   types.StringPointerValue(apiParam.CustomValidationRegex),
 			DefaultValue:      types.StringPointerValue(apiParam.DefaultValue),
 			FormatHint:        types.StringValue(apiParam.FormatHint),
-			InputType:         types.StringPointerValue(apiParam.InputType),
+			InputType:         types.StringPointerValue(&inputType),
 			Optional:          types.BoolValue(apiParam.IsOptional),
 			Key:               types.StringPointerValue(apiParam.Key),
 			Label:             types.StringPointerValue(apiParam.Label),
