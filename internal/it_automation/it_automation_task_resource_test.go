@@ -1325,12 +1325,8 @@ echo "$TARGET_ENV"`),
 		},
 		Steps: func() []resource.TestStep {
 			var steps []resource.TestStep
-			fixtures := getTestFixtures()
 			for _, tc := range testCases {
 				config := acctest.ProviderConfig + tc.config.String()
-				if tc.configPrefix == "verification" {
-					config = acctest.ProviderConfig + fixtures.VerificationTasksOnly() + tc.config.String()
-				}
 
 				steps = append(steps, resource.TestStep{
 					Config: config,
