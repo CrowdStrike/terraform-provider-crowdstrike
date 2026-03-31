@@ -324,7 +324,7 @@ func (r *itAutomationTaskResource) constructUpdatePayload(
 			body.TaskParameters = taskParams
 		}
 	} else if len(currentTask.TaskParameters) > 0 {
-		body.TaskParameters = currentTask.TaskParameters
+		body.TaskParameters = []*models.ItautomationTaskParameter{}
 	}
 
 	switch apiType {
@@ -745,6 +745,7 @@ func (r *itAutomationTaskResource) Schema(
 			},
 			"task_parameters": schema.ListNestedAttribute{
 				Optional:    true,
+				Computed:    true,
 				Description: "Input parameters to pass into the query or action task.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
