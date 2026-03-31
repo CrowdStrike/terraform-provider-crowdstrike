@@ -750,7 +750,7 @@ func (r *itAutomationTaskResource) Schema(
 					Attributes: map[string]schema.Attribute{
 						"input_type": schema.StringAttribute{
 							Required:    true,
-							Description: "Type of input field (text, option).",
+							Description: "Type of input field (text, dropdown).",
 							Validators: []validator.String{
 								stringvalidator.OneOf("text", "dropdown"),
 							},
@@ -1458,7 +1458,7 @@ func (r *itAutomationTaskResource) ValidateConfig(
 					resp.Diagnostics.AddAttributeError(
 						paramPath.AtName("options"),
 						"Missing required argument",
-						"options must be provided and non-empty when input_type is \"option\".",
+						"options must be provided and non-empty when input_type is \"dropdown\".",
 					)
 					return
 				}
@@ -1564,9 +1564,7 @@ func createTaskParams(ctx context.Context, paramsList types.List) ([]*models.Ita
 		}
 
 		inputType := p.InputType.ValueString()
-		if inputType == ParamsTypeDropdown {
-			inputType = convertType(ParamsTypeDropdown, "api")
-		}
+		inputType = convertType(inputType, "api")
 
 		apiParam := &models.ItautomationTaskParameter{
 			CustomValidationMessage: p.ValidationMessage.ValueStringPointer(),
@@ -1721,9 +1719,7 @@ func extractTaskParams(ctx context.Context, taskParams []*models.ItautomationTas
 		}
 
 		inputType := *apiParam.InputType
-		if inputType == ParamsTypeOption {
-			inputType = convertType(ParamsTypeOption, "terraform")
-		}
+		inputType = convertType(inputType, "terraform")
 
 		result = append(result, taskParameterModel{
 			ValidationMessage: types.StringPointerValue(apiParam.CustomValidationMessage),
