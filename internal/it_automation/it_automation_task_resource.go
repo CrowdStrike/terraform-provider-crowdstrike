@@ -1435,12 +1435,12 @@ func (r *itAutomationTaskResource) ValidateConfig(
 				if p.ValidationType.ValueString() != "text" {
 
 					if hasValue(p.ValidationRegex) {
-						resp.Diagnostics.AddAttributeError(paramPath.AtName("param"),
+						resp.Diagnostics.AddAttributeError(paramPath.AtName("validation_regex"),
 							"Invalid argument", "validation_regex can only be used when validation type is \"text\"")
 					}
 
 					if hasValue(p.ValidationMessage) {
-						resp.Diagnostics.AddAttributeError(paramPath.AtName("param"),
+						resp.Diagnostics.AddAttributeError(paramPath.AtName("validation_message"),
 							"Invalid argument", "validation_message can only be used when validation type is \"text\"")
 					}
 
