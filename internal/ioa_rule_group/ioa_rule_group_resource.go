@@ -482,11 +482,9 @@ func (r *ioaRuleGroupResource) Schema(
 							},
 						},
 						"comment": schema.StringAttribute{
-							Required:    true,
+							Optional:    true,
+							Computed:    true,
 							Description: "The comment stored in audit logs when making changes to the IOA rule group rule.",
-							Validators: []validator.String{
-								validators.StringNotWhitespace(),
-							},
 						},
 						"pattern_severity": schema.StringAttribute{
 							Required:    true,
