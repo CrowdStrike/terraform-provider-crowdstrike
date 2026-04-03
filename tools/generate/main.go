@@ -201,7 +201,7 @@ func main() {
 
 	fs := flag.NewFlagSet(command, flag.ExitOnError)
 	dir := fs.String("d", "", "directory under internal/ to place the generated file")
-	fs.Parse(os.Args[2:])
+	_ = fs.Parse(os.Args[2:])
 
 	if fs.NArg() < 1 {
 		usage()
