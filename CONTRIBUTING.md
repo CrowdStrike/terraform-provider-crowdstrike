@@ -33,6 +33,7 @@ This guide covers both the practical aspects of setting up and contributing to t
   - [Debugging](#debugging)
   - [Code Patterns](#code-patterns)
     - [Model Wrapping with .wrap Method](#model-wrapping-with-wrap-method)
+    - [State Consistency with flex and Validators](#state-consistency-with-flex-and-validators)
     - [Schema Description Formatting](#schema-description-formatting)
     - [Single-line Diagnostics with Ellipsis](#single-line-diagnostics-with-ellipsis)
     - [Early State Updates](#early-state-updates)
@@ -155,13 +156,13 @@ Follow these commit message conventions for consistency. Since we use squash mer
 
 ### Scopes
 
-- `<resource_name>`: Resource names (drop `crowdstrike_` prefix)
+Scopes are optional. Use one when it's short and adds clarity, skip it when the description already makes the context obvious.
+
 - `provider`: Core provider functionality
 - `docs`: Documentation updates
 - `tools`: Development tooling
 - `ci`: CI/CD pipeline changes
 - `deps`: Dependency updates
-- `tests`: Test-specific changes
 
 ### Guidelines
 
@@ -200,12 +201,13 @@ Closes #145
 Follow these steps to add a new Terraform resource to the provider:
 
 1. **Scaffold the Resource**
-   - Use the resource generator to scaffold files:
+   - Use the generator to scaffold files:
      ```sh
-     go run tools/resource/gen.go <ResourceName>
-     # Example: go run tools/resource/gen.go host_group
+     go run ./tools/generate resource <name>
+     # Example: go run ./tools/generate resource host_group
+     # Place in an existing package: go run ./tools/generate resource -d cloud_security kac_policy
      ```
-   - This creates a Go file in `internal/<resource>/`, an example in `examples/resources/`, and an import script.
+   - This creates a Go file in `internal/<name>/` (or the `-d` directory), an example in `examples/resources/`, and an import script.
 
 2. **Implement Resource Logic**
    - Fill in the CRUD (Create, Read, Update, Delete) methods in the generated Go file.
@@ -258,7 +260,99 @@ This section explains the architectural decisions, idioms, and patterns that gui
 
 ### Error Handling
 
-- **Actionable Errors:** Error messages should be actionable and user-focused, especially for common issues like insufficient API scopes.
+Use the `tferrors` package (`internal/tferrors`) for all API error handling. This package provides centralized, consistent error handling that automatically generates actionable messages, including scope hints for 403 errors.
+
+**API Error Handling:**
+
+When an API call returns an error, use `tferrors.NewDiagnosticFromAPIError()`. Pass the Terraform CRUD operation, the error, and the resource's required scopes:
+
+```go
+res, err := r.client.SomeService.SomeOperation(params)
+if err != nil {
+    resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(
+        tferrors.Create, // tferrors.Read, tferrors.Update, tferrors.Delete
+        err,
+        resourceRequiredScopes,
+    ))
+    return
+}
+```
+
+**NotFound Error Handling (operation-specific):**
+
+How you handle 404 errors depends on the CRUD operation:
+
+- **Read**: Convert 404 to a warning and remove the resource from state (resource was deleted outside Terraform).
+- **Delete**: Treat 404 as success (the resource is already gone).
+- **Create/Update**: Treat 404 as an error (the default behavior).
+
+```go
+// Read method -- 404 means the resource was deleted outside Terraform
+if err != nil {
+    diag := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, resourceRequiredScopes)
+    if diag.Summary() == tferrors.NotFoundErrorSummary {
+        resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
+        resp.State.RemoveResource(ctx)
+        return
+    }
+    resp.Diagnostics.Append(diag)
+    return
+}
+
+// Delete method -- 404 means already deleted, which is fine
+if err != nil {
+    diag := tferrors.NewDiagnosticFromAPIError(tferrors.Delete, err, resourceRequiredScopes)
+    if diag.Summary() == tferrors.NotFoundErrorSummary {
+        return // Success -- already deleted
+    }
+    resp.Diagnostics.Append(diag)
+    return
+}
+```
+
+**Nil Checking for API Responses:**
+
+Always check for nil pointers before accessing response data to prevent panics:
+
+```go
+if res == nil || res.Payload == nil {
+    resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
+    return
+}
+```
+
+**Payload Error Handling:**
+
+Some API responses include application-level errors in the payload even when the HTTP call succeeds. Check for these before checking for empty resources:
+
+```go
+if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Create, res.Payload.Errors); diag != nil {
+    resp.Diagnostics.Append(diag)
+    return
+}
+```
+
+**Empty Response Handling:**
+
+When you expect the API to return data (e.g., Create, Read, Update), check for empty resources after ruling out payload errors:
+
+```go
+if len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+    resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
+    return
+}
+```
+
+**Complete CRUD Error Pattern:**
+
+Every CRUD method should follow this four-step error check sequence after an API call:
+
+1. Check `err != nil` with `tferrors.NewDiagnosticFromAPIError()` (with operation-specific 404 handling for Read/Delete)
+2. Check for nil response/payload to prevent panics
+3. Check for payload errors with `tferrors.NewDiagnosticFromPayloadErrors()` (the API is telling you what went wrong)
+4. Check for empty resources with `tferrors.NewEmptyResponseError()` (only when you expect data back)
+
+See `internal/data_protection/content_pattern_resource.go` for a complete reference implementation.
 
 ### Logging with tflog
 
@@ -328,53 +422,72 @@ This section provides concrete examples of the code patterns that should be foll
 
 ### Model Wrapping with .wrap Method
 
-Implement a `.wrap()` method on your resource models to convert API responses to Terraform model data. This pattern ensures consistent handling of API data and separation of concerns:
+Implement a `.wrap()` method on your resource models to convert API responses to Terraform state. Use the `flex` package (`internal/framework/flex`) for type conversions instead of raw `types.StringValue()` or `types.Int32Value()` calls. The `flex` functions handle nil pointers and empty strings correctly, converting them to null Terraform values:
 
 ```go
-// wrap transforms API response values to their terraform model values.
-func (d *preventionPolicyAttachmentResourceModel) wrap(
-    ctx context.Context,
-    policy models.PreventionPolicyV1,
-) diag.Diagnostics {
-    var diags diag.Diagnostics
-
-    d.ID = types.StringValue(*policy.ID)
-
-    // Convert API types to Terraform types
-    hostGroupSet, diag := hostgroups.ConvertHostGroupsToSet(ctx, policy.Groups)
-    diags.Append(diag...)
-    if diags.HasError() {
-        return diags
-    }
-    if !d.HostGroups.IsNull() || len(hostGroupSet.Elements()) != 0 {
-        d.HostGroups = hostGroupSet
-    }
-
-    // More field conversions...
-
-    return diags
-}
-
-// Usage in resource methods
-func (r *Resource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-    var state resourceModel
-    resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-    if resp.Diagnostics.HasError() {
-        return
-    }
-
-    // Get data from API
-    policy, diags := getPolicy(ctx, r.client, state.ID.ValueString())
-    resp.Diagnostics.Append(diags...)
-    if resp.Diagnostics.HasError() {
-        return
-    }
-
-    // Update state with API response
-    resp.Diagnostics.Append(state.wrap(ctx, *policy)...)
-    resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+func (m *contentPatternResourceModel) wrap(
+    pattern models.APIContentPatternV1,
+) {
+    m.ID = flex.StringPointerToFramework(pattern.ID)
+    m.Name = flex.StringValueToFramework(pattern.Name)
+    m.Description = flex.StringPointerToFramework(pattern.Description)
+    m.MinMatchThreshold = flex.Int32PointerToFramework(pattern.MinMatchThreshold)
 }
 ```
+
+Key points:
+- Use `flex.StringPointerToFramework()` for `*string` fields -- nil or empty becomes `types.StringNull()`.
+- Use `flex.StringValueToFramework()` for `string` fields -- empty becomes `types.StringNull()`.
+- Use `flex.Int32PointerToFramework()` for `*int32` fields -- nil becomes `types.Int32Null()`.
+- The `.wrap()` method takes the API model by value, not as a pointer. The caller dereferences it.
+- Keep `.wrap()` free of error returns when possible. If type conversions require diagnostics (e.g., collections), return `diag.Diagnostics`.
+
+See [State Consistency with flex and Validators](#state-consistency-with-flex-and-validators) for why these flex functions matter and how they pair with schema validators.
+
+### State Consistency with flex and Validators
+
+**The problem:** Terraform compares your configuration to the state after every apply. If they don't match, Terraform returns an "inconsistent result after apply" error. This is a common issue with optional fields because the Go SDK doesn't distinguish between "not set" and "empty" — when a field has no value, the SDK may return `""` for strings or `[]` for lists. If a user sets `description = null` in their config but we write `""` to state, Terraform sees a mismatch and errors.
+
+**The solution:** A two-part pattern that works together:
+
+1. **Validators on the schema** prevent users from setting empty values. For example, `StringNotWhitespace()` ensures a string is either `null` (not set) or a real non-empty value — never `""`. Similarly, list/set size validators prevent empty collections.
+
+2. **flex functions in `.wrap()`** normalize API responses. `flex.StringPointerToFramework()` converts `""` to `types.StringNull()`. `flex.FlattenStringValueSet()` converts `[]` to a null set.
+
+Together, the only empty values that can exist come from the API, and flex converts them to `null` — matching what the user configured. Neither part works alone: without the validator, users could set `""` which flex would convert to `null` on read-back (different mismatch). Without flex, the API's `""` would land in state when the user had `null`.
+
+**End-to-end example** — one field from schema to wrap:
+
+```go
+// In Schema(): the validator ensures the user can only set null or a real value
+"description": schema.StringAttribute{
+    Optional:    true,
+    Description: "Description of the resource.",
+    Validators: []validator.String{
+        fwvalidators.StringNotWhitespace(),
+    },
+},
+
+// In .wrap(): flex normalizes the API's "" to null
+func (m *resourceModel) wrap(pattern models.APIPatternV1) {
+    m.Description = flex.StringPointerToFramework(pattern.Description) // "" or nil → null
+}
+
+// In Create/Update: flex converts null back to "" for the API
+createRequest := &models.CreateRequestV1{
+    Description: flex.FrameworkToStringPointer(plan.Description), // null → ""
+}
+```
+
+**When to use flex vs raw types:** Use flex for optional fields where the API might return empty values. For required fields that are always populated (like reading an ID from a create response), `types.StringValue()` works fine — but flex is preferred for consistency.
+
+**Common flex functions:**
+
+- **API → Terraform state (use in `.wrap()`):** `flex.StringPointerToFramework`, `flex.StringValueToFramework`, `flex.Int32PointerToFramework`, `flex.FlattenStringValueList`, `flex.FlattenStringValueSet`, `flex.FlattenHostGroupsToSet`
+- **Terraform config → API request (use in Create/Update):** `flex.FrameworkToStringPointer`, `flex.FrameworkToInt32Pointer`, `flex.ExpandListAs[T]`, `flex.ExpandSetAs[T]`
+- **Time:** `flex.RFC3339ValueToFramework`, `flex.RFC3339PointerToFramework`, `flex.FrameworkToRFC3339Pointer`
+
+Run `go doc internal/framework/flex` for the full list and signatures.
 
 ### Schema Description Formatting
 
@@ -432,15 +545,21 @@ resp.Diagnostics.Append(diags...)
 When creating resources, set any information required for deletion as early as possible in the Create method. This ensures that even if subsequent operations fail, Terraform can still track and clean up the resource:
 
 ```go
-// Create the resource via API
-createResponse, err := r.client.CreateResource(&params)
+res, err := r.client.SomeService.CreateResource(params)
 if err != nil {
-    resp.Diagnostics.AddError("Failed to create resource", err.Error())
+    resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(
+        tferrors.Create, err, resourceRequiredScopes,
+    ))
+    return
+}
+
+if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+    resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
     return
 }
 
 // IMPORTANT: Set the ID early, immediately after creation succeeds
-plan.ID = types.StringValue(*createResponse.Payload.Resources[0].ID)
+plan.ID = flex.StringPointerToFramework(res.Payload.Resources[0].ID)
 
 // Store this ID in state ASAP so Terraform can track the resource
 resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)...)

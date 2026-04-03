@@ -129,6 +129,10 @@ func DiffStringSet(
 
 // FlattenStringValueSet converts a slice of strings to a Terraform set of strings.
 // Returns null if the slice is empty or nil.
+//
+// Pair with a validator that prevents users from setting empty sets. When the API returns
+// an empty slice for unset fields, normalizing [] to null ensures state matches
+// config and prevents inconsistent result after apply errors.
 func FlattenStringValueSet(
 	ctx context.Context,
 	values []string,
