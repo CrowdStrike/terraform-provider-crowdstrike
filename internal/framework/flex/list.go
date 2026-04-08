@@ -26,6 +26,10 @@ func ExpandListAs[T any](
 
 // FlattenStringValueList converts a slice of strings to a Terraform list of strings.
 // Returns null if the slice is empty or nil.
+//
+// Pair with a validator that prevents users from setting empty lists. When the API returns
+// an empty slice for unset fields, normalizing [] to null ensures state matches
+// config and prevents inconsistent result after apply errors.
 func FlattenStringValueList(
 	ctx context.Context,
 	values []string,

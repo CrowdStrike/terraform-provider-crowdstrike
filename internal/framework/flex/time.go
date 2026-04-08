@@ -7,6 +7,10 @@ import (
 
 // RFC3339ValueToFramework converts a string to a Terraform framework timetypes.RFC3339.
 // An empty string returns a null timetypes.RFC3339.
+//
+// Pair with a validator that prevents users from setting empty strings. When the API returns
+// "" for unset fields, normalizing "" to null ensures state matches config and
+// prevents inconsistent result after apply errors.
 func RFC3339ValueToFramework[T ~string](v T) (timetypes.RFC3339, diag.Diagnostics) {
 	if v == "" {
 		return timetypes.NewRFC3339Null(), nil
@@ -17,6 +21,10 @@ func RFC3339ValueToFramework[T ~string](v T) (timetypes.RFC3339, diag.Diagnostic
 
 // RFC3339PointerToFramework converts a string pointer to a Terraform framework timetypes.RFC3339.
 // A nil pointer or empty string returns a null timetypes.RFC3339.
+//
+// Pair with a validator that prevents users from setting empty strings. When the API returns
+// "" for unset fields, normalizing "" to null ensures state matches config and
+// prevents inconsistent result after apply errors.
 func RFC3339PointerToFramework(v *string) (timetypes.RFC3339, diag.Diagnostics) {
 	if v == nil || *v == "" {
 		return timetypes.NewRFC3339Null(), nil
