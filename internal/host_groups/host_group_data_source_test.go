@@ -6,12 +6,15 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
-	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
+	"github.com/hashicorp/terraform-plugin-testing/compare"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
 func TestAccHostGroupDataSource_ByName(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	rName := acctest.RandomResourceName()
 	resourceName := "crowdstrike_host_group.test"
 	dataSourceName := "data.crowdstrike_host_group.test"
 
@@ -21,23 +24,56 @@ func TestAccHostGroupDataSource_ByName(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccHostGroupDataSourceConfigByName(rName),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrPair(resourceName, "id", dataSourceName, "id"),
-					resource.TestCheckResourceAttrPair(resourceName, "name", dataSourceName, "name"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "description"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "group_type"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "created_by"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "created_timestamp"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "modified_by"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "modified_timestamp"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("id"),
+						dataSourceName, tfjsonpath.New("id"),
+						compare.ValuesSame(),
+					),
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("name"),
+						dataSourceName, tfjsonpath.New("name"),
+						compare.ValuesSame(),
+					),
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("description"),
+						dataSourceName, tfjsonpath.New("description"),
+						compare.ValuesSame(),
+					),
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("type"),
+						dataSourceName, tfjsonpath.New("type"),
+						compare.ValuesSame(),
+					),
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("assignment_rule"),
+						dataSourceName, tfjsonpath.New("assignment_rule"),
+						compare.ValuesSame(),
+					),
+					statecheck.ExpectKnownValue(
+						dataSourceName, tfjsonpath.New("created_by"),
+						knownvalue.NotNull(),
+					),
+					statecheck.ExpectKnownValue(
+						dataSourceName, tfjsonpath.New("created_timestamp"),
+						knownvalue.NotNull(),
+					),
+					statecheck.ExpectKnownValue(
+						dataSourceName, tfjsonpath.New("modified_by"),
+						knownvalue.NotNull(),
+					),
+					statecheck.ExpectKnownValue(
+						dataSourceName, tfjsonpath.New("modified_timestamp"),
+						knownvalue.NotNull(),
+					),
+				},
 			},
 		},
 	})
 }
 
 func TestAccHostGroupDataSource_ByID(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	rName := acctest.RandomResourceName()
 	resourceName := "crowdstrike_host_group.test"
 	dataSourceName := "data.crowdstrike_host_group.test"
 
@@ -47,12 +83,49 @@ func TestAccHostGroupDataSource_ByID(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccHostGroupDataSourceConfigByID(rName),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrPair(resourceName, "id", dataSourceName, "id"),
-					resource.TestCheckResourceAttrPair(resourceName, "name", dataSourceName, "name"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "description"),
-					resource.TestCheckResourceAttrSet(dataSourceName, "group_type"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("id"),
+						dataSourceName, tfjsonpath.New("id"),
+						compare.ValuesSame(),
+					),
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("name"),
+						dataSourceName, tfjsonpath.New("name"),
+						compare.ValuesSame(),
+					),
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("description"),
+						dataSourceName, tfjsonpath.New("description"),
+						compare.ValuesSame(),
+					),
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("type"),
+						dataSourceName, tfjsonpath.New("type"),
+						compare.ValuesSame(),
+					),
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("assignment_rule"),
+						dataSourceName, tfjsonpath.New("assignment_rule"),
+						compare.ValuesSame(),
+					),
+					statecheck.ExpectKnownValue(
+						dataSourceName, tfjsonpath.New("created_by"),
+						knownvalue.NotNull(),
+					),
+					statecheck.ExpectKnownValue(
+						dataSourceName, tfjsonpath.New("created_timestamp"),
+						knownvalue.NotNull(),
+					),
+					statecheck.ExpectKnownValue(
+						dataSourceName, tfjsonpath.New("modified_by"),
+						knownvalue.NotNull(),
+					),
+					statecheck.ExpectKnownValue(
+						dataSourceName, tfjsonpath.New("modified_timestamp"),
+						knownvalue.NotNull(),
+					),
+				},
 			},
 		},
 	})
@@ -67,11 +140,11 @@ func TestAccHostGroupDataSource_ValidationErrors(t *testing.T) {
 	}{
 		"neither_id_nor_name": {
 			configFunc:  testAccHostGroupDataSourceConfigNeither,
-			expectError: regexp.MustCompile(`(?i)exactly one of these must be configured`),
+			expectError: regexp.MustCompile(`No attribute specified when one \(and only one\) of \[name,id\] is required`),
 		},
 		"both_id_and_name": {
 			configFunc:  testAccHostGroupDataSourceConfigBoth,
-			expectError: regexp.MustCompile(`(?i)these attributes cannot be configured together`),
+			expectError: regexp.MustCompile(`2 attributes specified when one \(and only one\) of \[name,id\] is required`),
 		},
 	}
 
@@ -98,7 +171,7 @@ func TestAccHostGroupDataSource_NotFound(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccHostGroupDataSourceConfigNotFoundName(),
-				ExpectError: regexp.MustCompile("Host group not found"),
+				ExpectError: regexp.MustCompile("Resource Not Found"),
 			},
 		},
 	})

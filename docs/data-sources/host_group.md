@@ -44,6 +44,8 @@ data "crowdstrike_host_group" "by_id" {
   id = "dbe9c1fabd024fafaf44adf4df5f0f0f"
 }
 
+data "crowdstrike_sensor_update_policy_builds" "all" {}
+
 # Use the host group ID in a sensor update policy
 resource "crowdstrike_sensor_update_policy" "mac_latest" {
   name          = "Mac Sensor Update - Latest"
@@ -51,6 +53,9 @@ resource "crowdstrike_sensor_update_policy" "mac_latest" {
   enabled       = true
   build         = data.crowdstrike_sensor_update_policy_builds.all.mac.latest.build
   host_groups   = [data.crowdstrike_host_group.fc_alpha.id]
+  schedule = {
+    enabled = false
+  }
 }
 ```
 
@@ -68,6 +73,6 @@ resource "crowdstrike_sensor_update_policy" "mac_latest" {
 - `created_by` (String) User who created the host group
 - `created_timestamp` (String) Timestamp when the host group was created
 - `description` (String) The host group description
-- `group_type` (String) The host group type (dynamic, static, staticByID)
 - `modified_by` (String) User who last modified the host group
 - `modified_timestamp` (String) Timestamp when the host group was last modified
+- `type` (String) The host group type (dynamic, static, staticByID)

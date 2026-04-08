@@ -20,6 +20,8 @@ data "crowdstrike_host_group" "by_id" {
   id = "dbe9c1fabd024fafaf44adf4df5f0f0f"
 }
 
+data "crowdstrike_sensor_update_policy_builds" "all" {}
+
 # Use the host group ID in a sensor update policy
 resource "crowdstrike_sensor_update_policy" "mac_latest" {
   name          = "Mac Sensor Update - Latest"
@@ -27,4 +29,7 @@ resource "crowdstrike_sensor_update_policy" "mac_latest" {
   enabled       = true
   build         = data.crowdstrike_sensor_update_policy_builds.all.mac.latest.build
   host_groups   = [data.crowdstrike_host_group.fc_alpha.id]
+  schedule = {
+    enabled = false
+  }
 }

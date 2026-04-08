@@ -9,7 +9,9 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/host_group"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -49,12 +51,24 @@ type HostGroupDataSourceModel struct {
 	ID                types.String `tfsdk:"id"`
 	Name              types.String `tfsdk:"name"`
 	Description       types.String `tfsdk:"description"`
-	GroupType         types.String `tfsdk:"group_type"`
+	GroupType         types.String `tfsdk:"type"`
 	AssignmentRule    types.String `tfsdk:"assignment_rule"`
 	CreatedBy         types.String `tfsdk:"created_by"`
 	CreatedTimestamp  types.String `tfsdk:"created_timestamp"`
 	ModifiedBy        types.String `tfsdk:"modified_by"`
 	ModifiedTimestamp types.String `tfsdk:"modified_timestamp"`
+}
+
+func (m *HostGroupDataSourceModel) wrap(group *models.HostGroupsHostGroupV1) {
+	m.ID = flex.StringPointerToFramework(group.ID)
+	m.Name = flex.StringPointerToFramework(group.Name)
+	m.Description = flex.StringPointerToFramework(group.Description)
+	m.GroupType = flex.StringValueToFramework(group.GroupType)
+	m.AssignmentRule = flex.StringValueToFramework(group.AssignmentRule)
+	m.CreatedBy = flex.StringPointerToFramework(group.CreatedBy)
+	m.CreatedTimestamp = flex.StringValueToFramework(group.CreatedTimestamp.String())
+	m.ModifiedBy = flex.StringPointerToFramework(group.ModifiedBy)
+	m.ModifiedTimestamp = flex.StringValueToFramework(group.ModifiedTimestamp.String())
 }
 
 // NewHostGroupDataSource is a helper function to simplify the provider implementation.
@@ -115,7 +129,7 @@ func (d *hostGroupDataSource) Schema(
 				Description: "The host group ID. Exactly one of 'id' or 'name' must be provided.",
 				Validators: []validator.String{
 					stringvalidator.LengthBetween(32, 32),
-					stringvalidator.ExactlyOneOf(path.MatchRoot("name")),
+					stringvalidator.ExactlyOneOf(path.MatchRoot("name"), path.MatchRoot("id")),
 				},
 			},
 			"name": schema.StringAttribute{
@@ -130,7 +144,7 @@ func (d *hostGroupDataSource) Schema(
 				Computed:    true,
 				Description: "The host group description",
 			},
-			"group_type": schema.StringAttribute{
+			"type": schema.StringAttribute{
 				Computed:    true,
 				Description: "The host group type (dynamic, static, staticByID)",
 			},
@@ -182,32 +196,18 @@ func (d *hostGroupDataSource) Read(
 				Ids:     []string{data.ID.ValueString()},
 			},
 		)
+		notFoundDetail := fmt.Sprintf("No host group found with ID %q.", data.ID.ValueString())
 		if err != nil {
-			resp.Diagnostics.AddError(
-				"Failed to get host group",
-				fmt.Sprintf("Failed to get host group with ID %q: %s", data.ID.ValueString(), err.Error()),
-			)
+			resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, dataSourceApiScopes, tferrors.WithNotFoundDetail(notFoundDetail)))
 			return
 		}
 
 		if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
-			resp.Diagnostics.AddError(
-				"Host group not found",
-				fmt.Sprintf("No host group found with ID %q.", data.ID.ValueString()),
-			)
+			resp.Diagnostics.Append(tferrors.NewNotFoundError(notFoundDetail))
 			return
 		}
 
-		group := res.Payload.Resources[0]
-		data.ID = types.StringPointerValue(group.ID)
-		data.Name = types.StringPointerValue(group.Name)
-		data.Description = types.StringPointerValue(group.Description)
-		data.GroupType = types.StringValue(group.GroupType)
-		data.AssignmentRule = types.StringValue(group.AssignmentRule)
-		data.CreatedBy = types.StringPointerValue(group.CreatedBy)
-		data.CreatedTimestamp = types.StringValue(group.CreatedTimestamp.String())
-		data.ModifiedBy = types.StringPointerValue(group.ModifiedBy)
-		data.ModifiedTimestamp = types.StringValue(group.ModifiedTimestamp.String())
+		data.wrap(res.Payload.Resources[0])
 	} else {
 		// Look up by name using QueryCombinedHostGroups with FQL filter.
 		name := data.Name.ValueString()
@@ -216,26 +216,21 @@ func (d *hostGroupDataSource) Read(
 			"name": name,
 		})
 
-		filter := fmt.Sprintf("name:'%s'", name)
+		filter := fmt.Sprintf("name:'%s'", strings.ToLower(name))
 		params := &host_group.QueryCombinedHostGroupsParams{
 			Context: ctx,
 			Filter:  &filter,
 		}
 
 		res, err := d.client.HostGroup.QueryCombinedHostGroups(params)
+		notFoundDetail := fmt.Sprintf("No host group found with name %q.", name)
 		if err != nil {
-			resp.Diagnostics.AddError(
-				"Failed to query host groups",
-				fmt.Sprintf("Failed to query host groups with name %q: %s", name, err.Error()),
-			)
+			resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, dataSourceApiScopes, tferrors.WithNotFoundDetail(notFoundDetail)))
 			return
 		}
 
 		if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
-			resp.Diagnostics.AddError(
-				"Host group not found",
-				fmt.Sprintf("No host group found with name %q.", name),
-			)
+			resp.Diagnostics.Append(tferrors.NewNotFoundError(notFoundDetail))
 			return
 		}
 
@@ -249,10 +244,9 @@ func (d *hostGroupDataSource) Read(
 		}
 
 		if len(matched) == 0 {
-			resp.Diagnostics.AddError(
-				"Host group not found",
+			resp.Diagnostics.Append(tferrors.NewNotFoundError(
 				fmt.Sprintf("No host group found with exact name %q.", name),
-			)
+			))
 			return
 		}
 
@@ -264,16 +258,7 @@ func (d *hostGroupDataSource) Read(
 			return
 		}
 
-		group := matched[0]
-		data.ID = types.StringPointerValue(group.ID)
-		data.Name = types.StringPointerValue(group.Name)
-		data.Description = types.StringPointerValue(group.Description)
-		data.GroupType = types.StringValue(group.GroupType)
-		data.AssignmentRule = types.StringValue(group.AssignmentRule)
-		data.CreatedBy = types.StringPointerValue(group.CreatedBy)
-		data.CreatedTimestamp = types.StringValue(group.CreatedTimestamp.String())
-		data.ModifiedBy = types.StringPointerValue(group.ModifiedBy)
-		data.ModifiedTimestamp = types.StringValue(group.ModifiedTimestamp.String())
+		data.wrap(matched[0])
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
