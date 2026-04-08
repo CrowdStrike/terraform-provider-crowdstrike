@@ -46,20 +46,20 @@ type ioaExclusionResource struct {
 }
 
 type IOAExclusionResourceModel struct {
-	ID              types.String `tfsdk:"id"`
-	LastUpdated     types.String `tfsdk:"last_updated"`
-	Name            types.String `tfsdk:"name"`
-	Description     types.String `tfsdk:"description"`
-	PatternID       types.String `tfsdk:"pattern_id"`
-	PatternName     types.String `tfsdk:"pattern_name"`
-	ClRegex         types.String `tfsdk:"cl_regex"`
-	IfnRegex        types.String `tfsdk:"ifn_regex"`
-	Groups          types.Set    `tfsdk:"host_groups"`
-	Comment         types.String `tfsdk:"comment"`
-	AppliedGlobally types.Bool   `tfsdk:"applied_globally"`
-	CreatedBy       types.String `tfsdk:"created_by"`
+	ID              types.String      `tfsdk:"id"`
+	LastUpdated     types.String      `tfsdk:"last_updated"`
+	Name            types.String      `tfsdk:"name"`
+	Description     types.String      `tfsdk:"description"`
+	PatternID       types.String      `tfsdk:"pattern_id"`
+	PatternName     types.String      `tfsdk:"pattern_name"`
+	ClRegex         types.String      `tfsdk:"cl_regex"`
+	IfnRegex        types.String      `tfsdk:"ifn_regex"`
+	Groups          types.Set         `tfsdk:"host_groups"`
+	Comment         types.String      `tfsdk:"comment"`
+	AppliedGlobally types.Bool        `tfsdk:"applied_globally"`
+	CreatedBy       types.String      `tfsdk:"created_by"`
 	CreatedOn       timetypes.RFC3339 `tfsdk:"created_on"`
-	ModifiedBy      types.String `tfsdk:"modified_by"`
+	ModifiedBy      types.String      `tfsdk:"modified_by"`
 	LastModified    timetypes.RFC3339 `tfsdk:"last_modified"`
 }
 
@@ -129,7 +129,7 @@ func (r *ioaExclusionResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
-			"IOA Exclusion",
+			"Endpoint Security",
 			"An IOA exclusion prevents a specific IOA detection pattern from triggering for matching command line and image filename regex values.",
 			ioaExclusionRequiredScopes,
 		),

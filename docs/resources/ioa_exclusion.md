@@ -1,6 +1,6 @@
 ---
 page_title: "crowdstrike_ioa_exclusion Resource - crowdstrike"
-subcategory: "IOA Exclusion"
+subcategory: "Endpoint Security"
 description: |-
   An IOA exclusion prevents a specific IOA detection pattern from triggering for matching command line and image filename regex values.
   API Scopes
