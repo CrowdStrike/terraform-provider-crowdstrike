@@ -100,8 +100,7 @@ func TestWrapPreservesWriteOnlyCommentAndNormalizesGlobalGroups(t *testing.T) {
 	ctx := context.Background()
 	now := strfmtDateTime(t, "2026-03-20T12:00:00Z")
 	model := IOAExclusionResourceModel{
-		Comment:     types.StringValue("keep me"),
-		PatternName: types.StringNull(),
+		Comment: types.StringValue("keep me"),
 	}
 
 	exclusion := &models.IoaExclusionsIoaExclusionRespV1{
@@ -126,9 +125,6 @@ func TestWrapPreservesWriteOnlyCommentAndNormalizesGlobalGroups(t *testing.T) {
 
 	if model.Comment.IsNull() || model.Comment.ValueString() != "keep me" {
 		t.Fatalf("expected comment to be preserved, got %v", model.Comment)
-	}
-	if !model.PatternName.IsNull() {
-		t.Fatalf("expected null pattern_name for empty API value, got %v", model.PatternName)
 	}
 	if !model.AppliedGlobally.ValueBool() {
 		t.Fatalf("expected applied_globally to be true")

@@ -16,10 +16,8 @@ type ioaExclusionTestConfig struct {
 	Name        string
 	Description string
 	PatternID   string
-	PatternName string
 	ClRegex     string
 	IfnRegex    string
-	Groups      []string
 	Comment     string
 }
 
@@ -28,24 +26,22 @@ func (c ioaExclusionTestConfig) String() string {
 
 	b.WriteString(acctest.ProviderConfig)
 	fmt.Fprintf(&b, `
+resource "crowdstrike_host_group" "test" {
+  name        = %q
+  description = "host group for IOA exclusion tests"
+  type        = "staticByID"
+  host_ids    = []
+}
+
 resource "crowdstrike_ioa_exclusion" "test" {
   name        = %q
   description = %q
   pattern_id  = %q
-`, c.Name, c.Description, c.PatternID)
-
-	if c.PatternName != "" {
-		fmt.Fprintf(&b, "  pattern_name = %q\n", c.PatternName)
-	}
+`, c.Name+"-hg", c.Name, c.Description, c.PatternID)
 
 	fmt.Fprintf(&b, "  cl_regex    = %q\n", c.ClRegex)
 	fmt.Fprintf(&b, "  ifn_regex   = %q\n", c.IfnRegex)
-
-	groupValues := make([]string, 0, len(c.Groups))
-	for _, group := range c.Groups {
-		groupValues = append(groupValues, fmt.Sprintf("%q", group))
-	}
-	fmt.Fprintf(&b, "  groups      = [%s]\n", strings.Join(groupValues, ", "))
+	b.WriteString("  host_groups = [crowdstrike_host_group.test.id]\n")
 
 	if c.Comment != "" {
 		fmt.Fprintf(&b, "  comment     = %q\n", c.Comment)
@@ -57,8 +53,11 @@ resource "crowdstrike_ioa_exclusion" "test" {
 }
 
 func TestAccIOAExclusionResource_Basic(t *testing.T) {
-	hostGroupID := os.Getenv(string(acctest.RequireHostGroupID))
 	patternID := os.Getenv(string(acctest.RequireIOAPatternID))
+	if patternID == "" {
+		t.Skip("Skipping test that requires an IOA pattern. Set IOA_PATTERN_ID environment variable to run this test.")
+	}
+
 	resourceName := "crowdstrike_ioa_exclusion.test"
 	baseName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 
@@ -66,10 +65,8 @@ func TestAccIOAExclusionResource_Basic(t *testing.T) {
 		Name:        baseName,
 		Description: "Initial IOA exclusion",
 		PatternID:   patternID,
-		PatternName: "Initial IOA Pattern",
 		ClRegex:     `.*--terraform-test-initial.*`,
 		IfnRegex:    `.*terraform-test-initial\.exe`,
-		Groups:      []string{hostGroupID},
 		Comment:     "Created during acceptance testing",
 	}
 
@@ -77,17 +74,15 @@ func TestAccIOAExclusionResource_Basic(t *testing.T) {
 		Name:        baseName + "-updated",
 		Description: "Updated IOA exclusion",
 		PatternID:   patternID,
-		PatternName: "Updated IOA Pattern",
 		ClRegex:     `.*--terraform-test-updated.*`,
 		IfnRegex:    `.*terraform-test-updated\.exe`,
-		Groups:      []string{hostGroupID},
 		Comment:     "Updated during acceptance testing",
 	}
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck: func() {
-			acctest.PreCheck(t, acctest.RequireHostGroupID, acctest.RequireIOAPatternID)
+			acctest.PreCheck(t)
 		},
 		Steps: []resource.TestStep{
 			{
@@ -98,11 +93,11 @@ func TestAccIOAExclusionResource_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "name", initial.Name),
 					resource.TestCheckResourceAttr(resourceName, "description", initial.Description),
 					resource.TestCheckResourceAttr(resourceName, "pattern_id", initial.PatternID),
-					resource.TestCheckResourceAttr(resourceName, "pattern_name", initial.PatternName),
+					resource.TestCheckResourceAttrSet(resourceName, "pattern_name"),
 					resource.TestCheckResourceAttr(resourceName, "cl_regex", initial.ClRegex),
 					resource.TestCheckResourceAttr(resourceName, "ifn_regex", initial.IfnRegex),
-					resource.TestCheckResourceAttr(resourceName, "groups.#", "1"),
-					resource.TestCheckTypeSetElemAttr(resourceName, "groups.*", hostGroupID),
+					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "1"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test", "id"),
 					resource.TestCheckResourceAttr(resourceName, "comment", initial.Comment),
 					resource.TestCheckResourceAttr(resourceName, "applied_globally", "false"),
 					resource.TestCheckResourceAttrSet(resourceName, "created_by"),
@@ -119,11 +114,10 @@ func TestAccIOAExclusionResource_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "name", updated.Name),
 					resource.TestCheckResourceAttr(resourceName, "description", updated.Description),
 					resource.TestCheckResourceAttr(resourceName, "pattern_id", updated.PatternID),
-					resource.TestCheckResourceAttr(resourceName, "pattern_name", updated.PatternName),
 					resource.TestCheckResourceAttr(resourceName, "cl_regex", updated.ClRegex),
 					resource.TestCheckResourceAttr(resourceName, "ifn_regex", updated.IfnRegex),
-					resource.TestCheckResourceAttr(resourceName, "groups.#", "1"),
-					resource.TestCheckTypeSetElemAttr(resourceName, "groups.*", hostGroupID),
+					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "1"),
+					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test", "id"),
 					resource.TestCheckResourceAttr(resourceName, "comment", updated.Comment),
 					resource.TestCheckResourceAttr(resourceName, "applied_globally", "false"),
 				),
@@ -153,10 +147,10 @@ resource "crowdstrike_ioa_exclusion" "test" {
   pattern_id  = "12345"
   cl_regex    = ".*"
   ifn_regex   = ".*"
-  groups      = ["all", "0123456789abcdef"]
+  host_groups = ["all", "0123456789abcdef"]
 }
 `, sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)),
-			expectError: regexp.MustCompile(`groups cannot contain "all" with other host group IDs`),
+			expectError: regexp.MustCompile(`host_groups cannot contain "all" with other host group IDs`),
 		},
 	}
 

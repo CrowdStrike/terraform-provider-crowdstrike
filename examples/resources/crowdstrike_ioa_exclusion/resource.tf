@@ -15,7 +15,7 @@ resource "crowdstrike_ioa_exclusion" "example" {
   description = "Exclude an approved administrative workflow"
   pattern_id  = "12345"
 
-  cl_regex  = ".*--approved-operation.*"
-  ifn_regex = ".*approved-tool\\.exe"
-  groups    = ["all"]
+  cl_regex    = ".*--approved-operation.*"
+  ifn_regex   = ".*approved-tool\\.exe"
+  host_groups = ["all"]
 }

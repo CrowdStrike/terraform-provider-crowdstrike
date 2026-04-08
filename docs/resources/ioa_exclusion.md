@@ -39,9 +39,9 @@ resource "crowdstrike_ioa_exclusion" "example" {
   description = "Exclude an approved administrative workflow"
   pattern_id  = "12345"
 
-  cl_regex  = ".*--approved-operation.*"
-  ifn_regex = ".*approved-tool\\.exe"
-  groups    = ["all"]
+  cl_regex    = ".*--approved-operation.*"
+  ifn_regex   = ".*approved-tool\\.exe"
+  host_groups = ["all"]
 }
 ```
 
@@ -51,8 +51,7 @@ resource "crowdstrike_ioa_exclusion" "example" {
 ### Required
 
 - `cl_regex` (String) Command-line regex pattern for exclusion matching. Maximum length is 256 characters.
-- `description` (String) Description of the IOA exclusion.
-- `groups` (Set of String) Host group IDs that receive this exclusion. Use `["all"]` to apply globally.
+- `host_groups` (Set of String) Host group IDs that receive this exclusion. Use `["all"]` to apply globally.
 - `ifn_regex` (String) Image filename regex pattern for exclusion matching. Maximum length is 256 characters.
 - `name` (String) Display name of the IOA exclusion.
 - `pattern_id` (String) Identifier of the IOA pattern to exclude.
@@ -60,7 +59,7 @@ resource "crowdstrike_ioa_exclusion" "example" {
 ### Optional
 
 - `comment` (String) Additional context stored when creating or updating the exclusion. Falcon does not return this field on reads, so imported resources cannot populate it automatically.
-- `pattern_name` (String) Optional name of the IOA pattern. If omitted, an empty string is sent to the API.
+- `description` (String) Description of the IOA exclusion.
 
 ### Read-Only
 
@@ -71,6 +70,7 @@ resource "crowdstrike_ioa_exclusion" "example" {
 - `last_modified` (String) Timestamp when the exclusion was last modified.
 - `last_updated` (String) RFC850 timestamp of the last Terraform update to this resource.
 - `modified_by` (String) User who last modified the exclusion.
+- `pattern_name` (String) Name of the IOA pattern.
 
 ## Import
 
