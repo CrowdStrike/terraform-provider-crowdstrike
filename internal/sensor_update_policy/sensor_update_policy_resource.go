@@ -141,7 +141,7 @@ func (d *sensorUpdatePolicyResourceModel) wrap(
 		d.HostGroups = hostGroupSet
 	}
 
-	if validateBuilds && d.Build.ValueString() != *policy.Settings.Build {
+	if validateBuilds && stripBuildPrefix(d.Build.ValueString()) != *policy.Settings.Build {
 		diags.AddError(
 			"Inconsistent build returned",
 			fmt.Sprintf(
@@ -166,7 +166,7 @@ func (d *sensorUpdatePolicyResourceModel) wrap(
 			}
 
 			if strings.EqualFold(*vCopy.Platform, linuxArm64Varient) {
-				if validateBuilds && d.BuildArm64.ValueString() != *vCopy.Build {
+				if validateBuilds && stripBuildPrefix(d.BuildArm64.ValueString()) != *vCopy.Build {
 					diags.AddError(
 						"Inconsistent build_arm64 returned",
 						fmt.Sprintf(
@@ -319,11 +319,11 @@ func (r *sensorUpdatePolicyResource) Schema(
 			},
 			"build": schema.StringAttribute{
 				Required:    true,
-				Description: "Sensor build to use for the sensor update policy. Use an empty string to turn off sensor version updates.",
+				Description: "Sensor build to use for the sensor update policy. Accepts a build number (e.g. \"17407\") or a full version string (e.g. \"7.22.17407\"); the version prefix is stripped automatically. Use an empty string to turn off sensor version updates.",
 			},
 			"build_arm64": schema.StringAttribute{
 				Optional:    true,
-				Description: "Sensor arm64 build to use for the sensor update policy (Linux only). Required if platform_name is Linux. Use an empty string to turn off sensor version updates.",
+				Description: "Sensor arm64 build to use for the sensor update policy (Linux only). Required if platform_name is Linux. Accepts a build number (e.g. \"17407\") or a full version string (e.g. \"7.22.17407\"); the version prefix is stripped automatically. Use an empty string to turn off sensor version updates.",
 			},
 			// todo: make this case insensitive
 			"platform_name": schema.StringAttribute{
@@ -434,7 +434,7 @@ func (r *sensorUpdatePolicyResource) Create(
 					PlatformName: plan.PlatformName.ValueStringPointer(),
 					Description:  plan.Description.ValueString(),
 					Settings: &models.SensorUpdateSettingsReqV2{
-						Build: plan.Build.ValueString(),
+						Build: stripBuildPrefix(plan.Build.ValueString()),
 					},
 				},
 			},
@@ -443,9 +443,10 @@ func (r *sensorUpdatePolicyResource) Create(
 
 	if strings.ToLower(plan.PlatformName.ValueString()) == "linux" &&
 		plan.BuildArm64.ValueString() != "" {
+		arm64Build := stripBuildPrefix(plan.BuildArm64.ValueString())
 		variants := []*models.SensorUpdateBuildReqV1{
 			{
-				Build:    plan.BuildArm64.ValueStringPointer(),
+				Build:    &arm64Build,
 				Platform: &linuxArm64Varient,
 			},
 		}
@@ -679,7 +680,7 @@ func (r *sensorUpdatePolicyResource) Update(
 					ID:          plan.ID.ValueStringPointer(),
 					Description: plan.Description.ValueString(),
 					Settings: &models.SensorUpdateSettingsReqV2{
-						Build: plan.Build.ValueString(),
+						Build: stripBuildPrefix(plan.Build.ValueString()),
 					},
 				},
 			},
@@ -687,9 +688,10 @@ func (r *sensorUpdatePolicyResource) Update(
 	}
 
 	if strings.ToLower(plan.PlatformName.ValueString()) == "linux" {
+		arm64Build := stripBuildPrefix(plan.BuildArm64.ValueString())
 		variants := []*models.SensorUpdateBuildReqV1{
 			{
-				Build:    plan.BuildArm64.ValueStringPointer(),
+				Build:    &arm64Build,
 				Platform: &linuxArm64Varient,
 			},
 		}

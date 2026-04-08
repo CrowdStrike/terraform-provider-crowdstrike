@@ -68,14 +68,14 @@ output "sensor_policy" {
 
 ### Required
 
-- `build` (String) Sensor build to use for the sensor update policy. Use an empty string to turn off sensor version updates.
+- `build` (String) Sensor build to use for the sensor update policy. Accepts a build number (e.g. "17407") or a full version string (e.g. "7.22.17407"); the version prefix is stripped automatically. Use an empty string to turn off sensor version updates.
 - `name` (String) Name of the sensor update policy.
 - `platform_name` (String) Platform for the sensor update policy to manage. (Windows, Mac, Linux). Changing this value will require replacing the resource.
 - `schedule` (Attributes) Prohibit sensor updates during a set of time blocks. (see [below for nested schema](#nestedatt--schedule))
 
 ### Optional
 
-- `build_arm64` (String) Sensor arm64 build to use for the sensor update policy (Linux only). Required if platform_name is Linux. Use an empty string to turn off sensor version updates.
+- `build_arm64` (String) Sensor arm64 build to use for the sensor update policy (Linux only). Required if platform_name is Linux. Accepts a build number (e.g. "17407") or a full version string (e.g. "7.22.17407"); the version prefix is stripped automatically. Use an empty string to turn off sensor version updates.
 - `bulk_maintenance_mode` (Boolean) Enable bulk maintenance mode. When enabled, uninstall_protection must be set to true and build must be set to an empty string ("") to turn off sensor version updates.
 - `description` (String) Description of the sensor update policy.
 - `enabled` (Boolean) Enable the sensor update policy.

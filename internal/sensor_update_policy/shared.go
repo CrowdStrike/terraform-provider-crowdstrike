@@ -402,3 +402,16 @@ func syncHostGroups(
 
 	return diags
 }
+
+// stripBuildPrefix strips a version prefix from a build string so users can
+// pass either the full version string (e.g. "7.22.17407") or just the build
+// number ("17407"). The API only accepts the build number portion.
+func stripBuildPrefix(build string) string {
+	if build == "" {
+		return build
+	}
+	if i := strings.LastIndex(build, "."); i != -1 {
+		return build[i+1:]
+	}
+	return build
+}

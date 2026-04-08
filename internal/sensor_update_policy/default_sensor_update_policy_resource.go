@@ -84,7 +84,7 @@ func (d *defaultSensorUpdatePolicyResourceModel) wrap(
 	var diags diag.Diagnostics
 
 	d.ID = types.StringValue(*policy.ID)
-	if validateBuilds && d.Build.ValueString() != *policy.Settings.Build {
+	if validateBuilds && stripBuildPrefix(d.Build.ValueString()) != *policy.Settings.Build {
 		diags.AddError(
 			"Inconsistent build returned",
 			fmt.Sprintf(
@@ -120,7 +120,7 @@ func (d *defaultSensorUpdatePolicyResourceModel) wrap(
 			}
 
 			if strings.EqualFold(*vCopy.Platform, linuxArm64Varient) {
-				if validateBuilds && d.BuildArm64.ValueString() != *vCopy.Build {
+				if validateBuilds && stripBuildPrefix(d.BuildArm64.ValueString()) != *vCopy.Build {
 					diags.AddError(
 						"Inconsistent build_arm64 returned",
 						fmt.Sprintf(
@@ -269,11 +269,11 @@ func (r *defaultSensorUpdatePolicyResource) Schema(
 			},
 			"build": schema.StringAttribute{
 				Required:    true,
-				Description: "Sensor build to use for the default sensor update policy. Use an empty string to turn off sensor version updates.",
+				Description: "Sensor build to use for the default sensor update policy. Accepts a build number (e.g. \"17407\") or a full version string (e.g. \"7.22.17407\"); the version prefix is stripped automatically. Use an empty string to turn off sensor version updates.",
 			},
 			"build_arm64": schema.StringAttribute{
 				Optional:    true,
-				Description: "Sensor arm64 build to use for the default sensor update policy (Linux only). Required if platform_name is Linux. Use an empty string to turn off sensor version updates.",
+				Description: "Sensor arm64 build to use for the default sensor update policy (Linux only). Required if platform_name is Linux. Accepts a build number (e.g. \"17407\") or a full version string (e.g. \"7.22.17407\"); the version prefix is stripped automatically. Use an empty string to turn off sensor version updates.",
 			},
 			"platform_name": schema.StringAttribute{
 				Required:    true,
@@ -623,7 +623,7 @@ func (r *defaultSensorUpdatePolicyResource) updateDefaultPolicy(
 				{
 					ID: config.ID.ValueStringPointer(),
 					Settings: &models.SensorUpdateSettingsReqV2{
-						Build: config.Build.ValueString(),
+						Build: stripBuildPrefix(config.Build.ValueString()),
 					},
 				},
 			},
@@ -631,9 +631,10 @@ func (r *defaultSensorUpdatePolicyResource) updateDefaultPolicy(
 	}
 
 	if strings.ToLower(config.PlatformName.ValueString()) == "linux" {
+		arm64Build := stripBuildPrefix(config.BuildArm64.ValueString())
 		variants := []*models.SensorUpdateBuildReqV1{
 			{
-				Build:    config.BuildArm64.ValueStringPointer(),
+				Build:    &arm64Build,
 				Platform: &linuxArm64Varient,
 			},
 		}
