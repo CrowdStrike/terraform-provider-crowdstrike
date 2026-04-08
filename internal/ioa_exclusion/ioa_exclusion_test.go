@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/go-openapi/strfmt"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -104,17 +105,17 @@ func TestWrapPreservesWriteOnlyCommentAndNormalizesGlobalGroups(t *testing.T) {
 	}
 
 	exclusion := &models.IoaExclusionsIoaExclusionRespV1{
-		ID:              stringPtr("ioa-id"),
-		Name:            stringPtr("example"),
-		Description:     stringPtr("example description"),
-		PatternID:       stringPtr("12345"),
-		PatternName:     stringPtr(""),
-		ClRegex:         stringPtr(".*"),
-		IfnRegex:        stringPtr(".*"),
-		AppliedGlobally: boolPtr(true),
-		CreatedBy:       stringPtr("creator"),
+		ID:              utils.Addr("ioa-id"),
+		Name:            utils.Addr("example"),
+		Description:     utils.Addr("example description"),
+		PatternID:       utils.Addr("12345"),
+		PatternName:     utils.Addr(""),
+		ClRegex:         utils.Addr(".*"),
+		IfnRegex:        utils.Addr(".*"),
+		AppliedGlobally: utils.Addr(true),
+		CreatedBy:       utils.Addr("creator"),
 		CreatedOn:       &now,
-		ModifiedBy:      stringPtr("modifier"),
+		ModifiedBy:      utils.Addr("modifier"),
 		LastModified:    &now,
 	}
 
@@ -141,14 +142,6 @@ func TestWrapPreservesWriteOnlyCommentAndNormalizesGlobalGroups(t *testing.T) {
 	if len(groups) != 1 || groups[0] != "all" {
 		t.Fatalf("expected groups to contain only all, got %#v", groups)
 	}
-}
-
-func stringPtr(value string) *string {
-	return &value
-}
-
-func boolPtr(value bool) *bool {
-	return &value
 }
 
 func strfmtDateTime(t *testing.T, value string) strfmt.DateTime {

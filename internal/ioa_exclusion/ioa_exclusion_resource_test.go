@@ -4,123 +4,52 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
-	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
-type ioaExclusionTestConfig struct {
-	Name        string
-	Description string
-	PatternID   string
-	ClRegex     string
-	IfnRegex    string
-	Comment     string
-}
+func requireIOAPatternID(t *testing.T) string {
+	t.Helper()
 
-func (c ioaExclusionTestConfig) String() string {
-	var b strings.Builder
-
-	b.WriteString(acctest.ProviderConfig)
-	fmt.Fprintf(&b, `
-resource "crowdstrike_host_group" "test" {
-  name        = %q
-  description = "host group for IOA exclusion tests"
-  type        = "staticByID"
-  host_ids    = []
-}
-
-resource "crowdstrike_ioa_exclusion" "test" {
-  name        = %q
-  description = %q
-  pattern_id  = %q
-`, c.Name+"-hg", c.Name, c.Description, c.PatternID)
-
-	fmt.Fprintf(&b, "  cl_regex    = %q\n", c.ClRegex)
-	fmt.Fprintf(&b, "  ifn_regex   = %q\n", c.IfnRegex)
-	b.WriteString("  host_groups = [crowdstrike_host_group.test.id]\n")
-
-	if c.Comment != "" {
-		fmt.Fprintf(&b, "  comment     = %q\n", c.Comment)
-	}
-
-	b.WriteString("}\n")
-
-	return b.String()
-}
-
-func TestAccIOAExclusionResource_Basic(t *testing.T) {
 	patternID := os.Getenv(string(acctest.RequireIOAPatternID))
 	if patternID == "" {
-		t.Skip("Skipping test that requires an IOA pattern. Set IOA_PATTERN_ID environment variable to run this test.")
+		t.Skip("Set IOA_PATTERN_ID to run this test")
 	}
 
+	return patternID
+}
+
+func TestAccIOAExclusionResource_basic(t *testing.T) {
+	rName := acctest.RandomResourceName()
 	resourceName := "crowdstrike_ioa_exclusion.test"
-	baseName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
-
-	initial := ioaExclusionTestConfig{
-		Name:        baseName,
-		Description: "Initial IOA exclusion",
-		PatternID:   patternID,
-		ClRegex:     `.*--terraform-test-initial.*`,
-		IfnRegex:    `.*terraform-test-initial\.exe`,
-		Comment:     "Created during acceptance testing",
-	}
-
-	updated := ioaExclusionTestConfig{
-		Name:        baseName + "-updated",
-		Description: "Updated IOA exclusion",
-		PatternID:   patternID,
-		ClRegex:     `.*--terraform-test-updated.*`,
-		IfnRegex:    `.*terraform-test-updated\.exe`,
-		Comment:     "Updated during acceptance testing",
-	}
+	patternID := requireIOAPatternID(t)
 
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck: func() {
-			acctest.PreCheck(t)
-		},
 		Steps: []resource.TestStep{
 			{
-				Config: initial.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
-					resource.TestCheckResourceAttr(resourceName, "name", initial.Name),
-					resource.TestCheckResourceAttr(resourceName, "description", initial.Description),
-					resource.TestCheckResourceAttr(resourceName, "pattern_id", initial.PatternID),
-					resource.TestCheckResourceAttrSet(resourceName, "pattern_name"),
-					resource.TestCheckResourceAttr(resourceName, "cl_regex", initial.ClRegex),
-					resource.TestCheckResourceAttr(resourceName, "ifn_regex", initial.IfnRegex),
-					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "1"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test", "id"),
-					resource.TestCheckResourceAttr(resourceName, "comment", initial.Comment),
-					resource.TestCheckResourceAttr(resourceName, "applied_globally", "false"),
-					resource.TestCheckResourceAttrSet(resourceName, "created_by"),
-					resource.TestCheckResourceAttrSet(resourceName, "created_on"),
-					resource.TestCheckResourceAttrSet(resourceName, "modified_by"),
-					resource.TestCheckResourceAttrSet(resourceName, "last_modified"),
-				),
-			},
-			{
-				Config: updated.String(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "last_updated"),
-					resource.TestCheckResourceAttr(resourceName, "name", updated.Name),
-					resource.TestCheckResourceAttr(resourceName, "description", updated.Description),
-					resource.TestCheckResourceAttr(resourceName, "pattern_id", updated.PatternID),
-					resource.TestCheckResourceAttr(resourceName, "cl_regex", updated.ClRegex),
-					resource.TestCheckResourceAttr(resourceName, "ifn_regex", updated.IfnRegex),
-					resource.TestCheckResourceAttr(resourceName, "host_groups.#", "1"),
-					resource.TestCheckTypeSetElemAttrPair(resourceName, "host_groups.*", "crowdstrike_host_group.test", "id"),
-					resource.TestCheckResourceAttr(resourceName, "comment", updated.Comment),
-					resource.TestCheckResourceAttr(resourceName, "applied_globally", "false"),
-				),
+				Config: testAccIOAExclusionConfig_basic(rName, patternID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("last_updated"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("pattern_id"), knownvalue.StringExact(patternID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("pattern_name"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cl_regex"), knownvalue.StringExact(`.*--tf-test-initial.*`)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("ifn_regex"), knownvalue.StringExact(`.*tf-test-initial\.exe`)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("host_groups"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("applied_globally"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("created_by"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("created_on"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("modified_by"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("last_modified"), knownvalue.NotNull()),
+				},
 			},
 			{
 				ResourceName:            resourceName,
@@ -132,7 +61,165 @@ func TestAccIOAExclusionResource_Basic(t *testing.T) {
 	})
 }
 
-func TestAccIOAExclusionResource_Validation(t *testing.T) {
+func TestAccIOAExclusionResource_update(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	resourceName := "crowdstrike_ioa_exclusion.test"
+	patternID := requireIOAPatternID(t)
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccIOAExclusionConfig_basic(rName, patternID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("last_updated"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("pattern_id"), knownvalue.StringExact(patternID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("pattern_name"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cl_regex"), knownvalue.StringExact(`.*--tf-test-initial.*`)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("ifn_regex"), knownvalue.StringExact(`.*tf-test-initial\.exe`)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("host_groups"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("comment"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("applied_globally"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("created_by"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("created_on"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("modified_by"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("last_modified"), knownvalue.NotNull()),
+				},
+			},
+			{
+				Config: testAccIOAExclusionConfig_updated(fmt.Sprintf("%s-updated", rName), patternID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("last_updated"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(fmt.Sprintf("%s-updated", rName))),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("pattern_id"), knownvalue.StringExact(patternID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("pattern_name"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cl_regex"), knownvalue.StringExact(`.*--tf-test-updated.*`)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("ifn_regex"), knownvalue.StringExact(`.*tf-test-updated\.exe`)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("host_groups"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("Updated IOA exclusion")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("comment"), knownvalue.StringExact("Updated during acceptance testing")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("applied_globally"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("created_by"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("created_on"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("modified_by"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("last_modified"), knownvalue.NotNull()),
+				},
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"last_updated", "comment"},
+			},
+			{
+				Config: testAccIOAExclusionConfig_basic(rName, patternID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("last_updated"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("pattern_id"), knownvalue.StringExact(patternID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("pattern_name"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cl_regex"), knownvalue.StringExact(`.*--tf-test-initial.*`)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("ifn_regex"), knownvalue.StringExact(`.*tf-test-initial\.exe`)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("host_groups"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("comment"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("applied_globally"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("created_by"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("created_on"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("modified_by"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("last_modified"), knownvalue.NotNull()),
+				},
+			},
+		},
+	})
+}
+
+func TestAccIOAExclusionResource_appliedGlobally(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	resourceName := "crowdstrike_ioa_exclusion.test"
+	patternID := requireIOAPatternID(t)
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccIOAExclusionConfig_appliedGlobally(rName, patternID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("last_updated"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("pattern_id"), knownvalue.StringExact(patternID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("host_groups"), knownvalue.SetExact([]knownvalue.Check{
+						knownvalue.StringExact("all"),
+					})),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("applied_globally"), knownvalue.Bool(true)),
+				},
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"last_updated", "comment"},
+			},
+			{
+				Config: testAccIOAExclusionConfig_basic(rName, patternID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("last_updated"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("host_groups"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("applied_globally"), knownvalue.Bool(false)),
+				},
+			},
+		},
+	})
+}
+
+func TestAccIOAExclusionResource_comment(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	resourceName := "crowdstrike_ioa_exclusion.test"
+	patternID := requireIOAPatternID(t)
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccIOAExclusionConfig_comment(rName, patternID, "created via acceptance test"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("comment"), knownvalue.StringExact("created via acceptance test")),
+				},
+			},
+			{
+				Config: testAccIOAExclusionConfig_comment(rName, patternID, "updated via acceptance test"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("comment"), knownvalue.StringExact("updated via acceptance test")),
+				},
+			},
+			{
+				Config: testAccIOAExclusionConfig_basic(rName, patternID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("comment"), knownvalue.Null()),
+				},
+			},
+		},
+	})
+}
+
+func TestAccIOAExclusionResource_validation(t *testing.T) {
 	testCases := []struct {
 		name        string
 		config      string
@@ -149,7 +236,7 @@ resource "crowdstrike_ioa_exclusion" "test" {
   ifn_regex   = ".*"
   host_groups = ["all", "0123456789abcdef"]
 }
-`, sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)),
+`, acctest.RandomResourceName()),
 			expectError: regexp.MustCompile(`host_groups cannot contain "all" with other host group IDs`),
 		},
 	}
@@ -168,4 +255,72 @@ resource "crowdstrike_ioa_exclusion" "test" {
 			})
 		})
 	}
+}
+
+func testAccIOAExclusionConfig_basic(name, patternID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_host_group" "test" {
+  name        = "%[1]s-hg"
+  description = "%[1]s-hg"
+  type        = "staticByID"
+  host_ids    = []
+}
+
+resource "crowdstrike_ioa_exclusion" "test" {
+  name        = %[1]q
+  pattern_id  = %[2]q
+  cl_regex    = ".*--tf-test-initial.*"
+  ifn_regex   = ".*tf-test-initial\\.exe"
+  host_groups = [crowdstrike_host_group.test.id]
+}`, name, patternID)
+}
+
+func testAccIOAExclusionConfig_appliedGlobally(name, patternID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_ioa_exclusion" "test" {
+  name        = %[1]q
+  pattern_id  = %[2]q
+  cl_regex    = ".*--tf-test-initial.*"
+  ifn_regex   = ".*tf-test-initial\\.exe"
+  host_groups = ["all"]
+}`, name, patternID)
+}
+
+func testAccIOAExclusionConfig_comment(name, patternID, comment string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_host_group" "test" {
+  name        = "%[1]s-hg"
+  description = "%[1]s-hg"
+  type        = "staticByID"
+  host_ids    = []
+}
+
+resource "crowdstrike_ioa_exclusion" "test" {
+  name        = %[1]q
+  pattern_id  = %[2]q
+  cl_regex    = ".*--tf-test-initial.*"
+  ifn_regex   = ".*tf-test-initial\\.exe"
+  host_groups = [crowdstrike_host_group.test.id]
+  comment     = %[3]q
+}`, name, patternID, comment)
+}
+
+func testAccIOAExclusionConfig_updated(name, patternID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_host_group" "test" {
+  name        = "%[1]s-hg"
+  description = "%[1]s-hg"
+  type        = "staticByID"
+  host_ids    = []
+}
+
+resource "crowdstrike_ioa_exclusion" "test" {
+  name        = %[1]q
+  description = "Updated IOA exclusion"
+  pattern_id  = %[2]q
+  cl_regex    = ".*--tf-test-updated.*"
+  ifn_regex   = ".*tf-test-updated\\.exe"
+  host_groups = [crowdstrike_host_group.test.id]
+  comment     = "Updated during acceptance testing"
+}`, name, patternID)
 }
