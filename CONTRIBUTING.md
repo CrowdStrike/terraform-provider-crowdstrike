@@ -40,7 +40,7 @@ This guide covers both the practical aspects of setting up and contributing to t
 
 ## Prerequisites
 
-- [Go 1.21+](https://go.dev/doc/install) installed and configured.
+- [Go 1.24+](https://go.dev/doc/install) installed and configured.
 - [Terraform v1.8+](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli) installed locally.
 - [pre-commit](https://pre-commit.com/#install) for code quality hooks (recommended).
 
@@ -383,12 +383,12 @@ The Terraform Plugin Framework provides a structured logging system called `tflo
   // All logs using this ctx will include the resource_id field
   ```
 
-- **Sensitive Data:** Never log credentials or sensitive information:
+- **Sensitive Data:** Never log credentials or sensitive information. Use context-level masking to redact values from all subsequent logs:
   ```go
-  // Use MaskLogString for sensitive values that appear in logs
+  ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "token")
   tflog.Debug(ctx, "Using configuration", map[string]interface{}{
       "endpoint": endpoint,
-      "token": tflog.MaskLogString(token),
+      "token": token, // value will be masked in log output
   })
   ```
 
