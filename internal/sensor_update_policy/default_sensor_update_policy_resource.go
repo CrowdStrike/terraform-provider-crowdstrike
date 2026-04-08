@@ -11,6 +11,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -679,10 +680,7 @@ func (r *defaultSensorUpdatePolicyResource) updateDefaultPolicy(
 
 	res, err := r.client.SensorUpdatePolicies.UpdateSensorUpdatePoliciesV2(&policyParams)
 	if err != nil {
-		diags.AddError(
-			"Error updating CrowdStrike sensor update policy",
-			"Could not update sensor update policy with ID: "+config.ID.ValueString()+": "+err.Error(),
-		)
+		diags.Append(newAPIError(tferrors.Update, err, apiScopesReadWrite))
 		return nil, diags
 	}
 

@@ -12,6 +12,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -481,10 +482,7 @@ func (r *sensorUpdatePolicyResource) Create(
 
 	res, err := r.client.SensorUpdatePolicies.CreateSensorUpdatePoliciesV2(&policyParams)
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating sensor update policy",
-			"Could not create sensor update policy, unexpected error: "+err.Error(),
-		)
+		resp.Diagnostics.Append(newAPIError(tferrors.Create, err, apiScopesReadWrite))
 		return
 	}
 
@@ -736,10 +734,7 @@ func (r *sensorUpdatePolicyResource) Update(
 
 	res, err := r.client.SensorUpdatePolicies.UpdateSensorUpdatePoliciesV2(&policyParams)
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error updating CrowdStrike sensor update policy",
-			"Could not update sensor update policy with ID: "+plan.ID.ValueString()+": "+err.Error(),
-		)
+		resp.Diagnostics.Append(newAPIError(tferrors.Update, err, apiScopesReadWrite))
 		return
 	}
 
