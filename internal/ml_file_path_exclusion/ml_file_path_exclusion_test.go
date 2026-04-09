@@ -1,4 +1,4 @@
-package mlexclusion
+package mlfilepathexclusion
 
 import (
 	"context"
@@ -73,7 +73,7 @@ func TestPayloadHasNotFoundError(t *testing.T) {
 	}))
 }
 
-func TestMLExclusionWrap(t *testing.T) {
+func TestMLFilePathExclusionWrap(t *testing.T) {
 	t.Parallel()
 
 	createdOn := strfmt.DateTime(time.Date(2026, 2, 1, 10, 0, 0, 0, time.UTC))
@@ -101,7 +101,7 @@ func TestMLExclusionWrap(t *testing.T) {
 				LastModified:    &lastModified,
 				ExcludedFrom:    []string{mlExcludedFromBlocking, mlExcludedFromExtraction},
 			},
-			expectedHostGroups:    []string{mlExclusionGlobalHostGroupID},
+			expectedHostGroups:    []string{mlFilePathExclusionGlobalHostGroupID},
 			expectedAppliedGlobal: true,
 			expectedDetections:    true,
 			expectedUploads:       true,
@@ -134,7 +134,7 @@ func TestMLExclusionWrap(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var model mlExclusionResourceModel
+			var model mlFilePathExclusionResourceModel
 			diags := model.wrap(context.Background(), tt.exclusion)
 			require.False(t, diags.HasError())
 

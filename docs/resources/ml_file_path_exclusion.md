@@ -1,16 +1,16 @@
 ---
-page_title: "crowdstrike_ml_exclusion Resource - crowdstrike"
-subcategory: "Machine Learning Exclusion"
+page_title: "crowdstrike_ml_file_path_exclusion Resource - crowdstrike"
+subcategory: "Endpoint Security"
 description: |-
-  Manages machine learning exclusions for trusted file paths in the CrowdStrike Falcon Platform. At least one exclusion mode must be enabled via exclude_detections and/or exclude_uploads. Changes to host_groups require replacement.
+  Manages machine learning exclusions for trusted file paths in the CrowdStrike Falcon Platform. At least one exclusion mode must be enabled via exclude_detections and/or exclude_uploads.
   API Scopes
   The following API scopes are required:
   Machine Learning Exclusions | Read & Write
 ---
 
-# crowdstrike_ml_exclusion (Resource)
+# crowdstrike_ml_file_path_exclusion (Resource)
 
-Manages machine learning exclusions for trusted file paths in the CrowdStrike Falcon Platform. At least one exclusion mode must be enabled via `exclude_detections` and/or `exclude_uploads`. Changes to `host_groups` require replacement.
+Manages machine learning exclusions for trusted file paths in the CrowdStrike Falcon Platform. At least one exclusion mode must be enabled via `exclude_detections` and/or `exclude_uploads`.
 
 ## API Scopes
 
@@ -34,7 +34,7 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
-resource "crowdstrike_ml_exclusion" "example" {
+resource "crowdstrike_ml_file_path_exclusion" "example" {
   pattern            = "/tmp/build_artifacts/*"
   host_groups        = ["all"]
   exclude_detections = true
@@ -51,6 +51,7 @@ resource "crowdstrike_ml_exclusion" "example" {
 
 ### Optional
 
+- `comment` (String) Additional context stored when creating or updating the exclusion. Falcon does not return this field on reads, so imported resources cannot populate it automatically.
 - `exclude_detections` (Boolean) Whether to exclude matching files from machine learning detections and preventions.
 - `exclude_uploads` (Boolean) Whether to exclude matching files from cloud extraction/uploads.
 
@@ -71,6 +72,6 @@ resource "crowdstrike_ml_exclusion" "example" {
 Import is supported using the following syntax:
 
 ```shell
-# ML exclusions can be imported using their ID
-terraform import crowdstrike_ml_exclusion.example 12345678-1234-1234-1234-123456789012
+# ML file path exclusions can be imported using their ID
+terraform import crowdstrike_ml_file_path_exclusion.example 12345678-1234-1234-1234-123456789012
 ```

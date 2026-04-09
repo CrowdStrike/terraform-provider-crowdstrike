@@ -1,4 +1,4 @@
-package mlexclusion
+package mlfilepathexclusion
 
 import (
 	"context"
@@ -11,10 +11,10 @@ import (
 )
 
 func RegisterSweepers() {
-	sweep.Register("crowdstrike_ml_exclusion", sweepMLExclusions)
+	sweep.Register("crowdstrike_ml_file_path_exclusion", sweepMLFilePathExclusions)
 }
 
-func sweepMLExclusions(
+func sweepMLFilePathExclusions(
 	ctx context.Context,
 	client *client.CrowdStrikeAPISpecification,
 ) ([]sweep.Sweepable, error) {
@@ -64,7 +64,7 @@ func sweepMLExclusions(
 		}
 
 		name := *exclusion.Value
-		if !isMLExclusionSweepableTestPattern(name) {
+		if !isMLFilePathExclusionSweepableTestPattern(name) {
 			sweep.Trace("Skipping ML exclusion %s (not a test resource)", name)
 			continue
 		}
@@ -72,14 +72,14 @@ func sweepMLExclusions(
 		sweepables = append(sweepables, sweep.NewSweepResource(
 			*exclusion.ID,
 			name,
-			deleteMLExclusion,
+			deleteMLFilePathExclusion,
 		))
 	}
 
 	return sweepables, nil
 }
 
-func isMLExclusionSweepableTestPattern(value string) bool {
+func isMLFilePathExclusionSweepableTestPattern(value string) bool {
 	const (
 		testPrefix = "/tmp/" + sweep.ResourcePrefix
 		testSuffix = "/*"
@@ -94,7 +94,7 @@ func isMLExclusionSweepableTestPattern(value string) bool {
 	return name != "" && !strings.Contains(name, "/")
 }
 
-func deleteMLExclusion(
+func deleteMLFilePathExclusion(
 	ctx context.Context,
 	client *client.CrowdStrikeAPISpecification,
 	id string,

@@ -1,4 +1,4 @@
-package mlexclusion
+package mlfilepathexclusion
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
 
-func getMLExclusion(
+func getMLFilePathExclusion(
 	ctx context.Context,
 	client *client.CrowdStrikeAPISpecification,
 	exclusionID string,
@@ -23,7 +23,7 @@ func getMLExclusion(
 
 	getResp, err := client.MlExclusions.GetMLExclusionsV1(params)
 	if err != nil {
-		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, mlExclusionRequiredScopes))
+		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, mlFilePathExclusionRequiredScopes))
 		return nil, diags
 	}
 

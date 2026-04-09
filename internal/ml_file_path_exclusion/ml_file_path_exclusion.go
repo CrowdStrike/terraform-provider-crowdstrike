@@ -1,4 +1,4 @@
-package mlexclusion
+package mlfilepathexclusion
 
 import (
 	"context"
@@ -9,13 +9,14 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/ml_exclusions"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
-	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
+	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -23,26 +24,25 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 const (
-	mlExclusionGlobalHostGroupID = "all"
-	mlExcludedFromBlocking       = "blocking"
-	mlExcludedFromExtraction     = "extraction"
+	mlFilePathExclusionGlobalHostGroupID = "all"
+	mlExcludedFromBlocking               = "blocking"
+	mlExcludedFromExtraction             = "extraction"
 )
 
 var (
-	_ resource.Resource                   = &mlExclusionResource{}
-	_ resource.ResourceWithConfigure      = &mlExclusionResource{}
-	_ resource.ResourceWithImportState    = &mlExclusionResource{}
-	_ resource.ResourceWithValidateConfig = &mlExclusionResource{}
+	_ resource.Resource                   = &mlFilePathExclusionResource{}
+	_ resource.ResourceWithConfigure      = &mlFilePathExclusionResource{}
+	_ resource.ResourceWithImportState    = &mlFilePathExclusionResource{}
+	_ resource.ResourceWithValidateConfig = &mlFilePathExclusionResource{}
 )
 
-var mlExclusionRequiredScopes = []scopes.Scope{
+var mlFilePathExclusionRequiredScopes = []scopes.Scope{
 	{
 		Name:  "Machine Learning Exclusions",
 		Read:  true,
@@ -50,31 +50,32 @@ var mlExclusionRequiredScopes = []scopes.Scope{
 	},
 }
 
-func NewMLExclusionResource() resource.Resource {
-	return &mlExclusionResource{}
+func NewMLFilePathExclusionResource() resource.Resource {
+	return &mlFilePathExclusionResource{}
 }
 
-type mlExclusionResource struct {
+type mlFilePathExclusionResource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-type mlExclusionResourceModel struct {
-	ID                types.String `tfsdk:"id"`
-	Pattern           types.String `tfsdk:"pattern"`
-	HostGroups        types.Set    `tfsdk:"host_groups"`
-	ExcludeDetections types.Bool   `tfsdk:"exclude_detections"`
-	ExcludeUploads    types.Bool   `tfsdk:"exclude_uploads"`
-	RegexpValue       types.String `tfsdk:"regexp_value"`
-	ValueHash         types.String `tfsdk:"value_hash"`
-	AppliedGlobally   types.Bool   `tfsdk:"applied_globally"`
-	LastModified      types.String `tfsdk:"last_modified"`
-	ModifiedBy        types.String `tfsdk:"modified_by"`
-	CreatedOn         types.String `tfsdk:"created_on"`
-	CreatedBy         types.String `tfsdk:"created_by"`
-	LastUpdated       types.String `tfsdk:"last_updated"`
+type mlFilePathExclusionResourceModel struct {
+	ID                types.String      `tfsdk:"id"`
+	Pattern           types.String      `tfsdk:"pattern"`
+	HostGroups        types.Set         `tfsdk:"host_groups"`
+	ExcludeDetections types.Bool        `tfsdk:"exclude_detections"`
+	ExcludeUploads    types.Bool        `tfsdk:"exclude_uploads"`
+	Comment           types.String      `tfsdk:"comment"`
+	RegexpValue       types.String      `tfsdk:"regexp_value"`
+	ValueHash         types.String      `tfsdk:"value_hash"`
+	AppliedGlobally   types.Bool        `tfsdk:"applied_globally"`
+	LastModified      timetypes.RFC3339 `tfsdk:"last_modified"`
+	ModifiedBy        types.String      `tfsdk:"modified_by"`
+	CreatedOn         timetypes.RFC3339 `tfsdk:"created_on"`
+	CreatedBy         types.String      `tfsdk:"created_by"`
+	LastUpdated       types.String      `tfsdk:"last_updated"`
 }
 
-func (m *mlExclusionResourceModel) wrap(
+func (m *mlFilePathExclusionResourceModel) wrap(
 	ctx context.Context,
 	exclusion *models.ExclusionsExclusionV1,
 ) diag.Diagnostics {
@@ -92,43 +93,21 @@ func (m *mlExclusionResourceModel) wrap(
 	appliedGlobally := exclusion.AppliedGlobally != nil && *exclusion.AppliedGlobally
 	m.AppliedGlobally = types.BoolValue(appliedGlobally)
 
-	if exclusion.CreatedOn != nil {
-		m.CreatedOn = types.StringValue(exclusion.CreatedOn.String())
-	} else {
-		m.CreatedOn = types.StringNull()
-	}
+	m.CreatedOn = flex.DateTimePointerToFramework(exclusion.CreatedOn)
+	m.LastModified = flex.DateTimePointerToFramework(exclusion.LastModified)
 
-	if exclusion.LastModified != nil {
-		m.LastModified = types.StringValue(exclusion.LastModified.String())
-	} else {
-		m.LastModified = types.StringNull()
-	}
-
+	var groupDiags diag.Diagnostics
 	if appliedGlobally {
-		hostGroupSet, hostGroupDiags := types.SetValueFrom(
-			ctx,
-			types.StringType,
-			[]string{mlExclusionGlobalHostGroupID},
-		)
-		diags.Append(hostGroupDiags...)
-		if diags.HasError() {
-			return diags
-		}
-		m.HostGroups = hostGroupSet
-		return diags
+		m.HostGroups, groupDiags = types.SetValueFrom(ctx, types.StringType, []string{mlFilePathExclusionGlobalHostGroupID})
+	} else {
+		m.HostGroups, groupDiags = flex.FlattenHostGroupsToSet(ctx, exclusion.Groups)
 	}
+	diags.Append(groupDiags...)
 
-	hostGroupSet, hostGroupDiags := hostgroups.ConvertHostGroupsToSet(ctx, exclusion.Groups)
-	diags.Append(hostGroupDiags...)
-	if diags.HasError() {
-		return diags
-	}
-
-	m.HostGroups = hostGroupSet
 	return diags
 }
 
-func (r *mlExclusionResource) Configure(
+func (r *mlFilePathExclusionResource) Configure(
 	_ context.Context,
 	req resource.ConfigureRequest,
 	resp *resource.ConfigureResponse,
@@ -152,26 +131,25 @@ func (r *mlExclusionResource) Configure(
 	r.client = providerConfig.Client
 }
 
-func (r *mlExclusionResource) Metadata(
+func (r *mlFilePathExclusionResource) Metadata(
 	_ context.Context,
 	req resource.MetadataRequest,
 	resp *resource.MetadataResponse,
 ) {
-	resp.TypeName = req.ProviderTypeName + "_ml_exclusion"
+	resp.TypeName = req.ProviderTypeName + "_ml_file_path_exclusion"
 }
 
-func (r *mlExclusionResource) Schema(
+func (r *mlFilePathExclusionResource) Schema(
 	_ context.Context,
 	_ resource.SchemaRequest,
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
-			"Machine Learning Exclusion",
+			"Endpoint Security",
 			"Manages machine learning exclusions for trusted file paths in the CrowdStrike Falcon Platform. "+
-				"At least one exclusion mode must be enabled via `exclude_detections` and/or `exclude_uploads`. "+
-				"Changes to `host_groups` require replacement.",
-			mlExclusionRequiredScopes,
+				"At least one exclusion mode must be enabled via `exclude_detections` and/or `exclude_uploads`.",
+			mlFilePathExclusionRequiredScopes,
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -196,9 +174,6 @@ func (r *mlExclusionResource) Schema(
 					setvalidator.SizeAtLeast(1),
 					setvalidator.ValueStringsAre(fwvalidators.StringNotWhitespace()),
 				},
-				PlanModifiers: []planmodifier.Set{
-					setplanmodifier.RequiresReplace(),
-				},
 			},
 			"exclude_detections": schema.BoolAttribute{
 				Optional:            true,
@@ -211,6 +186,13 @@ func (r *mlExclusionResource) Schema(
 				Computed:            true,
 				MarkdownDescription: "Whether to exclude matching files from cloud extraction/uploads.",
 				Default:             booldefault.StaticBool(false),
+			},
+			"comment": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "Additional context stored when creating or updating the exclusion. Falcon does not return this field on reads, so imported resources cannot populate it automatically.",
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
+				},
 			},
 			"regexp_value": schema.StringAttribute{
 				Computed:            true,
@@ -226,6 +208,7 @@ func (r *mlExclusionResource) Schema(
 			},
 			"last_modified": schema.StringAttribute{
 				Computed:            true,
+				CustomType:          timetypes.RFC3339Type{},
 				MarkdownDescription: "The timestamp when the exclusion was last modified.",
 			},
 			"modified_by": schema.StringAttribute{
@@ -234,11 +217,18 @@ func (r *mlExclusionResource) Schema(
 			},
 			"created_on": schema.StringAttribute{
 				Computed:            true,
+				CustomType:          timetypes.RFC3339Type{},
 				MarkdownDescription: "The timestamp when the exclusion was created.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"created_by": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "The user who created the exclusion.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"last_updated": schema.StringAttribute{
 				Computed:            true,
@@ -248,19 +238,18 @@ func (r *mlExclusionResource) Schema(
 	}
 }
 
-func (r *mlExclusionResource) Create(
+func (r *mlFilePathExclusionResource) Create(
 	ctx context.Context,
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-	var plan mlExclusionResourceModel
+	var plan mlFilePathExclusionResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	var hostGroups []string
-	resp.Diagnostics.Append(plan.HostGroups.ElementsAs(ctx, &hostGroups, false)...)
+	hostGroups := flex.ExpandSetAs[string](ctx, plan.HostGroups, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -269,7 +258,7 @@ func (r *mlExclusionResource) Create(
 		Value:        plan.Pattern.ValueString(),
 		Groups:       hostGroups,
 		ExcludedFrom: buildExcludedFrom(plan.ExcludeDetections.ValueBool(), plan.ExcludeUploads.ValueBool()),
-		Comment:      "created by terraform crowdstrike provider",
+		Comment:      plan.Comment.ValueString(),
 	}
 
 	params := ml_exclusions.NewCreateMLExclusionsV1ParamsWithContext(ctx)
@@ -280,19 +269,23 @@ func (r *mlExclusionResource) Create(
 		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(
 			tferrors.Create,
 			err,
-			mlExclusionRequiredScopes,
+			mlFilePathExclusionRequiredScopes,
 		))
 		return
 	}
 
-	if createResp == nil || createResp.Payload == nil || len(createResp.Payload.Resources) == 0 ||
-		createResp.Payload.Resources[0] == nil {
+	if createResp == nil || createResp.Payload == nil {
 		resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
 		return
 	}
 
 	if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Create, createResp.Payload.Errors); diag != nil {
 		resp.Diagnostics.Append(diag)
+		return
+	}
+
+	if len(createResp.Payload.Resources) == 0 || createResp.Payload.Resources[0] == nil {
+		resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
 		return
 	}
 
@@ -305,18 +298,18 @@ func (r *mlExclusionResource) Create(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func (r *mlExclusionResource) Read(
+func (r *mlFilePathExclusionResource) Read(
 	ctx context.Context,
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-	var state mlExclusionResourceModel
+	var state mlFilePathExclusionResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	exclusion, diags := getMLExclusion(ctx, r.client, state.ID.ValueString())
+	exclusion, diags := getMLFilePathExclusion(ctx, r.client, state.ID.ValueString())
 	if tferrors.HasNotFoundError(diags) {
 		resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 		resp.State.RemoveResource(ctx)
@@ -336,22 +329,29 @@ func (r *mlExclusionResource) Read(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (r *mlExclusionResource) Update(
+func (r *mlFilePathExclusionResource) Update(
 	ctx context.Context,
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	var plan mlExclusionResourceModel
+	var plan mlFilePathExclusionResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	hostGroups := flex.ExpandSetAs[string](ctx, plan.HostGroups, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	id := plan.ID.ValueString()
-	updateReq := &mlExclusionUpdateReqV1{
+	updateReq := &mlFilePathExclusionUpdateReqV1{
 		ID:           &id,
+		Comment:      plan.Comment.ValueString(),
 		Value:        plan.Pattern.ValueString(),
 		ExcludedFrom: buildExcludedFrom(plan.ExcludeDetections.ValueBool(), plan.ExcludeUploads.ValueBool()),
+		Groups:       hostGroups,
 	}
 
 	params := ml_exclusions.NewUpdateMLExclusionsV1ParamsWithContext(ctx)
@@ -360,26 +360,30 @@ func (r *mlExclusionResource) Update(
 		func(operation *runtime.ClientOperation) {
 			// SDK update params use the wrong body model (SvExclusionsUpdateReqV1),
 			// so we override the request writer with the ML-compatible payload.
-			operation.Params = &mlExclusionUpdateParams{Body: updateReq}
+			operation.Params = &mlFilePathExclusionUpdateParams{Body: updateReq}
 		},
 	)
 	if err != nil {
 		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(
 			tferrors.Update,
 			err,
-			mlExclusionRequiredScopes,
+			mlFilePathExclusionRequiredScopes,
 		))
 		return
 	}
 
-	if updateResp == nil || updateResp.Payload == nil || len(updateResp.Payload.Resources) == 0 ||
-		updateResp.Payload.Resources[0] == nil {
+	if updateResp == nil || updateResp.Payload == nil {
 		resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Update))
 		return
 	}
 
 	if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Update, updateResp.Payload.Errors); diag != nil {
 		resp.Diagnostics.Append(diag)
+		return
+	}
+
+	if len(updateResp.Payload.Resources) == 0 || updateResp.Payload.Resources[0] == nil {
+		resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Update))
 		return
 	}
 
@@ -392,12 +396,12 @@ func (r *mlExclusionResource) Update(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func (r *mlExclusionResource) Delete(
+func (r *mlFilePathExclusionResource) Delete(
 	ctx context.Context,
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-	var state mlExclusionResourceModel
+	var state mlFilePathExclusionResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -405,18 +409,14 @@ func (r *mlExclusionResource) Delete(
 
 	params := ml_exclusions.NewDeleteMLExclusionsV1ParamsWithContext(ctx)
 	params.SetIds([]string{state.ID.ValueString()})
-	comment := "deleted by terraform crowdstrike provider"
-	params.SetComment(&comment)
 
 	deleteResp, err := r.client.MlExclusions.DeleteMLExclusionsV1(params)
 	if err != nil {
-		diag := tferrors.NewDiagnosticFromAPIError(tferrors.Delete, err, mlExclusionRequiredScopes)
-		if diag != nil {
-			if diag.Summary() == tferrors.NotFoundErrorSummary {
-				return
-			}
-			resp.Diagnostics.Append(diag)
+		diag := tferrors.NewDiagnosticFromAPIError(tferrors.Delete, err, mlFilePathExclusionRequiredScopes)
+		if diag.Summary() == tferrors.NotFoundErrorSummary {
+			return
 		}
+		resp.Diagnostics.Append(diag)
 		return
 	}
 
@@ -431,7 +431,7 @@ func (r *mlExclusionResource) Delete(
 	}
 }
 
-func (r *mlExclusionResource) ImportState(
+func (r *mlFilePathExclusionResource) ImportState(
 	ctx context.Context,
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
@@ -439,18 +439,18 @@ func (r *mlExclusionResource) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func (r *mlExclusionResource) ValidateConfig(
+func (r *mlFilePathExclusionResource) ValidateConfig(
 	ctx context.Context,
 	req resource.ValidateConfigRequest,
 	resp *resource.ValidateConfigResponse,
 ) {
-	var config mlExclusionResourceModel
+	var config mlFilePathExclusionResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if config.ExcludeDetections.IsUnknown() || config.ExcludeUploads.IsUnknown() || config.HostGroups.IsUnknown() {
+	if config.ExcludeDetections.IsUnknown() || config.ExcludeUploads.IsUnknown() {
 		return
 	}
 
@@ -458,12 +458,18 @@ func (r *mlExclusionResource) ValidateConfig(
 		resp.Diagnostics.AddAttributeError(
 			path.Root("exclude_detections"),
 			"Invalid Configuration",
-			"At least one of `exclude_detections` or `exclude_uploads` must be set to true.",
+			"At least one of `exclude_detections` or `exclude_uploads` must be configured to true.",
 		)
 	}
 
-	if config.HostGroups.IsNull() {
+	if config.HostGroups.IsNull() || config.HostGroups.IsUnknown() {
 		return
+	}
+
+	for _, elem := range config.HostGroups.Elements() {
+		if elem.IsUnknown() {
+			return
+		}
 	}
 
 	var hostGroups []string
@@ -505,24 +511,26 @@ func hasExcludedFrom(excludedFrom []string, expected string) bool {
 
 func hasGlobalHostGroup(hostGroups []string) bool {
 	for _, hostGroup := range hostGroups {
-		if strings.EqualFold(hostGroup, mlExclusionGlobalHostGroupID) {
+		if strings.EqualFold(hostGroup, mlFilePathExclusionGlobalHostGroupID) {
 			return true
 		}
 	}
 	return false
 }
 
-type mlExclusionUpdateReqV1 struct {
+type mlFilePathExclusionUpdateReqV1 struct {
 	ID           *string  `json:"id"`
+	Comment      string   `json:"comment,omitempty"`
 	ExcludedFrom []string `json:"excluded_from"`
+	Groups       []string `json:"groups"`
 	Value        string   `json:"value,omitempty"`
 }
 
-type mlExclusionUpdateParams struct {
-	Body *mlExclusionUpdateReqV1
+type mlFilePathExclusionUpdateParams struct {
+	Body *mlFilePathExclusionUpdateReqV1
 }
 
-func (p *mlExclusionUpdateParams) WriteToRequest(r runtime.ClientRequest, _ strfmt.Registry) error {
+func (p *mlFilePathExclusionUpdateParams) WriteToRequest(r runtime.ClientRequest, _ strfmt.Registry) error {
 	if p.Body != nil {
 		if err := r.SetBodyParam(p.Body); err != nil {
 			return err

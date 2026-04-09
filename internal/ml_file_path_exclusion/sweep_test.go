@@ -1,8 +1,8 @@
-package mlexclusion
+package mlfilepathexclusion
 
 import "testing"
 
-func TestIsMLExclusionSweepableTestPattern(t *testing.T) {
+func TestIsMLFilePathExclusionSweepableTestPattern(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -50,7 +50,7 @@ func TestIsMLExclusionSweepableTestPattern(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if actual := isMLExclusionSweepableTestPattern(tt.value); actual != tt.expected {
+			if actual := isMLFilePathExclusionSweepableTestPattern(tt.value); actual != tt.expected {
 				t.Fatalf("expected %t, got %t for %q", tt.expected, actual, tt.value)
 			}
 		})
