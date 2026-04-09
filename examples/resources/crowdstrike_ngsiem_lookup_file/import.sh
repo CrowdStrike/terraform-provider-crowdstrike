@@ -1,0 +1,1 @@
+terraform import crowdstrike_ngsiem_lookup_file.csv_example all:network_hosts.csv
