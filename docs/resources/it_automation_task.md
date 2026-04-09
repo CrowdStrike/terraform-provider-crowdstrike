@@ -166,6 +166,27 @@ resource "crowdstrike_it_automation_task" "osquery_example" {
   ]
 }
 
+resource "crowdstrike_it_automation_task" "osquery_with_params_exmaple" {
+  name        = "OSQuery Params Example"
+  access_type = "Public"
+  description = "Example task using OSQuery with parameters"
+  type        = "query"
+
+  os_query = "SELECT * FROM file WHERE directory = '{{.dir}}';"
+
+  task_parameters = [
+    {
+      input_type      = "text"
+      validation_type = "filepath"
+      key             = "dir"
+      label           = "Directory to Query"
+      purpose         = "Get all files from a directory"
+      default_value   = "C:\\Windows\\Temp"
+      format_hint     = "Example: C:\\Windows\\Temp"
+    },
+  ]
+}
+
 output "script_content_task" {
   value = crowdstrike_it_automation_task.script_content_example
 }
@@ -184,6 +205,10 @@ output "windows_script_task" {
 
 output "osquery_task" {
   value = crowdstrike_it_automation_task.osquery_example
+}
+
+output "osquery_with_params_example" {
+  value = crowdstrike_it_automation_task.osquery_with_params_exmaple
 }
 ```
 
@@ -210,6 +235,7 @@ output "osquery_task" {
 - `os_query` (String) OSQuery string. This option will disable the task script options. See https://osquery.readthedocs.io/en/stable for syntax.
 - `script_columns` (Attributes) Column configuration for the script output. (see [below for nested schema](#nestedatt--script_columns))
 - `target` (String) Target of the task in FQL string syntax. See https://falconpy.io/Usage/Falcon-Query-Language.html.
+- `task_parameters` (Attributes List) Input parameters to pass into the query or action task. (see [below for nested schema](#nestedatt--task_parameters))
 - `verification_condition` (Attributes List) Verification conditions for action tasks to determine success (only valid for action tasks). (see [below for nested schema](#nestedatt--verification_condition))
 - `windows_script_content` (String) Windows script content.
 - `windows_script_file_id` (String) Windows RTR Response script ID (65 characters) to be used by the task. This option disables windows_script_content.
@@ -241,6 +267,36 @@ Optional:
 Required:
 
 - `name` (String) Name of the column.
+
+
+
+<a id="nestedatt--task_parameters"></a>
+### Nested Schema for `task_parameters`
+
+Required:
+
+- `input_type` (String) Type of input field (text, option).
+- `key` (String) Unique identifier for the parameter, corresponds to placeholder used in task content.
+- `label` (String) Human readable label for the parameter.
+
+Optional:
+
+- `default_value` (String) Default value for the parameter when input_type is text.
+- `format_hint` (String) Provide format requirements or example when input_type is text (shows when running the task).
+- `optional` (Boolean) Whether the parameter is optional.
+- `options` (Attributes List) Available options for dropdown inputs. Used only if input_type is option. (see [below for nested schema](#nestedatt--task_parameters--options))
+- `purpose` (String) Describe parameter purpose (shows when running the task).
+- `validation_message` (String) Message to show on failure of custom validation regex.
+- `validation_regex` (String) Custom regex pattern to apply when input_type is text.
+- `validation_type` (String) Type of validation to apply when input_type is text (alphanumeric, text, filepath, filepathunix, semver, uuid, winhost, integer, filepathwin, datetime,macaddress, port, dnshost, float, ip)
+
+<a id="nestedatt--task_parameters--options"></a>
+### Nested Schema for `task_parameters.options`
+
+Required:
+
+- `key` (String) Unique identifier for the option.
+- `value` (String) Value for the option.
 
 
 
