@@ -12,7 +12,8 @@ func TestAccFirewallPolicyPrecedenceResource_Dynamic(t *testing.T) {
 	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
 	resourceName := "crowdstrike_firewall_policy_precedence.test"
 
-	resource.ParallelTest(t, resource.TestCase{
+	// Use sequential test to avoid race conditions with other tests creating/deleting policies
+	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
@@ -32,7 +33,8 @@ func TestAccFirewallPolicyPrecedenceResource_UpdateOrder(t *testing.T) {
 	rName := sdkacctest.RandomWithPrefix("tf-acceptance-test")
 	resourceName := "crowdstrike_firewall_policy_precedence.test"
 
-	resource.ParallelTest(t, resource.TestCase{
+	// Use sequential test to avoid race conditions with other tests creating/deleting policies
+	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{

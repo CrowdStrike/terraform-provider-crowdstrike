@@ -184,16 +184,19 @@ func (r *firewallPolicyPrecedenceResource) Create(
 		return
 	}
 
-	policies, diags := r.getFirewallPoliciesByPrecedence(ctx, plan.PlatformName.ValueString())
-	resp.Diagnostics.Append(diags...)
+	// For dynamic enforcement, preserve the plan's IDs in state since we only manage
+	// those specific policies' relative order. Reading back from API could show different
+	// IDs if other policies were added/removed concurrently.
+	var policies []string
+	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) {
+		resp.Diagnostics.Append(plan.IDs.ElementsAs(ctx, &policies, false)...)
+	} else {
+		var d diag.Diagnostics
+		policies, d = r.getFirewallPoliciesByPrecedence(ctx, plan.PlatformName.ValueString())
+		resp.Diagnostics.Append(d...)
+	}
 	if resp.Diagnostics.HasError() {
 		return
-	}
-
-	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) {
-		if len(policies) > len(plan.IDs.Elements()) {
-			policies = policies[:len(plan.IDs.Elements())]
-		}
 	}
 
 	plan.LastUpdated = utils.GenerateUpdateTimestamp()
@@ -213,16 +216,41 @@ func (r *firewallPolicyPrecedenceResource) Read(
 		return
 	}
 
+	// For dynamic enforcement, preserve the state's IDs since we only manage
+	// those specific policies' relative order. Reading back from API could show different
+	// IDs if other policies were added/removed concurrently.
+	// For strict enforcement, read back from API to verify all policies are present.
+	if strings.EqualFold(state.Enforcement.ValueString(), dynamicEnforcement) {
+		// Just verify the policies still exist
+		allPolicies, diags := r.getFirewallPoliciesByPrecedence(ctx, state.PlatformName.ValueString())
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		var stateIDs []string
+		resp.Diagnostics.Append(state.IDs.ElementsAs(ctx, &stateIDs, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		// Check if any managed policies were deleted
+		for _, id := range stateIDs {
+			if !slices.Contains(allPolicies, id) {
+				// Policy was deleted externally, remove from state
+				resp.State.RemoveResource(ctx)
+				return
+			}
+		}
+		// Keep existing state IDs - don't update from API
+		return
+	}
+
+	// For strict enforcement, read back all policies
 	policies, diags := r.getFirewallPoliciesByPrecedence(ctx, state.PlatformName.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
-	}
-
-	if strings.EqualFold(state.Enforcement.ValueString(), dynamicEnforcement) {
-		if len(policies) > len(state.IDs.Elements()) {
-			policies = policies[:len(state.IDs.Elements())]
-		}
 	}
 
 	resp.Diagnostics.Append(state.wrap(ctx, policies)...)
@@ -267,16 +295,19 @@ func (r *firewallPolicyPrecedenceResource) Update(
 		return
 	}
 
-	policies, diags := r.getFirewallPoliciesByPrecedence(ctx, plan.PlatformName.ValueString())
-	resp.Diagnostics.Append(diags...)
+	// For dynamic enforcement, preserve the plan's IDs in state since we only manage
+	// those specific policies' relative order. Reading back from API could show different
+	// IDs if other policies were added/removed concurrently.
+	var policies []string
+	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) {
+		resp.Diagnostics.Append(plan.IDs.ElementsAs(ctx, &policies, false)...)
+	} else {
+		var d diag.Diagnostics
+		policies, d = r.getFirewallPoliciesByPrecedence(ctx, plan.PlatformName.ValueString())
+		resp.Diagnostics.Append(d...)
+	}
 	if resp.Diagnostics.HasError() {
 		return
-	}
-
-	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) {
-		if len(policies) > len(plan.IDs.Elements()) {
-			policies = policies[:len(plan.IDs.Elements())]
-		}
 	}
 
 	plan.LastUpdated = utils.GenerateUpdateTimestamp()

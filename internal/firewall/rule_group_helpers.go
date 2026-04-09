@@ -96,7 +96,7 @@ func (r *firewallRuleGroupResource) readRuleGroupState(
 			// The API returns rules in reverse order from how we send them
 			orderedRules := r.orderRulesByPlanNames(ctx, rulesResult.Payload.Resources, planRules)
 
-			rulesList, d := r.wrapRules(ctx, orderedRules)
+			rulesList, d := r.wrapRules(ctx, orderedRules, planRules)
 			diags.Append(d...)
 			if diags.HasError() {
 				return diags
@@ -164,9 +164,11 @@ func (r *firewallRuleGroupResource) orderRulesByPlanNames(
 }
 
 // wrapRules converts API rules to Terraform list type.
+// planRules is used to preserve the log field value since the API doesn't return it.
 func (r *firewallRuleGroupResource) wrapRules(
 	ctx context.Context,
 	apiRules []*models.FwmgrFirewallRuleV1,
+	planRules types.List,
 ) (types.List, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
@@ -174,8 +176,28 @@ func (r *firewallRuleGroupResource) wrapRules(
 		return types.ListNull(types.ObjectType{AttrTypes: firewallRuleModel{}.attrTypes()}), diags
 	}
 
+	// Build a map of plan rules by name to preserve values the API doesn't return
+	planRulesByName := make(map[string]firewallRuleModel)
+	if !planRules.IsNull() && !planRules.IsUnknown() {
+		var planRuleModels []firewallRuleModel
+		diags.Append(planRules.ElementsAs(ctx, &planRuleModels, false)...)
+		if !diags.HasError() {
+			for _, pr := range planRuleModels {
+				planRulesByName[pr.Name.ValueString()] = pr
+			}
+		}
+	}
+
 	rules := make([]firewallRuleModel, 0, len(apiRules))
 	for _, apiRule := range apiRules {
+		// Preserve log value from plan if available, otherwise default to false
+		logValue := types.BoolValue(false)
+		if apiRule.Name != nil {
+			if planRule, ok := planRulesByName[*apiRule.Name]; ok && !planRule.Log.IsNull() && !planRule.Log.IsUnknown() {
+				logValue = planRule.Log
+			}
+		}
+
 		rule := firewallRuleModel{
 			ID:            types.StringPointerValue(apiRule.ID),
 			Name:          types.StringPointerValue(apiRule.Name),
@@ -184,7 +206,7 @@ func (r *firewallRuleGroupResource) wrapRules(
 			Action:        types.StringPointerValue(apiRule.Action),
 			Direction:     types.StringPointerValue(apiRule.Direction),
 			AddressFamily: types.StringPointerValue(apiRule.AddressFamily),
-			Log:           types.BoolValue(false), // API doesn't return log field
+			Log:           logValue,
 		}
 
 		if apiRule.Protocol != nil {
@@ -197,8 +219,16 @@ func (r *firewallRuleGroupResource) wrapRules(
 
 		rule.LocalAddress = r.wrapFirewallAddressRanges(ctx, apiRule.LocalAddress, &diags)
 		rule.RemoteAddress = r.wrapFirewallAddressRanges(ctx, apiRule.RemoteAddress, &diags)
-		rule.LocalPort = r.wrapFirewallPortRanges(ctx, apiRule.LocalPort, &diags)
-		rule.RemotePort = r.wrapFirewallPortRanges(ctx, apiRule.RemotePort, &diags)
+
+		// Get plan rule for preserving port values
+		var planRule *firewallRuleModel
+		if apiRule.Name != nil {
+			if pr, ok := planRulesByName[*apiRule.Name]; ok {
+				planRule = &pr
+			}
+		}
+		rule.LocalPort = r.wrapFirewallPortRanges(ctx, apiRule.LocalPort, planRule, true, &diags)
+		rule.RemotePort = r.wrapFirewallPortRanges(ctx, apiRule.RemotePort, planRule, false, &diags)
 
 		rule.NetworkLocation = types.StringValue("ANY")
 		rule.ExecutablePath = types.StringNull()
@@ -287,21 +317,49 @@ func (r *firewallRuleGroupResource) wrapFirewallAddressRanges(
 }
 
 // wrapFirewallPortRanges converts API port ranges to Terraform list.
+// planRule is used to preserve port end values when API returns end=0 but plan has end=start.
+// isLocalPort indicates whether this is for local_port (true) or remote_port (false).
 func (r *firewallRuleGroupResource) wrapFirewallPortRanges(
 	ctx context.Context,
 	apiPorts []*models.FwmgrFirewallPortRange,
+	planRule *firewallRuleModel,
+	isLocalPort bool,
 	diags *diag.Diagnostics,
 ) types.List {
 	if len(apiPorts) == 0 {
 		return types.ListNull(types.ObjectType{AttrTypes: portRangeAttrTypes()})
 	}
 
+	// Get plan ports for comparison
+	var planPorts []portRangeModel
+	if planRule != nil {
+		var portList types.List
+		if isLocalPort {
+			portList = planRule.LocalPort
+		} else {
+			portList = planRule.RemotePort
+		}
+		if !portList.IsNull() && !portList.IsUnknown() {
+			_ = portList.ElementsAs(ctx, &planPorts, false)
+		}
+	}
+
 	ports := make([]portRangeModel, 0, len(apiPorts))
-	for _, port := range apiPorts {
+	for i, port := range apiPorts {
 		if port.Start != nil {
+			endVal := port.End
+			// If API returns end=0 (single port) but plan has end=start, preserve plan value
+			if endVal != nil && *endVal == 0 && i < len(planPorts) {
+				planEnd := planPorts[i].End.ValueInt64()
+				planStart := planPorts[i].Start.ValueInt64()
+				// If plan had start==end (user specified single port as range), preserve that
+				if planEnd == planStart {
+					endVal = &planEnd
+				}
+			}
 			ports = append(ports, portRangeModel{
 				Start: types.Int64PointerValue(port.Start),
-				End:   types.Int64PointerValue(port.End),
+				End:   types.Int64PointerValue(endVal),
 			})
 		}
 	}
@@ -481,9 +539,16 @@ func (r *firewallRuleGroupResource) buildPortPayload(
 
 	apiPorts := make([]*models.FwmgrDomainPortRange, 0, len(ports))
 	for _, port := range ports {
+		startVal := port.Start.ValueInt64()
+		endVal := port.End.ValueInt64()
+		// If start == end, treat as single port by setting end to 0
+		// The API rejects ranges where start == end as "duplicate ports"
+		if startVal == endVal {
+			endVal = 0
+		}
 		apiPorts = append(apiPorts, &models.FwmgrDomainPortRange{
-			Start: swag.Int64(port.Start.ValueInt64()),
-			End:   swag.Int64(port.End.ValueInt64()),
+			Start: swag.Int64(startVal),
+			End:   swag.Int64(endVal),
 		})
 	}
 
@@ -762,9 +827,16 @@ func (r *firewallRuleGroupResource) buildPortListForDiff(portList types.List) []
 		startAttr, startOk := attrs["start"].(types.Int64)
 		endAttr, endOk := attrs["end"].(types.Int64)
 		if startOk && endOk {
+			startVal := startAttr.ValueInt64()
+			endVal := endAttr.ValueInt64()
+			// If start == end, treat as single port by setting end to 0
+			// The API rejects ranges where start == end as "duplicate ports"
+			if startVal == endVal {
+				endVal = 0
+			}
 			result = append(result, map[string]interface{}{
-				"start": startAttr.ValueInt64(),
-				"end":   endAttr.ValueInt64(),
+				"start": startVal,
+				"end":   endVal,
 			})
 		}
 	}
