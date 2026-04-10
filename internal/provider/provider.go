@@ -21,6 +21,7 @@ import (
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	installtoken "github.com/crowdstrike/terraform-provider-crowdstrike/internal/install_token"
 	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
+	iocindicator "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioc_indicator"
 	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
 	mlfilepathexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ml_file_path_exclusion"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
@@ -320,6 +321,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		responsepolicy.NewResponsePolicyPrecedenceResource,
 		ioarulegroup.NewIOARuleGroupResource,
 		usergroup.NewUserGroupResource,
+		iocindicator.NewIOCIndicatorResource,
 		installtoken.NewInstallTokenResource,
 	}
 }
