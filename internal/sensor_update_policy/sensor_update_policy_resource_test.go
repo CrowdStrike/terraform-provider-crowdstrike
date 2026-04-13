@@ -335,6 +335,35 @@ func (config sensorUpdatePolicyConfig) TestChecks() resource.TestCheckFunc {
 	return resource.ComposeAggregateTestCheckFunc(checks...)
 }
 
+func TestAccSensorUpdatePolicyResourceBadBuildCreate(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_sensor_update_policy" "test" {
+  name                 = "%s"
+  enabled              = true
+  description          = "made with terraform"
+  host_groups          = []
+  platform_name        = "Windows"
+  build                = "99999"
+  uninstall_protection = false
+  schedule = {
+    enabled = false
+  }
+}
+`, rName),
+				ExpectError: regexp.MustCompile(
+					"build value may be incorrect or no longer supported",
+				),
+			},
+		},
+	})
+}
+
 func TestAccSensorUpdatePolicyResourceBadBuildUpdate(t *testing.T) {
 	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resource.ParallelTest(t, resource.TestCase{
@@ -366,7 +395,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
   description          = "made with terraform"
   host_groups          = []
   platform_name        = "Windows"
-  build                = "invalid"
+  build                = "99999"
   uninstall_protection = false
   schedule = {
     enabled = false
@@ -374,7 +403,7 @@ resource "crowdstrike_sensor_update_policy" "test" {
 }
 `, rName),
 				ExpectError: regexp.MustCompile(
-					"(?i)(?s).*invalid(?s).*build invalid.*",
+					"build value may be incorrect or no longer supported",
 				),
 			},
 		},

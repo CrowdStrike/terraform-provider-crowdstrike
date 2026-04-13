@@ -5,9 +5,11 @@ import (
 	"fmt"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -44,15 +46,9 @@ type {{.CamelCaseName}}ResourceModel struct {
 }
 
 func (m *{{.CamelCaseName}}ResourceModel) wrap(
-	ctx context.Context,
-	// api response object
-) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	// m.ID = types.StringValue(*apiresponse.ID)
-	// etc
-
-	return diags
+	// apiResponse models.ApiResponseV1,
+) {
+	// m.ID = flex.StringPointerToFramework(apiResponse.ID)
 }
 
 func (r *{{.CamelCaseName}}Resource) Configure(
@@ -64,7 +60,7 @@ func (r *{{.CamelCaseName}}Resource) Configure(
 		return
 	}
 
-	config, ok := req.ProviderData.(config.ProviderConfig)
+	providerConfig, ok := req.ProviderData.(config.ProviderConfig)
 
 	if !ok {
 		resp.Diagnostics.AddError(
@@ -78,7 +74,7 @@ func (r *{{.CamelCaseName}}Resource) Configure(
 		return
 	}
 
-	r.client = config.Client
+	r.client = providerConfig.Client
 }
 
 func (r *{{.CamelCaseName}}Resource) Metadata(
@@ -123,7 +119,32 @@ func (r *{{.CamelCaseName}}Resource) Create(
 		return
 	}
 
-	// resp.Diagnostics.Append(plan.wrap(ctx, *apiresponse)...)
+	// res, err := r.client.SomeService.CreateOperation(params)
+	// if err != nil {
+	// 	resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(
+	// 		tferrors.Create, err, requiredScopes,
+	// 	))
+	// 	return
+	// }
+	//
+	// if res == nil || res.Payload == nil {
+	// 	resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
+	// 	return
+	// }
+	//
+	// if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Create, res.Payload.Errors); diag != nil {
+	// 	resp.Diagnostics.Append(diag)
+	// 	return
+	// }
+	//
+	// if len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+	// 	resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
+	// 	return
+	// }
+	//
+	// plan.wrap(*res.Payload.Resources[0])
+
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -138,7 +159,37 @@ func (r *{{.CamelCaseName}}Resource) Read(
 		return
 	}
 
-	// resp.Diagnostics.Append(state.wrap(ctx, *apiresponse)...)
+	// res, err := r.client.SomeService.GetOperation(params)
+	// if err != nil {
+	// 	diag := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, requiredScopes)
+	// 	if diag.Summary() == tferrors.NotFoundErrorSummary {
+	// 		resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
+	// 		resp.State.RemoveResource(ctx)
+	// 		return
+	// 	}
+	// 	resp.Diagnostics.Append(diag)
+	// 	return
+	// }
+	//
+	// if res == nil || res.Payload == nil {
+	// 	resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
+	// 	resp.State.RemoveResource(ctx)
+	// 	return
+	// }
+	//
+	// if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Read, res.Payload.Errors); diag != nil {
+	// 	resp.Diagnostics.Append(diag)
+	// 	return
+	// }
+	//
+	// if len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+	// 	resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
+	// 	resp.State.RemoveResource(ctx)
+	// 	return
+	// }
+	//
+	// state.wrap(*res.Payload.Resources[0])
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -149,9 +200,37 @@ func (r *{{.CamelCaseName}}Resource) Update(
 ) {
 	var plan {{.CamelCaseName}}ResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	// resp.Diagnostics.Append(plan.wrap(ctx, *apiresponse)...)
-	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+	// res, err := r.client.SomeService.UpdateOperation(params)
+	// if err != nil {
+	// 	resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(
+	// 		tferrors.Update, err, requiredScopes,
+	// 	))
+	// 	return
+	// }
+	//
+	// if res == nil || res.Payload == nil {
+	// 	resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Update))
+	// 	return
+	// }
+	//
+	// if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Update, res.Payload.Errors); diag != nil {
+	// 	resp.Diagnostics.Append(diag)
+	// 	return
+	// }
+	//
+	// if len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+	// 	resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Update))
+	// 	return
+	// }
+	//
+	// plan.wrap(*res.Payload.Resources[0])
+
+	plan.LastUpdated = utils.GenerateUpdateTimestamp()
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *{{.CamelCaseName}}Resource) Delete(
@@ -164,6 +243,16 @@ func (r *{{.CamelCaseName}}Resource) Delete(
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// _, err := r.client.SomeService.DeleteOperation(params)
+	// if err != nil {
+	// 	diag := tferrors.NewDiagnosticFromAPIError(tferrors.Delete, err, requiredScopes)
+	// 	if diag.Summary() == tferrors.NotFoundErrorSummary {
+	// 		return
+	// 	}
+	// 	resp.Diagnostics.Append(diag)
+	// 	return
+	// }
 }
 
 func (r *{{.CamelCaseName}}Resource) ImportState(
