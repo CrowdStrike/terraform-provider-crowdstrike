@@ -18,7 +18,6 @@ The following API scopes are required:
 
 - Prevention policies | Read & Write
 
-
 ## Example Usage
 
 ```terraform
@@ -97,6 +96,7 @@ output "prevention_policy_linux" {
 - `enabled` (Boolean) Enable the prevention policy.
 - `enhance_environment_variable_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor an extended set of changes to environment variables in order to enhance visibility.
 - `enhance_php_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor activities performed by PHP scripts to provide additional telemetry and improved detections.
+- `enhance_systemd_visibility` (Boolean) The Enhance Systemd Visibility setting improves monitoring and management of systemd services and timer activities by providing visibility into the creation and deletion of short-lived services and timers, as well as modifications to their properties.
 - `extended_command_line_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor full CLI commands that include pipes and redirects. This is applicable only for User mode.
 - `filesystem_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor filesystem activity for additional telemetry and improved detections.
 - `ftp_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor unencrypted FTP traffic for malicious patterns and improved detections.
@@ -104,11 +104,13 @@ output "prevention_policy_linux" {
 - `memory_visibility` (Boolean) Whether to enable the setting. When enabled, the sensor will inspect memory-related operations: mmap, mprotect, ptrace and reading/writing remote process memory and produce events.
 - `network_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor network activity for additional telemetry and improved detections.
 - `on_write_script_file_visibility` (Boolean) Whether to enable the setting. Provides improved visibility into various script files being written to disk in addition to clouding a portion of their content.
+- `php_script_optimization` (Boolean) Hosts running high-volume PHP CMS applications such as WordPress, Pimcore, and Drupal might experience high CPU utilization after enabling the Enhance PHP visibility prevention policy setting. You can mitigate this issue by enabling the PHP Script Optimization setting, which is disabled by default.
 - `prevent_suspicious_processes` (Boolean) Whether to enable the setting. Block processes that CrowdStrike analysts classify as suspicious. These are focused on dynamic IOAs, such as malware, exploits and other threats.
 - `quarantine` (Boolean) Whether to enable the setting. Quarantine executable files after they’re prevented by NGAV. When this is enabled, we recommend setting anti-malware prevention levels to Moderate or higher and not using other antivirus solutions.
 - `script_based_execution_monitoring` (Boolean) Whether to enable the setting. Provides visibility into suspicious scripts, including shell and other scripting languages.
 - `sensor_anti_malware` (Attributes) For offline and online hosts, use sensor-based machine learning to identify and analyze unknown executables as they run to detect and prevent malware. (see [below for nested schema](#nestedatt--sensor_anti_malware))
 - `sensor_tampering_protection` (Boolean) Whether to enable the setting. Block attempts to tamper with the sensor by protecting critical components and resources. If disabled, the sensor still creates detections for tampering attempts but will not prevent the activity from occurring. Disabling is not recommended.
+- `ssh_visibility` (Boolean) The SSH Visibility prevention policy setting provides a comprehensive view of authenticated SSH connections and the actions performed during an SSH session.
 - `suspicious_file_analysis` (Boolean) Whether to enable the setting. Upload suspicious files for advanced threat analysis with QuickScan Pro.
 - `tls_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor TLS traffic for malicious patterns and improved detections.
 - `upload_unknown_detection_related_executables` (Boolean) Whether to enable the setting. Upload all unknown detection-related executables for advanced analysis in the cloud.
@@ -120,6 +122,7 @@ output "prevention_policy_linux" {
 - `last_updated` (String) Timestamp of the last Terraform update of the resource.
 
 <a id="nestedatt--cloud_anti_malware"></a>
+
 ### Nested Schema for `cloud_anti_malware`
 
 Required:
@@ -127,8 +130,8 @@ Required:
 - `detection` (String) Machine learning level for detection.
 - `prevention` (String) Machine learning level for prevention.
 
-
 <a id="nestedatt--sensor_anti_malware"></a>
+
 ### Nested Schema for `sensor_anti_malware`
 
 Required:
