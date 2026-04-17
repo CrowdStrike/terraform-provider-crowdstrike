@@ -11,6 +11,7 @@ import (
 	dataprotection "github.com/crowdstrike/terraform-provider-crowdstrike/internal/data_protection"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/firewall"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	installtoken "github.com/crowdstrike/terraform-provider-crowdstrike/internal/install_token"
 	ioaexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_exclusion"
@@ -30,8 +31,20 @@ func TestMain(m *testing.M) {
 }
 
 func registerSweepers() {
+	cloudcompliance.RegisterSweepers()
+	cloudgoogleregistration.RegisterSweepers()
+	cloudgroup.RegisterSweepers()
+	cloudsecurity.RegisterSweepers()
+	contentupdatepolicy.RegisterSweepers()
+	dataprotection.RegisterSweepers()
+	fcs.RegisterSweepers()
+	fim.RegisterSweepers()
+	firewall.RegisterSweepers()
 	hostgroups.RegisterSweepers()
 	installtoken.RegisterSweepers()
+	ioarulegroup.RegisterSweepers()
+	itautomation.RegisterSweepers()
+	mlfilepathexclusion.RegisterSweepers()
 	preventionpolicy.RegisterSweepers()
 	sensorupdatepolicy.RegisterSweepers()
 	contentupdatepolicy.RegisterSweepers()
@@ -41,11 +54,5 @@ func registerSweepers() {
 	ioarulegroup.RegisterSweepers()
 	fim.RegisterSweepers()
 	sensorvisibilityexclusion.RegisterSweepers()
-	mlfilepathexclusion.RegisterSweepers()
-	dataprotection.RegisterSweepers()
-	cloudcompliance.RegisterSweepers()
-	cloudgroup.RegisterSweepers()
-	cloudsecurity.RegisterSweepers()
-	itautomation.RegisterSweepers()
 	usergroup.RegisterSweepers()
 }
