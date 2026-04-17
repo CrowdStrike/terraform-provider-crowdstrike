@@ -32,6 +32,7 @@ type OptionalEnvVar string
 
 const (
 	RequireHostGroupID    OptionalEnvVar = "HOST_GROUP_ID"
+	RequireIOAPatternID   OptionalEnvVar = "IOA_PATTERN_ID"
 	RequireIOARuleGroupID OptionalEnvVar = "IOA_RULE_GROUP_ID"
 )
 
