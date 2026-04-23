@@ -123,7 +123,6 @@ resource "crowdstrike_ioa_rule_group" "linux_monitoring" {
 Required:
 
 - `action` (String) The action to take when the rule triggers.
-- `comment` (String) The comment stored in audit logs when making changes to the IOA rule group rule.
 - `description` (String) The description of the IOA rule.
 - `name` (String) The name of the IOA rule.
 - `pattern_severity` (String) The severity of the pattern.
@@ -132,6 +131,7 @@ Required:
 Optional:
 
 - `command_line` (Attributes) Command line match criteria. (see [below for nested schema](#nestedatt--rules--command_line))
+- `comment` (String) The comment stored in audit logs when making changes to the IOA rule group rule.
 - `connection_type` (Set of String) Connection types to match. Only valid for Network Connection rules.
 - `domain_name` (Attributes) Domain name match criteria. Only valid for Domain Name rules. (see [below for nested schema](#nestedatt--rules--domain_name))
 - `enabled` (Boolean) Whether the rule is enabled.
