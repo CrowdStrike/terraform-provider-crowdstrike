@@ -485,6 +485,9 @@ func (r *ioaRuleGroupResource) Schema(
 							Optional:    true,
 							Computed:    true,
 							Description: "The comment stored in audit logs when making changes to the IOA rule group rule.",
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"pattern_severity": schema.StringAttribute{
 							Required:    true,
