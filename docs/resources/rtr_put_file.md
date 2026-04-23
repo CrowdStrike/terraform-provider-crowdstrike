@@ -1,6 +1,6 @@
 ---
 page_title: "crowdstrike_rtr_put_file Resource - crowdstrike"
-subcategory: "Real Time Response"
+subcategory: "Host Setup and Management"
 description: |-
   Manages an RTR put file, which can be deployed to hosts via the RTR put command. The underlying API supports create, read, and delete operations only, so changing any configurable attribute forces replacement.
   API Scopes
