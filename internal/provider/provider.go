@@ -13,6 +13,7 @@ import (
 	cloudgoogleregistration "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_google_registration"
 	cloudgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_group"
 	cloudsecurity "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_security"
+	containerregistry "github.com/crowdstrike/terraform-provider-crowdstrike/internal/container_registry"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
 	dataprotection "github.com/crowdstrike/terraform-provider-crowdstrike/internal/data_protection"
@@ -323,6 +324,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		ioarulegroup.NewIOARuleGroupResource,
 		usergroup.NewUserGroupResource,
 		installtoken.NewInstallTokenResource,
+		containerregistry.NewContainerRegistryResource,
 	}
 }
 
@@ -342,6 +344,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		preventionpolicy.NewPreventionPoliciesDataSource,
 		fim.NewFilevantagePoliciesDataSource,
 		hostgroups.NewHostGroupDataSource,
+		containerregistry.NewContainerRegistryDataSource,
 	}
 }
 
