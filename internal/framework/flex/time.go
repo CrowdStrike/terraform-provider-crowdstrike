@@ -45,6 +45,16 @@ func DateTimePointerToFramework(v *strfmt.DateTime) timetypes.RFC3339 {
 	return timetypes.NewRFC3339TimeValue(time.Time(*v))
 }
 
+// DateTimeValueToFramework converts a strfmt.DateTime (by value) to a timetypes.RFC3339.
+// A zero time returns a null timetypes.RFC3339.
+func DateTimeValueToFramework(v strfmt.DateTime) timetypes.RFC3339 {
+	t := time.Time(v)
+	if t.IsZero() {
+		return timetypes.NewRFC3339Null()
+	}
+	return timetypes.NewRFC3339TimeValue(t)
+}
+
 // FrameworkToRFC3339Pointer converts a Terraform framework timetypes.RFC3339 to a string pointer.
 // If the framework RFC3339 is null or unknown, it returns a pointer to an empty string.
 func FrameworkToRFC3339Pointer(v timetypes.RFC3339) *string {
