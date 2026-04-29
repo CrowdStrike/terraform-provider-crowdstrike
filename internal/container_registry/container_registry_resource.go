@@ -441,7 +441,7 @@ func (r *containerRegistryResource) Create(
 	// gofalcon expects 201 but the API may return 200, which is treated as an unexpected error.
 	// In that case, fall through to findRegistryByURL to locate the created entity.
 	var apiErr *goopenapiruntime.APIError
-	if err != nil && !(errors.As(err, &apiErr) && apiErr.Code == 200) {
+	if err != nil && (!errors.As(err, &apiErr) || apiErr.Code != 200) {
 		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Create, err, apiScopesReadWrite))
 		return
 	}
@@ -685,13 +685,14 @@ func (r *containerRegistryResource) ValidateConfig(
 	case "acr":
 		hasCert := !cred.Cert.IsNull() && !cred.Cert.IsUnknown() && cred.Cert.ValueString() != ""
 		hasPassword := !cred.Password.IsNull() && !cred.Password.IsUnknown() && cred.Password.ValueString() != ""
-		if hasCert {
+		switch {
+		case hasCert:
 			requireStringField(&resp.Diagnostics, credPath.AtName("auth_type"), cred.AuthType, "auth_type", registryType)
 			requireStringField(&resp.Diagnostics, credPath.AtName("tenant_id"), cred.TenantID, "tenant_id", registryType)
 			requireStringField(&resp.Diagnostics, credPath.AtName("client"), cred.Client, "client", registryType)
-		} else if hasPassword {
+		case hasPassword:
 			requireStringField(&resp.Diagnostics, credPath.AtName("username"), cred.Username, "username", registryType)
-		} else {
+		default:
 			resp.Diagnostics.AddAttributeError(
 				credPath,
 				"Invalid Credential for acr",
