@@ -27,6 +27,7 @@ import (
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	responsepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/response_policy"
 	rtrscript "github.com/crowdstrike/terraform-provider-crowdstrike/internal/rtr_script"
+	rtrputfile "github.com/crowdstrike/terraform-provider-crowdstrike/internal/rtr_put_file"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
@@ -321,6 +322,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		responsepolicy.NewResponsePolicyResource,
 		responsepolicy.NewResponsePolicyPrecedenceResource,
 		rtrscript.NewRTRScriptResource,
+		rtrputfile.NewRtrPutFileResource,
 		ioaexclusion.NewIOAExclusionResource,
 		ioarulegroup.NewIOARuleGroupResource,
 		usergroup.NewUserGroupResource,
