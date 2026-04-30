@@ -81,6 +81,7 @@ func TestAccPreventionPolicyLinux_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhance_php_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhance_environment_variable_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("suspicious_file_analysis"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_data_protection_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("ssh_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhance_systemd_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("php_script_optimization"), knownvalue.Bool(false)),
@@ -123,6 +124,7 @@ func TestAccPreventionPolicyLinux_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhance_php_visibility"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhance_environment_variable_visibility"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("suspicious_file_analysis"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_data_protection_visibility"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("ssh_visibility"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhance_systemd_visibility"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("php_script_optimization"), knownvalue.Bool(true)),
@@ -165,6 +167,7 @@ func TestAccPreventionPolicyLinux_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhance_php_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhance_environment_variable_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("suspicious_file_analysis"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_data_protection_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("ssh_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhance_systemd_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("php_script_optimization"), knownvalue.Bool(false)),
@@ -239,6 +242,7 @@ resource "crowdstrike_prevention_policy_linux" "test" {
   enhance_php_visibility                       = true
   enhance_environment_variable_visibility      = true
   suspicious_file_analysis                     = true
+  cloud_data_protection_visibility             = true
   ssh_visibility                               = true
   enhance_systemd_visibility                   = true
   php_script_optimization                      = true

@@ -62,6 +62,7 @@ type defaultPreventionPolicyLinuxResourceModel struct {
 	EnhancePHPVisibility                 types.Bool   `tfsdk:"enhance_php_visibility"`
 	EnhanceEnvironmentVariableVisibility types.Bool   `tfsdk:"enhance_environment_variable_visibility"`
 	SuspiciousFileAnalysis               types.Bool   `tfsdk:"suspicious_file_analysis"`
+	CloudDataProtectionVisibility        types.Bool   `tfsdk:"cloud_data_protection_visibility"`
 	SSHVisibility                        types.Bool   `tfsdk:"ssh_visibility"`
 	EnhanceSystemdVisibility             types.Bool   `tfsdk:"enhance_systemd_visibility"`
 	PHPScriptOptimization                types.Bool   `tfsdk:"php_script_optimization"`
@@ -112,6 +113,7 @@ func (m *defaultPreventionPolicyLinuxResourceModel) generatePreventionSettings(c
 		"EnhancePHPVisibility":                 m.EnhancePHPVisibility,
 		"EnhanceEnvironmentVariableVisibility": m.EnhanceEnvironmentVariableVisibility,
 		"SuspiciousFileAnalysis":               m.SuspiciousFileAnalysis,
+		"CloudDataProtectionVisibility":        m.CloudDataProtectionVisibility,
 		"SSHVisibility":                        m.SSHVisibility,
 		"EnhanceSystemdVisibility":             m.EnhanceSystemdVisibility,
 		"PHPScriptOptimization":                m.PHPScriptOptimization,
@@ -205,6 +207,9 @@ func (m *defaultPreventionPolicyLinuxResourceModel) assignPreventionSettings(
 		toggleSettings["EnhanceEnvironmentVariableVisibility"],
 	)
 	m.SuspiciousFileAnalysis = defaultBoolFalse(toggleSettings["SuspiciousFileAnalysis"])
+	m.CloudDataProtectionVisibility = defaultBoolFalse(
+		toggleSettings["CloudDataProtectionVisibility"],
+	)
 	m.SSHVisibility = defaultBoolFalse(toggleSettings["SSHVisibility"])
 	m.EnhanceSystemdVisibility = defaultBoolFalse(toggleSettings["EnhanceSystemdVisibility"])
 	m.PHPScriptOptimization = defaultBoolFalse(toggleSettings["PHPScriptOptimization"])
