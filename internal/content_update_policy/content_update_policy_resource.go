@@ -73,25 +73,25 @@ func (d *contentPolicyResourceModel) extract(ctx context.Context) diag.Diagnosti
 	var diags diag.Diagnostics
 
 	// Extract sensor operations
-	if !d.SensorOperations.IsNull() {
+	if !d.SensorOperations.IsNull() && !d.SensorOperations.IsUnknown() {
 		sensorOpsDiags := d.SensorOperations.As(ctx, &d.sensorOperations, basetypes.ObjectAsOptions{})
 		diags.Append(sensorOpsDiags...)
 	}
 
 	// Extract system critical
-	if !d.SystemCritical.IsNull() {
+	if !d.SystemCritical.IsNull() && !d.SystemCritical.IsUnknown() {
 		systemCritDiags := d.SystemCritical.As(ctx, &d.systemCritical, basetypes.ObjectAsOptions{})
 		diags.Append(systemCritDiags...)
 	}
 
 	// Extract vulnerability management
-	if !d.VulnerabilityManagement.IsNull() {
+	if !d.VulnerabilityManagement.IsNull() && !d.VulnerabilityManagement.IsUnknown() {
 		vulnMgmtDiags := d.VulnerabilityManagement.As(ctx, &d.vulnerabilityManagement, basetypes.ObjectAsOptions{})
 		diags.Append(vulnMgmtDiags...)
 	}
 
 	// Extract rapid response
-	if !d.RapidResponse.IsNull() {
+	if !d.RapidResponse.IsNull() && !d.RapidResponse.IsUnknown() {
 		rapidRespDiags := d.RapidResponse.As(ctx, &d.rapidResponse, basetypes.ObjectAsOptions{})
 		diags.Append(rapidRespDiags...)
 	}
@@ -174,7 +174,7 @@ func (d *contentPolicyResourceModel) wrap(
 		for _, setting := range policy.Settings.RingAssignmentSettings {
 			switch *setting.ID {
 			case "sensor_operations":
-				if !d.SensorOperations.IsNull() {
+				if !d.SensorOperations.IsNull() && !d.SensorOperations.IsUnknown() {
 					d.SensorOperations.As(
 						ctx,
 						&d.sensorOperations,
@@ -183,7 +183,7 @@ func (d *contentPolicyResourceModel) wrap(
 				}
 				d.sensorOperations.wrap(setting)
 			case "system_critical":
-				if !d.SystemCritical.IsNull() {
+				if !d.SystemCritical.IsNull() && !d.SystemCritical.IsUnknown() {
 					d.SystemCritical.As(
 						ctx,
 						&d.systemCritical,
@@ -192,7 +192,7 @@ func (d *contentPolicyResourceModel) wrap(
 				}
 				d.systemCritical.wrap(setting)
 			case "vulnerability_management":
-				if !d.VulnerabilityManagement.IsNull() {
+				if !d.VulnerabilityManagement.IsNull() && !d.VulnerabilityManagement.IsUnknown() {
 					d.VulnerabilityManagement.As(
 						ctx,
 						&d.vulnerabilityManagement,
@@ -201,7 +201,7 @@ func (d *contentPolicyResourceModel) wrap(
 				}
 				d.vulnerabilityManagement.wrap(setting)
 			case "rapid_response_al_bl_listing":
-				if !d.RapidResponse.IsNull() {
+				if !d.RapidResponse.IsNull() && !d.RapidResponse.IsUnknown() {
 					d.RapidResponse.As(
 						ctx,
 						&d.rapidResponse,
@@ -852,8 +852,10 @@ func (r *contentPolicyResource) ModifyPlan(
 	}
 
 	// Check if the plan contains the required objects before attempting extraction
-	if plan.SensorOperations.IsNull() || plan.SystemCritical.IsNull() ||
-		plan.VulnerabilityManagement.IsNull() || plan.RapidResponse.IsNull() {
+	if plan.SensorOperations.IsNull() || plan.SensorOperations.IsUnknown() ||
+		plan.SystemCritical.IsNull() || plan.SystemCritical.IsUnknown() ||
+		plan.VulnerabilityManagement.IsNull() || plan.VulnerabilityManagement.IsUnknown() ||
+		plan.RapidResponse.IsNull() || plan.RapidResponse.IsUnknown() {
 		return
 	}
 
@@ -869,8 +871,10 @@ func (r *contentPolicyResource) ModifyPlan(
 	}
 
 	// Check if the state contains the required objects before attempting extraction
-	if state.SensorOperations.IsNull() || state.SystemCritical.IsNull() ||
-		state.VulnerabilityManagement.IsNull() || state.RapidResponse.IsNull() {
+	if state.SensorOperations.IsNull() || state.SensorOperations.IsUnknown() ||
+		state.SystemCritical.IsNull() || state.SystemCritical.IsUnknown() ||
+		state.VulnerabilityManagement.IsNull() || state.VulnerabilityManagement.IsUnknown() ||
+		state.RapidResponse.IsNull() || state.RapidResponse.IsUnknown() {
 		return
 	}
 
