@@ -62,6 +62,9 @@ type defaultPreventionPolicyLinuxResourceModel struct {
 	EnhancePHPVisibility                 types.Bool   `tfsdk:"enhance_php_visibility"`
 	EnhanceEnvironmentVariableVisibility types.Bool   `tfsdk:"enhance_environment_variable_visibility"`
 	SuspiciousFileAnalysis               types.Bool   `tfsdk:"suspicious_file_analysis"`
+	SSHVisibility                        types.Bool   `tfsdk:"ssh_visibility"`
+	EnhanceSystemdVisibility             types.Bool   `tfsdk:"enhance_systemd_visibility"`
+	PHPScriptOptimization                types.Bool   `tfsdk:"php_script_optimization"`
 }
 
 // wrap transforms Go values to their terraform wrapped values.
@@ -109,6 +112,9 @@ func (m *defaultPreventionPolicyLinuxResourceModel) generatePreventionSettings(c
 		"EnhancePHPVisibility":                 m.EnhancePHPVisibility,
 		"EnhanceEnvironmentVariableVisibility": m.EnhanceEnvironmentVariableVisibility,
 		"SuspiciousFileAnalysis":               m.SuspiciousFileAnalysis,
+		"SSHVisibility":                        m.SSHVisibility,
+		"EnhanceSystemdVisibility":             m.EnhanceSystemdVisibility,
+		"PHPScriptOptimization":                m.PHPScriptOptimization,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}
@@ -199,6 +205,9 @@ func (m *defaultPreventionPolicyLinuxResourceModel) assignPreventionSettings(
 		toggleSettings["EnhanceEnvironmentVariableVisibility"],
 	)
 	m.SuspiciousFileAnalysis = defaultBoolFalse(toggleSettings["SuspiciousFileAnalysis"])
+	m.SSHVisibility = defaultBoolFalse(toggleSettings["SSHVisibility"])
+	m.EnhanceSystemdVisibility = defaultBoolFalse(toggleSettings["EnhanceSystemdVisibility"])
+	m.PHPScriptOptimization = defaultBoolFalse(toggleSettings["PHPScriptOptimization"])
 
 	// mlslider settings
 	if slider, ok := mlSliderSettings["CloudAntiMalware"]; ok {

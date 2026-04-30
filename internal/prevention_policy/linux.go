@@ -68,6 +68,9 @@ type preventionPolicyLinuxResourceModel struct {
 	EnhancePHPVisibility                 types.Bool   `tfsdk:"enhance_php_visibility"`
 	EnhanceEnvironmentVariableVisibility types.Bool   `tfsdk:"enhance_environment_variable_visibility"`
 	SuspiciousFileAnalysis               types.Bool   `tfsdk:"suspicious_file_analysis"`
+	SSHVisibility                        types.Bool   `tfsdk:"ssh_visibility"`
+	EnhanceSystemdVisibility             types.Bool   `tfsdk:"enhance_systemd_visibility"`
+	PHPScriptOptimization                types.Bool   `tfsdk:"php_script_optimization"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -513,6 +516,9 @@ func (r *preventionPolicyLinuxResource) assignPreventionSettings(
 		toggleSettings["EnhanceEnvironmentVariableVisibility"],
 	)
 	state.SuspiciousFileAnalysis = defaultBoolFalse(toggleSettings["SuspiciousFileAnalysis"])
+	state.SSHVisibility = defaultBoolFalse(toggleSettings["SSHVisibility"])
+	state.EnhanceSystemdVisibility = defaultBoolFalse(toggleSettings["EnhanceSystemdVisibility"])
+	state.PHPScriptOptimization = defaultBoolFalse(toggleSettings["PHPScriptOptimization"])
 
 	// mlslider settings
 	if slider, ok := mlSliderSettings["CloudAntiMalware"]; ok {
@@ -566,6 +572,9 @@ func (r *preventionPolicyLinuxResource) generatePreventionSettings(
 		"EnhancePHPVisibility":                 config.EnhancePHPVisibility,
 		"EnhanceEnvironmentVariableVisibility": config.EnhanceEnvironmentVariableVisibility,
 		"SuspiciousFileAnalysis":               config.SuspiciousFileAnalysis,
+		"SSHVisibility":                        config.SSHVisibility,
+		"EnhanceSystemdVisibility":             config.EnhanceSystemdVisibility,
+		"PHPScriptOptimization":                config.PHPScriptOptimization,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}
