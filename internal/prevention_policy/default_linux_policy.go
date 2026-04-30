@@ -66,6 +66,7 @@ type defaultPreventionPolicyLinuxResourceModel struct {
 	SSHVisibility                        types.Bool   `tfsdk:"ssh_visibility"`
 	EnhanceSystemdVisibility             types.Bool   `tfsdk:"enhance_systemd_visibility"`
 	PHPScriptOptimization                types.Bool   `tfsdk:"php_script_optimization"`
+	RetrospectiveDetections              types.Bool   `tfsdk:"retrospective_detections"`
 }
 
 // wrap transforms Go values to their terraform wrapped values.
@@ -117,6 +118,7 @@ func (m *defaultPreventionPolicyLinuxResourceModel) generatePreventionSettings(c
 		"SSHVisibility":                        m.SSHVisibility,
 		"EnhanceSystemdVisibility":             m.EnhanceSystemdVisibility,
 		"PHPScriptOptimization":                m.PHPScriptOptimization,
+		"RetrospectiveDetections":              m.RetrospectiveDetections,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}
@@ -213,6 +215,7 @@ func (m *defaultPreventionPolicyLinuxResourceModel) assignPreventionSettings(
 	m.SSHVisibility = defaultBoolFalse(toggleSettings["SSHVisibility"])
 	m.EnhanceSystemdVisibility = defaultBoolFalse(toggleSettings["EnhanceSystemdVisibility"])
 	m.PHPScriptOptimization = defaultBoolFalse(toggleSettings["PHPScriptOptimization"])
+	m.RetrospectiveDetections = defaultBoolFalse(toggleSettings["RetrospectiveDetections"])
 
 	// mlslider settings
 	if slider, ok := mlSliderSettings["CloudAntiMalware"]; ok {

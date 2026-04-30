@@ -110,6 +110,7 @@ type preventionPolicyWindowsResourceModel struct {
 	BootConfigurationDatabaseProtection        types.Bool   `tfsdk:"boot_configuration_database_protection"`
 	WSL2Visibility                             types.Bool   `tfsdk:"wsl2_visibility"`
 	SuspiciousFileAnalysis                     types.Bool   `tfsdk:"suspicious_file_analysis"`
+	RetrospectiveDetections                    types.Bool   `tfsdk:"retrospective_detections"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -824,6 +825,7 @@ func (r *preventionPolicyWindowsResource) assignPreventionSettings(
 	)
 	state.WSL2Visibility = defaultBoolFalse(toggleSettings["WSL2Visibility"])
 	state.SuspiciousFileAnalysis = defaultBoolFalse(toggleSettings["SuspiciousFileAnalysis"])
+	state.RetrospectiveDetections = defaultBoolFalse(toggleSettings["RetrospectiveDetections"])
 
 	// mlslider settings
 	if detectionSlider, ok := detectionMlSliderSettings["ExtendedUserModeDataSlider"]; ok {
@@ -982,6 +984,7 @@ func (r *preventionPolicyWindowsResource) generatePreventionSettings(
 		"BootConfigurationDatabaseProtection":       config.BootConfigurationDatabaseProtection,
 		"WSL2Visibility":                            config.WSL2Visibility,
 		"SuspiciousFileAnalysis":                    config.SuspiciousFileAnalysis,
+		"RetrospectiveDetections":                   config.RetrospectiveDetections,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}

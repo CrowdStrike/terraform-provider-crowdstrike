@@ -68,6 +68,7 @@ type preventionPolicyMacResourceModel struct {
 	HashCollector                      types.Bool   `tfsdk:"hash_collector"`
 	EnhancedNetworkVisibility          types.Bool   `tfsdk:"enhanced_network_visibility"`
 	SuspiciousFileAnalysis             types.Bool   `tfsdk:"suspicious_file_analysis"`
+	RetrospectiveDetections            types.Bool   `tfsdk:"retrospective_detections"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -542,6 +543,7 @@ func (r *preventionPolicyMacResource) assignPreventionSettings(
 	state.HashCollector = defaultBoolFalse(toggleSettings["HashCollector"])
 	state.EnhancedNetworkVisibility = defaultBoolFalse(toggleSettings["EnhancedNetworkVisibilityMac"])
 	state.SuspiciousFileAnalysis = defaultBoolFalse(toggleSettings["SuspiciousFileAnalysis"])
+	state.RetrospectiveDetections = defaultBoolFalse(toggleSettings["RetrospectiveDetections"])
 
 	// mlslider settings
 	if slider, ok := mlSliderSettings["CloudAntiMalware"]; ok {
@@ -610,6 +612,7 @@ func (r *preventionPolicyMacResource) generatePreventionSettings(
 		"HashCollector":                      config.HashCollector,
 		"EnhancedNetworkVisibilityMac":       config.EnhancedNetworkVisibility,
 		"SuspiciousFileAnalysis":             config.SuspiciousFileAnalysis,
+		"RetrospectiveDetections":            config.RetrospectiveDetections,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}
