@@ -543,6 +543,9 @@ func generateMacSchema(defaultPolicy bool) schema.Schema {
 			"enhanced_network_visibility": toggleAttribute(
 				"Provides enhanced visibility into network activities and detections.",
 			),
+			"suspicious_file_analysis": toggleAttribute(
+				"Upload suspicious files for advanced threat analysis with QuickScan Pro.",
+			),
 		},
 	}
 
