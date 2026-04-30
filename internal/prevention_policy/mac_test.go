@@ -76,6 +76,7 @@ func TestAccPreventionPolicyMac_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("hash_collector"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhanced_network_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("suspicious_file_analysis"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("retrospective_detections"), knownvalue.Bool(false)),
 					// ml slider defaults (DISABLED)
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_anti_malware").AtMapKey("detection"), knownvalue.StringExact("DISABLED")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_anti_malware").AtMapKey("prevention"), knownvalue.StringExact("DISABLED")),
@@ -98,6 +99,7 @@ func TestAccPreventionPolicyMac_update(t *testing.T) {
 					// toggles changed to true
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("notify_end_users"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhanced_network_visibility"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("retrospective_detections"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_tampering_protection"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("quarantine"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("custom_blocking"), knownvalue.Bool(true)),
@@ -193,6 +195,7 @@ resource "crowdstrike_prevention_policy_mac" "test" {
 
   notify_end_users                           = true
   enhanced_network_visibility                = true
+  retrospective_detections                   = true
   sensor_tampering_protection                = true
   quarantine                                 = true
   custom_blocking                            = true

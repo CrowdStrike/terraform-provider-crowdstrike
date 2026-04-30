@@ -419,6 +419,9 @@ func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 			"suspicious_file_analysis": toggleAttribute(
 				"Upload suspicious files for advanced threat analysis with QuickScan Pro.",
 			),
+			"retrospective_detections": toggleAttribute(
+				"Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.",
+			),
 		},
 	}
 
@@ -545,6 +548,9 @@ func generateMacSchema(defaultPolicy bool) schema.Schema {
 			),
 			"suspicious_file_analysis": toggleAttribute(
 				"Upload suspicious files for advanced threat analysis with QuickScan Pro.",
+			),
+			"retrospective_detections": toggleAttribute(
+				"Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.",
 			),
 		},
 	}
@@ -686,6 +692,9 @@ func generateLinuxSchema(defaultPolicy bool) schema.Schema {
 			),
 			"php_script_optimization": toggleAttribute(
 				"Mitigates high volume PHP script execution to only the first time it's seen by the server.",
+			),
+			"retrospective_detections": toggleAttribute(
+				"Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.",
 			),
 		},
 	}

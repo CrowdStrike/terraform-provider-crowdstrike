@@ -71,6 +71,7 @@ type preventionPolicyLinuxResourceModel struct {
 	SSHVisibility                        types.Bool   `tfsdk:"ssh_visibility"`
 	EnhanceSystemdVisibility             types.Bool   `tfsdk:"enhance_systemd_visibility"`
 	PHPScriptOptimization                types.Bool   `tfsdk:"php_script_optimization"`
+	RetrospectiveDetections              types.Bool   `tfsdk:"retrospective_detections"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -519,6 +520,7 @@ func (r *preventionPolicyLinuxResource) assignPreventionSettings(
 	state.SSHVisibility = defaultBoolFalse(toggleSettings["SSHVisibility"])
 	state.EnhanceSystemdVisibility = defaultBoolFalse(toggleSettings["EnhanceSystemdVisibility"])
 	state.PHPScriptOptimization = defaultBoolFalse(toggleSettings["PHPScriptOptimization"])
+	state.RetrospectiveDetections = defaultBoolFalse(toggleSettings["RetrospectiveDetections"])
 
 	// mlslider settings
 	if slider, ok := mlSliderSettings["CloudAntiMalware"]; ok {
@@ -575,6 +577,7 @@ func (r *preventionPolicyLinuxResource) generatePreventionSettings(
 		"SSHVisibility":                        config.SSHVisibility,
 		"EnhanceSystemdVisibility":             config.EnhanceSystemdVisibility,
 		"PHPScriptOptimization":                config.PHPScriptOptimization,
+		"RetrospectiveDetections":              config.RetrospectiveDetections,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}

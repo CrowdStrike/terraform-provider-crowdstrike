@@ -27,6 +27,7 @@ resource "crowdstrike_prevention_policy_windows" "test" {
   boot_configuration_database_protection = true
   wsl2_visibility                        = true
   suspicious_file_analysis               = true
+  retrospective_detections               = true
   cloud_anti_malware_microsoft_office_files = {
     detection  = "MODERATE"
     prevention = "MODERATE"
@@ -54,6 +55,7 @@ resource "crowdstrike_prevention_policy_windows" "test" {
   boot_configuration_database_protection = true
   wsl2_visibility                        = true
   suspicious_file_analysis               = true
+  retrospective_detections               = true
   cloud_anti_malware_microsoft_office_files = {
     detection  = "MODERATE"
     prevention = "MODERATE"
@@ -87,6 +89,7 @@ resource "crowdstrike_prevention_policy_windows" "test" {
   boot_configuration_database_protection = false
   wsl2_visibility                        = false
   suspicious_file_analysis               = false
+  retrospective_detections               = false
   cloud_anti_malware_microsoft_office_files = {
     detection  = "MODERATE"
     prevention = "DISABLED"
@@ -281,6 +284,11 @@ func TestAccPreventionPolicyWindowsResource(t *testing.T) {
 					),
 					resource.TestCheckResourceAttr(
 						resourceName,
+						"retrospective_detections",
+						"true",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
 						"cloud_anti_malware_microsoft_office_files.detection",
 						"MODERATE",
 					),
@@ -361,6 +369,11 @@ func TestAccPreventionPolicyWindowsResource(t *testing.T) {
 					resource.TestCheckResourceAttr(
 						resourceName,
 						"suspicious_file_analysis",
+						"false",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"retrospective_detections",
 						"false",
 					),
 					resource.TestCheckResourceAttr(
