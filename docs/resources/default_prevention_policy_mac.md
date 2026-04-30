@@ -70,6 +70,7 @@ resource "crowdstrike_default_prevention_policy_mac" "default" {
   hash_collector                               = true
   empyre_backdoor                              = true
   chopper_webshell                             = true
+  suspicious_file_analysis                     = true
 }
 
 output "default_prevention_policy_mac" {
@@ -105,6 +106,7 @@ output "default_prevention_policy_mac" {
 - `sensor_adware_and_pup` (Attributes) For offline and online hosts, use sensor-based machine learning to identify and analyze unknown executables as they run to detect and prevent adware and potentially unwanted programs (PUP). (see [below for nested schema](#nestedatt--sensor_adware_and_pup))
 - `sensor_anti_malware` (Attributes) For offline and online hosts, use sensor-based machine learning to identify and analyze unknown executables as they run to detect and prevent malware. (see [below for nested schema](#nestedatt--sensor_anti_malware))
 - `sensor_tampering_protection` (Boolean) Whether to enable the setting. Blocks attempts to tamper with the sensor. If disabled, the sensor still creates detections for tampering attempts but doesn’t block them. Disabling not recommended.
+- `suspicious_file_analysis` (Boolean) Whether to enable the setting. Upload suspicious files for advanced threat analysis with QuickScan Pro.
 - `upload_unknown_detection_related_executables` (Boolean) Whether to enable the setting. Upload all unknown detection-related executables for advanced analysis in the cloud.
 - `upload_unknown_executables` (Boolean) Whether to enable the setting. Upload all unknown executables for advanced analysis in the cloud.
 - `xpcom_shell` (Boolean) Whether to enable the setting. The execution of an XPCOM shell was blocked.

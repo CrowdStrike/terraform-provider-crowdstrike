@@ -67,6 +67,7 @@ type preventionPolicyMacResourceModel struct {
 	KcPasswordDecoded                  types.Bool   `tfsdk:"kc_password_decoded"`
 	HashCollector                      types.Bool   `tfsdk:"hash_collector"`
 	EnhancedNetworkVisibility          types.Bool   `tfsdk:"enhanced_network_visibility"`
+	SuspiciousFileAnalysis             types.Bool   `tfsdk:"suspicious_file_analysis"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -540,6 +541,7 @@ func (r *preventionPolicyMacResource) assignPreventionSettings(
 	state.KcPasswordDecoded = defaultBoolFalse(toggleSettings["KcPasswordDecoded"])
 	state.HashCollector = defaultBoolFalse(toggleSettings["HashCollector"])
 	state.EnhancedNetworkVisibility = defaultBoolFalse(toggleSettings["EnhancedNetworkVisibilityMac"])
+	state.SuspiciousFileAnalysis = defaultBoolFalse(toggleSettings["SuspiciousFileAnalysis"])
 
 	// mlslider settings
 	if slider, ok := mlSliderSettings["CloudAntiMalware"]; ok {
@@ -607,6 +609,7 @@ func (r *preventionPolicyMacResource) generatePreventionSettings(
 		"KcPasswordDecoded":                  config.KcPasswordDecoded,
 		"HashCollector":                      config.HashCollector,
 		"EnhancedNetworkVisibilityMac":       config.EnhancedNetworkVisibility,
+		"SuspiciousFileAnalysis":             config.SuspiciousFileAnalysis,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}
