@@ -676,13 +676,13 @@ func generateLinuxSchema(defaultPolicy bool) schema.Schema {
 				"Upload suspicious files for advanced threat analysis with QuickScan Pro.",
 			),
 			"ssh_visibility": toggleAttribute(
-				"Allows the sensor to monitor SSH activity for additional telemetry and improved detections.",
+				"Enable monitoring of activities performed by SSH servers.",
 			),
 			"enhance_systemd_visibility": toggleAttribute(
-				"Enhances visibility into systemd activity on the host.",
+				"This enhancement enables visibility into modifications to systemd services and timers.",
 			),
 			"php_script_optimization": toggleAttribute(
-				"Optimizes the execution of PHP scripts on the host.",
+				"Mitigates high volume PHP script execution to only the first time it's seen by the server.",
 			),
 		},
 	}
