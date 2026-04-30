@@ -678,6 +678,9 @@ func generateLinuxSchema(defaultPolicy bool) schema.Schema {
 			"suspicious_file_analysis": toggleAttribute(
 				"Upload suspicious files for advanced threat analysis with QuickScan Pro.",
 			),
+			"cloud_data_protection_visibility": toggleAttribute(
+				"Allows the sensor to monitor and analyze data flows for protection against data breaches and leaks, and to improve data-related detections.",
+			),
 			"ssh_visibility": toggleAttribute(
 				"Enable monitoring of activities performed by SSH servers.",
 			),
