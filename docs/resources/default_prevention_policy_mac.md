@@ -70,6 +70,7 @@ resource "crowdstrike_default_prevention_policy_mac" "default" {
   hash_collector                               = true
   empyre_backdoor                              = true
   chopper_webshell                             = true
+  suspicious_file_analysis                     = true
 }
 
 output "default_prevention_policy_mac" {
@@ -93,6 +94,7 @@ output "default_prevention_policy_mac" {
 - `description` (String) Description of the prevention policy.
 - `detect_on_write` (Boolean) Whether to enable the setting. Use machine learning to analyze suspicious files when they're written to disk. To adjust detection sensitivity, change Anti-malware Detection levels in Sensor Machine Learning and Cloud Machine Learning.
 - `empyre_backdoor` (Boolean) Whether to enable the setting. A process with behaviors indicative of the Empyre Backdoor was terminated.
+- `enhanced_network_visibility` (Boolean) Whether to enable the setting. Provides enhanced visibility into network activities and detections.
 - `hash_collector` (Boolean) Whether to enable the setting. An attempt to dump a user’s hashed password was blocked.
 - `intelligence_sourced_threats` (Boolean) Whether to enable the setting. Block processes that CrowdStrike Intelligence analysts classify as malicious. These are focused on static hash-based IOCs.
 - `kc_password_decoded` (Boolean) Whether to enable the setting. An attempt to recover a plaintext password via the kcpassword file was blocked.
@@ -100,10 +102,12 @@ output "default_prevention_policy_mac" {
 - `prevent_suspicious_processes` (Boolean) Whether to enable the setting. Block processes that CrowdStrike analysts classify as suspicious. These are focused on dynamic IOAs, such as malware, exploits and other threats.
 - `quarantine` (Boolean) Whether to enable the setting. Quarantine executable files after they’re prevented by NGAV. When this is enabled, we recommend setting anti-malware prevention levels to Moderate or higher and not using other antivirus solutions.
 - `quarantine_on_write` (Boolean) Whether to enable the setting. Use machine learning to quarantine suspicious files when they're written to disk. To adjust quarantine sensitivity, change Anti-malware Prevention levels in Sensor Machine Learning and Cloud Machine Learning.
+- `retrospective_detections` (Boolean) Whether to enable the setting. Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.
 - `script_based_execution_monitoring` (Boolean) Whether to enable the setting. Provides visibility into suspicious scripts, including shell and other scripting languages.
 - `sensor_adware_and_pup` (Attributes) For offline and online hosts, use sensor-based machine learning to identify and analyze unknown executables as they run to detect and prevent adware and potentially unwanted programs (PUP). (see [below for nested schema](#nestedatt--sensor_adware_and_pup))
 - `sensor_anti_malware` (Attributes) For offline and online hosts, use sensor-based machine learning to identify and analyze unknown executables as they run to detect and prevent malware. (see [below for nested schema](#nestedatt--sensor_anti_malware))
 - `sensor_tampering_protection` (Boolean) Whether to enable the setting. Blocks attempts to tamper with the sensor. If disabled, the sensor still creates detections for tampering attempts but doesn’t block them. Disabling not recommended.
+- `suspicious_file_analysis` (Boolean) Whether to enable the setting. Upload suspicious files for advanced threat analysis with QuickScan Pro.
 - `upload_unknown_detection_related_executables` (Boolean) Whether to enable the setting. Upload all unknown detection-related executables for advanced analysis in the cloud.
 - `upload_unknown_executables` (Boolean) Whether to enable the setting. Upload all unknown executables for advanced analysis in the cloud.
 - `xpcom_shell` (Boolean) Whether to enable the setting. The execution of an XPCOM shell was blocked.

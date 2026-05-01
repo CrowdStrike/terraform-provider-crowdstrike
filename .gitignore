@@ -26,7 +26,7 @@ website/node_modules
 *.
 .clinerules/
 terraform-provider-crowdstrike*
-CLAUDE.md
+
 
 website/vendor
 .clineignore

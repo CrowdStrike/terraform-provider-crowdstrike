@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -109,6 +110,7 @@ type preventionPolicyWindowsResourceModel struct {
 	BootConfigurationDatabaseProtection        types.Bool   `tfsdk:"boot_configuration_database_protection"`
 	WSL2Visibility                             types.Bool   `tfsdk:"wsl2_visibility"`
 	SuspiciousFileAnalysis                     types.Bool   `tfsdk:"suspicious_file_analysis"`
+	RetrospectiveDetections                    types.Bool   `tfsdk:"retrospective_detections"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -191,7 +193,7 @@ func (r *preventionPolicyWindowsResource) Create(
 
 	preventionPolicy := res.Payload.Resources[0]
 	plan.ID = types.StringValue(*preventionPolicy.ID)
-	plan.Description = types.StringValue(*preventionPolicy.Description)
+	plan.Description = flex.StringPointerToFramework(preventionPolicy.Description)
 	plan.Name = types.StringValue(*preventionPolicy.Name)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
@@ -276,7 +278,7 @@ func (r *preventionPolicyWindowsResource) Read(
 
 	state.ID = types.StringValue(*policy.ID)
 	state.Name = types.StringValue(*policy.Name)
-	state.Description = types.StringValue(*policy.Description)
+	state.Description = flex.StringPointerToFramework(policy.Description)
 	state.Enabled = types.BoolValue(*policy.Enabled)
 	resp.Diagnostics.Append(r.assignPreventionSettings(ctx, &state, policy.PreventionSettings)...)
 
@@ -345,7 +347,7 @@ func (r *preventionPolicyWindowsResource) Update(
 		plan.ID.ValueString(),
 		updatePreventionPolicyOptions{
 			Name:        plan.Name.ValueString(),
-			Description: plan.Description.ValueString(),
+			Description: flex.FrameworkToStringPointer(plan.Description),
 		},
 	)
 
@@ -355,7 +357,7 @@ func (r *preventionPolicyWindowsResource) Update(
 	}
 
 	plan.ID = types.StringValue(*preventionPolicy.ID)
-	plan.Description = types.StringValue(*preventionPolicy.Description)
+	plan.Description = flex.StringPointerToFramework(preventionPolicy.Description)
 	plan.Name = types.StringValue(*preventionPolicy.Name)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	resp.Diagnostics.Append(r.assignPreventionSettings(ctx, &plan, preventionPolicy.PreventionSettings)...)
@@ -823,6 +825,7 @@ func (r *preventionPolicyWindowsResource) assignPreventionSettings(
 	)
 	state.WSL2Visibility = defaultBoolFalse(toggleSettings["WSL2Visibility"])
 	state.SuspiciousFileAnalysis = defaultBoolFalse(toggleSettings["SuspiciousFileAnalysis"])
+	state.RetrospectiveDetections = defaultBoolFalse(toggleSettings["RetrospectiveDetections"])
 
 	// mlslider settings
 	if detectionSlider, ok := detectionMlSliderSettings["ExtendedUserModeDataSlider"]; ok {
@@ -981,6 +984,7 @@ func (r *preventionPolicyWindowsResource) generatePreventionSettings(
 		"BootConfigurationDatabaseProtection":       config.BootConfigurationDatabaseProtection,
 		"WSL2Visibility":                            config.WSL2Visibility,
 		"SuspiciousFileAnalysis":                    config.SuspiciousFileAnalysis,
+		"RetrospectiveDetections":                   config.RetrospectiveDetections,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}

@@ -41,7 +41,8 @@ var (
 
 var (
 	documentationSection        string = "Falcon Cloud Security"
-	resourceMarkdownDescription string = "This resource manages custom cloud security rules. " +
+	resourceMarkdownDescription string = "~> **Deprecated** This resource is deprecated and will be removed in a future version. Use `crowdstrike_cloud_security_iom_custom_rule` instead.\n\n" +
+		"This resource manages custom cloud security rules. " +
 		"These rules can be created either by inheriting properties from a parent rule with minimal customization, or by fully customizing all attributes for maximum flexibility. " +
 		"To create a rule based on a parent rule, utilize the `crowdstrike_cloud_security_rules` data source to gather parent rule information to use in the new custom rule. " +
 		"The `crowdstrike_cloud_compliance_framework_controls` data source can be used to query Falcon for compliance benchmark controls to associate with custom rules created with this resource. "
@@ -114,6 +115,7 @@ func (r *cloudSecurityCustomRuleResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
+		DeprecationMessage:  "This resource is deprecated. Use crowdstrike_cloud_security_iom_custom_rule instead.",
 		MarkdownDescription: utils.MarkdownDescription(documentationSection, resourceMarkdownDescription, requiredScopes),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

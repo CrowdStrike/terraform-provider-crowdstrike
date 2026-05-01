@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
@@ -103,6 +104,7 @@ type defaultPreventionPolicyWindowsResourceModel struct {
 	BootConfigurationDatabaseProtection        types.Bool   `tfsdk:"boot_configuration_database_protection"`
 	WSL2Visibility                             types.Bool   `tfsdk:"wsl2_visibility"`
 	SuspiciousFileAnalysis                     types.Bool   `tfsdk:"suspicious_file_analysis"`
+	RetrospectiveDetections                    types.Bool   `tfsdk:"retrospective_detections"`
 }
 
 // wrap transforms Go values to their terraform wrapped values.
@@ -112,9 +114,7 @@ func (m *defaultPreventionPolicyWindowsResourceModel) wrap(
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	if *policy.Description != "" {
-		m.Description = types.StringValue(*policy.Description)
-	}
+	m.Description = flex.StringPointerToFramework(policy.Description)
 	diags.Append(m.assignPreventionSettings(ctx, policy.PreventionSettings)...)
 	ruleGroupSet, diag := ioarulegroup.ConvertIOARuleGroupToSet(ctx, policy.IoaRuleGroups)
 	diags.Append(diag...)
@@ -186,6 +186,7 @@ func (m *defaultPreventionPolicyWindowsResourceModel) generatePreventionSettings
 		"BootConfigurationDatabaseProtection":       m.BootConfigurationDatabaseProtection,
 		"WSL2Visibility":                            m.WSL2Visibility,
 		"SuspiciousFileAnalysis":                    m.SuspiciousFileAnalysis,
+		"RetrospectiveDetections":                   m.RetrospectiveDetections,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}
@@ -412,6 +413,7 @@ func (m *defaultPreventionPolicyWindowsResourceModel) assignPreventionSettings(
 	)
 	m.WSL2Visibility = defaultBoolFalse(toggleSettings["WSL2Visibility"])
 	m.SuspiciousFileAnalysis = defaultBoolFalse(toggleSettings["SuspiciousFileAnalysis"])
+	m.RetrospectiveDetections = defaultBoolFalse(toggleSettings["RetrospectiveDetections"])
 
 	// mlslider settings
 	if detectionSlider, ok := detectionMlSliderSettings["ExtendedUserModeDataSlider"]; ok {
@@ -594,7 +596,7 @@ func (r *defaultPreventionPolicyWindowsResource) Create(
 		r.client,
 		preventionSettings,
 		plan.ID.ValueString(),
-		updatePreventionPolicyOptions{Description: plan.Description.ValueString()},
+		updatePreventionPolicyOptions{Description: flex.FrameworkToStringPointer(plan.Description)},
 	)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -661,7 +663,7 @@ func (r *defaultPreventionPolicyWindowsResource) Update(
 		r.client,
 		preventionSettings,
 		plan.ID.ValueString(),
-		updatePreventionPolicyOptions{Description: plan.Description.ValueString()},
+		updatePreventionPolicyOptions{Description: flex.FrameworkToStringPointer(plan.Description)},
 	)
 
 	resp.Diagnostics.Append(diags...)

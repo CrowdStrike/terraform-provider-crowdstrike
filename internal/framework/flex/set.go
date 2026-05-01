@@ -24,6 +24,41 @@ func ExpandSetAs[T any](
 	return elements
 }
 
+// ExpandSetWithConverter converts a Terraform Framework types.Set into a Go slice
+// using a converter function to transform each element from the Terraform model type
+// to the desired output type.
+// If the set is null or unknown, it returns an empty slice.
+func ExpandSetWithConverter[TSource, TDest any](
+	ctx context.Context,
+	set types.Set,
+	converter func(TSource) (TDest, diag.Diagnostics),
+) ([]TDest, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if set.IsNull() || set.IsUnknown() {
+		return []TDest{}, nil
+	}
+
+	var sources []TSource
+	diags.Append(set.ElementsAs(ctx, &sources, false)...)
+	if diags.HasError() {
+		return []TDest{}, diags
+	}
+
+	destinations := make([]TDest, 0, len(sources))
+	for _, source := range sources {
+		dest, convertDiags := converter(source)
+		diags.Append(convertDiags...)
+		destinations = append(destinations, dest)
+	}
+
+	if diags.HasError() {
+		return []TDest{}, diags
+	}
+
+	return destinations, diags
+}
+
 // MergeStringSet combines two sets and returns a new set containing unique items from both.
 func MergeStringSet(
 	ctx context.Context,
@@ -94,6 +129,10 @@ func DiffStringSet(
 
 // FlattenStringValueSet converts a slice of strings to a Terraform set of strings.
 // Returns null if the slice is empty or nil.
+//
+// Pair with a validator that prevents users from setting empty sets. When the API returns
+// an empty slice for unset fields, normalizing [] to null ensures state matches
+// config and prevents inconsistent result after apply errors.
 func FlattenStringValueSet(
 	ctx context.Context,
 	values []string,
@@ -103,4 +142,40 @@ func FlattenStringValueSet(
 	}
 
 	return types.SetValueFrom(ctx, types.StringType, values)
+}
+
+// FlattenObjectValueSetFrom converts a slice of source objects to a Terraform set of objects
+// using a converter function to transform each element.
+// Returns null if the slice is empty or nil, or if diagnostics has errors.
+func FlattenObjectValueSetFrom[TSource, TDest any](
+	ctx context.Context,
+	objectType types.ObjectType,
+	sources []TSource,
+	converter func(TSource) (TDest, diag.Diagnostics),
+) (types.Set, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if len(sources) == 0 {
+		return types.SetNull(objectType), nil
+	}
+
+	destinations := make([]TDest, 0, len(sources))
+	for _, source := range sources {
+		dest, convertDiags := converter(source)
+		diags.Append(convertDiags...)
+		destinations = append(destinations, dest)
+	}
+
+	if diags.HasError() {
+		return types.SetNull(objectType), diags
+	}
+
+	set, setDiags := types.SetValueFrom(ctx, objectType, destinations)
+	diags.Append(setDiags...)
+
+	if diags.HasError() {
+		return types.SetNull(objectType), diags
+	}
+
+	return set, diags
 }

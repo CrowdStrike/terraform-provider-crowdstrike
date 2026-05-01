@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -65,6 +66,9 @@ type preventionPolicyMacResourceModel struct {
 	EmpyreBackdoor                     types.Bool   `tfsdk:"empyre_backdoor"`
 	KcPasswordDecoded                  types.Bool   `tfsdk:"kc_password_decoded"`
 	HashCollector                      types.Bool   `tfsdk:"hash_collector"`
+	EnhancedNetworkVisibility          types.Bool   `tfsdk:"enhanced_network_visibility"`
+	SuspiciousFileAnalysis             types.Bool   `tfsdk:"suspicious_file_analysis"`
+	RetrospectiveDetections            types.Bool   `tfsdk:"retrospective_detections"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -147,7 +151,7 @@ func (r *preventionPolicyMacResource) Create(
 
 	preventionPolicy := res.Payload.Resources[0]
 	plan.ID = types.StringValue(*preventionPolicy.ID)
-	plan.Description = types.StringValue(*preventionPolicy.Description)
+	plan.Description = flex.StringPointerToFramework(preventionPolicy.Description)
 	plan.Name = types.StringValue(*preventionPolicy.Name)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
@@ -236,7 +240,7 @@ func (r *preventionPolicyMacResource) Read(
 
 	state.ID = types.StringValue(*policy.ID)
 	state.Name = types.StringValue(*policy.Name)
-	state.Description = types.StringValue(*policy.Description)
+	state.Description = flex.StringPointerToFramework(policy.Description)
 	state.Enabled = types.BoolValue(*policy.Enabled)
 	resp.Diagnostics.Append(r.assignPreventionSettings(ctx, &state, policy.PreventionSettings)...)
 	if resp.Diagnostics.HasError() {
@@ -308,7 +312,7 @@ func (r *preventionPolicyMacResource) Update(
 		plan.ID.ValueString(),
 		updatePreventionPolicyOptions{
 			Name:        plan.Name.ValueString(),
-			Description: plan.Description.ValueString(),
+			Description: flex.FrameworkToStringPointer(plan.Description),
 		},
 	)
 
@@ -318,7 +322,7 @@ func (r *preventionPolicyMacResource) Update(
 	}
 
 	plan.ID = types.StringValue(*preventionPolicy.ID)
-	plan.Description = types.StringValue(*preventionPolicy.Description)
+	plan.Description = flex.StringPointerToFramework(preventionPolicy.Description)
 	plan.Name = types.StringValue(*preventionPolicy.Name)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	resp.Diagnostics.Append(r.assignPreventionSettings(ctx, &plan, preventionPolicy.PreventionSettings)...)
@@ -537,6 +541,9 @@ func (r *preventionPolicyMacResource) assignPreventionSettings(
 	state.EmpyreBackdoor = defaultBoolFalse(toggleSettings["EmpyreBackdoor"])
 	state.KcPasswordDecoded = defaultBoolFalse(toggleSettings["KcPasswordDecoded"])
 	state.HashCollector = defaultBoolFalse(toggleSettings["HashCollector"])
+	state.EnhancedNetworkVisibility = defaultBoolFalse(toggleSettings["EnhancedNetworkVisibilityMac"])
+	state.SuspiciousFileAnalysis = defaultBoolFalse(toggleSettings["SuspiciousFileAnalysis"])
+	state.RetrospectiveDetections = defaultBoolFalse(toggleSettings["RetrospectiveDetections"])
 
 	// mlslider settings
 	if slider, ok := mlSliderSettings["CloudAntiMalware"]; ok {
@@ -603,6 +610,9 @@ func (r *preventionPolicyMacResource) generatePreventionSettings(
 		"EmpyreBackdoor":                     config.EmpyreBackdoor,
 		"KcPasswordDecoded":                  config.KcPasswordDecoded,
 		"HashCollector":                      config.HashCollector,
+		"EnhancedNetworkVisibilityMac":       config.EnhancedNetworkVisibility,
+		"SuspiciousFileAnalysis":             config.SuspiciousFileAnalysis,
+		"RetrospectiveDetections":            config.RetrospectiveDetections,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}

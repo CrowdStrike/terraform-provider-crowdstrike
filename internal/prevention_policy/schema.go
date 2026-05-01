@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -219,6 +220,9 @@ func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 			"description": schema.StringAttribute{
 				Optional:    true,
 				Description: "Description of the prevention policy.",
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
+				},
 			},
 			"cloud_anti_malware_microsoft_office_files": mlSLiderAttribute(
 				"Identifies potentially malicious macros in Microsoft Office files and, if prevention is enabled, either quarantines the file or removes the malicious macros before releasing the file back to the host",
@@ -415,6 +419,9 @@ func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 			"suspicious_file_analysis": toggleAttribute(
 				"Upload suspicious files for advanced threat analysis with QuickScan Pro.",
 			),
+			"retrospective_detections": toggleAttribute(
+				"Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.",
+			),
 		},
 	}
 
@@ -474,6 +481,9 @@ func generateMacSchema(defaultPolicy bool) schema.Schema {
 			"description": schema.StringAttribute{
 				Optional:    true,
 				Description: "Description of the prevention policy.",
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
+				},
 			},
 			"cloud_anti_malware": mlSLiderAttribute(
 				"Use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware for your online hosts.",
@@ -532,6 +542,15 @@ func generateMacSchema(defaultPolicy bool) schema.Schema {
 			),
 			"prevent_suspicious_processes": toggleAttribute(
 				"Block processes that CrowdStrike analysts classify as suspicious. These are focused on dynamic IOAs, such as malware, exploits and other threats.",
+			),
+			"enhanced_network_visibility": toggleAttribute(
+				"Provides enhanced visibility into network activities and detections.",
+			),
+			"suspicious_file_analysis": toggleAttribute(
+				"Upload suspicious files for advanced threat analysis with QuickScan Pro.",
+			),
+			"retrospective_detections": toggleAttribute(
+				"Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.",
 			),
 		},
 	}
@@ -592,6 +611,9 @@ func generateLinuxSchema(defaultPolicy bool) schema.Schema {
 			"description": schema.StringAttribute{
 				Optional:    true,
 				Description: "Description of the prevention policy.",
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
+				},
 			},
 			"cloud_anti_malware": mlSLiderAttribute(
 				"Use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware for your online hosts.",
@@ -661,6 +683,21 @@ func generateLinuxSchema(defaultPolicy bool) schema.Schema {
 			),
 			"suspicious_file_analysis": toggleAttribute(
 				"Upload suspicious files for advanced threat analysis with QuickScan Pro.",
+			),
+			"cloud_data_protection_visibility": toggleAttribute(
+				"Allows the sensor to monitor and analyze data flows for protection against data breaches and leaks, and to improve data-related detections.",
+			),
+			"ssh_visibility": toggleAttribute(
+				"Enable monitoring of activities performed by SSH servers.",
+			),
+			"enhance_systemd_visibility": toggleAttribute(
+				"This enhancement enables visibility into modifications to systemd services and timers.",
+			),
+			"php_script_optimization": toggleAttribute(
+				"Mitigates high volume PHP script execution to only the first time it's seen by the server.",
+			),
+			"retrospective_detections": toggleAttribute(
+				"Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.",
 			),
 		},
 	}

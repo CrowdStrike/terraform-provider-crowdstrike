@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -67,6 +68,11 @@ type preventionPolicyLinuxResourceModel struct {
 	EnhancePHPVisibility                 types.Bool   `tfsdk:"enhance_php_visibility"`
 	EnhanceEnvironmentVariableVisibility types.Bool   `tfsdk:"enhance_environment_variable_visibility"`
 	SuspiciousFileAnalysis               types.Bool   `tfsdk:"suspicious_file_analysis"`
+	CloudDataProtectionVisibility        types.Bool   `tfsdk:"cloud_data_protection_visibility"`
+	SSHVisibility                        types.Bool   `tfsdk:"ssh_visibility"`
+	EnhanceSystemdVisibility             types.Bool   `tfsdk:"enhance_systemd_visibility"`
+	PHPScriptOptimization                types.Bool   `tfsdk:"php_script_optimization"`
+	RetrospectiveDetections              types.Bool   `tfsdk:"retrospective_detections"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -149,7 +155,7 @@ func (r *preventionPolicyLinuxResource) Create(
 
 	preventionPolicy := res.Payload.Resources[0]
 	plan.ID = types.StringValue(*preventionPolicy.ID)
-	plan.Description = types.StringValue(*preventionPolicy.Description)
+	plan.Description = flex.StringPointerToFramework(preventionPolicy.Description)
 	plan.Name = types.StringValue(*preventionPolicy.Name)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 
@@ -238,7 +244,7 @@ func (r *preventionPolicyLinuxResource) Read(
 
 	state.ID = types.StringValue(*policy.ID)
 	state.Name = types.StringValue(*policy.Name)
-	state.Description = types.StringValue(*policy.Description)
+	state.Description = flex.StringPointerToFramework(policy.Description)
 	state.Enabled = types.BoolValue(*policy.Enabled)
 	resp.Diagnostics.Append(r.assignPreventionSettings(ctx, &state, policy.PreventionSettings)...)
 	if resp.Diagnostics.HasError() {
@@ -310,7 +316,7 @@ func (r *preventionPolicyLinuxResource) Update(
 		plan.ID.ValueString(),
 		updatePreventionPolicyOptions{
 			Name:        plan.Name.ValueString(),
-			Description: plan.Description.ValueString(),
+			Description: flex.FrameworkToStringPointer(plan.Description),
 		},
 	)
 
@@ -320,7 +326,7 @@ func (r *preventionPolicyLinuxResource) Update(
 	}
 
 	plan.ID = types.StringValue(*preventionPolicy.ID)
-	plan.Description = types.StringValue(*preventionPolicy.Description)
+	plan.Description = flex.StringPointerToFramework(preventionPolicy.Description)
 	plan.Name = types.StringValue(*preventionPolicy.Name)
 	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
 	resp.Diagnostics.Append(r.assignPreventionSettings(ctx, &plan, preventionPolicy.PreventionSettings)...)
@@ -512,6 +518,13 @@ func (r *preventionPolicyLinuxResource) assignPreventionSettings(
 		toggleSettings["EnhanceEnvironmentVariableVisibility"],
 	)
 	state.SuspiciousFileAnalysis = defaultBoolFalse(toggleSettings["SuspiciousFileAnalysis"])
+	state.CloudDataProtectionVisibility = defaultBoolFalse(
+		toggleSettings["CloudDataProtectionVisibility"],
+	)
+	state.SSHVisibility = defaultBoolFalse(toggleSettings["SSHVisibility"])
+	state.EnhanceSystemdVisibility = defaultBoolFalse(toggleSettings["EnhanceSystemdVisibility"])
+	state.PHPScriptOptimization = defaultBoolFalse(toggleSettings["PHPScriptOptimization"])
+	state.RetrospectiveDetections = defaultBoolFalse(toggleSettings["RetrospectiveDetections"])
 
 	// mlslider settings
 	if slider, ok := mlSliderSettings["CloudAntiMalware"]; ok {
@@ -565,6 +578,11 @@ func (r *preventionPolicyLinuxResource) generatePreventionSettings(
 		"EnhancePHPVisibility":                 config.EnhancePHPVisibility,
 		"EnhanceEnvironmentVariableVisibility": config.EnhanceEnvironmentVariableVisibility,
 		"SuspiciousFileAnalysis":               config.SuspiciousFileAnalysis,
+		"CloudDataProtectionVisibility":        config.CloudDataProtectionVisibility,
+		"SSHVisibility":                        config.SSHVisibility,
+		"EnhanceSystemdVisibility":             config.EnhanceSystemdVisibility,
+		"PHPScriptOptimization":                config.PHPScriptOptimization,
+		"RetrospectiveDetections":              config.RetrospectiveDetections,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}

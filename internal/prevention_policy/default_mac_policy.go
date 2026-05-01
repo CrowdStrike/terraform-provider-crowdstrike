@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
@@ -58,6 +59,9 @@ type defaultPreventionPolicyMacResourceModel struct {
 	EmpyreBackdoor                     types.Bool   `tfsdk:"empyre_backdoor"`
 	KcPasswordDecoded                  types.Bool   `tfsdk:"kc_password_decoded"`
 	HashCollector                      types.Bool   `tfsdk:"hash_collector"`
+	EnhancedNetworkVisibility          types.Bool   `tfsdk:"enhanced_network_visibility"`
+	SuspiciousFileAnalysis             types.Bool   `tfsdk:"suspicious_file_analysis"`
+	RetrospectiveDetections            types.Bool   `tfsdk:"retrospective_detections"`
 }
 
 // wrap transforms Go values to their terraform wrapped values.
@@ -67,9 +71,7 @@ func (m *defaultPreventionPolicyMacResourceModel) wrap(
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	if *policy.Description != "" {
-		m.Description = types.StringValue(*policy.Description)
-	}
+	m.Description = flex.StringPointerToFramework(policy.Description)
 	diags.Append(m.assignPreventionSettings(ctx, policy.PreventionSettings)...)
 	ruleGroupSet, diag := ioarulegroup.ConvertIOARuleGroupToSet(ctx, policy.IoaRuleGroups)
 	diags.Append(diag...)
@@ -102,6 +104,9 @@ func (m *defaultPreventionPolicyMacResourceModel) generatePreventionSettings(ctx
 		"EmpyreBackdoor":                     m.EmpyreBackdoor,
 		"KcPasswordDecoded":                  m.KcPasswordDecoded,
 		"HashCollector":                      m.HashCollector,
+		"EnhancedNetworkVisibilityMac":       m.EnhancedNetworkVisibility,
+		"SuspiciousFileAnalysis":             m.SuspiciousFileAnalysis,
+		"RetrospectiveDetections":            m.RetrospectiveDetections,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}
@@ -201,6 +206,9 @@ func (m *defaultPreventionPolicyMacResourceModel) assignPreventionSettings(
 	m.EmpyreBackdoor = defaultBoolFalse(toggleSettings["EmpyreBackdoor"])
 	m.KcPasswordDecoded = defaultBoolFalse(toggleSettings["KcPasswordDecoded"])
 	m.HashCollector = defaultBoolFalse(toggleSettings["HashCollector"])
+	m.EnhancedNetworkVisibility = defaultBoolFalse(toggleSettings["EnhancedNetworkVisibilityMac"])
+	m.SuspiciousFileAnalysis = defaultBoolFalse(toggleSettings["SuspiciousFileAnalysis"])
+	m.RetrospectiveDetections = defaultBoolFalse(toggleSettings["RetrospectiveDetections"])
 
 	// mlslider settings
 	if slider, ok := mlSliderSettings["CloudAntiMalware"]; ok {
@@ -332,7 +340,7 @@ func (r *defaultPreventionPolicyMacResource) Create(
 		r.client,
 		preventionSettings,
 		plan.ID.ValueString(),
-		updatePreventionPolicyOptions{Description: plan.Description.ValueString()},
+		updatePreventionPolicyOptions{Description: flex.FrameworkToStringPointer(plan.Description)},
 	)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -399,7 +407,7 @@ func (r *defaultPreventionPolicyMacResource) Update(
 		r.client,
 		preventionSettings,
 		plan.ID.ValueString(),
-		updatePreventionPolicyOptions{Description: plan.Description.ValueString()},
+		updatePreventionPolicyOptions{Description: flex.FrameworkToStringPointer(plan.Description)},
 	)
 
 	resp.Diagnostics.Append(diags...)

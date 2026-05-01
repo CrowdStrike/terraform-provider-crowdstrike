@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/golangci/golangci-lint
-    rev: v1.64.4
+    rev: 04aec4f787c25a737641f3d434059880d2af0f53  # v1.64.4
     hooks:
       - id: golangci-lint
 
@@ -21,7 +21,7 @@ repos:
         pass_filenames: false
 
   - repo: https://github.com/antonbabenko/pre-commit-terraform
-    rev: v1.100.0
+    rev: 9a790d2bbf52124eecb5a71a4bab4884804ffa2a  # v1.100.0
     hooks:
       - id: terraform_fmt
         args:
@@ -33,7 +33,7 @@ repos:
         exclude: ^examples/provider/
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b  # v5.0.0
     hooks:
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]

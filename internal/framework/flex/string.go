@@ -4,6 +4,10 @@ import "github.com/hashicorp/terraform-plugin-framework/types"
 
 // StringValueToFramework converts a string to a Terraform framework types.String.
 // An empty string returns a null types.String.
+//
+// Pair with a validator (e.g. StringNotWhitespace) that prevents users from setting
+// empty strings. When the API returns "" for unset fields, normalizing "" to null
+// ensures state matches config and prevents inconsistent result after apply errors.
 func StringValueToFramework[T ~string](v T) types.String {
 	if v == "" {
 		return types.StringNull()
@@ -13,6 +17,10 @@ func StringValueToFramework[T ~string](v T) types.String {
 
 // StringPointerToFramework converts a string pointer to a Terraform framework types.String.
 // A nil pointer or empty string returns a null types.String.
+//
+// Pair with a validator (e.g. StringNotWhitespace) that prevents users from setting
+// empty strings. When the API returns "" for unset fields, normalizing "" to null
+// ensures state matches config and prevents inconsistent result after apply errors.
 func StringPointerToFramework(v *string) types.String {
 	if v == nil || *v == "" {
 		return types.StringNull()

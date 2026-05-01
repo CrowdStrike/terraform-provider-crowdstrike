@@ -9,6 +9,9 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
@@ -32,6 +35,7 @@ resource "crowdstrike_default_prevention_policy_windows" "test" {
   boot_configuration_database_protection = true
   wsl2_visibility                        = true
   suspicious_file_analysis               = true
+  retrospective_detections               = true
 
   cloud_anti_malware_microsoft_office_files = {
     detection  = "MODERATE"
@@ -61,6 +65,7 @@ resource "crowdstrike_default_prevention_policy_windows" "test" {
   boot_configuration_database_protection = false
   wsl2_visibility                        = false
   suspicious_file_analysis               = false
+  retrospective_detections               = false
 
   cloud_anti_malware_microsoft_office_files = {
     detection  = "MODERATE"
@@ -77,6 +82,33 @@ resource "crowdstrike_default_prevention_policy_windows" "test" {
   }
 }
 `, ruleGroupID)
+}
+
+func testAccDefaultPreventionPolicyWindowsConfig_noDescription() string {
+	return acctest.ProviderConfig + `
+resource "crowdstrike_default_prevention_policy_windows" "test" {
+  ioa_rule_groups                        = []
+  additional_user_mode_data              = true
+  suspicious_registry_operations         = true
+  boot_configuration_database_protection = true
+  wsl2_visibility                        = true
+  suspicious_file_analysis               = true
+  retrospective_detections               = true
+
+  cloud_anti_malware_microsoft_office_files = {
+    detection  = "MODERATE"
+    prevention = "MODERATE"
+  }
+
+  cloud_adware_pup_user_initiated = {
+    detection  = "CAUTIOUS"
+    prevention = "CAUTIOUS"
+  }
+
+  cloud_based_anomalous_process_execution = {
+    detection = "MODERATE"
+  }
+}`
 }
 
 // regression test to handle unknown states https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues/136
@@ -170,6 +202,33 @@ func TestAccDefaultPreventionPolicyWindowsResource_validationError(t *testing.T)
 	})
 }
 
+// regression test for https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues/149
+func TestAccDefaultPreventionPolicyWindowsResource_descriptionRemoval(t *testing.T) {
+	resourceName := "crowdstrike_default_prevention_policy_windows.test"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: testAccDefaultPreventionPolicyWindowsConfig_basic(),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("made with terraform")),
+				},
+			},
+			{
+				Config: testAccDefaultPreventionPolicyWindowsConfig_noDescription(),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.Null()),
+				},
+			},
+		},
+	})
+}
+
 func TestAccDefaultPreventionPolicyWindowsResource(t *testing.T) {
 	resourceName := "crowdstrike_default_prevention_policy_windows.test"
 	ruleGroupID, _ := os.LookupEnv("IOA_RULE_GROUP_ID")
@@ -217,6 +276,11 @@ func TestAccDefaultPreventionPolicyWindowsResource(t *testing.T) {
 					resource.TestCheckResourceAttr(
 						resourceName,
 						"suspicious_file_analysis",
+						"true",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"retrospective_detections",
 						"true",
 					),
 					resource.TestCheckResourceAttr(
@@ -292,6 +356,11 @@ func TestAccDefaultPreventionPolicyWindowsResource(t *testing.T) {
 					resource.TestCheckResourceAttr(
 						resourceName,
 						"suspicious_file_analysis",
+						"false",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"retrospective_detections",
 						"false",
 					),
 					resource.TestCheckResourceAttr(

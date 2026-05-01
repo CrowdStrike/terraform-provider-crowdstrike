@@ -67,6 +67,10 @@ resource "crowdstrike_default_prevention_policy_linux" "default" {
   enhance_php_visibility                       = true
   enhance_environment_variable_visibility      = true
   suspicious_file_analysis                     = true
+  cloud_data_protection_visibility             = true
+  ssh_visibility                               = true
+  enhance_systemd_visibility                   = true
+  php_script_optimization                      = true
 }
 
 output "default_prevention_policy_linux" {
@@ -84,6 +88,7 @@ output "default_prevention_policy_linux" {
 ### Optional
 
 - `cloud_anti_malware` (Attributes) Use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware for your online hosts. (see [below for nested schema](#nestedatt--cloud_anti_malware))
+- `cloud_data_protection_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor and analyze data flows for protection against data breaches and leaks, and to improve data-related detections.
 - `custom_blocking` (Boolean) Whether to enable the setting. Block processes matching hashes that you add to IOC Management with the action set to "Block" or "Block, hide detection".
 - `dbus_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor local D-Bus traffic for malicious patterns and improved detections.
 - `description` (String) Description of the prevention policy.
@@ -91,6 +96,7 @@ output "default_prevention_policy_linux" {
 - `email_protocol_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor SMTP, IMAP, and POP3 traffic for malicious patterns and improved detections.
 - `enhance_environment_variable_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor an extended set of changes to environment variables in order to enhance visibility.
 - `enhance_php_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor activities performed by PHP scripts to provide additional telemetry and improved detections.
+- `enhance_systemd_visibility` (Boolean) Whether to enable the setting. This enhancement enables visibility into modifications to systemd services and timers.
 - `extended_command_line_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor full CLI commands that include pipes and redirects. This is applicable only for User mode.
 - `filesystem_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor filesystem activity for additional telemetry and improved detections.
 - `ftp_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor unencrypted FTP traffic for malicious patterns and improved detections.
@@ -98,11 +104,14 @@ output "default_prevention_policy_linux" {
 - `memory_visibility` (Boolean) Whether to enable the setting. When enabled, the sensor will inspect memory-related operations: mmap, mprotect, ptrace and reading/writing remote process memory and produce events.
 - `network_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor network activity for additional telemetry and improved detections.
 - `on_write_script_file_visibility` (Boolean) Whether to enable the setting. Provides improved visibility into various script files being written to disk in addition to clouding a portion of their content.
+- `php_script_optimization` (Boolean) Whether to enable the setting. Mitigates high volume PHP script execution to only the first time it's seen by the server.
 - `prevent_suspicious_processes` (Boolean) Whether to enable the setting. Block processes that CrowdStrike analysts classify as suspicious. These are focused on dynamic IOAs, such as malware, exploits and other threats.
 - `quarantine` (Boolean) Whether to enable the setting. Quarantine executable files after they’re prevented by NGAV. When this is enabled, we recommend setting anti-malware prevention levels to Moderate or higher and not using other antivirus solutions.
+- `retrospective_detections` (Boolean) Whether to enable the setting. Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.
 - `script_based_execution_monitoring` (Boolean) Whether to enable the setting. Provides visibility into suspicious scripts, including shell and other scripting languages.
 - `sensor_anti_malware` (Attributes) For offline and online hosts, use sensor-based machine learning to identify and analyze unknown executables as they run to detect and prevent malware. (see [below for nested schema](#nestedatt--sensor_anti_malware))
 - `sensor_tampering_protection` (Boolean) Whether to enable the setting. Block attempts to tamper with the sensor by protecting critical components and resources. If disabled, the sensor still creates detections for tampering attempts but will not prevent the activity from occurring. Disabling is not recommended.
+- `ssh_visibility` (Boolean) Whether to enable the setting. Enable monitoring of activities performed by SSH servers.
 - `suspicious_file_analysis` (Boolean) Whether to enable the setting. Upload suspicious files for advanced threat analysis with QuickScan Pro.
 - `tls_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor TLS traffic for malicious patterns and improved detections.
 - `upload_unknown_detection_related_executables` (Boolean) Whether to enable the setting. Upload all unknown detection-related executables for advanced analysis in the cloud.

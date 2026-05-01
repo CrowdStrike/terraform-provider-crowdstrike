@@ -40,6 +40,12 @@ resource "crowdstrike_cloud_security_kac_policy" "example" {
         privileged_container          = "Alert"
         sensitive_data_in_environment = "Disabled"
       }
+      custom_rules = [
+        {
+          id     = "123e4567-e89b-12d3-a456-426614174000"
+          action = "Alert"
+        }
+      ]
     }
   ]
   default_rule_group = {
@@ -51,6 +57,12 @@ resource "crowdstrike_cloud_security_kac_policy" "example" {
     default_rules = {
       container_run_as_root = "Prevent"
     }
+    custom_rules = [
+      {
+        id     = "123e4567-e89b-12d3-a456-426614174000"
+        action = "Disabled"
+      }
+    ]
   }
 }
 
