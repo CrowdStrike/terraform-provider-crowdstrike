@@ -53,5 +53,5 @@ func registerSweepers() {
 	rtrputfile.RegisterSweepers()
 	usergroup.RegisterSweepers()
 	rtrscript.RegisterSweepers()
-  iocindicator.RegisterSweepers()
+	iocindicator.RegisterSweepers()
 }
