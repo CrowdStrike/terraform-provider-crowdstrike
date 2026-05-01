@@ -28,7 +28,7 @@ func TestAccCloudAzureTenant_basic(t *testing.T) {
 				Config: testAccCloudAzureTenantConfig_basic(tenantID),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
-					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("microsoft_graph_permission_ids"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact(userReadAllPermissionID)})),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("microsoft_graph_permission_ids"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact(userReadAllPermissionID)})),
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("cs_azure_client_id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("account_type"), knownvalue.StringExact("commercial")),
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("realtime_visibility").AtMapKey("enabled"), knownvalue.Bool(false)),
@@ -63,8 +63,8 @@ func TestAccCloudAzureTenant_update(t *testing.T) {
 				Config: testAccCloudAzureTenantConfig_withSubscription(tenantID, subID1),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
-					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("microsoft_graph_permission_ids"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact(userReadAllPermissionID)})),
-					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("subscription_ids"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact(subID1)})),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("microsoft_graph_permission_ids"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact(userReadAllPermissionID)})),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("subscription_ids"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact(subID1)})),
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("cs_azure_client_id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("account_type"), knownvalue.StringExact("commercial")),
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("realtime_visibility").AtMapKey("enabled"), knownvalue.Bool(false)),
@@ -77,8 +77,8 @@ func TestAccCloudAzureTenant_update(t *testing.T) {
 				Config: testAccCloudAzureTenantConfig_updated(tenantID, subID2),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
-					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("microsoft_graph_permission_ids"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact(userReadAllPermissionID)})),
-					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("subscription_ids"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact(subID2)})),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("microsoft_graph_permission_ids"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact(userReadAllPermissionID)})),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("subscription_ids"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact(subID2)})),
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("realtime_visibility").AtMapKey("enabled"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("resource_name_prefix"), knownvalue.StringExact("cs")),
@@ -94,7 +94,7 @@ func TestAccCloudAzureTenant_update(t *testing.T) {
 				Config: testAccCloudAzureTenantConfig_withSubscription(tenantID, subID3),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
-					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("subscription_ids"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact(subID3)})),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("subscription_ids"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact(subID3)})),
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("realtime_visibility").AtMapKey("enabled"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("resource_name_prefix"), knownvalue.StringExact("")),
@@ -126,7 +126,7 @@ func TestAccCloudAzureTenant_managementGroups(t *testing.T) {
 				Config: testAccCloudAzureTenantConfig_withManagementGroup(tenantID, mgID),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
-					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("management_group_ids"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact(mgID)})),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("management_group_ids"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact(mgID)})),
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("subscription_ids"), knownvalue.Null()),
 				},
 			},
@@ -275,7 +275,7 @@ func TestAccCloudAzureTenant_emptyGraphPermissions(t *testing.T) {
 				Config: testAccCloudAzureTenantConfig_emptyGraphPermissions(tenantID),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
-					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("microsoft_graph_permission_ids"), knownvalue.ListSizeExact(0)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("microsoft_graph_permission_ids"), knownvalue.SetSizeExact(0)),
 				},
 			},
 		},
