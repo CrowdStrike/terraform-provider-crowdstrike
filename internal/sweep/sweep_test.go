@@ -7,6 +7,7 @@ import (
 	cloudgoogleregistration "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_google_registration"
 	cloudgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_group"
 	cloudsecurity "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_security"
+	containerregistry "github.com/crowdstrike/terraform-provider-crowdstrike/internal/container_registry"
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
 	dataprotection "github.com/crowdstrike/terraform-provider-crowdstrike/internal/data_protection"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
@@ -48,6 +49,7 @@ func registerSweepers() {
 	cloudcompliance.RegisterSweepers()
 	cloudgroup.RegisterSweepers()
 	cloudsecurity.RegisterSweepers()
+	containerregistry.RegisterSweepers()
 	itautomation.RegisterSweepers()
 	rtrputfile.RegisterSweepers()
 	usergroup.RegisterSweepers()
