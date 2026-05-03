@@ -24,6 +24,7 @@ import (
 	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
 	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
 	mlfilepathexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ml_file_path_exclusion"
+	lookupfile "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ngsiem_lookup_file"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	responsepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/response_policy"
 	rtrputfile "github.com/crowdstrike/terraform-provider-crowdstrike/internal/rtr_put_file"
@@ -327,6 +328,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		ioarulegroup.NewIOARuleGroupResource,
 		usergroup.NewUserGroupResource,
 		installtoken.NewInstallTokenResource,
+		lookupfile.NewNGSIEMLookupFileResource,
 	}
 }
 
@@ -346,6 +348,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		preventionpolicy.NewPreventionPoliciesDataSource,
 		fim.NewFilevantagePoliciesDataSource,
 		hostgroups.NewHostGroupDataSource,
+		lookupfile.NewNGSIEMLookupFileDataSource,
 	}
 }
 
