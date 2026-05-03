@@ -482,10 +482,11 @@ func (r *ioaRuleGroupResource) Schema(
 							},
 						},
 						"comment": schema.StringAttribute{
-							Required:    true,
+							Optional:    true,
+							Computed:    true,
 							Description: "The comment stored in audit logs when making changes to the IOA rule group rule.",
-							Validators: []validator.String{
-								validators.StringNotWhitespace(),
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
 							},
 						},
 						"pattern_severity": schema.StringAttribute{
@@ -648,7 +649,7 @@ func wrapRules(
 			"instance_id":      types.StringPointerValue(apiRule.InstanceID),
 			"name":             types.StringPointerValue(apiRule.Name),
 			"description":      types.StringPointerValue(apiRule.Description),
-			"comment":          types.StringPointerValue(apiRule.Comment),
+			"comment":          flex.StringPointerToFramework(apiRule.Comment),
 			"pattern_severity": types.StringPointerValue(apiRule.PatternSeverity),
 			"type":             types.StringValue(ruleTypeName),
 			"action":           types.StringValue(actionName),

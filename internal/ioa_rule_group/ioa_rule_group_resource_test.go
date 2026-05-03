@@ -578,6 +578,46 @@ func TestAccIOARuleGroupResource_AllActions(t *testing.T) {
 	})
 }
 
+func TestAccIOARuleGroupResource_RuleWithoutComment(t *testing.T) {
+	rName := acctest.RandomResourceName()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccIOARuleGroupConfigRuleWithoutComment(rName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("platform"), knownvalue.StringExact("Linux")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules"), knownvalue.ListSizeExact(1)),
+					statecheck.ExpectKnownValue(
+						resourceName,
+						tfjsonpath.New("rules"),
+						knownvalue.ListPartial(map[int]knownvalue.Check{
+							0: knownvalue.ObjectPartial(map[string]knownvalue.Check{
+								"name":             knownvalue.StringExact("Rule Without Comment"),
+								"description":      knownvalue.StringExact("Tests that comment can be omitted"),
+								"pattern_severity": knownvalue.StringExact("low"),
+								"type":             knownvalue.StringExact("Process Creation"),
+								"action":           knownvalue.StringExact("Monitor"),
+								"enabled":          knownvalue.Bool(true),
+							}),
+						}),
+					),
+				},
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"comment"},
+			},
+		},
+	})
+}
+
 func TestAccIOARuleGroupResource_Validation_AllFieldsWildcard(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1395,4 +1435,35 @@ resource "crowdstrike_ioa_rule_group" "test" {
   ]
 }
 `
+}
+
+func testAccIOARuleGroupConfigRuleWithoutComment(rName string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_ioa_rule_group" "test" {
+  name        = %[1]q
+  platform    = "Linux"
+  description = "Rule group with no rule comment"
+  comment     = "Testing optional rule comment"
+  enabled     = false
+
+  rules = [
+    {
+      name             = "Rule Without Comment"
+      description      = "Tests that comment can be omitted"
+      pattern_severity = "low"
+      type             = "Process Creation"
+      action           = "Monitor"
+      enabled          = true
+
+      image_filename = {
+        include = ".*/usr/bin/.*"
+      }
+
+      command_line = {
+        include = ".*"
+      }
+    }
+  ]
+}
+`, rName)
 }
