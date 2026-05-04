@@ -272,10 +272,16 @@ func (m *cloudAzureTenantModel) wrap(
 	m.MicrosoftGraphPermissionIds = graphPermissionIDs
 
 	subscriptionsIDs, d := flex.FlattenStringValueSet(ctx, registration.SubscriptionIds)
+	if subscriptionsIDs.IsNull() && !m.SubscriptionIds.IsNull() {
+		subscriptionsIDs = types.SetValueMust(types.StringType, []attr.Value{})
+	}
 	diags.Append(d...)
 	m.SubscriptionIds = subscriptionsIDs
 
 	managementGroupIDs, d := flex.FlattenStringValueSet(ctx, registration.ManagementGroupIds)
+	if managementGroupIDs.IsNull() && !m.ManagementGroupIds.IsNull() {
+		managementGroupIDs = types.SetValueMust(types.StringType, []attr.Value{})
+	}
 	diags.Append(d...)
 	m.ManagementGroupIds = managementGroupIDs
 

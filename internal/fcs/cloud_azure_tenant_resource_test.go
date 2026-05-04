@@ -134,6 +134,41 @@ func TestAccCloudAzureTenant_managementGroups(t *testing.T) {
 	})
 }
 
+func TestAccCloudAzureTenant_emptyIdLists(t *testing.T) {
+	tenantID := acctest.RandomUUID()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAzureTenantConfig_basic(tenantID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("subscription_ids"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("management_group_ids"), knownvalue.Null()),
+				},
+			},
+			{
+				Config: testAccCloudAzureTenantConfig_emptyIdLists(tenantID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("subscription_ids"), knownvalue.SetSizeExact(0)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("management_group_ids"), knownvalue.SetSizeExact(0)),
+				},
+			},
+			{
+				Config: testAccCloudAzureTenantConfig_basic(tenantID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("subscription_ids"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("management_group_ids"), knownvalue.Null()),
+				},
+			},
+		},
+	})
+}
+
 func TestAccCloudAzureTenant_tags(t *testing.T) {
 	tenantID := acctest.RandomUUID()
 
@@ -330,6 +365,16 @@ resource "crowdstrike_cloud_azure_tenant" "test" {
   microsoft_graph_permission_ids = [%[2]q]
   management_group_ids           = [%[3]q]
 }`, tenantID, userReadAllPermissionID, managementGroupID)
+}
+
+func testAccCloudAzureTenantConfig_emptyIdLists(tenantID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                      = %[1]q
+  microsoft_graph_permission_ids = [%[2]q]
+  subscription_ids               = []
+  management_group_ids           = []
+}`, tenantID, userReadAllPermissionID)
 }
 
 func testAccCloudAzureTenantConfig_withTags(tenantID string) string {
