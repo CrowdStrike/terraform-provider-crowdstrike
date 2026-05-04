@@ -443,15 +443,14 @@ func expandCreateRequest(
 	}
 
 	return &models.IoaExclusionsIoaExclusionCreateReqV1{
-		Name:          flex.FrameworkToStringPointer(plan.Name),
-		Description:   flex.FrameworkToStringPointer(plan.Description),
-		PatternID:     flex.FrameworkToStringPointer(plan.PatternID),
-		PatternName:   flex.FrameworkToStringPointer(plan.PatternName),
-		ClRegex:       flex.FrameworkToStringPointer(plan.ClRegex),
-		IfnRegex:      flex.FrameworkToStringPointer(plan.IfnRegex),
-		Groups:        groups,
-		Comment:       plan.Comment.ValueString(),
-		DetectionJSON: detectionJSONPointer(),
+		Name:        flex.FrameworkToStringPointer(plan.Name),
+		Description: flex.FrameworkToStringPointer(plan.Description),
+		PatternID:   flex.FrameworkToStringPointer(plan.PatternID),
+		PatternName: flex.FrameworkToStringPointer(plan.PatternName),
+		ClRegex:     flex.FrameworkToStringPointer(plan.ClRegex),
+		IfnRegex:    flex.FrameworkToStringPointer(plan.IfnRegex),
+		Groups:      groups,
+		Comment:     plan.Comment.ValueString(),
 	}, diags
 }
 
@@ -466,16 +465,15 @@ func expandUpdateRequest(
 	}
 
 	return &models.IoaExclusionsIoaExclusionUpdateReqV1{
-		ID:            flex.FrameworkToStringPointer(plan.ID),
-		Name:          flex.FrameworkToStringPointer(plan.Name),
-		Description:   flex.FrameworkToStringPointer(plan.Description),
-		PatternID:     flex.FrameworkToStringPointer(plan.PatternID),
-		PatternName:   flex.FrameworkToStringPointer(plan.PatternName),
-		ClRegex:       flex.FrameworkToStringPointer(plan.ClRegex),
-		IfnRegex:      flex.FrameworkToStringPointer(plan.IfnRegex),
-		Groups:        groups,
-		Comment:       plan.Comment.ValueString(),
-		DetectionJSON: detectionJSONPointer(),
+		ID:          flex.FrameworkToStringPointer(plan.ID),
+		Name:        flex.FrameworkToStringPointer(plan.Name),
+		Description: flex.FrameworkToStringPointer(plan.Description),
+		PatternID:   flex.FrameworkToStringPointer(plan.PatternID),
+		PatternName: flex.FrameworkToStringPointer(plan.PatternName),
+		ClRegex:     flex.FrameworkToStringPointer(plan.ClRegex),
+		IfnRegex:    flex.FrameworkToStringPointer(plan.IfnRegex),
+		Groups:      groups,
+		Comment:     plan.Comment.ValueString(),
 	}, diags
 }
 
@@ -493,9 +491,4 @@ func validateGroups(groups []string) error {
 	}
 
 	return nil
-}
-
-// TODO: remove once gofalcon marks detection_json as optional instead of required.
-func detectionJSONPointer() *string {
-	return utils.Addr("")
 }
