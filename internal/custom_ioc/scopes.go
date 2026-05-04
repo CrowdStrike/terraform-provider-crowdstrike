@@ -1,4 +1,4 @@
-package iocindicator
+package customioc
 
 import "github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 

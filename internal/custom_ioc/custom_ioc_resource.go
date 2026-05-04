@@ -1,4 +1,4 @@
-package iocindicator
+package customioc
 
 import (
 	"context"
@@ -31,11 +31,11 @@ import (
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var (
-	_ resource.Resource                   = &iocIndicatorResource{}
-	_ resource.ResourceWithConfigure      = &iocIndicatorResource{}
-	_ resource.ResourceWithImportState    = &iocIndicatorResource{}
-	_ resource.ResourceWithValidateConfig = &iocIndicatorResource{}
-	_ resource.ResourceWithModifyPlan     = &iocIndicatorResource{}
+	_ resource.Resource                   = &customIOCResource{}
+	_ resource.ResourceWithConfigure      = &customIOCResource{}
+	_ resource.ResourceWithImportState    = &customIOCResource{}
+	_ resource.ResourceWithValidateConfig = &customIOCResource{}
+	_ resource.ResourceWithModifyPlan     = &customIOCResource{}
 )
 
 const (
@@ -102,18 +102,18 @@ var (
 	}
 )
 
-// NewIOCIndicatorResource creates a new IOC indicator resource.
-func NewIOCIndicatorResource() resource.Resource {
-	return &iocIndicatorResource{}
+// NewCustomIOCResource creates a new custom IOC resource.
+func NewCustomIOCResource() resource.Resource {
+	return &customIOCResource{}
 }
 
-// iocIndicatorResource defines the resource implementation.
-type iocIndicatorResource struct {
+// customIOCResource defines the resource implementation.
+type customIOCResource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-// iocIndicatorResourceModel describes the resource data model.
-type iocIndicatorResourceModel struct {
+// customIOCResourceModel describes the resource data model.
+type customIOCResourceModel struct {
 	ID              types.String      `tfsdk:"id"`
 	Type            types.String      `tfsdk:"type"`
 	Value           types.String      `tfsdk:"value"`
@@ -134,7 +134,7 @@ type iocIndicatorResourceModel struct {
 }
 
 // wrap maps an API response model to the Terraform resource model.
-func (m *iocIndicatorResourceModel) wrap(
+func (m *customIOCResourceModel) wrap(
 	ctx context.Context,
 	indicator *models.APIIndicatorV1,
 ) diag.Diagnostics {
@@ -214,7 +214,7 @@ func (m *iocIndicatorResourceModel) wrap(
 	return diags
 }
 
-func (r *iocIndicatorResource) Configure(
+func (r *customIOCResource) Configure(
 	ctx context.Context,
 	req resource.ConfigureRequest,
 	resp *resource.ConfigureResponse,
@@ -238,18 +238,15 @@ func (r *iocIndicatorResource) Configure(
 	r.client = providerConfig.Client
 }
 
-func (r *iocIndicatorResource) Metadata(
+func (r *customIOCResource) Metadata(
 	ctx context.Context,
 	req resource.MetadataRequest,
 	resp *resource.MetadataResponse,
 ) {
-	// TODO: rename to "_custom_ioc" before release. "ioc_indicator" is redundant
-	// (IOC already means "indicator of compromise"), and CrowdStrike docs refer
-	// to this feature as "Custom IOCs".
-	resp.TypeName = req.ProviderTypeName + "_ioc_indicator"
+	resp.TypeName = req.ProviderTypeName + "_custom_ioc"
 }
 
-func (r *iocIndicatorResource) Schema(
+func (r *customIOCResource) Schema(
 	ctx context.Context,
 	req resource.SchemaRequest,
 	resp *resource.SchemaResponse,
@@ -389,12 +386,12 @@ func (r *iocIndicatorResource) Schema(
 }
 
 // ValidateConfig runs during validate, plan, and apply to check configuration validity.
-func (r *iocIndicatorResource) ValidateConfig(
+func (r *customIOCResource) ValidateConfig(
 	ctx context.Context,
 	req resource.ValidateConfigRequest,
 	resp *resource.ValidateConfigResponse,
 ) {
-	var cfg iocIndicatorResourceModel
+	var cfg customIOCResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -410,7 +407,7 @@ func (r *iocIndicatorResource) ValidateConfig(
 // ModifyPlan enforces that expiration is always a future date when it changes.
 // State-aware: lets users edit other fields on an IOC whose stored expiration has
 // already passed, as long as they don't touch the expiration itself.
-func (r *iocIndicatorResource) ModifyPlan(
+func (r *customIOCResource) ModifyPlan(
 	ctx context.Context,
 	req resource.ModifyPlanRequest,
 	resp *resource.ModifyPlanResponse,
@@ -463,9 +460,9 @@ func (r *iocIndicatorResource) ModifyPlan(
 	}
 }
 
-func (r *iocIndicatorResource) validateHostGroups(
+func (r *customIOCResource) validateHostGroups(
 	ctx context.Context,
-	cfg iocIndicatorResourceModel,
+	cfg customIOCResourceModel,
 	resp *resource.ValidateConfigResponse,
 ) {
 	if cfg.HostGroups.IsNull() || cfg.HostGroups.IsUnknown() {
@@ -494,9 +491,9 @@ func (r *iocIndicatorResource) validateHostGroups(
 	}
 }
 
-func (r *iocIndicatorResource) validatePlatformsForType(
+func (r *customIOCResource) validatePlatformsForType(
 	ctx context.Context,
-	cfg iocIndicatorResourceModel,
+	cfg customIOCResourceModel,
 	resp *resource.ValidateConfigResponse,
 ) {
 	if cfg.Type.IsNull() || cfg.Type.IsUnknown() {
@@ -550,9 +547,9 @@ func (r *iocIndicatorResource) validatePlatformsForType(
 	}
 }
 
-func (r *iocIndicatorResource) validateActionForType(
+func (r *customIOCResource) validateActionForType(
 	ctx context.Context,
-	cfg iocIndicatorResourceModel,
+	cfg customIOCResourceModel,
 	resp *resource.ValidateConfigResponse,
 ) {
 	if cfg.Type.IsNull() || cfg.Type.IsUnknown() {
@@ -600,8 +597,8 @@ func (r *iocIndicatorResource) validateActionForType(
 	}
 }
 
-func (r *iocIndicatorResource) validateSeverityRequirement(
-	cfg iocIndicatorResourceModel,
+func (r *customIOCResource) validateSeverityRequirement(
+	cfg customIOCResourceModel,
 	resp *resource.ValidateConfigResponse,
 ) {
 	if cfg.Action.IsUnknown() || cfg.MobileAction.IsUnknown() || cfg.Severity.IsUnknown() {
@@ -639,9 +636,9 @@ func (r *iocIndicatorResource) validateSeverityRequirement(
 	}
 }
 
-func (r *iocIndicatorResource) validateActionPresence(
+func (r *customIOCResource) validateActionPresence(
 	ctx context.Context,
-	cfg iocIndicatorResourceModel,
+	cfg customIOCResourceModel,
 	resp *resource.ValidateConfigResponse,
 ) {
 	if cfg.Platforms.IsNull() || cfg.Platforms.IsUnknown() {
@@ -717,12 +714,12 @@ func isDetectionAction(action string) bool {
 	return action == actionDetect || action == actionPrevent
 }
 
-func (r *iocIndicatorResource) Create(
+func (r *customIOCResource) Create(
 	ctx context.Context,
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-	var plan iocIndicatorResourceModel
+	var plan customIOCResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -830,12 +827,12 @@ func (r *iocIndicatorResource) Create(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func (r *iocIndicatorResource) Read(
+func (r *customIOCResource) Read(
 	ctx context.Context,
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-	var state iocIndicatorResourceModel
+	var state customIOCResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -847,7 +844,7 @@ func (r *iocIndicatorResource) Read(
 		"id": id,
 	})
 
-	indicator, readDiags := getIOCIndicator(ctx, r.client, id)
+	indicator, readDiags := getCustomIOC(ctx, r.client, id)
 	if tferrors.HasNotFoundError(readDiags) {
 		resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 		resp.State.RemoveResource(ctx)
@@ -866,18 +863,18 @@ func (r *iocIndicatorResource) Read(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (r *iocIndicatorResource) Update(
+func (r *customIOCResource) Update(
 	ctx context.Context,
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	var plan iocIndicatorResourceModel
+	var plan customIOCResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	var state iocIndicatorResourceModel
+	var state customIOCResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -981,12 +978,12 @@ func (r *iocIndicatorResource) Update(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func (r *iocIndicatorResource) Delete(
+func (r *customIOCResource) Delete(
 	ctx context.Context,
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-	var state iocIndicatorResourceModel
+	var state customIOCResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -1014,7 +1011,7 @@ func (r *iocIndicatorResource) Delete(
 	})
 }
 
-func (r *iocIndicatorResource) ImportState(
+func (r *customIOCResource) ImportState(
 	ctx context.Context,
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
@@ -1061,11 +1058,11 @@ func buildUpdateExpiration(plan timetypes.RFC3339) (*strfmt.DateTime, diag.Diagn
 // Once expiration passes, the API auto-resets action/mobile_action to "no_action". If the
 // caller applied with a non-no_action value, keep the planned value in state and warn; this
 // prevents the apply from landing in a state that immediately disagrees with itself.
-func (r *iocIndicatorResource) suppressExpiredActionDrift(
+func (r *customIOCResource) suppressExpiredActionDrift(
 	expiration timetypes.RFC3339,
 	plannedAction types.String,
 	plannedMobileAction types.String,
-	model *iocIndicatorResourceModel,
+	model *customIOCResourceModel,
 	diags *diag.Diagnostics,
 ) {
 	if expiration.IsNull() {
@@ -1116,7 +1113,7 @@ func actionSuppressed(planned, actual types.String) bool {
 	return actual.ValueString() == actionNoAction
 }
 
-func getIOCIndicator(
+func getCustomIOC(
 	ctx context.Context,
 	client *client.CrowdStrikeAPISpecification,
 	id string,

@@ -1,6 +1,6 @@
 ---
-page_title: "crowdstrike_ioc_indicator Resource - crowdstrike"
-subcategory: "IOC Management"
+page_title: "crowdstrike_custom_ioc Resource - crowdstrike"
+subcategory: "Endpoint Security"
 description: |-
   Manages IOC (Indicator of Compromise) indicators in CrowdStrike Falcon. IOC indicators allow you to create custom indicators based on SHA256 hashes, MD5 hashes, domains, IPv4 addresses, or IPv6 addresses with actions such as allow, detect, or prevent.
   API Scopes
@@ -8,7 +8,7 @@ description: |-
   IOC Management | Read & Write
 ---
 
-# crowdstrike_ioc_indicator (Resource)
+# crowdstrike_custom_ioc (Resource)
 
 Manages IOC (Indicator of Compromise) indicators in CrowdStrike Falcon. IOC indicators allow you to create custom indicators based on SHA256 hashes, MD5 hashes, domains, IPv4 addresses, or IPv6 addresses with actions such as allow, detect, or prevent.
 
@@ -23,7 +23,7 @@ The following API scopes are required:
 
 ```terraform
 # Allow a specific SHA256 hash globally across all Mac hosts
-resource "crowdstrike_ioc_indicator" "allow_by_hash" {
+resource "crowdstrike_custom_ioc" "allow_by_hash" {
   type        = "sha256"
   value       = "73cb3858a687a8494ca3323053016282f3dad39d42cf62ca4e79dda2aac7d9ac"
   action      = "allow"
@@ -35,7 +35,7 @@ resource "crowdstrike_ioc_indicator" "allow_by_hash" {
 }
 
 # Detect a domain, scoped to specific host groups
-resource "crowdstrike_ioc_indicator" "detect_domain" {
+resource "crowdstrike_custom_ioc" "detect_domain" {
   type        = "domain"
   value       = "malicious-example.com"
   action      = "detect"
@@ -47,7 +47,7 @@ resource "crowdstrike_ioc_indicator" "detect_domain" {
 }
 
 # Block an MD5 hash globally
-resource "crowdstrike_ioc_indicator" "block_md5" {
+resource "crowdstrike_custom_ioc" "block_md5" {
   type        = "md5"
   value       = "44d88612fea8a8f36de82e1278abb02f"
   action      = "prevent"
@@ -72,9 +72,9 @@ resource "crowdstrike_ioc_indicator" "block_md5" {
 
 - `action` (String) The action to take on non-mobile platforms (`windows`, `mac`, `linux`). Required when `platforms` contains a non-mobile platform. Valid values are: `allow`, `detect`, `prevent`, `prevent_no_ui`, `no_action`. For `domain`, `ipv4`, and `ipv6` types only `detect` and `no_action` are permitted.
 - `description` (String) A description of the IOC indicator.
-- `expiration` (String) The expiration date of the IOC indicator in RFC 3339 format (e.g. `2025-12-31T23:59:59Z`). Once this date passes, the CrowdStrike API auto-resets `action` to `no_action` server-side. Terraform will show permanent drift on `action` after that point until `expiration` is bumped/removed or `action` is set to `no_action`.
+- `expiration` (String) The expiration date of the IOC indicator in RFC 3339 format (e.g. `2025-12-31T23:59:59Z`). Must be a future date. Once this date passes, the API auto-resets `action` or `mobile_action` to `no_action` server-side. Terraform will show permanent drift on `action` after that point until `expiration` is bumped/removed or `action` is set to `no_action`.
 - `mobile_action` (String) The action to take on mobile platforms (`ios`, `android`). Required when `platforms` contains a mobile platform. Valid values are: `allow`, `detect`, `prevent`, `prevent_no_ui`, `no_action`.
-- `severity` (String) The severity level of the IOC indicator. Required when `action` or `mobile_action` is `detect`, `prevent`, or `prevent_no_ui`. Valid values are: `informational`, `low`, `medium`, `high`, `critical`.
+- `severity` (String) The severity level of the IOC indicator. Required when `action` or `mobile_action` is `detect` or `prevent`; must not be set for other actions. Valid values are: `informational`, `low`, `medium`, `high`, `critical`.
 - `source` (String) The source of the IOC indicator.
 - `tags` (Set of String) A set of tags to apply to the IOC indicator.
 
@@ -84,7 +84,6 @@ resource "crowdstrike_ioc_indicator" "block_md5" {
 - `created_by` (String) The user who created the IOC indicator.
 - `created_on` (String) The timestamp when the IOC indicator was created.
 - `id` (String) The unique identifier of the IOC indicator.
-- `last_updated` (String) The RFC850 timestamp of the last update to this resource by Terraform.
 - `modified_by` (String) The user who last modified the IOC indicator.
 - `modified_on` (String) The timestamp when the IOC indicator was last modified.
 
@@ -93,5 +92,5 @@ resource "crowdstrike_ioc_indicator" "block_md5" {
 Import is supported using the following syntax:
 
 ```shell
-terraform import crowdstrike_ioc_indicator.example indicator-id-here
+terraform import crowdstrike_custom_ioc.example indicator-id-here
 ```

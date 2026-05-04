@@ -1,4 +1,4 @@
-package iocindicator_test
+package customioc_test
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
-	iocindicator "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioc_indicator"
+	customioc "github.com/crowdstrike/terraform-provider-crowdstrike/internal/custom_ioc"
 	"github.com/go-openapi/strfmt"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-testing/compare"
@@ -19,16 +19,16 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
-func TestAccIOCIndicatorResource_basic(t *testing.T) {
+func TestAccCustomIOCResource_basic(t *testing.T) {
 	rName := acctest.RandomResourceName()
-	resourceName := "crowdstrike_ioc_indicator.test"
+	resourceName := "crowdstrike_custom_ioc.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccIOCIndicatorConfig_basic(rName),
+				Config: testAccCustomIOCConfig_basic(rName),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("created_by"), knownvalue.NotNull()),
@@ -57,9 +57,9 @@ func TestAccIOCIndicatorResource_basic(t *testing.T) {
 	})
 }
 
-func TestAccIOCIndicatorResource_update(t *testing.T) {
+func TestAccCustomIOCResource_update(t *testing.T) {
 	rName := acctest.RandomResourceName()
-	resourceName := "crowdstrike_ioc_indicator.test"
+	resourceName := "crowdstrike_custom_ioc.test"
 
 	modifiedByStays := statecheck.CompareValue(compare.ValuesSame())
 	modifiedOnChanges := statecheck.CompareValue(compare.ValuesDiffer())
@@ -69,7 +69,7 @@ func TestAccIOCIndicatorResource_update(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccIOCIndicatorConfig_basic(rName),
+				Config: testAccCustomIOCConfig_basic(rName),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("applied_globally"), knownvalue.Bool(true)),
@@ -92,7 +92,7 @@ func TestAccIOCIndicatorResource_update(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_updated(rName),
+				Config: testAccCustomIOCConfig_updated(rName),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("applied_globally"), knownvalue.Bool(true)),
@@ -118,7 +118,7 @@ func TestAccIOCIndicatorResource_update(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_basic(rName),
+				Config: testAccCustomIOCConfig_basic(rName),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("applied_globally"), knownvalue.Bool(true)),
@@ -141,7 +141,7 @@ func TestAccIOCIndicatorResource_update(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_basicNoDescription(rName),
+				Config: testAccCustomIOCConfig_basicNoDescription(rName),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.Null()),
@@ -161,9 +161,9 @@ func TestAccIOCIndicatorResource_update(t *testing.T) {
 	})
 }
 
-func TestAccIOCIndicatorResource_type(t *testing.T) {
+func TestAccCustomIOCResource_type(t *testing.T) {
 	rName := acctest.RandomResourceName()
-	resourceName := "crowdstrike_ioc_indicator.test"
+	resourceName := "crowdstrike_custom_ioc.test"
 
 	sha256A := acctest.SHA256(rName + "-a")
 	sha256B := acctest.SHA256(rName + "-b")
@@ -180,7 +180,7 @@ func TestAccIOCIndicatorResource_type(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccIOCIndicatorConfig_typeSha256(rName, sha256A, "allow"),
+				Config: testAccCustomIOCConfig_typeSha256(rName, sha256A, "allow"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("sha256")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("value"), knownvalue.StringExact(sha256A)),
@@ -189,7 +189,7 @@ func TestAccIOCIndicatorResource_type(t *testing.T) {
 				},
 			},
 			{
-				Config:           testAccIOCIndicatorConfig_typeSha256(rName, sha256B, "allow"),
+				Config:           testAccCustomIOCConfig_typeSha256(rName, sha256B, "allow"),
 				ConfigPlanChecks: expectReplace,
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("sha256")),
@@ -197,7 +197,7 @@ func TestAccIOCIndicatorResource_type(t *testing.T) {
 				},
 			},
 			{
-				Config:           testAccIOCIndicatorConfig_typeWithDetect(rName, "md5", md5Hash),
+				Config:           testAccCustomIOCConfig_typeWithDetect(rName, "md5", md5Hash),
 				ConfigPlanChecks: expectReplace,
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("md5")),
@@ -207,7 +207,7 @@ func TestAccIOCIndicatorResource_type(t *testing.T) {
 				},
 			},
 			{
-				Config:           testAccIOCIndicatorConfig_typeWithDetect(rName, "ipv4", "192.0.2.10"),
+				Config:           testAccCustomIOCConfig_typeWithDetect(rName, "ipv4", "192.0.2.10"),
 				ConfigPlanChecks: expectReplace,
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("ipv4")),
@@ -217,7 +217,7 @@ func TestAccIOCIndicatorResource_type(t *testing.T) {
 				},
 			},
 			{
-				Config:           testAccIOCIndicatorConfig_typeWithDetect(rName, "ipv6", "2001:db8::1"),
+				Config:           testAccCustomIOCConfig_typeWithDetect(rName, "ipv6", "2001:db8::1"),
 				ConfigPlanChecks: expectReplace,
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("ipv6")),
@@ -225,7 +225,7 @@ func TestAccIOCIndicatorResource_type(t *testing.T) {
 				},
 			},
 			{
-				Config:           testAccIOCIndicatorConfig_typeAllSubdomains(rName),
+				Config:           testAccCustomIOCConfig_typeAllSubdomains(rName),
 				ConfigPlanChecks: expectReplace,
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("all_subdomains")),
@@ -237,9 +237,9 @@ func TestAccIOCIndicatorResource_type(t *testing.T) {
 	})
 }
 
-func TestAccIOCIndicatorResource_action(t *testing.T) {
+func TestAccCustomIOCResource_action(t *testing.T) {
 	rName := acctest.RandomResourceName()
-	resourceName := "crowdstrike_ioc_indicator.test"
+	resourceName := "crowdstrike_custom_ioc.test"
 	hash := acctest.SHA256(rName)
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -247,35 +247,35 @@ func TestAccIOCIndicatorResource_action(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccIOCIndicatorConfig_action(rName, hash, "allow", ""),
+				Config: testAccCustomIOCConfig_action(rName, hash, "allow", ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("action"), knownvalue.StringExact("allow")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.Null()),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_action(rName, hash, "detect", "low"),
+				Config: testAccCustomIOCConfig_action(rName, hash, "detect", "low"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("action"), knownvalue.StringExact("detect")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.StringExact("low")),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_action(rName, hash, "prevent", "high"),
+				Config: testAccCustomIOCConfig_action(rName, hash, "prevent", "high"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("action"), knownvalue.StringExact("prevent")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.StringExact("high")),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_action(rName, hash, "prevent_no_ui", ""),
+				Config: testAccCustomIOCConfig_action(rName, hash, "prevent_no_ui", ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("action"), knownvalue.StringExact("prevent_no_ui")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.Null()),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_action(rName, hash, "no_action", ""),
+				Config: testAccCustomIOCConfig_action(rName, hash, "no_action", ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("action"), knownvalue.StringExact("no_action")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.Null()),
@@ -285,16 +285,16 @@ func TestAccIOCIndicatorResource_action(t *testing.T) {
 	})
 }
 
-func TestAccIOCIndicatorResource_platforms(t *testing.T) {
+func TestAccCustomIOCResource_platforms(t *testing.T) {
 	rName := acctest.RandomResourceName()
-	resourceName := "crowdstrike_ioc_indicator.test"
+	resourceName := "crowdstrike_custom_ioc.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccIOCIndicatorConfig_platforms(rName, []string{"windows"}, "detect", ""),
+				Config: testAccCustomIOCConfig_platforms(rName, []string{"windows"}, "detect", ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("platforms"), knownvalue.SetExact([]knownvalue.Check{
 						knownvalue.StringExact("windows"),
@@ -304,7 +304,7 @@ func TestAccIOCIndicatorResource_platforms(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_platforms(rName, []string{"windows", "ios"}, "detect", "prevent"),
+				Config: testAccCustomIOCConfig_platforms(rName, []string{"windows", "ios"}, "detect", "prevent"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("platforms"), knownvalue.SetExact([]knownvalue.Check{
 						knownvalue.StringExact("windows"),
@@ -315,7 +315,7 @@ func TestAccIOCIndicatorResource_platforms(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_platforms(rName, []string{"ios"}, "", "prevent"),
+				Config: testAccCustomIOCConfig_platforms(rName, []string{"ios"}, "", "prevent"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("platforms"), knownvalue.SetExact([]knownvalue.Check{
 						knownvalue.StringExact("ios"),
@@ -325,7 +325,7 @@ func TestAccIOCIndicatorResource_platforms(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_platforms(rName, []string{"ios", "android"}, "", "prevent"),
+				Config: testAccCustomIOCConfig_platforms(rName, []string{"ios", "android"}, "", "prevent"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("platforms"), knownvalue.SetExact([]knownvalue.Check{
 						knownvalue.StringExact("ios"),
@@ -336,7 +336,7 @@ func TestAccIOCIndicatorResource_platforms(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_platforms(rName, []string{"windows"}, "detect", ""),
+				Config: testAccCustomIOCConfig_platforms(rName, []string{"windows"}, "detect", ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("platforms"), knownvalue.SetExact([]knownvalue.Check{
 						knownvalue.StringExact("windows"),
@@ -349,28 +349,28 @@ func TestAccIOCIndicatorResource_platforms(t *testing.T) {
 	})
 }
 
-func TestAccIOCIndicatorResource_description(t *testing.T) {
+func TestAccCustomIOCResource_description(t *testing.T) {
 	rName := acctest.RandomResourceName()
-	resourceName := "crowdstrike_ioc_indicator.test"
+	resourceName := "crowdstrike_custom_ioc.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccIOCIndicatorConfig_description(rName, rName),
+				Config: testAccCustomIOCConfig_description(rName, rName),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(rName)),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_description(rName, rName+"-updated"),
+				Config: testAccCustomIOCConfig_description(rName, rName+"-updated"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(rName+"-updated")),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_description(rName, rName+"-final"),
+				Config: testAccCustomIOCConfig_description(rName, rName+"-final"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(rName+"-final")),
 				},
@@ -379,34 +379,34 @@ func TestAccIOCIndicatorResource_description(t *testing.T) {
 	})
 }
 
-func TestAccIOCIndicatorResource_source(t *testing.T) {
+func TestAccCustomIOCResource_source(t *testing.T) {
 	rName := acctest.RandomResourceName()
-	resourceName := "crowdstrike_ioc_indicator.test"
+	resourceName := "crowdstrike_custom_ioc.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccIOCIndicatorConfig_source(rName, ""),
+				Config: testAccCustomIOCConfig_source(rName, ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("source"), knownvalue.Null()),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_source(rName, "terraform"),
+				Config: testAccCustomIOCConfig_source(rName, "terraform"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("source"), knownvalue.StringExact("terraform")),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_source(rName, "custom-source"),
+				Config: testAccCustomIOCConfig_source(rName, "custom-source"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("source"), knownvalue.StringExact("custom-source")),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_source(rName, ""),
+				Config: testAccCustomIOCConfig_source(rName, ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("source"), knownvalue.Null()),
 				},
@@ -415,22 +415,22 @@ func TestAccIOCIndicatorResource_source(t *testing.T) {
 	})
 }
 
-func TestAccIOCIndicatorResource_tags(t *testing.T) {
+func TestAccCustomIOCResource_tags(t *testing.T) {
 	rName := acctest.RandomResourceName()
-	resourceName := "crowdstrike_ioc_indicator.test"
+	resourceName := "crowdstrike_custom_ioc.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccIOCIndicatorConfig_tags(rName, nil),
+				Config: testAccCustomIOCConfig_tags(rName, nil),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags"), knownvalue.Null()),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_tags(rName, []string{"one"}),
+				Config: testAccCustomIOCConfig_tags(rName, []string{"one"}),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags"), knownvalue.SetExact([]knownvalue.Check{
 						knownvalue.StringExact("one"),
@@ -438,7 +438,7 @@ func TestAccIOCIndicatorResource_tags(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_tags(rName, []string{"one", "two"}),
+				Config: testAccCustomIOCConfig_tags(rName, []string{"one", "two"}),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags"), knownvalue.SetExact([]knownvalue.Check{
 						knownvalue.StringExact("one"),
@@ -447,7 +447,7 @@ func TestAccIOCIndicatorResource_tags(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_tags(rName, []string{"three"}),
+				Config: testAccCustomIOCConfig_tags(rName, []string{"three"}),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags"), knownvalue.SetExact([]knownvalue.Check{
 						knownvalue.StringExact("three"),
@@ -455,7 +455,7 @@ func TestAccIOCIndicatorResource_tags(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_tags(rName, nil),
+				Config: testAccCustomIOCConfig_tags(rName, nil),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags"), knownvalue.Null()),
 				},
@@ -464,38 +464,38 @@ func TestAccIOCIndicatorResource_tags(t *testing.T) {
 	})
 }
 
-func TestAccIOCIndicatorResource_expiration(t *testing.T) {
+func TestAccCustomIOCResource_expiration(t *testing.T) {
 	rName := acctest.RandomResourceName()
-	resourceName := "crowdstrike_ioc_indicator.test"
+	resourceName := "crowdstrike_custom_ioc.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccIOCIndicatorConfig_expiration(rName, ""),
+				Config: testAccCustomIOCConfig_expiration(rName, ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("expiration"), knownvalue.Null()),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_expiration(rName, "2099-12-31T23:59:59Z"),
+				Config: testAccCustomIOCConfig_expiration(rName, "2099-12-31T23:59:59Z"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("expiration"), knownvalue.StringExact("2099-12-31T23:59:59Z")),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_expiration(rName, "2100-06-30T00:00:00Z"),
+				Config: testAccCustomIOCConfig_expiration(rName, "2100-06-30T00:00:00Z"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("expiration"), knownvalue.StringExact("2100-06-30T00:00:00Z")),
 				},
 			},
 			{
-				Config:      testAccIOCIndicatorConfig_expiration(rName, "2020-01-01T00:00:00Z"),
+				Config:      testAccCustomIOCConfig_expiration(rName, "2020-01-01T00:00:00Z"),
 				ExpectError: regexp.MustCompile(`(?s)expiration must be a future date`),
 			},
 			{
-				Config: testAccIOCIndicatorConfig_expiration(rName, ""),
+				Config: testAccCustomIOCConfig_expiration(rName, ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("expiration"), knownvalue.Null()),
 				},
@@ -504,9 +504,9 @@ func TestAccIOCIndicatorResource_expiration(t *testing.T) {
 	})
 }
 
-func TestAccIOCIndicatorResource_hostGroups(t *testing.T) {
+func TestAccCustomIOCResource_hostGroups(t *testing.T) {
 	rName := acctest.RandomResourceName()
-	resourceName := "crowdstrike_ioc_indicator.test"
+	resourceName := "crowdstrike_custom_ioc.test"
 	hg1 := "crowdstrike_host_group.test1"
 	hg2 := "crowdstrike_host_group.test2"
 
@@ -515,7 +515,7 @@ func TestAccIOCIndicatorResource_hostGroups(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccIOCIndicatorConfig_hostGroups(rName, "[crowdstrike_host_group.test1.id]"),
+				Config: testAccCustomIOCConfig_hostGroups(rName, "[crowdstrike_host_group.test1.id]"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("applied_globally"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("host_groups"), knownvalue.SetSizeExact(1)),
@@ -527,14 +527,14 @@ func TestAccIOCIndicatorResource_hostGroups(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_hostGroups(rName, "[crowdstrike_host_group.test1.id, crowdstrike_host_group.test2.id]"),
+				Config: testAccCustomIOCConfig_hostGroups(rName, "[crowdstrike_host_group.test1.id, crowdstrike_host_group.test2.id]"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("applied_globally"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("host_groups"), knownvalue.SetSizeExact(2)),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_hostGroups(rName, `["all"]`),
+				Config: testAccCustomIOCConfig_hostGroups(rName, `["all"]`),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("applied_globally"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("host_groups"), knownvalue.SetExact([]knownvalue.Check{
@@ -543,7 +543,7 @@ func TestAccIOCIndicatorResource_hostGroups(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_hostGroups(rName, "[crowdstrike_host_group.test2.id]"),
+				Config: testAccCustomIOCConfig_hostGroups(rName, "[crowdstrike_host_group.test2.id]"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("applied_globally"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("host_groups"), knownvalue.SetSizeExact(1)),
@@ -558,16 +558,16 @@ func TestAccIOCIndicatorResource_hostGroups(t *testing.T) {
 	})
 }
 
-func TestAccIOCIndicatorResource_mobileAction(t *testing.T) {
+func TestAccCustomIOCResource_mobileAction(t *testing.T) {
 	rName := acctest.RandomResourceName()
-	resourceName := "crowdstrike_ioc_indicator.test"
+	resourceName := "crowdstrike_custom_ioc.test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccIOCIndicatorConfig_mobileAction(rName, "allow", ""),
+				Config: testAccCustomIOCConfig_mobileAction(rName, "allow", ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("mobile_action"), knownvalue.StringExact("allow")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("action"), knownvalue.Null()),
@@ -575,28 +575,28 @@ func TestAccIOCIndicatorResource_mobileAction(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_mobileAction(rName, "detect", "low"),
+				Config: testAccCustomIOCConfig_mobileAction(rName, "detect", "low"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("mobile_action"), knownvalue.StringExact("detect")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.StringExact("low")),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_mobileAction(rName, "prevent", "high"),
+				Config: testAccCustomIOCConfig_mobileAction(rName, "prevent", "high"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("mobile_action"), knownvalue.StringExact("prevent")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.StringExact("high")),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_mobileAction(rName, "prevent_no_ui", ""),
+				Config: testAccCustomIOCConfig_mobileAction(rName, "prevent_no_ui", ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("mobile_action"), knownvalue.StringExact("prevent_no_ui")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.Null()),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_mobileAction(rName, "no_action", ""),
+				Config: testAccCustomIOCConfig_mobileAction(rName, "no_action", ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("mobile_action"), knownvalue.StringExact("no_action")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.Null()),
@@ -606,9 +606,9 @@ func TestAccIOCIndicatorResource_mobileAction(t *testing.T) {
 	})
 }
 
-func TestAccIOCIndicatorResource_severity(t *testing.T) {
+func TestAccCustomIOCResource_severity(t *testing.T) {
 	rName := acctest.RandomResourceName()
-	resourceName := "crowdstrike_ioc_indicator.test"
+	resourceName := "crowdstrike_custom_ioc.test"
 	hash := acctest.SHA256(rName)
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -616,34 +616,34 @@ func TestAccIOCIndicatorResource_severity(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccIOCIndicatorConfig_action(rName, hash, "allow", ""),
+				Config: testAccCustomIOCConfig_action(rName, hash, "allow", ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("action"), knownvalue.StringExact("allow")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.Null()),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_action(rName, hash, "detect", "low"),
+				Config: testAccCustomIOCConfig_action(rName, hash, "detect", "low"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("action"), knownvalue.StringExact("detect")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.StringExact("low")),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_action(rName, hash, "detect", "critical"),
+				Config: testAccCustomIOCConfig_action(rName, hash, "detect", "critical"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.StringExact("critical")),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_action(rName, hash, "prevent", "medium"),
+				Config: testAccCustomIOCConfig_action(rName, hash, "prevent", "medium"),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("action"), knownvalue.StringExact("prevent")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.StringExact("medium")),
 				},
 			},
 			{
-				Config: testAccIOCIndicatorConfig_action(rName, hash, "allow", ""),
+				Config: testAccCustomIOCConfig_action(rName, hash, "allow", ""),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("action"), knownvalue.StringExact("allow")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.Null()),
@@ -653,7 +653,7 @@ func TestAccIOCIndicatorResource_severity(t *testing.T) {
 	})
 }
 
-func TestAccIOCIndicatorResource_validateConfig(t *testing.T) {
+func TestAccCustomIOCResource_validateConfig(t *testing.T) {
 	rName := acctest.RandomResourceName()
 	hash := acctest.SHA256(rName)
 
@@ -664,137 +664,137 @@ func TestAccIOCIndicatorResource_validateConfig(t *testing.T) {
 	}{
 		{
 			name:        "sha256 rejects mobile platform",
-			config:      testAccIOCIndicatorConfig_invalidSha256Mobile(rName),
+			config:      testAccCustomIOCConfig_invalidSha256Mobile(rName),
 			expectError: regexp.MustCompile(`(?s)Hash types.*only support`),
 		},
 		{
 			name:        "all_subdomains rejects non-mobile platform",
-			config:      testAccIOCIndicatorConfig_invalidAllSubdomainsNonMobile(rName),
+			config:      testAccCustomIOCConfig_invalidAllSubdomainsNonMobile(rName),
 			expectError: regexp.MustCompile(`(?s)only supports mobile platforms`),
 		},
 		{
 			name:        "domain rejects prevent on non-mobile",
-			config:      testAccIOCIndicatorConfig_invalidDomainAction(rName),
+			config:      testAccCustomIOCConfig_invalidDomainAction(rName),
 			expectError: regexp.MustCompile(`(?s)not permitted for "domain" indicators`),
 		},
 		{
 			name:        "severity required when action=detect",
-			config:      testAccIOCIndicatorConfig_missingSeverity(rName),
+			config:      testAccCustomIOCConfig_missingSeverity(rName),
 			expectError: regexp.MustCompile(`(?s)severity is required`),
 		},
 		{
 			name:        "mixed platforms require both actions",
-			config:      testAccIOCIndicatorConfig_mixedMissingMobileAction(rName),
+			config:      testAccCustomIOCConfig_mixedMissingMobileAction(rName),
 			expectError: regexp.MustCompile(`(?s)mobile_action is required when platforms contains a mobile`),
 		},
 		{
 			name:        "non-mobile platform requires action",
-			config:      testAccIOCIndicatorConfig_missingActionForPlatforms(rName, `["windows"]`),
+			config:      testAccCustomIOCConfig_missingActionForPlatforms(rName, `["windows"]`),
 			expectError: regexp.MustCompile(`(?s)action is required when platforms contains a non-mobile`),
 		},
 		{
 			name:        "mobile platform requires mobile_action",
-			config:      testAccIOCIndicatorConfig_missingActionForPlatforms(rName, `["ios"]`),
+			config:      testAccCustomIOCConfig_missingActionForPlatforms(rName, `["ios"]`),
 			expectError: regexp.MustCompile(`(?s)mobile_action is required when platforms contains a mobile`),
 		},
 		{
 			name:        "action set with mobile-only platforms",
-			config:      testAccIOCIndicatorConfig_actionPlatformMismatch(rName, `["ios"]`),
+			config:      testAccCustomIOCConfig_actionPlatformMismatch(rName, `["ios"]`),
 			expectError: regexp.MustCompile(`(?s)action has no effect without a non-mobile platform`),
 		},
 		{
 			name:        "mobile_action set with non-mobile-only platforms",
-			config:      testAccIOCIndicatorConfig_actionPlatformMismatch(rName, `["windows"]`),
+			config:      testAccCustomIOCConfig_actionPlatformMismatch(rName, `["windows"]`),
 			expectError: regexp.MustCompile(`(?s)mobile_action has no effect without a mobile platform`),
 		},
 		{
 			name:        "severity set with action=allow",
-			config:      testAccIOCIndicatorConfig_severityForbiddenAction(rName, "allow"),
+			config:      testAccCustomIOCConfig_severityForbiddenAction(rName, "allow"),
 			expectError: regexp.MustCompile(`(?s)Invalid severity`),
 		},
 		{
 			name:        "severity set with mobile_action=allow",
-			config:      testAccIOCIndicatorConfig_severityForbiddenMobileAction(rName, "allow"),
+			config:      testAccCustomIOCConfig_severityForbiddenMobileAction(rName, "allow"),
 			expectError: regexp.MustCompile(`(?s)Invalid severity`),
 		},
 		{
 			name:        "severity set with action=prevent_no_ui",
-			config:      testAccIOCIndicatorConfig_severityForbiddenAction(rName, "prevent_no_ui"),
+			config:      testAccCustomIOCConfig_severityForbiddenAction(rName, "prevent_no_ui"),
 			expectError: regexp.MustCompile(`(?s)Invalid severity`),
 		},
 		{
 			name:        "severity set with action=no_action",
-			config:      testAccIOCIndicatorConfig_severityForbiddenAction(rName, "no_action"),
+			config:      testAccCustomIOCConfig_severityForbiddenAction(rName, "no_action"),
 			expectError: regexp.MustCompile(`(?s)Invalid severity`),
 		},
 		{
 			name:        "expiration must be in the future on create",
-			config:      testAccIOCIndicatorConfig_pastExpiration(rName),
+			config:      testAccCustomIOCConfig_pastExpiration(rName),
 			expectError: regexp.MustCompile(`(?s)expiration must be a future date`),
 		},
 		{
 			name:        "severity required when mobile_action=detect",
-			config:      testAccIOCIndicatorConfig_missingSeverityMobile(rName),
+			config:      testAccCustomIOCConfig_missingSeverityMobile(rName),
 			expectError: regexp.MustCompile(`(?s)severity is required`),
 		},
 		{
 			name:        "description whitespace rejected",
-			config:      testAccIOCIndicatorConfig_description(rName, "   "),
+			config:      testAccCustomIOCConfig_description(rName, "   "),
 			expectError: regexp.MustCompile(`(?s)must not be empty or contain only whitespace`),
 		},
 		{
 			name:        "source whitespace rejected",
-			config:      testAccIOCIndicatorConfig_source(rName, "   "),
+			config:      testAccCustomIOCConfig_source(rName, "   "),
 			expectError: regexp.MustCompile(`(?s)must not be empty or contain only whitespace`),
 		},
 		{
 			name:        "tag element whitespace rejected",
-			config:      testAccIOCIndicatorConfig_tags(rName, []string{"   "}),
+			config:      testAccCustomIOCConfig_tags(rName, []string{"   "}),
 			expectError: regexp.MustCompile(`(?s)must not be empty or contain only whitespace`),
 		},
 		{
 			name:        "invalid type rejected",
-			config:      testAccIOCIndicatorConfig_invalidType(rName),
+			config:      testAccCustomIOCConfig_invalidType(rName),
 			expectError: regexp.MustCompile(`(?s)value must be one of`),
 		},
 		{
 			name:        "invalid platform rejected",
-			config:      testAccIOCIndicatorConfig_invalidPlatform(rName),
+			config:      testAccCustomIOCConfig_invalidPlatform(rName),
 			expectError: regexp.MustCompile(`(?s)value must be one of`),
 		},
 		{
 			name:        "invalid action rejected",
-			config:      testAccIOCIndicatorConfig_action(rName, hash, "shrug", ""),
+			config:      testAccCustomIOCConfig_action(rName, hash, "shrug", ""),
 			expectError: regexp.MustCompile(`(?s)value must be one of`),
 		},
 		{
 			name:        "invalid severity rejected",
-			config:      testAccIOCIndicatorConfig_action(rName, hash, "detect", "extreme"),
+			config:      testAccCustomIOCConfig_action(rName, hash, "detect", "extreme"),
 			expectError: regexp.MustCompile(`(?s)value must be one of`),
 		},
 		{
 			name:        "empty platforms rejected",
-			config:      testAccIOCIndicatorConfig_emptyPlatforms(rName),
+			config:      testAccCustomIOCConfig_emptyPlatforms(rName),
 			expectError: regexp.MustCompile(`(?s)set must contain at least 1 element`),
 		},
 		{
 			name:        "empty tags rejected",
-			config:      testAccIOCIndicatorConfig_emptyTags(rName),
+			config:      testAccCustomIOCConfig_emptyTags(rName),
 			expectError: regexp.MustCompile(`(?s)set must contain at least 1 element`),
 		},
 		{
 			name:        "empty host_groups rejected",
-			config:      testAccIOCIndicatorConfig_emptyHostGroups(rName),
+			config:      testAccCustomIOCConfig_emptyHostGroups(rName),
 			expectError: regexp.MustCompile(`(?s)set must contain at least 1 element`),
 		},
 		{
 			name:        "host_groups empty string element rejected",
-			config:      testAccIOCIndicatorConfig_hostGroupsEmptyString(rName),
+			config:      testAccCustomIOCConfig_hostGroupsEmptyString(rName),
 			expectError: regexp.MustCompile(`(?s)string length must be at least 1`),
 		},
 		{
 			name:        `host_groups mixing "all" with specific IDs rejected`,
-			config:      testAccIOCIndicatorConfig_allMixedWithIDs(rName),
+			config:      testAccCustomIOCConfig_allMixedWithIDs(rName),
 			expectError: regexp.MustCompile(`(?s)host_groups cannot mix "all" with specific host group IDs`),
 		},
 	}
@@ -836,7 +836,7 @@ func TestBuildUpdateExpiration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, diags := iocindicator.BuildUpdateExpiration(tt.plan)
+			got, diags := customioc.BuildUpdateExpiration(tt.plan)
 			if diags.HasError() {
 				t.Fatalf("unexpected diag errors: %v", diags)
 			}
@@ -855,9 +855,9 @@ func TestBuildUpdateExpiration(t *testing.T) {
 
 // description is set to rName so the sweeper, which matches on the
 // sweep.ResourcePrefix embedded in rName, can clean up leftover indicators.
-func testAccIOCIndicatorConfig_basic(rName string) string {
+func testAccCustomIOCConfig_basic(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "detect"
@@ -869,12 +869,12 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName)
 }
 
-// testAccIOCIndicatorConfig_basicNoDescription mirrors _basic but omits
+// testAccCustomIOCConfig_basicNoDescription mirrors _basic but omits
 // description. Sweeper matches on description, so this config cannot be
 // swept if a test crashes mid-run.
-func testAccIOCIndicatorConfig_basicNoDescription(rName string) string {
+func testAccCustomIOCConfig_basicNoDescription(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "detect"
@@ -885,9 +885,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName)
 }
 
-func testAccIOCIndicatorConfig_updated(rName string) string {
+func testAccCustomIOCConfig_updated(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "no_action"
@@ -901,23 +901,23 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName)
 }
 
-func testAccIOCIndicatorConfig_hostGroups(rName, hostGroups string) string {
+func testAccCustomIOCConfig_hostGroups(rName, hostGroups string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_host_group" "test1" {
   name        = "%[1]s-hg1"
-  description = "test host group for ioc_indicator tests"
+  description = "test host group for custom_ioc tests"
   type        = "staticByID"
   host_ids    = []
 }
 
 resource "crowdstrike_host_group" "test2" {
   name        = "%[1]s-hg2"
-  description = "test host group for ioc_indicator tests"
+  description = "test host group for custom_ioc tests"
   type        = "staticByID"
   host_ids    = []
 }
 
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "detect"
@@ -929,9 +929,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName, hostGroups)
 }
 
-func testAccIOCIndicatorConfig_allMixedWithIDs(rName string) string {
+func testAccCustomIOCConfig_allMixedWithIDs(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "detect"
@@ -943,9 +943,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName)
 }
 
-func testAccIOCIndicatorConfig_typeSha256(rName, hash, action string) string {
+func testAccCustomIOCConfig_typeSha256(rName, hash, action string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "sha256"
   value       = %[2]q
   action      = %[3]q
@@ -956,9 +956,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName, hash, action)
 }
 
-func testAccIOCIndicatorConfig_typeWithDetect(rName, iocType, value string) string {
+func testAccCustomIOCConfig_typeWithDetect(rName, iocType, value string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = %[2]q
   value       = %[3]q
   action      = "detect"
@@ -970,9 +970,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName, iocType, value)
 }
 
-func testAccIOCIndicatorConfig_typeAllSubdomains(rName string) string {
+func testAccCustomIOCConfig_typeAllSubdomains(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type          = "all_subdomains"
   value         = "%[1]s.example.com"
   mobile_action = "detect"
@@ -984,9 +984,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName)
 }
 
-func testAccIOCIndicatorConfig_description(rName, description string) string {
+func testAccCustomIOCConfig_description(rName, description string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "detect"
@@ -998,13 +998,13 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName, description)
 }
 
-func testAccIOCIndicatorConfig_source(rName, source string) string {
+func testAccCustomIOCConfig_source(rName, source string) string {
 	sourceLine := ""
 	if source != "" {
 		sourceLine = fmt.Sprintf("  source      = %q\n", source)
 	}
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "detect"
@@ -1016,7 +1016,7 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName, sourceLine)
 }
 
-func testAccIOCIndicatorConfig_tags(rName string, tags []string) string {
+func testAccCustomIOCConfig_tags(rName string, tags []string) string {
 	tagsLine := ""
 	if tags != nil {
 		quoted := make([]string, len(tags))
@@ -1026,7 +1026,7 @@ func testAccIOCIndicatorConfig_tags(rName string, tags []string) string {
 		tagsLine = fmt.Sprintf("  tags        = [%s]\n", strings.Join(quoted, ", "))
 	}
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "detect"
@@ -1038,13 +1038,13 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName, tagsLine)
 }
 
-func testAccIOCIndicatorConfig_expiration(rName, expiration string) string {
+func testAccCustomIOCConfig_expiration(rName, expiration string) string {
 	expirationLine := ""
 	if expiration != "" {
 		expirationLine = fmt.Sprintf("  expiration  = %q\n", expiration)
 	}
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "detect"
@@ -1056,13 +1056,13 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName, expirationLine)
 }
 
-func testAccIOCIndicatorConfig_action(rName, hash, action, severity string) string {
+func testAccCustomIOCConfig_action(rName, hash, action, severity string) string {
 	severityLine := ""
 	if severity != "" {
 		severityLine = fmt.Sprintf("  severity    = %q\n", severity)
 	}
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "sha256"
   value       = %[2]q
   action      = %[3]q
@@ -1073,13 +1073,13 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName, hash, action, severityLine)
 }
 
-func testAccIOCIndicatorConfig_mobileAction(rName, mobileAction, severity string) string {
+func testAccCustomIOCConfig_mobileAction(rName, mobileAction, severity string) string {
 	severityLine := ""
 	if severity != "" {
 		severityLine = fmt.Sprintf("  severity      = %q\n", severity)
 	}
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type          = "domain"
   value         = "%[1]s.example.com"
   mobile_action = %[2]q
@@ -1090,7 +1090,7 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName, mobileAction, severityLine)
 }
 
-func testAccIOCIndicatorConfig_platforms(rName string, platforms []string, action, mobileAction string) string {
+func testAccCustomIOCConfig_platforms(rName string, platforms []string, action, mobileAction string) string {
 	quoted := make([]string, len(platforms))
 	for i, p := range platforms {
 		quoted[i] = fmt.Sprintf("%q", p)
@@ -1107,7 +1107,7 @@ func testAccIOCIndicatorConfig_platforms(rName string, platforms []string, actio
 	}
 
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type          = "domain"
   value         = "%[1]s.example.com"
 %[2]s%[3]s  severity      = "low"
@@ -1118,9 +1118,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName, actionLine, mobileActionLine, platformsList)
 }
 
-func testAccIOCIndicatorConfig_invalidSha256Mobile(rName string) string {
+func testAccCustomIOCConfig_invalidSha256Mobile(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type          = "sha256"
   value         = %[2]q
   action        = "detect"
@@ -1133,9 +1133,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName, acctest.SHA256(rName))
 }
 
-func testAccIOCIndicatorConfig_invalidAllSubdomainsNonMobile(rName string) string {
+func testAccCustomIOCConfig_invalidAllSubdomainsNonMobile(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type          = "all_subdomains"
   value         = "%[1]s.example.com"
   mobile_action = "detect"
@@ -1147,9 +1147,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName)
 }
 
-func testAccIOCIndicatorConfig_invalidDomainAction(rName string) string {
+func testAccCustomIOCConfig_invalidDomainAction(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "prevent"
@@ -1161,9 +1161,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName)
 }
 
-func testAccIOCIndicatorConfig_missingSeverity(rName string) string {
+func testAccCustomIOCConfig_missingSeverity(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "detect"
@@ -1174,9 +1174,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName)
 }
 
-func testAccIOCIndicatorConfig_mixedMissingMobileAction(rName string) string {
+func testAccCustomIOCConfig_mixedMissingMobileAction(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "detect"
@@ -1188,9 +1188,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName)
 }
 
-func testAccIOCIndicatorConfig_severityForbiddenAction(rName, action string) string {
+func testAccCustomIOCConfig_severityForbiddenAction(rName, action string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "sha256"
   value       = %[2]q
   action      = %[3]q
@@ -1202,9 +1202,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName, acctest.SHA256(rName), action)
 }
 
-func testAccIOCIndicatorConfig_severityForbiddenMobileAction(rName, mobileAction string) string {
+func testAccCustomIOCConfig_severityForbiddenMobileAction(rName, mobileAction string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type          = "domain"
   value         = "%[1]s.example.com"
   mobile_action = %[2]q
@@ -1216,9 +1216,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName, mobileAction)
 }
 
-func testAccIOCIndicatorConfig_missingActionForPlatforms(rName, platforms string) string {
+func testAccCustomIOCConfig_missingActionForPlatforms(rName, platforms string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   description = %[1]q
@@ -1228,9 +1228,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName, platforms)
 }
 
-func testAccIOCIndicatorConfig_actionPlatformMismatch(rName, platforms string) string {
+func testAccCustomIOCConfig_actionPlatformMismatch(rName, platforms string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type          = "domain"
   value         = "%[1]s.example.com"
   action        = "detect"
@@ -1243,9 +1243,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName, platforms)
 }
 
-func testAccIOCIndicatorConfig_pastExpiration(rName string) string {
+func testAccCustomIOCConfig_pastExpiration(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "detect"
@@ -1258,9 +1258,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName)
 }
 
-func testAccIOCIndicatorConfig_missingSeverityMobile(rName string) string {
+func testAccCustomIOCConfig_missingSeverityMobile(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type          = "domain"
   value         = "%[1]s.example.com"
   mobile_action = "detect"
@@ -1271,9 +1271,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName)
 }
 
-func testAccIOCIndicatorConfig_invalidType(rName string) string {
+func testAccCustomIOCConfig_invalidType(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "unknown"
   value       = "%[1]s.example.com"
   action      = "detect"
@@ -1285,9 +1285,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName)
 }
 
-func testAccIOCIndicatorConfig_invalidPlatform(rName string) string {
+func testAccCustomIOCConfig_invalidPlatform(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "detect"
@@ -1299,9 +1299,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName)
 }
 
-func testAccIOCIndicatorConfig_emptyPlatforms(rName string) string {
+func testAccCustomIOCConfig_emptyPlatforms(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "detect"
@@ -1313,9 +1313,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName)
 }
 
-func testAccIOCIndicatorConfig_emptyTags(rName string) string {
+func testAccCustomIOCConfig_emptyTags(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "detect"
@@ -1328,9 +1328,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName)
 }
 
-func testAccIOCIndicatorConfig_emptyHostGroups(rName string) string {
+func testAccCustomIOCConfig_emptyHostGroups(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "detect"
@@ -1342,9 +1342,9 @@ resource "crowdstrike_ioc_indicator" "test" {
 `, rName)
 }
 
-func testAccIOCIndicatorConfig_hostGroupsEmptyString(rName string) string {
+func testAccCustomIOCConfig_hostGroupsEmptyString(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
-resource "crowdstrike_ioc_indicator" "test" {
+resource "crowdstrike_custom_ioc" "test" {
   type        = "domain"
   value       = "%[1]s.example.com"
   action      = "detect"

@@ -1,5 +1,5 @@
 # Allow a specific SHA256 hash globally across all Mac hosts
-resource "crowdstrike_ioc_indicator" "allow_by_hash" {
+resource "crowdstrike_custom_ioc" "allow_by_hash" {
   type        = "sha256"
   value       = "73cb3858a687a8494ca3323053016282f3dad39d42cf62ca4e79dda2aac7d9ac"
   action      = "allow"
@@ -11,7 +11,7 @@ resource "crowdstrike_ioc_indicator" "allow_by_hash" {
 }
 
 # Detect a domain, scoped to specific host groups
-resource "crowdstrike_ioc_indicator" "detect_domain" {
+resource "crowdstrike_custom_ioc" "detect_domain" {
   type        = "domain"
   value       = "malicious-example.com"
   action      = "detect"
@@ -23,7 +23,7 @@ resource "crowdstrike_ioc_indicator" "detect_domain" {
 }
 
 # Block an MD5 hash globally
-resource "crowdstrike_ioc_indicator" "block_md5" {
+resource "crowdstrike_custom_ioc" "block_md5" {
   type        = "md5"
   value       = "44d88612fea8a8f36de82e1278abb02f"
   action      = "prevent"

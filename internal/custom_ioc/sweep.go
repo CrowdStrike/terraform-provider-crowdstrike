@@ -1,4 +1,4 @@
-package iocindicator
+package customioc
 
 import (
 	"context"
@@ -10,12 +10,12 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/sweep"
 )
 
-// RegisterSweepers registers the sweepers for IOC indicator resources.
+// RegisterSweepers registers the sweepers for custom IOC resources.
 func RegisterSweepers() {
-	sweep.Register("crowdstrike_ioc_indicator", sweepIOCIndicators)
+	sweep.Register("crowdstrike_custom_ioc", sweepCustomIOCs)
 }
 
-func sweepIOCIndicators(
+func sweepCustomIOCs(
 	ctx context.Context,
 	client *client.CrowdStrikeAPISpecification,
 ) ([]sweep.Sweepable, error) {
@@ -24,11 +24,11 @@ func sweepIOCIndicators(
 	params := ioc.NewIndicatorCombinedV1Params().WithDefaults()
 	res, err := client.Ioc.IndicatorCombinedV1(params)
 	if sweep.SkipSweepError(err) {
-		sweep.Warn("Skipping IOC indicator sweep: %s", err)
+		sweep.Warn("Skipping custom IOC sweep: %s", err)
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("error listing IOC indicators: %w", err)
+		return nil, fmt.Errorf("error listing custom IOCs: %w", err)
 	}
 
 	if res.Payload == nil || res.Payload.Resources == nil {
@@ -46,15 +46,15 @@ func sweepIOCIndicators(
 		sweepables = append(sweepables, sweep.NewSweepResource(
 			indicator.ID,
 			indicator.Value,
-			deleteIOCIndicator,
+			deleteCustomIOC,
 		))
 	}
 
 	return sweepables, nil
 }
 
-// deleteIOCIndicator deletes an IOC indicator by ID.
-func deleteIOCIndicator(
+// deleteCustomIOC deletes a custom IOC by ID.
+func deleteCustomIOC(
 	ctx context.Context,
 	client *client.CrowdStrikeAPISpecification,
 	id string,
@@ -63,7 +63,7 @@ func deleteIOCIndicator(
 	_, err := client.Ioc.IndicatorDeleteV1(params)
 	if err != nil {
 		if sweep.ShouldIgnoreError(err) {
-			sweep.Debug("Ignoring error for IOC indicator %s: %s", id, err)
+			sweep.Debug("Ignoring error for custom IOC %s: %s", id, err)
 			return nil
 		}
 		return err

@@ -1,4 +1,4 @@
-package iocindicator
+package customioc
 
 import (
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
@@ -17,8 +17,8 @@ func SuppressExpiredActionDrift(
 	plannedAction, plannedMobileAction types.String,
 	actualAction, actualMobileAction types.String,
 ) (types.String, types.String, diag.Diagnostics) {
-	r := &iocIndicatorResource{}
-	m := &iocIndicatorResourceModel{
+	r := &customIOCResource{}
+	m := &customIOCResourceModel{
 		Action:       actualAction,
 		MobileAction: actualMobileAction,
 	}
