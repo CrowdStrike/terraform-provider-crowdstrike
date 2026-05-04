@@ -3,24 +3,26 @@ package iocindicator
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/ioc"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
+	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/go-openapi/strfmt"
+	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -33,6 +35,71 @@ var (
 	_ resource.ResourceWithConfigure      = &iocIndicatorResource{}
 	_ resource.ResourceWithImportState    = &iocIndicatorResource{}
 	_ resource.ResourceWithValidateConfig = &iocIndicatorResource{}
+	_ resource.ResourceWithModifyPlan     = &iocIndicatorResource{}
+)
+
+const (
+	typeSHA256        = "sha256"
+	typeMD5           = "md5"
+	typeDomain        = "domain"
+	typeIPv4          = "ipv4"
+	typeIPv6          = "ipv6"
+	typeAllSubdomains = "all_subdomains"
+
+	platformWindows = "windows"
+	platformMac     = "mac"
+	platformLinux   = "linux"
+	platformIOS     = "ios"
+	platformAndroid = "android"
+
+	actionAllow       = "allow"
+	actionDetect      = "detect"
+	actionPrevent     = "prevent"
+	actionPreventNoUI = "prevent_no_ui"
+	actionNoAction    = "no_action"
+
+	severityInformational = "informational"
+	severityLow           = "low"
+	severityMedium        = "medium"
+	severityHigh          = "high"
+	severityCritical      = "critical"
+
+	hostGroupAll = "all"
+)
+
+var (
+	allTypes = []string{
+		typeSHA256,
+		typeMD5,
+		typeDomain,
+		typeIPv4,
+		typeIPv6,
+		typeAllSubdomains,
+	}
+
+	allPlatforms = []string{
+		platformWindows,
+		platformMac,
+		platformLinux,
+		platformIOS,
+		platformAndroid,
+	}
+
+	allActions = []string{
+		actionAllow,
+		actionDetect,
+		actionPrevent,
+		actionPreventNoUI,
+		actionNoAction,
+	}
+
+	allSeverities = []string{
+		severityInformational,
+		severityLow,
+		severityMedium,
+		severityHigh,
+		severityCritical,
+	}
 )
 
 // NewIOCIndicatorResource creates a new IOC indicator resource.
@@ -47,23 +114,23 @@ type iocIndicatorResource struct {
 
 // iocIndicatorResourceModel describes the resource data model.
 type iocIndicatorResourceModel struct {
-	ID              types.String `tfsdk:"id"`
-	Type            types.String `tfsdk:"type"`
-	Value           types.String `tfsdk:"value"`
-	Action          types.String `tfsdk:"action"`
-	Severity        types.String `tfsdk:"severity"`
-	Description     types.String `tfsdk:"description"`
-	Platforms       types.Set    `tfsdk:"platforms"`
-	HostGroups      types.Set    `tfsdk:"host_groups"`
-	AppliedGlobally types.Bool   `tfsdk:"applied_globally"`
-	Expiration      types.String `tfsdk:"expiration"`
-	Source          types.String `tfsdk:"source"`
-	Tags            types.Set    `tfsdk:"tags"`
-	CreatedBy       types.String `tfsdk:"created_by"`
-	CreatedOn       types.String `tfsdk:"created_on"`
-	ModifiedBy      types.String `tfsdk:"modified_by"`
-	ModifiedOn      types.String `tfsdk:"modified_on"`
-	LastUpdated     types.String `tfsdk:"last_updated"`
+	ID              types.String      `tfsdk:"id"`
+	Type            types.String      `tfsdk:"type"`
+	Value           types.String      `tfsdk:"value"`
+	Action          types.String      `tfsdk:"action"`
+	MobileAction    types.String      `tfsdk:"mobile_action"`
+	Severity        types.String      `tfsdk:"severity"`
+	Description     types.String      `tfsdk:"description"`
+	Platforms       types.Set         `tfsdk:"platforms"`
+	HostGroups      types.Set         `tfsdk:"host_groups"`
+	AppliedGlobally types.Bool        `tfsdk:"applied_globally"`
+	Expiration      timetypes.RFC3339 `tfsdk:"expiration"`
+	Source          types.String      `tfsdk:"source"`
+	Tags            types.Set         `tfsdk:"tags"`
+	CreatedBy       types.String      `tfsdk:"created_by"`
+	CreatedOn       types.String      `tfsdk:"created_on"`
+	ModifiedBy      types.String      `tfsdk:"modified_by"`
+	ModifiedOn      types.String      `tfsdk:"modified_on"`
 }
 
 // wrap maps an API response model to the Terraform resource model.
@@ -76,20 +143,38 @@ func (m *iocIndicatorResourceModel) wrap(
 	m.ID = types.StringValue(indicator.ID)
 	m.Type = types.StringValue(indicator.Type)
 	m.Value = types.StringValue(indicator.Value)
-	m.Action = types.StringValue(indicator.Action)
-	m.Severity = types.StringValue(indicator.Severity)
-	m.Description = types.StringValue(indicator.Description)
+	m.Severity = flex.StringValueToFramework(indicator.Severity)
+	m.Description = flex.StringValueToFramework(indicator.Description)
 	m.AppliedGlobally = types.BoolValue(indicator.AppliedGlobally)
-	m.Source = types.StringValue(indicator.Source)
+	m.Source = flex.StringValueToFramework(indicator.Source)
 	m.CreatedBy = types.StringValue(indicator.CreatedBy)
 	m.CreatedOn = types.StringValue(indicator.CreatedOn.String())
 	m.ModifiedBy = types.StringValue(indicator.ModifiedBy)
 	m.ModifiedOn = types.StringValue(indicator.ModifiedOn.String())
+	m.Expiration = flex.DateTimeValueToFramework(indicator.Expiration)
 
-	if !time.Time(indicator.Expiration).IsZero() {
-		m.Expiration = types.StringValue(indicator.Expiration.String())
-	} else {
-		m.Expiration = types.StringNull()
+	// action/mobile_action: the API silently fills the field that does not apply
+	// to the configured platforms with "no_action". Null the field the user was
+	// not allowed to set so state matches plan. sha256/md5 are non-mobile-only,
+	// all_subdomains is mobile-only; other types depend on platforms.
+	switch indicator.Type {
+	case typeSHA256, typeMD5:
+		m.Action = flex.StringValueToFramework(indicator.Action)
+		m.MobileAction = types.StringNull()
+	case typeAllSubdomains:
+		m.Action = types.StringNull()
+		m.MobileAction = flex.StringValueToFramework(indicator.MobileAction)
+	default:
+		if slices.ContainsFunc(indicator.Platforms, isNonMobilePlatform) {
+			m.Action = flex.StringValueToFramework(indicator.Action)
+		} else {
+			m.Action = types.StringNull()
+		}
+		if slices.ContainsFunc(indicator.Platforms, isMobilePlatform) {
+			m.MobileAction = flex.StringValueToFramework(indicator.MobileAction)
+		} else {
+			m.MobileAction = types.StringNull()
+		}
 	}
 
 	platforms, d := types.SetValueFrom(ctx, types.StringType, indicator.Platforms)
@@ -99,15 +184,20 @@ func (m *iocIndicatorResourceModel) wrap(
 	}
 	m.Platforms = platforms
 
-	if len(indicator.HostGroups) > 0 {
-		hostGroups, d := types.SetValueFrom(ctx, types.StringType, indicator.HostGroups)
+	if indicator.AppliedGlobally {
+		hostGroups, d := types.SetValueFrom(ctx, types.StringType, []string{hostGroupAll})
 		diags.Append(d...)
 		if diags.HasError() {
 			return diags
 		}
 		m.HostGroups = hostGroups
 	} else {
-		m.HostGroups = types.SetNull(types.StringType)
+		hostGroups, d := types.SetValueFrom(ctx, types.StringType, indicator.HostGroups)
+		diags.Append(d...)
+		if diags.HasError() {
+			return diags
+		}
+		m.HostGroups = hostGroups
 	}
 
 	if len(indicator.Tags) > 0 {
@@ -153,6 +243,9 @@ func (r *iocIndicatorResource) Metadata(
 	req resource.MetadataRequest,
 	resp *resource.MetadataResponse,
 ) {
+	// TODO: rename to "_custom_ioc" before release. "ioc_indicator" is redundant
+	// (IOC already means "indicator of compromise"), and CrowdStrike docs refer
+	// to this feature as "Custom IOCs".
 	resp.TypeName = req.ProviderTypeName + "_ioc_indicator"
 }
 
@@ -163,7 +256,7 @@ func (r *iocIndicatorResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
-			"IOC Management",
+			"Endpoint Security",
 			"Manages IOC (Indicator of Compromise) indicators in CrowdStrike Falcon. IOC indicators allow you to create custom indicators based on SHA256 hashes, MD5 hashes, domains, IPv4 addresses, or IPv6 addresses with actions such as allow, detect, or prevent.",
 			apiScopes,
 		),
@@ -177,18 +270,12 @@ func (r *iocIndicatorResource) Schema(
 			},
 			"type": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "The type of the IOC indicator. Valid values are: `sha256`, `md5`, `domain`, `ipv4`, `ipv6`.",
+				MarkdownDescription: "The type of the IOC indicator. Valid values are: `sha256`, `md5`, `domain`, `ipv4`, `ipv6`, `all_subdomains`. `sha256` and `md5` are only valid with non-mobile platforms (`windows`, `mac`, `linux`); `all_subdomains` is only valid with mobile platforms (`ios`, `android`).",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf(
-						"sha256",
-						"md5",
-						"domain",
-						"ipv4",
-						"ipv6",
-					),
+					stringvalidator.OneOf(allTypes...),
 				},
 			},
 			"value": schema.StringAttribute{
@@ -199,82 +286,81 @@ func (r *iocIndicatorResource) Schema(
 				},
 			},
 			"action": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "The action to take when the IOC indicator is matched. Valid values are: `allow`, `detect`, `prevent`, `prevent_no_ui`, `no_action`.",
+				Optional:            true,
+				MarkdownDescription: "The action to take on non-mobile platforms (`windows`, `mac`, `linux`). Required when `platforms` contains a non-mobile platform. Valid values are: `allow`, `detect`, `prevent`, `prevent_no_ui`, `no_action`. For `domain`, `ipv4`, and `ipv6` types only `detect` and `no_action` are permitted.",
 				Validators: []validator.String{
-					stringvalidator.OneOf(
-						"allow",
-						"detect",
-						"prevent",
-						"prevent_no_ui",
-						"no_action",
-					),
+					stringvalidator.OneOf(allActions...),
+				},
+			},
+			"mobile_action": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "The action to take on mobile platforms (`ios`, `android`). Required when `platforms` contains a mobile platform. Valid values are: `allow`, `detect`, `prevent`, `prevent_no_ui`, `no_action`.",
+				Validators: []validator.String{
+					stringvalidator.OneOf(allActions...),
 				},
 			},
 			"severity": schema.StringAttribute{
 				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString(""),
-				MarkdownDescription: "The severity level of the IOC indicator. Valid values are: `informational`, `low`, `medium`, `high`, `critical`.",
+				MarkdownDescription: "The severity level of the IOC indicator. Required when `action` or `mobile_action` is `detect` or `prevent`; must not be set for other actions. Valid values are: `informational`, `low`, `medium`, `high`, `critical`.",
 				Validators: []validator.String{
-					stringvalidator.OneOf(
-						"",
-						"informational",
-						"low",
-						"medium",
-						"high",
-						"critical",
-					),
+					stringvalidator.OneOf(allSeverities...),
 				},
 			},
 			"description": schema.StringAttribute{
 				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString(""),
 				MarkdownDescription: "A description of the IOC indicator.",
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
+				},
 			},
 			"platforms": schema.SetAttribute{
 				Required:            true,
 				ElementType:         types.StringType,
-				MarkdownDescription: "The platforms this IOC indicator applies to. Valid values are: `windows`, `mac`, `linux`.",
+				MarkdownDescription: "The platforms this IOC indicator applies to. Valid values are: `windows`, `mac`, `linux`, `ios`, `android`. Hash types (`sha256`, `md5`) only support non-mobile platforms (`windows`, `mac`, `linux`); `all_subdomains` only supports mobile platforms (`ios`, `android`).",
 				Validators: []validator.Set{
 					setvalidator.ValueStringsAre(
-						stringvalidator.OneOf("windows", "mac", "linux"),
+						stringvalidator.OneOf(allPlatforms...),
 					),
 					setvalidator.SizeAtLeast(1),
 				},
 			},
 			"host_groups": schema.SetAttribute{
-				Optional:            true,
+				Required:            true,
 				ElementType:         types.StringType,
-				MarkdownDescription: "A set of host group IDs to apply this indicator to. Cannot be used together with `applied_globally`.",
+				MarkdownDescription: "Host group IDs that receive this indicator. Use `[\"all\"]` to apply globally.",
 				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
 					setvalidator.ValueStringsAre(
 						stringvalidator.LengthAtLeast(1),
 					),
 				},
 			},
 			"applied_globally": schema.BoolAttribute{
-				Optional:            true,
 				Computed:            true,
-				Default:             booldefault.StaticBool(false),
-				MarkdownDescription: "Whether to apply the indicator globally to all hosts. Cannot be used together with `host_groups`.",
+				MarkdownDescription: "Whether the indicator is applied globally to all hosts.",
 			},
 			"expiration": schema.StringAttribute{
+				CustomType:          timetypes.RFC3339Type{},
 				Optional:            true,
-				Computed:            true,
-				MarkdownDescription: "The expiration date of the IOC indicator in RFC 3339 format (e.g. `2025-12-31T23:59:59Z`).",
+				MarkdownDescription: "The expiration date of the IOC indicator in RFC 3339 format (e.g. `2025-12-31T23:59:59Z`). Must be a future date. Once this date passes, the API auto-resets `action` or `mobile_action` to `no_action` server-side. Terraform will show permanent drift on `action` after that point until `expiration` is bumped/removed or `action` is set to `no_action`.",
 			},
 			"source": schema.StringAttribute{
 				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString(""),
 				MarkdownDescription: "The source of the IOC indicator.",
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
+				},
 			},
 			"tags": schema.SetAttribute{
 				Optional:            true,
 				ElementType:         types.StringType,
 				MarkdownDescription: "A set of tags to apply to the IOC indicator.",
+				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
+					setvalidator.ValueStringsAre(
+						fwvalidators.StringNotWhitespace(),
+					),
+				},
 			},
 			"created_by": schema.StringAttribute{
 				Computed:            true,
@@ -298,10 +384,6 @@ func (r *iocIndicatorResource) Schema(
 				Computed:            true,
 				MarkdownDescription: "The timestamp when the IOC indicator was last modified.",
 			},
-			"last_updated": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "The RFC850 timestamp of the last update to this resource by Terraform.",
-			},
 		},
 	}
 }
@@ -318,32 +400,321 @@ func (r *iocIndicatorResource) ValidateConfig(
 		return
 	}
 
-	if cfg.AppliedGlobally.IsUnknown() || cfg.HostGroups.IsUnknown() {
+	r.validateHostGroups(ctx, cfg, resp)
+	r.validatePlatformsForType(ctx, cfg, resp)
+	r.validateActionForType(ctx, cfg, resp)
+	r.validateSeverityRequirement(cfg, resp)
+	r.validateActionPresence(ctx, cfg, resp)
+}
+
+// ModifyPlan enforces that expiration is always a future date when it changes.
+// State-aware: lets users edit other fields on an IOC whose stored expiration has
+// already passed, as long as they don't touch the expiration itself.
+func (r *iocIndicatorResource) ModifyPlan(
+	ctx context.Context,
+	req resource.ModifyPlanRequest,
+	resp *resource.ModifyPlanResponse,
+) {
+	if req.Plan.Raw.IsNull() {
 		return
 	}
 
-	hasAppliedGlobally := cfg.AppliedGlobally.ValueBool()
-	hasHostGroups := !cfg.HostGroups.IsNull() && len(cfg.HostGroups.Elements()) > 0
+	var planExp timetypes.RFC3339
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("expiration"), &planExp)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	if hasAppliedGlobally && hasHostGroups {
+	if planExp.IsNull() || planExp.IsUnknown() {
+		return
+	}
+
+	if !req.State.Raw.IsNull() {
+		var stateExp timetypes.RFC3339
+		resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("expiration"), &stateExp)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		if !stateExp.IsNull() {
+			equal, d := planExp.StringSemanticEquals(ctx, stateExp)
+			resp.Diagnostics.Append(d...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+			if equal {
+				return
+			}
+		}
+	}
+
+	t, d := planExp.ValueRFC3339Time()
+	resp.Diagnostics.Append(d...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if !t.After(time.Now()) {
 		resp.Diagnostics.AddAttributeError(
-			path.Root("applied_globally"),
-			"Invalid Configuration",
-			"Cannot specify both applied_globally=true and host_groups. "+
-				"Please use either applied_globally=true for global indicators or provide specific host_groups.",
+			path.Root("expiration"),
+			"expiration must be a future date",
+			"Set expiration to a date later than now, or remove it.",
 		)
+	}
+}
+
+func (r *iocIndicatorResource) validateHostGroups(
+	ctx context.Context,
+	cfg iocIndicatorResourceModel,
+	resp *resource.ValidateConfigResponse,
+) {
+	if cfg.HostGroups.IsNull() || cfg.HostGroups.IsUnknown() {
 		return
 	}
 
-	if !hasAppliedGlobally && !hasHostGroups {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("applied_globally"),
-			"Invalid Configuration",
-			"Either applied_globally must be true or host_groups must be provided. "+
-				"An IOC indicator must be scoped to at least one target.",
-		)
+	for _, elem := range cfg.HostGroups.Elements() {
+		if elem.IsUnknown() {
+			return
+		}
+	}
+
+	groups := flex.ExpandSetAs[string](ctx, cfg.HostGroups, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	if containsAll(groups) && len(groups) > 1 {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("host_groups"),
+			"Conflicting host_groups values",
+			`host_groups cannot mix "all" with specific host group IDs. `+
+				`Either use ["all"] to apply this indicator globally, `+
+				`or provide a list of specific host group IDs without "all".`,
+		)
+	}
+}
+
+func (r *iocIndicatorResource) validatePlatformsForType(
+	ctx context.Context,
+	cfg iocIndicatorResourceModel,
+	resp *resource.ValidateConfigResponse,
+) {
+	if cfg.Type.IsNull() || cfg.Type.IsUnknown() {
+		return
+	}
+	if cfg.Platforms.IsNull() || cfg.Platforms.IsUnknown() {
+		return
+	}
+
+	for _, elem := range cfg.Platforms.Elements() {
+		if elem.IsUnknown() {
+			return
+		}
+	}
+
+	iocType := cfg.Type.ValueString()
+	platforms := flex.ExpandSetAs[string](ctx, cfg.Platforms, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	switch iocType {
+	case typeSHA256, typeMD5:
+		for _, p := range platforms {
+			if isMobilePlatform(p) {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("platforms"),
+					"Unsupported platform for hash type",
+					fmt.Sprintf(
+						`platform %q is not supported for %q indicators. `+
+							`Hash types (sha256, md5) only support "windows", "mac", and "linux".`,
+						p, iocType,
+					),
+				)
+			}
+		}
+	case typeAllSubdomains:
+		for _, p := range platforms {
+			if isNonMobilePlatform(p) {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("platforms"),
+					"Unsupported platform for all_subdomains type",
+					fmt.Sprintf(
+						`platform %q is not supported for "all_subdomains" indicators. `+
+							`The "all_subdomains" type only supports mobile platforms ("ios", "android").`,
+						p,
+					),
+				)
+			}
+		}
+	}
+}
+
+func (r *iocIndicatorResource) validateActionForType(
+	ctx context.Context,
+	cfg iocIndicatorResourceModel,
+	resp *resource.ValidateConfigResponse,
+) {
+	if cfg.Type.IsNull() || cfg.Type.IsUnknown() {
+		return
+	}
+	if cfg.Action.IsNull() || cfg.Action.IsUnknown() {
+		return
+	}
+	if cfg.Platforms.IsNull() || cfg.Platforms.IsUnknown() {
+		return
+	}
+
+	for _, elem := range cfg.Platforms.Elements() {
+		if elem.IsUnknown() {
+			return
+		}
+	}
+
+	platforms := flex.ExpandSetAs[string](ctx, cfg.Platforms, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	hasNonMobile := slices.ContainsFunc(platforms, isNonMobilePlatform)
+	if !hasNonMobile {
+		return
+	}
+
+	iocType := cfg.Type.ValueString()
+	action := cfg.Action.ValueString()
+
+	switch iocType {
+	case typeDomain, typeIPv4, typeIPv6:
+		if action != actionDetect && action != actionNoAction {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("action"),
+				"Invalid action for type",
+				fmt.Sprintf(
+					`action %q is not permitted for %q indicators on non-mobile platforms. `+
+						`Valid actions for %q are "detect" and "no_action".`,
+					action, iocType, iocType,
+				),
+			)
+		}
+	}
+}
+
+func (r *iocIndicatorResource) validateSeverityRequirement(
+	cfg iocIndicatorResourceModel,
+	resp *resource.ValidateConfigResponse,
+) {
+	if cfg.Action.IsUnknown() || cfg.MobileAction.IsUnknown() || cfg.Severity.IsUnknown() {
+		return
+	}
+
+	action := cfg.Action.ValueString()
+	mobileAction := cfg.MobileAction.ValueString()
+	severitySet := cfg.Severity.ValueString() != ""
+	severityRequired := isDetectionAction(action) || isDetectionAction(mobileAction)
+
+	switch {
+	case severitySet && !severityRequired:
+		resp.Diagnostics.AddAttributeError(
+			path.Root("severity"),
+			"Invalid severity",
+			fmt.Sprintf(
+				`severity is only allowed when action or mobile_action is "detect" or "prevent" `+
+					`(got action=%q, mobile_action=%q). `+
+					`Remove severity, or change action or mobile_action to "detect" or "prevent".`,
+				action, mobileAction,
+			),
+		)
+	case !severitySet && severityRequired:
+		resp.Diagnostics.AddAttributeError(
+			path.Root("severity"),
+			"Missing required severity",
+			fmt.Sprintf(
+				`severity is required when action or mobile_action is "detect" or "prevent" `+
+					`(got action=%q, mobile_action=%q). `+
+					`Set severity to one of "informational", "low", "medium", "high", or "critical".`,
+				action, mobileAction,
+			),
+		)
+	}
+}
+
+func (r *iocIndicatorResource) validateActionPresence(
+	ctx context.Context,
+	cfg iocIndicatorResourceModel,
+	resp *resource.ValidateConfigResponse,
+) {
+	if cfg.Platforms.IsNull() || cfg.Platforms.IsUnknown() {
+		return
+	}
+
+	for _, elem := range cfg.Platforms.Elements() {
+		if elem.IsUnknown() {
+			return
+		}
+	}
+
+	if cfg.Action.IsUnknown() || cfg.MobileAction.IsUnknown() {
+		return
+	}
+
+	platforms := flex.ExpandSetAs[string](ctx, cfg.Platforms, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	hasNonMobile := slices.ContainsFunc(platforms, isNonMobilePlatform)
+	hasMobile := slices.ContainsFunc(platforms, isMobilePlatform)
+	actionSet := cfg.Action.ValueString() != ""
+	mobileActionSet := cfg.MobileAction.ValueString() != ""
+
+	if hasNonMobile && !actionSet {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("action"),
+			"Missing required action",
+			`action is required when platforms contains a non-mobile platform ("windows", "mac", "linux").`,
+		)
+	}
+
+	if !hasNonMobile && actionSet {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("action"),
+			"action has no effect without a non-mobile platform",
+			`action applies only to non-mobile platforms ("windows", "mac", "linux"). `+
+				`The API silently discards it when platforms contains only mobile entries. `+
+				`Either remove action or add a non-mobile platform.`,
+		)
+	}
+
+	if hasMobile && !mobileActionSet {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("mobile_action"),
+			"Missing required mobile_action",
+			`mobile_action is required when platforms contains a mobile platform ("ios", "android").`,
+		)
+	}
+
+	if !hasMobile && mobileActionSet {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("mobile_action"),
+			"mobile_action has no effect without a mobile platform",
+			`mobile_action applies only to mobile platforms ("ios", "android"). `+
+				`The API silently discards it when platforms contains only non-mobile entries. `+
+				`Either remove mobile_action or add a mobile platform.`,
+		)
+	}
+}
+
+func isMobilePlatform(p string) bool {
+	return p == platformIOS || p == platformAndroid
+}
+
+func isNonMobilePlatform(p string) bool {
+	return p == platformWindows || p == platformMac || p == platformLinux
+}
+
+func isDetectionAction(action string) bool {
+	return action == actionDetect || action == actionPrevent
 }
 
 func (r *iocIndicatorResource) Create(
@@ -357,7 +728,7 @@ func (r *iocIndicatorResource) Create(
 		return
 	}
 
-	tflog.Info(ctx, "Creating IOC indicator", map[string]any{
+	tflog.Debug(ctx, "Creating IOC indicator", map[string]any{
 		"type":  plan.Type.ValueString(),
 		"value": plan.Value.ValueString(),
 	})
@@ -369,27 +740,29 @@ func (r *iocIndicatorResource) Create(
 	}
 
 	var hostGroups []string
-	if !plan.HostGroups.IsNull() && !plan.HostGroups.IsUnknown() {
-		resp.Diagnostics.Append(plan.HostGroups.ElementsAs(ctx, &hostGroups, false)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
+	resp.Diagnostics.Append(plan.HostGroups.ElementsAs(ctx, &hostGroups, false)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	var tags []string
-	if !plan.Tags.IsNull() && !plan.Tags.IsUnknown() {
+	tags := []string{}
+	if !plan.Tags.IsNull() {
 		resp.Diagnostics.Append(plan.Tags.ElementsAs(ctx, &tags, false)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 	}
 
-	appliedGlobally := plan.AppliedGlobally.ValueBool()
+	appliedGlobally := containsAll(hostGroups)
+	if appliedGlobally {
+		hostGroups = nil
+	}
 
 	indicator := &models.APIIndicatorCreateReqV1{
 		Type:            plan.Type.ValueString(),
 		Value:           plan.Value.ValueString(),
 		Action:          plan.Action.ValueString(),
+		MobileAction:    plan.MobileAction.ValueString(),
 		Severity:        plan.Severity.ValueString(),
 		Description:     plan.Description.ValueString(),
 		Platforms:       platforms,
@@ -399,39 +772,27 @@ func (r *iocIndicatorResource) Create(
 		Tags:            tags,
 	}
 
-	if !plan.Expiration.IsNull() && !plan.Expiration.IsUnknown() {
-		exp, err := parseDateTime(plan.Expiration.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Invalid expiration format",
-				fmt.Sprintf(
-					"Failed to parse expiration date: %s. Expected RFC 3339 format (e.g. 2025-12-31T23:59:59Z).",
-					err,
-				),
-			)
+	if !plan.Expiration.IsNull() {
+		t, tDiags := plan.Expiration.ValueRFC3339Time()
+		resp.Diagnostics.Append(tDiags...)
+		if resp.Diagnostics.HasError() {
 			return
 		}
-		indicator.Expiration = exp
+		dt := strfmt.DateTime(t)
+		indicator.Expiration = &dt
 	}
 
 	body := &models.APIIndicatorCreateReqsV1{
 		Indicators: []*models.APIIndicatorCreateReqV1{indicator},
 	}
 
-	params := ioc.NewIndicatorCreateV1Params().WithBody(body)
+	params := ioc.NewIndicatorCreateV1ParamsWithContext(ctx).WithBody(body)
 	ignoreWarnings := true
 	params.SetIgnoreWarnings(&ignoreWarnings)
 
 	res, err := r.client.Ioc.IndicatorCreateV1(params)
 	if err != nil {
-		diag := tferrors.NewDiagnosticFromAPIError(
-			tferrors.Create,
-			err,
-			apiScopes,
-		)
-		if diag != nil {
-			resp.Diagnostics.Append(diag)
-		}
+		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Create, err, apiScopes))
 		return
 	}
 
@@ -451,7 +812,13 @@ func (r *iocIndicatorResource) Create(
 
 	createdIndicator := payload.Resources[0]
 
-	tflog.Info(ctx, "Created IOC indicator", map[string]any{
+	plan.ID = types.StringValue(createdIndicator.ID)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	tflog.Debug(ctx, "Created IOC indicator", map[string]any{
 		"id": createdIndicator.ID,
 	})
 
@@ -460,7 +827,6 @@ func (r *iocIndicatorResource) Create(
 		return
 	}
 
-	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -477,22 +843,18 @@ func (r *iocIndicatorResource) Read(
 
 	id := state.ID.ValueString()
 
-	tflog.Info(ctx, "Reading IOC indicator", map[string]any{
+	tflog.Debug(ctx, "Reading IOC indicator", map[string]any{
 		"id": id,
 	})
 
-	indicator, diags := getIOCIndicator(ctx, r.client, id)
-	resp.Diagnostics.Append(diags...)
-
+	indicator, readDiags := getIOCIndicator(ctx, r.client, id)
+	if tferrors.HasNotFoundError(readDiags) {
+		resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
+		resp.State.RemoveResource(ctx)
+		return
+	}
+	resp.Diagnostics.Append(readDiags...)
 	if resp.Diagnostics.HasError() {
-		if tferrors.HasNotFoundError(resp.Diagnostics) {
-			tflog.Warn(ctx, "IOC indicator not found, removing from state", map[string]any{
-				"id": id,
-			})
-			resp.Diagnostics = diag.Diagnostics{}
-			resp.State.RemoveResource(ctx)
-			return
-		}
 		return
 	}
 
@@ -523,7 +885,7 @@ func (r *iocIndicatorResource) Update(
 
 	id := state.ID.ValueString()
 
-	tflog.Info(ctx, "Updating IOC indicator", map[string]any{
+	tflog.Debug(ctx, "Updating IOC indicator", map[string]any{
 		"id": id,
 	})
 
@@ -534,67 +896,55 @@ func (r *iocIndicatorResource) Update(
 	}
 
 	var hostGroups []string
-	if !plan.HostGroups.IsNull() && !plan.HostGroups.IsUnknown() {
-		resp.Diagnostics.Append(plan.HostGroups.ElementsAs(ctx, &hostGroups, false)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
+	resp.Diagnostics.Append(plan.HostGroups.ElementsAs(ctx, &hostGroups, false)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	var tags []string
-	if !plan.Tags.IsNull() && !plan.Tags.IsUnknown() {
+	tags := []string{}
+	if !plan.Tags.IsNull() {
 		resp.Diagnostics.Append(plan.Tags.ElementsAs(ctx, &tags, false)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 	}
 
+	appliedGlobally := containsAll(hostGroups)
+	if appliedGlobally {
+		hostGroups = nil
+	}
+
+	expiration, expDiags := buildUpdateExpiration(plan.Expiration)
+	resp.Diagnostics.Append(expDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	updateReq := &models.APIIndicatorUpdateReqV1{
 		ID:              id,
 		Action:          plan.Action.ValueString(),
-		Severity:        plan.Severity.ValueString(),
-		Description:     plan.Description.ValueString(),
+		MobileAction:    plan.MobileAction.ValueString(),
+		Severity:        flex.FrameworkToStringPointer(plan.Severity),
+		Expiration:      expiration,
+		Description:     flex.FrameworkToStringPointer(plan.Description),
 		Platforms:       platforms,
 		HostGroups:      hostGroups,
-		AppliedGlobally: plan.AppliedGlobally.ValueBool(),
-		Source:          plan.Source.ValueString(),
+		AppliedGlobally: appliedGlobally,
+		Source:          flex.FrameworkToStringPointer(plan.Source),
 		Tags:            tags,
 	}
 
-	if !plan.Expiration.IsNull() && !plan.Expiration.IsUnknown() {
-		exp, err := parseDateTime(plan.Expiration.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Invalid expiration format",
-				fmt.Sprintf(
-					"Failed to parse expiration date: %s. Expected RFC 3339 format (e.g. 2025-12-31T23:59:59Z).",
-					err,
-				),
-			)
-			return
-		}
-		updateReq.Expiration = *exp
-	}
-
 	body := &models.APIIndicatorUpdateReqsV1{
-		BulkUpdate: &models.APIBulkUpdateReqV1{},
 		Indicators: []*models.APIIndicatorUpdateReqV1{updateReq},
 	}
 
-	params := ioc.NewIndicatorUpdateV1Params().WithBody(body)
+	params := ioc.NewIndicatorUpdateV1ParamsWithContext(ctx).WithBody(body)
 	ignoreWarnings := true
 	params.SetIgnoreWarnings(&ignoreWarnings)
 
 	res, err := r.client.Ioc.IndicatorUpdateV1(params)
 	if err != nil {
-		diag := tferrors.NewDiagnosticFromAPIError(
-			tferrors.Update,
-			err,
-			apiScopes,
-		)
-		if diag != nil {
-			resp.Diagnostics.Append(diag)
-		}
+		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, apiScopes))
 		return
 	}
 
@@ -614,16 +964,20 @@ func (r *iocIndicatorResource) Update(
 
 	updatedIndicator := payload.Resources[0]
 
-	tflog.Info(ctx, "Updated IOC indicator", map[string]any{
+	tflog.Debug(ctx, "Updated IOC indicator", map[string]any{
 		"id": id,
 	})
+
+	plannedAction := plan.Action
+	plannedMobileAction := plan.MobileAction
 
 	resp.Diagnostics.Append(plan.wrap(ctx, updatedIndicator)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	plan.LastUpdated = utils.GenerateUpdateTimestamp()
+	r.suppressExpiredActionDrift(plan.Expiration, plannedAction, plannedMobileAction, &plan, &resp.Diagnostics)
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -640,31 +994,22 @@ func (r *iocIndicatorResource) Delete(
 
 	id := state.ID.ValueString()
 
-	tflog.Info(ctx, "Deleting IOC indicator", map[string]any{
+	tflog.Debug(ctx, "Deleting IOC indicator", map[string]any{
 		"id": id,
 	})
 
-	params := ioc.NewIndicatorDeleteV1Params().WithIds([]string{id})
+	params := ioc.NewIndicatorDeleteV1ParamsWithContext(ctx).WithIds([]string{id})
 	_, err := r.client.Ioc.IndicatorDeleteV1(params)
 	if err != nil {
-		diag := tferrors.NewDiagnosticFromAPIError(
-			tferrors.Delete,
-			err,
-			apiScopes,
-		)
-		if diag != nil {
-			if diag.Summary() == tferrors.NotFoundErrorSummary {
-				tflog.Warn(ctx, "IOC indicator already deleted", map[string]any{
-					"id": id,
-				})
-				return
-			}
-			resp.Diagnostics.Append(diag)
+		diagErr := tferrors.NewDiagnosticFromAPIError(tferrors.Delete, err, apiScopes)
+		if diagErr != nil && diagErr.Summary() == tferrors.NotFoundErrorSummary {
+			return
 		}
+		resp.Diagnostics.Append(diagErr)
 		return
 	}
 
-	tflog.Info(ctx, "Deleted IOC indicator", map[string]any{
+	tflog.Debug(ctx, "Deleted IOC indicator", map[string]any{
 		"id": id,
 	})
 }
@@ -677,16 +1022,130 @@ func (r *iocIndicatorResource) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-// parseDateTime parses a date-time string in RFC 3339 format into a strfmt.DateTime pointer.
-func parseDateTime(value string) (*strfmt.DateTime, error) {
-	t, err := time.Parse(time.RFC3339, value)
-	if err != nil {
-		// Try with just a date.
-		t, err = time.Parse("2006-01-02", value)
-		if err != nil {
-			return nil, fmt.Errorf("unable to parse %q as RFC 3339 or date: %w", value, err)
-		}
+func containsAll(groups []string) bool {
+	return slices.Contains(groups, hostGroupAll)
+}
+
+// buildUpdateExpiration returns the expiration to include in the update request:
+//   - null/unknown plan: zero DateTime, which clears the expiration server-side.
+//   - expired plan: nil, so the field is omitted. The API rejects updates that
+//     resend an already-expired expiration.
+//   - otherwise: the plan value.
+//
+// Relies on ModifyPlan's invariant: by the time an update reaches here, an
+// expired plan value implies plan == state (ModifyPlan blocks every other
+// expired case). If ModifyPlan's state-aware carve-out changes, reconsider
+// whether this function still has enough context to decide safely.
+func buildUpdateExpiration(plan timetypes.RFC3339) (*strfmt.DateTime, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if plan.IsNull() {
+		zero := strfmt.DateTime{}
+		return &zero, diags
 	}
-	dt := strfmt.DateTime(t)
-	return &dt, nil
+
+	planTime, d := plan.ValueRFC3339Time()
+	diags.Append(d...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	if !planTime.After(time.Now()) {
+		return nil, diags
+	}
+
+	exp := strfmt.DateTime(planTime)
+	return &exp, diags
+}
+
+// Once expiration passes, the API auto-resets action/mobile_action to "no_action". If the
+// caller applied with a non-no_action value, keep the planned value in state and warn; this
+// prevents the apply from landing in a state that immediately disagrees with itself.
+func (r *iocIndicatorResource) suppressExpiredActionDrift(
+	expiration timetypes.RFC3339,
+	plannedAction types.String,
+	plannedMobileAction types.String,
+	model *iocIndicatorResourceModel,
+	diags *diag.Diagnostics,
+) {
+	if expiration.IsNull() {
+		return
+	}
+
+	t, d := expiration.ValueRFC3339Time()
+	diags.Append(d...)
+	if d.HasError() {
+		return
+	}
+
+	if !t.Before(time.Now()) {
+		return
+	}
+
+	warned := false
+	if actionSuppressed(plannedAction, model.Action) {
+		model.Action = plannedAction
+		warned = true
+	}
+	if actionSuppressed(plannedMobileAction, model.MobileAction) {
+		model.MobileAction = plannedMobileAction
+		warned = true
+	}
+
+	if warned {
+		diags.AddAttributeWarning(
+			path.Root("expiration"),
+			"expiration is in the past",
+			`The expiration date has already passed. The CrowdStrike API auto-reset action to `+
+				`"no_action" during this apply. Terraform requires the post-apply state to match the plan, `+
+				`so the planned value was retained in state to avoid an apply failure. `+
+				`The next refresh will read "no_action" from the API and show drift until expiration is `+
+				`bumped/removed or action is set to "no_action".`,
+		)
+	}
+}
+
+func actionSuppressed(planned, actual types.String) bool {
+	if planned.IsNull() || planned.IsUnknown() {
+		return false
+	}
+	p := planned.ValueString()
+	if p == "" || p == actionNoAction {
+		return false
+	}
+	return actual.ValueString() == actionNoAction
+}
+
+func getIOCIndicator(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	id string,
+) (*models.APIIndicatorV1, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	params := ioc.NewIndicatorGetV1ParamsWithContext(ctx).WithIds([]string{id})
+	res, err := client.Ioc.IndicatorGetV1(params)
+	if err != nil {
+		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopes))
+		return nil, diags
+	}
+
+	if res == nil || res.Payload == nil {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Read))
+		return nil, diags
+	}
+
+	if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Read, res.Payload.Errors); diag != nil {
+		diags.Append(diag)
+		return nil, diags
+	}
+
+	if len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+		diags.Append(tferrors.NewNotFoundError(
+			fmt.Sprintf("IOC indicator with ID %s was not found.", id),
+		))
+		return nil, diags
+	}
+
+	return res.Payload.Resources[0], diags
 }

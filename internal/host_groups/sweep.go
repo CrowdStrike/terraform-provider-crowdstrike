@@ -11,7 +11,7 @@ import (
 )
 
 func RegisterSweepers() {
-	sweep.Register("crowdstrike_host_group", sweepHostGroups)
+	sweep.Register("crowdstrike_host_group", sweepHostGroups, "crowdstrike_ioc_indicator")
 }
 
 func sweepHostGroups(ctx context.Context, client *client.CrowdStrikeAPISpecification) ([]sweep.Sweepable, error) {

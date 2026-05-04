@@ -1,13 +1,13 @@
 # Allow a specific SHA256 hash globally across all Mac hosts
 resource "crowdstrike_ioc_indicator" "allow_by_hash" {
-  type             = "sha256"
-  value            = "73cb3858a687a8494ca3323053016282f3dad39d42cf62ca4e79dda2aac7d9ac"
-  action           = "allow"
-  severity         = "informational"
-  description      = "Allowlist for approved application - VENDSEC-10155"
-  platforms        = ["mac"]
-  applied_globally = true
-  tags             = ["vendsec-approved"]
+  type        = "sha256"
+  value       = "73cb3858a687a8494ca3323053016282f3dad39d42cf62ca4e79dda2aac7d9ac"
+  action      = "allow"
+  severity    = "informational"
+  description = "Allowlist for approved application - VENDSEC-10155"
+  platforms   = ["mac"]
+  host_groups = ["all"]
+  tags        = ["vendsec-approved"]
 }
 
 # Detect a domain, scoped to specific host groups
@@ -24,11 +24,11 @@ resource "crowdstrike_ioc_indicator" "detect_domain" {
 
 # Block an MD5 hash globally
 resource "crowdstrike_ioc_indicator" "block_md5" {
-  type             = "md5"
-  value            = "44d88612fea8a8f36de82e1278abb02f"
-  action           = "prevent"
-  severity         = "critical"
-  description      = "Known malware hash"
-  platforms        = ["windows"]
-  applied_globally = true
+  type        = "md5"
+  value       = "44d88612fea8a8f36de82e1278abb02f"
+  action      = "prevent"
+  severity    = "critical"
+  description = "Known malware hash"
+  platforms   = ["windows"]
+  host_groups = ["all"]
 }
