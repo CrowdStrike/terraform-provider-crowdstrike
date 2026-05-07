@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_azure_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
@@ -86,9 +87,9 @@ type cloudAzureTenantModel struct {
 	CsInfraRegion               types.String `tfsdk:"cs_infra_location"`
 	CsInfraSubscriptionId       types.String `tfsdk:"cs_infra_subscription_id"`
 	Environment                 types.String `tfsdk:"environment"`
-	SubscriptionIds             types.List   `tfsdk:"subscription_ids"`
-	ManagementGroupIds          types.List   `tfsdk:"management_group_ids"`
-	MicrosoftGraphPermissionIds types.List   `tfsdk:"microsoft_graph_permission_ids"`
+	SubscriptionIds             types.Set    `tfsdk:"subscription_ids"`
+	ManagementGroupIds          types.Set    `tfsdk:"management_group_ids"`
+	MicrosoftGraphPermissionIds types.Set    `tfsdk:"microsoft_graph_permission_ids"`
 	ResourceNamePrefix          types.String `tfsdk:"resource_name_prefix"`
 	ResourceNameSuffix          types.String `tfsdk:"resource_name_suffix"`
 	Tags                        types.Map    `tfsdk:"tags"`
@@ -168,17 +169,17 @@ func (r *cloudAzureTenantResource) Schema(
 				MarkdownDescription: "Azure subscription ID where CrowdStrike infrastructure resources (such as Event Hubs) were deployed.",
 				Optional:            true,
 			},
-			"management_group_ids": schema.ListAttribute{
+			"management_group_ids": schema.SetAttribute{
 				ElementType:         types.StringType,
 				Optional:            true,
 				MarkdownDescription: "A list of Azure management group IDs to monitor. All subscriptions under the management groups will be monitored.",
 			},
-			"microsoft_graph_permission_ids": schema.ListAttribute{
+			"microsoft_graph_permission_ids": schema.SetAttribute{
 				ElementType:         types.StringType,
 				Required:            true,
 				MarkdownDescription: "A list of Microsoft Graph permission IDs to assign to the service principal.",
 			},
-			"subscription_ids": schema.ListAttribute{
+			"subscription_ids": schema.SetAttribute{
 				ElementType:         types.StringType,
 				Optional:            true,
 				MarkdownDescription: "A list of subscription IDs to register in addition to any subscriptions that are targeted by management_group_ids.",
@@ -266,22 +267,22 @@ func (m *cloudAzureTenantModel) wrap(
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	graphPermissionIDs := utils.SliceToListTypeString(ctx, registration.MicrosoftGraphPermissionIds, &diags)
-	if m.MicrosoftGraphPermissionIds.IsNull() && len(graphPermissionIDs.Elements()) == 0 {
-		graphPermissionIDs = types.ListNull(types.StringType)
-	}
+	graphPermissionIDs, d := types.SetValueFrom(ctx, types.StringType, registration.MicrosoftGraphPermissionIds)
+	diags.Append(d...)
 	m.MicrosoftGraphPermissionIds = graphPermissionIDs
 
-	subscriptionsIDs := utils.SliceToListTypeString(ctx, registration.SubscriptionIds, &diags)
-	if m.SubscriptionIds.IsNull() && len(subscriptionsIDs.Elements()) == 0 {
-		subscriptionsIDs = types.ListNull(types.StringType)
+	subscriptionsIDs, d := flex.FlattenStringValueSet(ctx, registration.SubscriptionIds)
+	if subscriptionsIDs.IsNull() && !m.SubscriptionIds.IsNull() {
+		subscriptionsIDs = types.SetValueMust(types.StringType, []attr.Value{})
 	}
+	diags.Append(d...)
 	m.SubscriptionIds = subscriptionsIDs
 
-	managementGroupIDs := utils.SliceToListTypeString(ctx, registration.ManagementGroupIds, &diags)
-	if m.ManagementGroupIds.IsNull() && len(managementGroupIDs.Elements()) == 0 {
-		managementGroupIDs = types.ListNull(types.StringType)
+	managementGroupIDs, d := flex.FlattenStringValueSet(ctx, registration.ManagementGroupIds)
+	if managementGroupIDs.IsNull() && !m.ManagementGroupIds.IsNull() {
+		managementGroupIDs = types.SetValueMust(types.StringType, []attr.Value{})
 	}
+	diags.Append(d...)
 	m.ManagementGroupIds = managementGroupIDs
 
 	tags, err := types.MapValueFrom(ctx, types.StringType, registration.Tags)
@@ -442,17 +443,17 @@ func (r *cloudAzureTenantResource) ValidateConfig(
 	}
 
 	resp.Diagnostics.Append(
-		utils.ValidateEmptyIDsList(ctx, types.Set(config.SubscriptionIds), "subscription_ids")...)
+		utils.ValidateEmptyIDsList(ctx, config.SubscriptionIds, "subscription_ids")...)
 	resp.Diagnostics.Append(
 		utils.ValidateEmptyIDsList(
 			ctx,
-			types.Set(config.ManagementGroupIds),
+			config.ManagementGroupIds,
 			"management_group_ids",
 		)...)
 	resp.Diagnostics.Append(
 		utils.ValidateEmptyIDsList(
 			ctx,
-			types.Set(config.MicrosoftGraphPermissionIds),
+			config.MicrosoftGraphPermissionIds,
 			"microsoft_graph_permission_ids",
 		)...)
 
@@ -601,9 +602,9 @@ func (r *cloudAzureTenantResource) createRegistration(
 				ResourceNamePrefix:          data.ResourceNamePrefix.ValueStringPointer(),
 				ResourceNameSuffix:          data.ResourceNameSuffix.ValueStringPointer(),
 				DeploymentMethod:            utils.Addr("terraform-native"),
-				SubscriptionIds:             utils.ListTypeAs[string](ctx, data.SubscriptionIds, &diags),
-				ManagementGroupIds:          utils.ListTypeAs[string](ctx, data.ManagementGroupIds, &diags),
-				MicrosoftGraphPermissionIds: utils.ListTypeAs[string](ctx, data.MicrosoftGraphPermissionIds, &diags),
+				SubscriptionIds:             flex.ExpandSetAs[string](ctx, data.SubscriptionIds, &diags),
+				ManagementGroupIds:          flex.ExpandSetAs[string](ctx, data.ManagementGroupIds, &diags),
+				MicrosoftGraphPermissionIds: flex.ExpandSetAs[string](ctx, data.MicrosoftGraphPermissionIds, &diags),
 				Products: []*models.DomainProductFeatures{
 					&cspmProductFeatures,
 				},
@@ -680,9 +681,9 @@ func (r *cloudAzureTenantResource) updateRegistration(
 				ResourceNamePrefix:          data.ResourceNamePrefix.ValueStringPointer(),
 				ResourceNameSuffix:          data.ResourceNameSuffix.ValueStringPointer(),
 				DeploymentMethod:            "terraform-native",
-				SubscriptionIds:             utils.ListTypeAs[string](ctx, data.SubscriptionIds, &diags),
-				ManagementGroupIds:          utils.ListTypeAs[string](ctx, data.ManagementGroupIds, &diags),
-				MicrosoftGraphPermissionIds: utils.ListTypeAs[string](ctx, data.MicrosoftGraphPermissionIds, &diags),
+				SubscriptionIds:             flex.ExpandSetAs[string](ctx, data.SubscriptionIds, &diags),
+				ManagementGroupIds:          flex.ExpandSetAs[string](ctx, data.ManagementGroupIds, &diags),
+				MicrosoftGraphPermissionIds: flex.ExpandSetAs[string](ctx, data.MicrosoftGraphPermissionIds, &diags),
 				Products: []*models.DomainProductFeatures{
 					&cspmProductFeatures,
 				},

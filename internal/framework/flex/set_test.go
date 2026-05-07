@@ -74,6 +74,87 @@ func TestExpandSetAs_Strings(t *testing.T) {
 	}
 }
 
+func TestExpandKnownSet(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	testCases := []struct {
+		name     string
+		input    types.Set
+		expected []string
+		wantOK   bool
+	}{
+		{
+			name:     "null set returns nil, false",
+			input:    types.SetNull(types.StringType),
+			expected: nil,
+			wantOK:   false,
+		},
+		{
+			name:     "unknown set returns nil, false",
+			input:    types.SetUnknown(types.StringType),
+			expected: nil,
+			wantOK:   false,
+		},
+		{
+			name: "empty set returns empty slice, true",
+			input: types.SetValueMust(
+				types.StringType,
+				[]attr.Value{},
+			),
+			expected: []string{},
+			wantOK:   true,
+		},
+		{
+			name: "set with known values returns slice, true",
+			input: types.SetValueMust(
+				types.StringType,
+				[]attr.Value{
+					types.StringValue("value1"),
+					types.StringValue("value2"),
+				},
+			),
+			expected: []string{"value1", "value2"},
+			wantOK:   true,
+		},
+		{
+			name: "set with one unknown element returns nil, false",
+			input: types.SetValueMust(
+				types.StringType,
+				[]attr.Value{
+					types.StringUnknown(),
+				},
+			),
+			expected: nil,
+			wantOK:   false,
+		},
+		{
+			name: "set mixing known and unknown elements returns nil, false",
+			input: types.SetValueMust(
+				types.StringType,
+				[]attr.Value{
+					types.StringValue("value1"),
+					types.StringUnknown(),
+					types.StringValue("value2"),
+				},
+			),
+			expected: nil,
+			wantOK:   false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			diags := &diag.Diagnostics{}
+			result, ok := flex.ExpandKnownSet[string](ctx, tc.input, diags)
+
+			assert.Equal(t, tc.wantOK, ok)
+			assert.Equal(t, tc.expected, result)
+			assert.False(t, diags.HasError(), "unexpected diagnostics: %v", diags)
+		})
+	}
+}
+
 func TestExpandSetAs_Int64(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

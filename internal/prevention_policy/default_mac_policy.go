@@ -60,6 +60,8 @@ type defaultPreventionPolicyMacResourceModel struct {
 	KcPasswordDecoded                  types.Bool   `tfsdk:"kc_password_decoded"`
 	HashCollector                      types.Bool   `tfsdk:"hash_collector"`
 	EnhancedNetworkVisibility          types.Bool   `tfsdk:"enhanced_network_visibility"`
+	SuspiciousFileAnalysis             types.Bool   `tfsdk:"suspicious_file_analysis"`
+	RetrospectiveDetections            types.Bool   `tfsdk:"retrospective_detections"`
 }
 
 // wrap transforms Go values to their terraform wrapped values.
@@ -103,6 +105,8 @@ func (m *defaultPreventionPolicyMacResourceModel) generatePreventionSettings(ctx
 		"KcPasswordDecoded":                  m.KcPasswordDecoded,
 		"HashCollector":                      m.HashCollector,
 		"EnhancedNetworkVisibilityMac":       m.EnhancedNetworkVisibility,
+		"SuspiciousFileAnalysis":             m.SuspiciousFileAnalysis,
+		"RetrospectiveDetections":            m.RetrospectiveDetections,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}
@@ -203,6 +207,8 @@ func (m *defaultPreventionPolicyMacResourceModel) assignPreventionSettings(
 	m.KcPasswordDecoded = defaultBoolFalse(toggleSettings["KcPasswordDecoded"])
 	m.HashCollector = defaultBoolFalse(toggleSettings["HashCollector"])
 	m.EnhancedNetworkVisibility = defaultBoolFalse(toggleSettings["EnhancedNetworkVisibilityMac"])
+	m.SuspiciousFileAnalysis = defaultBoolFalse(toggleSettings["SuspiciousFileAnalysis"])
+	m.RetrospectiveDetections = defaultBoolFalse(toggleSettings["RetrospectiveDetections"])
 
 	// mlslider settings
 	if slider, ok := mlSliderSettings["CloudAntiMalware"]; ok {

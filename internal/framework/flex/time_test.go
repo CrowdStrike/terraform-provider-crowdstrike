@@ -2,7 +2,9 @@ package flex
 
 import (
 	"testing"
+	"time"
 
+	"github.com/go-openapi/strfmt"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 )
 
@@ -175,5 +177,47 @@ func TestRFC3339ValueToFramework_Generic(t *testing.T) {
 
 	if result.ValueString() != "2025-01-29T10:30:45Z" {
 		t.Errorf("Value mismatch: got %v, want %v", result.ValueString(), "2025-01-29T10:30:45Z")
+	}
+}
+
+func TestDateTimeValueToFramework(t *testing.T) {
+	validTime := time.Date(2025, 1, 29, 10, 30, 45, 0, time.UTC)
+
+	tests := []struct {
+		name     string
+		input    strfmt.DateTime
+		expected timetypes.RFC3339
+	}{
+		{
+			name:     "valid datetime returns RFC3339 value",
+			input:    strfmt.DateTime(validTime),
+			expected: timetypes.NewRFC3339TimeValue(validTime),
+		},
+		{
+			name:     "zero datetime returns null",
+			input:    strfmt.DateTime{},
+			expected: timetypes.NewRFC3339Null(),
+		},
+		{
+			name:     "zero time value returns null",
+			input:    strfmt.DateTime(time.Time{}),
+			expected: timetypes.NewRFC3339Null(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := DateTimeValueToFramework(tt.input)
+
+			if result.IsNull() != tt.expected.IsNull() {
+				t.Errorf("IsNull() mismatch: got %v, want %v", result.IsNull(), tt.expected.IsNull())
+			}
+
+			if !result.IsNull() && !tt.expected.IsNull() {
+				if result.ValueString() != tt.expected.ValueString() {
+					t.Errorf("ValueString() mismatch: got %v, want %v", result.ValueString(), tt.expected.ValueString())
+				}
+			}
+		})
 	}
 }

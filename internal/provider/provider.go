@@ -16,6 +16,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	containerregistry "github.com/crowdstrike/terraform-provider-crowdstrike/internal/container_registry"
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
+	customioc "github.com/crowdstrike/terraform-provider-crowdstrike/internal/custom_ioc"
 	dataprotection "github.com/crowdstrike/terraform-provider-crowdstrike/internal/data_protection"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
@@ -27,6 +28,8 @@ import (
 	mlfilepathexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ml_file_path_exclusion"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	responsepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/response_policy"
+	rtrputfile "github.com/crowdstrike/terraform-provider-crowdstrike/internal/rtr_put_file"
+	rtrscript "github.com/crowdstrike/terraform-provider-crowdstrike/internal/rtr_script"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
@@ -320,10 +323,13 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		dataprotection.NewDataProtectionSensitivityLabelResource,
 		responsepolicy.NewResponsePolicyResource,
 		responsepolicy.NewResponsePolicyPrecedenceResource,
+		rtrscript.NewRTRScriptResource,
+		rtrputfile.NewRtrPutFileResource,
 		ioaexclusion.NewIOAExclusionResource,
 		ioarulegroup.NewIOARuleGroupResource,
 		usergroup.NewUserGroupResource,
 		installtoken.NewInstallTokenResource,
+    customioc.NewCustomIOCResource,
 		containerregistry.NewContainerRegistryResource,
 	}
 }

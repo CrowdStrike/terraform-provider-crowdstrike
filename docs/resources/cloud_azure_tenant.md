@@ -61,7 +61,7 @@ output "tenant_registration" {
 
 ### Required
 
-- `microsoft_graph_permission_ids` (List of String) A list of Microsoft Graph permission IDs to assign to the service principal.
+- `microsoft_graph_permission_ids` (Set of String) A list of Microsoft Graph permission IDs to assign to the service principal.
 - `tenant_id` (String) The Azure Tenant ID to register into Falcon Cloud Security. If subscription_ids and management_group_ids are not provided, then all subscriptions in the tenant are targeted.
 
 ### Optional
@@ -71,11 +71,11 @@ output "tenant_registration" {
 - `cs_infra_subscription_id` (String) Azure subscription ID where CrowdStrike infrastructure resources (such as Event Hubs) were deployed.
 - `dspm` (Attributes) (see [below for nested schema](#nestedatt--dspm))
 - `environment` (String) The environment added to resources created during onboarding. It will be used if you generate new .tfvars from the UI.
-- `management_group_ids` (List of String) A list of Azure management group IDs to monitor. All subscriptions under the management groups will be monitored.
+- `management_group_ids` (Set of String) A list of Azure management group IDs to monitor. All subscriptions under the management groups will be monitored.
 - `realtime_visibility` (Attributes) (see [below for nested schema](#nestedatt--realtime_visibility))
 - `resource_name_prefix` (String) The prefix added to resources created during onboarding. It will be used if you generate new .tfvars from the UI.
 - `resource_name_suffix` (String) The suffix added to resources created during onboarding. It will be used if you generate new .tfvars from the UI.
-- `subscription_ids` (List of String) A list of subscription IDs to register in addition to any subscriptions that are targeted by management_group_ids.
+- `subscription_ids` (Set of String) A list of subscription IDs to register in addition to any subscriptions that are targeted by management_group_ids.
 - `tags` (Map of String) Tags applied to managed resources. This does not effect the registration of the tenant. It will be used if you generate new .tfvars from the UI.
 
 ### Read-Only
