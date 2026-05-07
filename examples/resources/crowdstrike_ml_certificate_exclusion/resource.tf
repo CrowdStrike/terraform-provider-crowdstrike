@@ -10,11 +10,12 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
-resource "crowdstrike_certificate_based_exclusion" "example" {
-  name             = "example-certificate-exclusion"
-  applied_globally = true
+resource "crowdstrike_ml_certificate_exclusion" "example" {
+  name        = "example-certificate-exclusion"
+  enabled     = true
+  host_groups = ["all"]
 
-  certificate {
+  certificate = {
     issuer     = "CN=Example Issuer,O=Example Corp,C=US"
     serial     = "1234567890"
     subject    = "CN=Example Subject,O=Example Corp,C=US"

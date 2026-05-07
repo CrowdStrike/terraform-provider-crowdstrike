@@ -1,16 +1,16 @@
 ---
-page_title: "crowdstrike_certificate_based_exclusion Resource - crowdstrike"
-subcategory: "Certificate Based Exclusion"
+page_title: "crowdstrike_ml_certificate_exclusion Resource - crowdstrike"
+subcategory: "Endpoint Security"
 description: |-
-  A certificate based exclusion defines a machine learning exclusion scoped to a certificate and either all hosts or specific host groups.
+  An ML certificate exclusion defines a machine learning exclusion scoped to a certificate and either all hosts or specific host groups.
   API Scopes
   The following API scopes are required:
   Certificate Based Exclusions | Read & Write
 ---
 
-# crowdstrike_certificate_based_exclusion (Resource)
+# crowdstrike_ml_certificate_exclusion (Resource)
 
-A certificate based exclusion defines a machine learning exclusion scoped to a certificate and either all hosts or specific host groups.
+An ML certificate exclusion defines a machine learning exclusion scoped to a certificate and either all hosts or specific host groups.
 
 ## API Scopes
 
@@ -34,11 +34,12 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
-resource "crowdstrike_certificate_based_exclusion" "example" {
-  name             = "example-certificate-exclusion"
-  applied_globally = true
+resource "crowdstrike_ml_certificate_exclusion" "example" {
+  name        = "example-certificate-exclusion"
+  enabled     = true
+  host_groups = ["all"]
 
-  certificate {
+  certificate = {
     issuer     = "CN=Example Issuer,O=Example Corp,C=US"
     serial     = "1234567890"
     subject    = "CN=Example Subject,O=Example Corp,C=US"
@@ -55,21 +56,21 @@ resource "crowdstrike_certificate_based_exclusion" "example" {
 ### Required
 
 - `certificate` (Attributes) Certificate fields that identify the certificate to exclude. (see [below for nested schema](#nestedatt--certificate))
-- `name` (String) Display name of the certificate based exclusion.
+- `enabled` (Boolean) Whether the ML certificate exclusion is enabled.
+- `host_groups` (Set of String) The set of host group IDs this exclusion applies to. Use `["all"]` to apply the exclusion globally to all hosts.
+- `name` (String) Display name of the ML certificate exclusion.
 
 ### Optional
 
-- `applied_globally` (Boolean) Whether to apply the exclusion globally to all hosts. Cannot be set together with `host_groups`.
-- `comment` (String) Optional comment stored with the certificate based exclusion.
-- `description` (String) Optional description of the certificate based exclusion.
-- `host_groups` (Set of String) Host group IDs that should receive the certificate based exclusion. Cannot be set together with `applied_globally`.
+- `comment` (String) Optional comment stored with the ML certificate exclusion.
+- `description` (String) Optional description of the ML certificate exclusion.
 
 ### Read-Only
 
+- `applied_globally` (Boolean) Whether Falcon reports this exclusion as globally applied. Set `host_groups` to `["all"]` to target all hosts.
 - `created_by` (String) User who created the exclusion.
 - `created_on` (String) Timestamp when the exclusion was created.
-- `id` (String) Unique identifier of the certificate based exclusion.
-- `last_updated` (String) RFC850 timestamp of the last Terraform update to this resource.
+- `id` (String) Unique identifier of the ML certificate exclusion.
 - `modified_by` (String) User who last modified the exclusion.
 - `modified_on` (String) Timestamp when the exclusion was last modified.
 

@@ -1,4 +1,4 @@
-package certificatebasedexclusion
+package mlcertificateexclusion
 
 import (
 	"context"
@@ -8,32 +8,28 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/go-openapi/strfmt"
+	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
-func TestValidateTargetingMode(t *testing.T) {
+func TestHasGlobalHostGroup(t *testing.T) {
 	testCases := []struct {
-		name            string
-		appliedGlobally bool
-		hostGroupCount  int
-		wantErr         bool
+		name       string
+		hostGroups []string
+		want       bool
 	}{
-		{name: "global", appliedGlobally: true, hostGroupCount: 0, wantErr: false},
-		{name: "targeted", appliedGlobally: false, hostGroupCount: 1, wantErr: false},
-		{name: "both", appliedGlobally: true, hostGroupCount: 1, wantErr: true},
-		{name: "neither", appliedGlobally: false, hostGroupCount: 0, wantErr: true},
+		{name: "global", hostGroups: []string{"all"}, want: true},
+		{name: "global_case_insensitive", hostGroups: []string{"ALL"}, want: true},
+		{name: "targeted", hostGroups: []string{"hg-1", "hg-2"}, want: false},
+		{name: "empty", hostGroups: nil, want: false},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := validateTargetingMode(tc.appliedGlobally, tc.hostGroupCount)
-			if tc.wantErr && err == nil {
-				t.Fatalf("expected error, got nil")
-			}
-			if !tc.wantErr && err != nil {
-				t.Fatalf("expected no error, got %v", err)
+			if got := hasGlobalHostGroup(tc.hostGroups); got != tc.want {
+				t.Fatalf("hasGlobalHostGroup(%v) = %v, want %v", tc.hostGroups, got, tc.want)
 			}
 		})
 	}
@@ -48,8 +44,8 @@ func TestExpandCertificateRequest(t *testing.T) {
 			"serial":     types.StringValue("1234567890"),
 			"subject":    types.StringValue("CN=Subject,O=Example Corp,C=US"),
 			"thumbprint": types.StringValue("thumbprint-1234"),
-			"valid_from": types.StringValue("2024-01-01T00:00:00Z"),
-			"valid_to":   types.StringValue("2025-01-01T00:00:00Z"),
+			"valid_from": timetypes.NewRFC3339TimeValue(time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC)),
+			"valid_to":   timetypes.NewRFC3339TimeValue(time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)),
 		},
 	)
 
@@ -75,10 +71,21 @@ func TestWrapPreservesOptionalNullsAndFlattensCertificate(t *testing.T) {
 	createdOn := strfmt.DateTime(time.Date(2024, time.January, 2, 0, 0, 0, 0, time.UTC))
 	modifiedOn := strfmt.DateTime(time.Date(2024, time.January, 3, 0, 0, 0, 0, time.UTC))
 
-	model := CertificateBasedExclusionResourceModel{
+	model := mlCertificateExclusionResourceModel{
 		Description: types.StringNull(),
 		Comment:     types.StringNull(),
 		HostGroups:  types.SetNull(types.StringType),
+		Certificate: types.ObjectValueMust(
+			certificateModel{}.AttributeTypes(),
+			map[string]attr.Value{
+				"issuer":     types.StringValue("CN=Issuer,O=Example Corp,C=US"),
+				"serial":     types.StringValue("1234567890"),
+				"subject":    types.StringValue("CN=Subject,O=Example Corp,C=US"),
+				"thumbprint": types.StringValue("thumbprint-1234"),
+				"valid_from": timetypes.NewRFC3339TimeValue(time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC)),
+				"valid_to":   timetypes.NewRFC3339TimeValue(time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)),
+			},
+		),
 	}
 
 	diags := model.wrap(ctx, &models.APICertBasedExclusionV1{
@@ -86,6 +93,7 @@ func TestWrapPreservesOptionalNullsAndFlattensCertificate(t *testing.T) {
 		Name:            "test-name",
 		Description:     "",
 		Comment:         "",
+		Status:          "enabled",
 		AppliedGlobally: true,
 		CreatedBy:       "creator@example.com",
 		CreatedOn:       createdOn,
@@ -109,8 +117,14 @@ func TestWrapPreservesOptionalNullsAndFlattensCertificate(t *testing.T) {
 	if !model.Comment.IsNull() {
 		t.Fatalf("expected comment to remain null, got %s", model.Comment.ValueString())
 	}
-	if !model.HostGroups.IsNull() {
-		t.Fatalf("expected host_groups to remain null for a global exclusion")
+
+	var hostGroups []string
+	diags = model.HostGroups.ElementsAs(ctx, &hostGroups, false)
+	if diags.HasError() {
+		t.Fatalf("expected host_groups to decode, got %v", diags)
+	}
+	if len(hostGroups) != 1 || hostGroups[0] != "all" {
+		t.Fatalf("expected host_groups to be [\"all\"] for global exclusion, got %v", hostGroups)
 	}
 
 	var certificate certificateModel
@@ -118,10 +132,22 @@ func TestWrapPreservesOptionalNullsAndFlattensCertificate(t *testing.T) {
 	if diags.HasError() {
 		t.Fatalf("expected certificate object to decode, got %v", diags)
 	}
-	if certificate.ValidFrom.ValueString() != "2024-01-01T00:00:00.000Z" {
-		t.Fatalf("unexpected flattened valid_from: %s", certificate.ValidFrom.ValueString())
+
+	wantFrom := time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC)
+	gotFrom, fromDiags := certificate.ValidFrom.ValueRFC3339Time()
+	if fromDiags.HasError() {
+		t.Fatalf("expected valid_from to parse, got %v", fromDiags)
 	}
-	if certificate.ValidTo.ValueString() != "2025-01-01T00:00:00.000Z" {
-		t.Fatalf("unexpected flattened valid_to: %s", certificate.ValidTo.ValueString())
+	if !gotFrom.Equal(wantFrom) {
+		t.Fatalf("unexpected flattened valid_from: got %v, want %v", gotFrom, wantFrom)
+	}
+
+	wantTo := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	gotTo, toDiags := certificate.ValidTo.ValueRFC3339Time()
+	if toDiags.HasError() {
+		t.Fatalf("expected valid_to to parse, got %v", toDiags)
+	}
+	if !gotTo.Equal(wantTo) {
+		t.Fatalf("unexpected flattened valid_to: got %v, want %v", gotTo, wantTo)
 	}
 }

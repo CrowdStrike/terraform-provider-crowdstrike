@@ -1,25 +1,28 @@
-package certificatebasedexclusion
+package mlcertificateexclusion
 
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/certificate_based_exclusions"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
+	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -27,47 +30,51 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
-var (
-	_ resource.Resource                   = &certificateBasedExclusionResource{}
-	_ resource.ResourceWithConfigure      = &certificateBasedExclusionResource{}
-	_ resource.ResourceWithImportState    = &certificateBasedExclusionResource{}
-	_ resource.ResourceWithValidateConfig = &certificateBasedExclusionResource{}
+const (
+	mlCertificateExclusionGlobalHostGroupID = "all"
 )
 
-var certificateBasedExclusionRequiredScopes = []scopes.Scope{
+var (
+	_ resource.Resource                   = &mlCertificateExclusionResource{}
+	_ resource.ResourceWithConfigure      = &mlCertificateExclusionResource{}
+	_ resource.ResourceWithImportState    = &mlCertificateExclusionResource{}
+	_ resource.ResourceWithValidateConfig = &mlCertificateExclusionResource{}
+)
+
+var mlCertificateExclusionRequiredScopes = []scopes.Scope{
 	{Name: "Certificate Based Exclusions", Read: true, Write: true},
 }
 
-func NewCertificateBasedExclusionResource() resource.Resource {
-	return &certificateBasedExclusionResource{}
+func NewMLCertificateExclusionResource() resource.Resource {
+	return &mlCertificateExclusionResource{}
 }
 
-type certificateBasedExclusionResource struct {
+type mlCertificateExclusionResource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-type CertificateBasedExclusionResourceModel struct {
-	ID              types.String `tfsdk:"id"`
-	LastUpdated     types.String `tfsdk:"last_updated"`
-	Name            types.String `tfsdk:"name"`
-	Description     types.String `tfsdk:"description"`
-	Comment         types.String `tfsdk:"comment"`
-	AppliedGlobally types.Bool   `tfsdk:"applied_globally"`
-	HostGroups      types.Set    `tfsdk:"host_groups"`
-	Certificate     types.Object `tfsdk:"certificate"`
-	CreatedBy       types.String `tfsdk:"created_by"`
-	CreatedOn       types.String `tfsdk:"created_on"`
-	ModifiedBy      types.String `tfsdk:"modified_by"`
-	ModifiedOn      types.String `tfsdk:"modified_on"`
+type mlCertificateExclusionResourceModel struct {
+	ID              types.String      `tfsdk:"id"`
+	Name            types.String      `tfsdk:"name"`
+	Description     types.String      `tfsdk:"description"`
+	Comment         types.String      `tfsdk:"comment"`
+	Enabled         types.Bool        `tfsdk:"enabled"`
+	AppliedGlobally types.Bool        `tfsdk:"applied_globally"`
+	HostGroups      types.Set         `tfsdk:"host_groups"`
+	Certificate     types.Object      `tfsdk:"certificate"`
+	CreatedBy       types.String      `tfsdk:"created_by"`
+	CreatedOn       timetypes.RFC3339 `tfsdk:"created_on"`
+	ModifiedBy      types.String      `tfsdk:"modified_by"`
+	ModifiedOn      timetypes.RFC3339 `tfsdk:"modified_on"`
 }
 
 type certificateModel struct {
-	Issuer     types.String `tfsdk:"issuer"`
-	Serial     types.String `tfsdk:"serial"`
-	Subject    types.String `tfsdk:"subject"`
-	Thumbprint types.String `tfsdk:"thumbprint"`
-	ValidFrom  types.String `tfsdk:"valid_from"`
-	ValidTo    types.String `tfsdk:"valid_to"`
+	Issuer     types.String      `tfsdk:"issuer"`
+	Serial     types.String      `tfsdk:"serial"`
+	Subject    types.String      `tfsdk:"subject"`
+	Thumbprint types.String      `tfsdk:"thumbprint"`
+	ValidFrom  timetypes.RFC3339 `tfsdk:"valid_from"`
+	ValidTo    timetypes.RFC3339 `tfsdk:"valid_to"`
 }
 
 func (certificateModel) AttributeTypes() map[string]attr.Type {
@@ -76,12 +83,12 @@ func (certificateModel) AttributeTypes() map[string]attr.Type {
 		"serial":     types.StringType,
 		"subject":    types.StringType,
 		"thumbprint": types.StringType,
-		"valid_from": types.StringType,
-		"valid_to":   types.StringType,
+		"valid_from": timetypes.RFC3339Type{},
+		"valid_to":   timetypes.RFC3339Type{},
 	}
 }
 
-func (m *CertificateBasedExclusionResourceModel) wrap(
+func (m *mlCertificateExclusionResourceModel) wrap(
 	ctx context.Context,
 	exclusion *models.APICertBasedExclusionV1,
 ) diag.Diagnostics {
@@ -89,21 +96,24 @@ func (m *CertificateBasedExclusionResourceModel) wrap(
 
 	m.ID = types.StringPointerValue(exclusion.ID)
 	m.Name = types.StringValue(exclusion.Name)
-	m.Description = utils.PlanAwareStringValue(m.Description, utils.Addr(exclusion.Description))
-	m.Comment = utils.PlanAwareStringValue(m.Comment, utils.Addr(exclusion.Comment))
+	m.Description = flex.StringValueToFramework(exclusion.Description)
+	m.Comment = flex.StringValueToFramework(exclusion.Comment)
+	m.Enabled = types.BoolValue(exclusion.Status == "enabled")
 	m.AppliedGlobally = types.BoolValue(exclusion.AppliedGlobally)
-	m.CreatedBy = utils.OptionalString(utils.Addr(exclusion.CreatedBy))
-	m.CreatedOn = dateTimeValue(exclusion.CreatedOn)
-	m.ModifiedBy = utils.OptionalString(utils.Addr(exclusion.ModifiedBy))
-	m.ModifiedOn = dateTimeValue(exclusion.ModifiedOn)
+	m.CreatedBy = flex.StringValueToFramework(exclusion.CreatedBy)
+	m.CreatedOn = flex.DateTimeValueToFramework(exclusion.CreatedOn)
+	m.ModifiedBy = flex.StringValueToFramework(exclusion.ModifiedBy)
+	m.ModifiedOn = flex.DateTimeValueToFramework(exclusion.ModifiedOn)
 
-	hostGroups, hostGroupDiags := types.SetValueFrom(ctx, types.StringType, exclusion.HostGroups)
+	var hostGroupDiags diag.Diagnostics
+	if exclusion.AppliedGlobally {
+		m.HostGroups, hostGroupDiags = types.SetValueFrom(ctx, types.StringType, []string{mlCertificateExclusionGlobalHostGroupID})
+	} else {
+		m.HostGroups, hostGroupDiags = types.SetValueFrom(ctx, types.StringType, exclusion.HostGroups)
+	}
 	diags.Append(hostGroupDiags...)
 	if diags.HasError() {
 		return diags
-	}
-	if !m.HostGroups.IsNull() || len(exclusion.HostGroups) != 0 {
-		m.HostGroups = hostGroups
 	}
 
 	certificateObj, certificateDiags := flattenCertificate(ctx, exclusion.Certificate)
@@ -116,15 +126,15 @@ func (m *CertificateBasedExclusionResourceModel) wrap(
 	return diags
 }
 
-func (r *certificateBasedExclusionResource) Metadata(
+func (r *mlCertificateExclusionResource) Metadata(
 	_ context.Context,
 	req resource.MetadataRequest,
 	resp *resource.MetadataResponse,
 ) {
-	resp.TypeName = req.ProviderTypeName + "_certificate_based_exclusion"
+	resp.TypeName = req.ProviderTypeName + "_ml_certificate_exclusion"
 }
 
-func (r *certificateBasedExclusionResource) Configure(
+func (r *mlCertificateExclusionResource) Configure(
 	_ context.Context,
 	req resource.ConfigureRequest,
 	resp *resource.ConfigureResponse,
@@ -145,60 +155,58 @@ func (r *certificateBasedExclusionResource) Configure(
 	r.client = providerConfig.Client
 }
 
-func (r *certificateBasedExclusionResource) Schema(
+func (r *mlCertificateExclusionResource) Schema(
 	_ context.Context,
 	_ resource.SchemaRequest,
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
-			"Certificate Based Exclusion",
-			"A certificate based exclusion defines a machine learning exclusion scoped to a certificate and either all hosts or specific host groups.",
-			certificateBasedExclusionRequiredScopes,
+			"Endpoint Security",
+			"An ML certificate exclusion defines a machine learning exclusion scoped to a certificate and either all hosts or specific host groups.",
+			mlCertificateExclusionRequiredScopes,
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "Unique identifier of the certificate based exclusion.",
+				MarkdownDescription: "Unique identifier of the ML certificate exclusion.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"last_updated": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "RFC850 timestamp of the last Terraform update to this resource.",
-			},
 			"name": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "Display name of the certificate based exclusion.",
+				MarkdownDescription: "Display name of the ML certificate exclusion.",
 				Validators: []validator.String{
 					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"description": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "Optional description of the certificate based exclusion.",
+				MarkdownDescription: "Optional description of the ML certificate exclusion.",
 				Validators: []validator.String{
 					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"comment": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "Optional comment stored with the certificate based exclusion.",
+				MarkdownDescription: "Optional comment stored with the ML certificate exclusion.",
 				Validators: []validator.String{
 					fwvalidators.StringNotWhitespace(),
 				},
 			},
+			"enabled": schema.BoolAttribute{
+				Required:            true,
+				MarkdownDescription: "Whether the ML certificate exclusion is enabled.",
+			},
 			"applied_globally": schema.BoolAttribute{
-				Optional:            true,
 				Computed:            true,
-				Default:             booldefault.StaticBool(false),
-				MarkdownDescription: "Whether to apply the exclusion globally to all hosts. Cannot be set together with `host_groups`.",
+				MarkdownDescription: "Whether Falcon reports this exclusion as globally applied. Set `host_groups` to `[\"all\"]` to target all hosts.",
 			},
 			"host_groups": schema.SetAttribute{
-				Optional:            true,
+				Required:            true,
 				ElementType:         types.StringType,
-				MarkdownDescription: "Host group IDs that should receive the certificate based exclusion. Cannot be set together with `applied_globally`.",
+				MarkdownDescription: "The set of host group IDs this exclusion applies to. Use `[\"all\"]` to apply the exclusion globally to all hosts.",
 				Validators: []validator.Set{
 					setvalidator.SizeAtLeast(1),
 					setvalidator.ValueStringsAre(fwvalidators.StringNotWhitespace()),
@@ -230,23 +238,30 @@ func (r *certificateBasedExclusionResource) Schema(
 					},
 					"valid_from": schema.StringAttribute{
 						Required:            true,
+						CustomType:          timetypes.RFC3339Type{},
 						MarkdownDescription: "Certificate validity start timestamp in RFC3339 format.",
-						Validators:          []validator.String{fwvalidators.StringNotWhitespace()},
 					},
 					"valid_to": schema.StringAttribute{
 						Required:            true,
+						CustomType:          timetypes.RFC3339Type{},
 						MarkdownDescription: "Certificate validity end timestamp in RFC3339 format.",
-						Validators:          []validator.String{fwvalidators.StringNotWhitespace()},
 					},
 				},
 			},
 			"created_by": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "User who created the exclusion.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"created_on": schema.StringAttribute{
 				Computed:            true,
+				CustomType:          timetypes.RFC3339Type{},
 				MarkdownDescription: "Timestamp when the exclusion was created.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"modified_by": schema.StringAttribute{
 				Computed:            true,
@@ -254,59 +269,44 @@ func (r *certificateBasedExclusionResource) Schema(
 			},
 			"modified_on": schema.StringAttribute{
 				Computed:            true,
+				CustomType:          timetypes.RFC3339Type{},
 				MarkdownDescription: "Timestamp when the exclusion was last modified.",
 			},
 		},
 	}
 }
 
-func (r *certificateBasedExclusionResource) ValidateConfig(
+func (r *mlCertificateExclusionResource) ValidateConfig(
 	ctx context.Context,
 	req resource.ValidateConfigRequest,
 	resp *resource.ValidateConfigResponse,
 ) {
-	var config CertificateBasedExclusionResourceModel
+	var config mlCertificateExclusionResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if config.AppliedGlobally.IsUnknown() || config.HostGroups.IsUnknown() || config.Certificate.IsUnknown() {
+	hostGroups, ok := flex.ExpandKnownSet[string](ctx, config.HostGroups, &resp.Diagnostics)
+	if !ok {
 		return
 	}
 
-	hostGroupCount := 0
-	if !config.HostGroups.IsNull() {
-		hostGroupCount = len(config.HostGroups.Elements())
-	}
-
-	if err := validateTargetingMode(config.AppliedGlobally.ValueBool(), hostGroupCount); err != nil {
+	if hasGlobalHostGroup(hostGroups) && len(hostGroups) > 1 {
 		resp.Diagnostics.AddAttributeError(
-			path.Root("applied_globally"),
-			"Invalid Configuration",
-			err.Error(),
+			path.Root("host_groups"),
+			"Invalid Host Group Configuration",
+			"`host_groups` cannot include `all` with additional host group IDs.",
 		)
 	}
-
-	if config.Certificate.IsNull() {
-		return
-	}
-
-	var certificate certificateModel
-	resp.Diagnostics.Append(config.Certificate.As(ctx, &certificate, basetypes.ObjectAsOptions{})...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	validateCertificateModel(path.Root("certificate"), certificate, &resp.Diagnostics)
 }
 
-func (r *certificateBasedExclusionResource) Create(
+func (r *mlCertificateExclusionResource) Create(
 	ctx context.Context,
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-	var plan CertificateBasedExclusionResourceModel
+	var plan mlCertificateExclusionResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -318,21 +318,26 @@ func (r *certificateBasedExclusionResource) Create(
 		return
 	}
 
-	hostGroups, hostGroupDiags := expandHostGroups(ctx, plan.HostGroups)
-	resp.Diagnostics.Append(hostGroupDiags...)
+	hostGroups := flex.ExpandSetAs[string](ctx, plan.HostGroups, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	appliedGlobally := hasGlobalHostGroup(hostGroups)
+	if appliedGlobally {
+		hostGroups = nil
 	}
 
 	createRequest := &models.APICertBasedExclusionsCreateReqV1{
 		Exclusions: []*models.APICertBasedExclusionCreateReqV1{
 			{
-				AppliedGlobally: plan.AppliedGlobally.ValueBool(),
+				AppliedGlobally: appliedGlobally,
 				Certificate:     certificateRequest,
 				Comment:         plan.Comment.ValueString(),
 				Description:     plan.Description.ValueString(),
 				HostGroups:      hostGroups,
 				Name:            plan.Name.ValueStringPointer(),
+				Status:          enabledStatus(plan.Enabled.ValueBool()),
 			},
 		},
 	}
@@ -345,7 +350,7 @@ func (r *certificateBasedExclusionResource) Create(
 		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(
 			tferrors.Create,
 			err,
-			certificateBasedExclusionRequiredScopes,
+			mlCertificateExclusionRequiredScopes,
 		))
 		return
 	}
@@ -360,7 +365,6 @@ func (r *certificateBasedExclusionResource) Create(
 		return
 	}
 
-	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 	resp.Diagnostics.Append(plan.wrap(ctx, res.Payload.Resources[0])...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -369,18 +373,18 @@ func (r *certificateBasedExclusionResource) Create(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func (r *certificateBasedExclusionResource) Read(
+func (r *mlCertificateExclusionResource) Read(
 	ctx context.Context,
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-	var state CertificateBasedExclusionResourceModel
+	var state mlCertificateExclusionResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	exclusion, diags := getCertificateBasedExclusion(ctx, r.client, state.ID.ValueString())
+	exclusion, diags := getMLCertificateExclusion(ctx, r.client, state.ID.ValueString())
 	if tferrors.HasNotFoundError(diags) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -398,12 +402,12 @@ func (r *certificateBasedExclusionResource) Read(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (r *certificateBasedExclusionResource) Update(
+func (r *mlCertificateExclusionResource) Update(
 	ctx context.Context,
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	var plan CertificateBasedExclusionResourceModel
+	var plan mlCertificateExclusionResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -415,35 +419,45 @@ func (r *certificateBasedExclusionResource) Update(
 		return
 	}
 
-	hostGroups, hostGroupDiags := expandHostGroups(ctx, plan.HostGroups)
-	resp.Diagnostics.Append(hostGroupDiags...)
+	hostGroups := flex.ExpandSetAs[string](ctx, plan.HostGroups, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	updateRequest := &models.APICertBasedExclusionsUpdateReqV1{
-		Exclusions: []*models.APICertBasedExclusionUpdateReqV1{
-			{
-				AppliedGlobally: plan.AppliedGlobally.ValueBool(),
-				Certificate:     certificateRequest,
-				Comment:         plan.Comment.ValueString(),
-				Description:     plan.Description.ValueString(),
-				HostGroups:      hostGroups,
-				ID:              plan.ID.ValueStringPointer(),
-				Name:            plan.Name.ValueString(),
-			},
-		},
+	appliedGlobally := hasGlobalHostGroup(hostGroups)
+	if appliedGlobally {
+		hostGroups = nil
+	}
+
+	id := plan.ID.ValueString()
+	updateReq := &certExclusionUpdateReqV1{
+		AppliedGlobally: appliedGlobally,
+		Certificate:     certificateRequest,
+		Comment:         plan.Comment.ValueString(),
+		Description:     plan.Description.ValueString(),
+		HostGroups:      hostGroups,
+		ID:              &id,
+		Name:            plan.Name.ValueString(),
+		Status:          enabledStatus(plan.Enabled.ValueBool()),
 	}
 
 	params := certificate_based_exclusions.NewCbExclusionsUpdateV1ParamsWithContext(ctx)
-	params.SetBody(updateRequest)
 
-	res, err := r.client.CertificateBasedExclusions.CbExclusionsUpdateV1(params)
+	res, err := r.client.CertificateBasedExclusions.CbExclusionsUpdateV1(
+		params,
+		func(op *runtime.ClientOperation) {
+			op.Params = &certExclusionsUpdateParams{
+				Body: &certExclusionsUpdateReqV1{
+					Exclusions: []*certExclusionUpdateReqV1{updateReq},
+				},
+			}
+		},
+	)
 	if err != nil {
 		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(
 			tferrors.Update,
 			err,
-			certificateBasedExclusionRequiredScopes,
+			mlCertificateExclusionRequiredScopes,
 		))
 		return
 	}
@@ -458,7 +472,6 @@ func (r *certificateBasedExclusionResource) Update(
 		return
 	}
 
-	plan.LastUpdated = utils.GenerateUpdateTimestamp()
 	resp.Diagnostics.Append(plan.wrap(ctx, res.Payload.Resources[0])...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -467,12 +480,12 @@ func (r *certificateBasedExclusionResource) Update(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func (r *certificateBasedExclusionResource) Delete(
+func (r *mlCertificateExclusionResource) Delete(
 	ctx context.Context,
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-	var state CertificateBasedExclusionResourceModel
+	var state mlCertificateExclusionResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -486,8 +499,8 @@ func (r *certificateBasedExclusionResource) Delete(
 		diag := tferrors.NewDiagnosticFromAPIError(
 			tferrors.Delete,
 			err,
-			certificateBasedExclusionRequiredScopes,
-			tferrors.WithNotFoundDetail(fmt.Sprintf("Certificate based exclusion with ID %s was not found.", state.ID.ValueString())),
+			mlCertificateExclusionRequiredScopes,
+			tferrors.WithNotFoundDetail(fmt.Sprintf("ML certificate exclusion with ID %s was not found.", state.ID.ValueString())),
 		)
 		if diag != nil && diag.Summary() == tferrors.NotFoundErrorSummary {
 			return
@@ -506,7 +519,7 @@ func (r *certificateBasedExclusionResource) Delete(
 	}
 }
 
-func (r *certificateBasedExclusionResource) ImportState(
+func (r *mlCertificateExclusionResource) ImportState(
 	ctx context.Context,
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
@@ -514,37 +527,19 @@ func (r *certificateBasedExclusionResource) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
-func validateTargetingMode(appliedGlobally bool, hostGroupCount int) error {
-	switch {
-	case appliedGlobally && hostGroupCount > 0:
-		return fmt.Errorf("cannot specify both applied_globally=true and host_groups; use either applied_globally=true for global exclusions or provide specific host_groups")
-	case !appliedGlobally && hostGroupCount == 0:
-		return fmt.Errorf("must specify either applied_globally=true or provide host_groups; the exclusion must target either all host groups or specific ones")
-	default:
-		return nil
+func hasGlobalHostGroup(hostGroups []string) bool {
+	for _, hostGroup := range hostGroups {
+		if strings.EqualFold(hostGroup, mlCertificateExclusionGlobalHostGroupID) {
+			return true
+		}
 	}
+	return false
 }
 
-func validateCertificateModel(basePath path.Path, certificate certificateModel, diags *diag.Diagnostics) {
-	validateCertificateDate(basePath.AtName("valid_from"), certificate.ValidFrom, diags)
-	validateCertificateDate(basePath.AtName("valid_to"), certificate.ValidTo, diags)
-}
-
-func validateCertificateDate(attributePath path.Path, value types.String, diags *diag.Diagnostics) {
-	if value.IsNull() || value.IsUnknown() {
-		return
-	}
-
-	if _, err := strfmt.ParseDateTime(value.ValueString()); err != nil {
-		diags.AddAttributeError(
-			attributePath,
-			"Invalid Certificate Timestamp",
-			fmt.Sprintf("Expected an RFC3339 timestamp, got %q: %s", value.ValueString(), err),
-		)
-	}
-}
-
-func flattenCertificate(ctx context.Context, apiCertificate *models.APICertificateV1) (types.Object, diag.Diagnostics) {
+func flattenCertificate(
+	ctx context.Context,
+	apiCertificate *models.APICertificateV1,
+) (types.Object, diag.Diagnostics) {
 	if apiCertificate == nil {
 		return types.ObjectNull(certificateModel{}.AttributeTypes()), nil
 	}
@@ -554,8 +549,8 @@ func flattenCertificate(ctx context.Context, apiCertificate *models.APICertifica
 		Serial:     types.StringPointerValue(apiCertificate.Serial),
 		Subject:    types.StringPointerValue(apiCertificate.Subject),
 		Thumbprint: types.StringPointerValue(apiCertificate.Thumbprint),
-		ValidFrom:  pointerDateTimeValue(apiCertificate.ValidFrom),
-		ValidTo:    pointerDateTimeValue(apiCertificate.ValidTo),
+		ValidFrom:  flex.DateTimePointerToFramework(apiCertificate.ValidFrom),
+		ValidTo:    flex.DateTimePointerToFramework(apiCertificate.ValidTo),
 	}
 
 	return utils.ConvertModelToTerraformObject(ctx, &certificate)
@@ -570,15 +565,15 @@ func expandCertificateRequest(ctx context.Context, object types.Object) (*models
 		return nil, diags
 	}
 
-	validFrom, err := strfmt.ParseDateTime(certificate.ValidFrom.ValueString())
-	if err != nil {
-		diags.AddError("Invalid certificate valid_from", err.Error())
+	validFrom, fromDiags := flex.FrameworkToDateTimePointer(certificate.ValidFrom)
+	diags.Append(fromDiags...)
+	if diags.HasError() {
 		return nil, diags
 	}
 
-	validTo, err := strfmt.ParseDateTime(certificate.ValidTo.ValueString())
-	if err != nil {
-		diags.AddError("Invalid certificate valid_to", err.Error())
+	validTo, toDiags := flex.FrameworkToDateTimePointer(certificate.ValidTo)
+	diags.Append(toDiags...)
+	if diags.HasError() {
 		return nil, diags
 	}
 
@@ -587,33 +582,81 @@ func expandCertificateRequest(ctx context.Context, object types.Object) (*models
 		Serial:     certificate.Serial.ValueStringPointer(),
 		Subject:    certificate.Subject.ValueStringPointer(),
 		Thumbprint: certificate.Thumbprint.ValueStringPointer(),
-		ValidFrom:  &validFrom,
-		ValidTo:    &validTo,
+		ValidFrom:  validFrom,
+		ValidTo:    validTo,
 	}, diags
 }
 
-func expandHostGroups(ctx context.Context, hostGroups types.Set) ([]string, diag.Diagnostics) {
+func enabledStatus(enabled bool) string {
+	if enabled {
+		return "enabled"
+	}
+	return "disabled"
+}
+
+func getMLCertificateExclusion(
+	ctx context.Context,
+	client *client.CrowdStrikeAPISpecification,
+	exclusionID string,
+) (*models.APICertBasedExclusionV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	if hostGroups.IsNull() || hostGroups.IsUnknown() {
+	params := certificate_based_exclusions.NewCbExclusionsGetV1ParamsWithContext(ctx)
+	params.SetIds([]string{exclusionID})
+
+	res, err := client.CertificateBasedExclusions.CbExclusionsGetV1(params)
+	if err != nil {
+		diags.Append(tferrors.NewDiagnosticFromAPIError(
+			tferrors.Read,
+			err,
+			mlCertificateExclusionRequiredScopes,
+			tferrors.WithNotFoundDetail(fmt.Sprintf("ML certificate exclusion with ID %s was not found.", exclusionID)),
+		))
 		return nil, diags
 	}
 
-	var ids []string
-	diags.Append(hostGroups.ElementsAs(ctx, &ids, false)...)
-	return ids, diags
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+		diags.Append(tferrors.NewNotFoundError(
+			fmt.Sprintf("ML certificate exclusion with ID %s was not found.", exclusionID),
+		))
+		return nil, diags
+	}
+
+	if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Read, res.Payload.Errors); diag != nil {
+		diags.Append(diag)
+		return nil, diags
+	}
+
+	return res.Payload.Resources[0], diags
 }
 
-func dateTimeValue(value strfmt.DateTime) types.String {
-	if (&value).IsZero() {
-		return types.StringNull()
-	}
-	return types.StringValue(value.String())
+// certExclusionUpdateReqV1 mirrors models.APICertBasedExclusionUpdateReqV1 but drops
+// `omitempty` from `description`, `comment`, and `applied_globally` so the API PATCH
+// receives zero values explicitly. Without this, the service preserves the prior value
+// when a user clears `description`/`comment` or switches `applied_globally` from true
+// to false.
+type certExclusionUpdateReqV1 struct {
+	AppliedGlobally bool                        `json:"applied_globally"`
+	Certificate     *models.APICertificateReqV1 `json:"certificate,omitempty"`
+	Comment         string                      `json:"comment"`
+	Description     string                      `json:"description"`
+	HostGroups      []string                    `json:"host_groups"`
+	ID              *string                     `json:"id"`
+	Name            string                      `json:"name,omitempty"`
+	Status          string                      `json:"status,omitempty"`
 }
 
-func pointerDateTimeValue(value *strfmt.DateTime) types.String {
-	if value == nil || value.IsZero() {
-		return types.StringNull()
+type certExclusionsUpdateReqV1 struct {
+	Exclusions []*certExclusionUpdateReqV1 `json:"exclusions"`
+}
+
+type certExclusionsUpdateParams struct {
+	Body *certExclusionsUpdateReqV1
+}
+
+func (p *certExclusionsUpdateParams) WriteToRequest(r runtime.ClientRequest, _ strfmt.Registry) error {
+	if p.Body == nil {
+		return nil
 	}
-	return types.StringValue(value.String())
+	return r.SetBodyParam(p.Body)
 }

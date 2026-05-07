@@ -1,4 +1,4 @@
-package certificatebasedexclusion
+package mlcertificateexclusion
 
 import (
 	"context"
@@ -12,10 +12,10 @@ import (
 )
 
 func RegisterSweepers() {
-	sweep.Register("crowdstrike_certificate_based_exclusion", sweepCertificateBasedExclusions)
+	sweep.Register("crowdstrike_ml_certificate_exclusion", sweepMLCertificateExclusions)
 }
 
-func sweepCertificateBasedExclusions(ctx context.Context, client *client.CrowdStrikeAPISpecification) ([]sweep.Sweepable, error) {
+func sweepMLCertificateExclusions(ctx context.Context, client *client.CrowdStrikeAPISpecification) ([]sweep.Sweepable, error) {
 	var sweepables []sweep.Sweepable
 
 	params := certificate_based_exclusions.NewCbExclusionsQueryV1Params()
@@ -24,7 +24,7 @@ func sweepCertificateBasedExclusions(ctx context.Context, client *client.CrowdSt
 
 	resp, err := client.CertificateBasedExclusions.CbExclusionsQueryV1(params)
 	if sweep.SkipSweepError(err) {
-		sweep.Warn("Skipping Certificate Based Exclusion sweep: %s", err)
+		sweep.Warn("Skipping ML Certificate Exclusion sweep: %s", err)
 		return nil, nil
 	}
 	if err != nil {
@@ -41,7 +41,7 @@ func sweepCertificateBasedExclusions(ctx context.Context, client *client.CrowdSt
 
 	getResp, err := client.CertificateBasedExclusions.CbExclusionsGetV1(getParams)
 	if sweep.SkipSweepError(err) {
-		sweep.Warn("Skipping Certificate Based Exclusion sweep: %s", err)
+		sweep.Warn("Skipping ML Certificate Exclusion sweep: %s", err)
 		return nil, nil
 	}
 	if err != nil {
@@ -58,21 +58,21 @@ func sweepCertificateBasedExclusions(ctx context.Context, client *client.CrowdSt
 		}
 
 		if !strings.HasPrefix(exclusion.Name, sweep.ResourcePrefix) {
-			sweep.Trace("Skipping Certificate Based Exclusion %s (not a test resource)", exclusion.Name)
+			sweep.Trace("Skipping ML Certificate Exclusion %s (not a test resource)", exclusion.Name)
 			continue
 		}
 
 		sweepables = append(sweepables, sweep.NewSweepResource(
 			*exclusion.ID,
 			exclusion.Name,
-			deleteCertificateBasedExclusion,
+			deleteMLCertificateExclusion,
 		))
 	}
 
 	return sweepables, nil
 }
 
-func deleteCertificateBasedExclusion(ctx context.Context, client *client.CrowdStrikeAPISpecification, id string) error {
+func deleteMLCertificateExclusion(ctx context.Context, client *client.CrowdStrikeAPISpecification, id string) error {
 	params := certificate_based_exclusions.NewCbExclusionsDeleteV1ParamsWithContext(ctx)
 	params.SetIds([]string{id})
 
