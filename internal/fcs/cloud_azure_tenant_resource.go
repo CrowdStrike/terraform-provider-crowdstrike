@@ -82,20 +82,21 @@ func (r *cloudAzureTenantResource) Metadata(
 }
 
 type cloudAzureTenantModel struct {
-	AccountType                 types.String `tfsdk:"account_type"`
-	AppRegistrationId           types.String `tfsdk:"cs_azure_client_id"`
-	CsInfraRegion               types.String `tfsdk:"cs_infra_location"`
-	CsInfraSubscriptionId       types.String `tfsdk:"cs_infra_subscription_id"`
-	Environment                 types.String `tfsdk:"environment"`
-	SubscriptionIds             types.Set    `tfsdk:"subscription_ids"`
-	ManagementGroupIds          types.Set    `tfsdk:"management_group_ids"`
-	MicrosoftGraphPermissionIds types.Set    `tfsdk:"microsoft_graph_permission_ids"`
-	ResourceNamePrefix          types.String `tfsdk:"resource_name_prefix"`
-	ResourceNameSuffix          types.String `tfsdk:"resource_name_suffix"`
-	Tags                        types.Map    `tfsdk:"tags"`
-	TenantId                    types.String `tfsdk:"tenant_id"`
-	RealtimeVisibility          types.Object `tfsdk:"realtime_visibility"`
-	DSPM                        types.Object `tfsdk:"dspm"`
+	AccountType                      types.String `tfsdk:"account_type"`
+	AppRegistrationId                types.String `tfsdk:"cs_azure_client_id"`
+	CsInfraRegion                    types.String `tfsdk:"cs_infra_location"`
+	CsInfraSubscriptionId            types.String `tfsdk:"cs_infra_subscription_id"`
+	Environment                      types.String `tfsdk:"environment"`
+	SubscriptionIds                  types.Set    `tfsdk:"subscription_ids"`
+	ManagementGroupIds               types.Set    `tfsdk:"management_group_ids"`
+	MicrosoftGraphPermissionIds      types.Set    `tfsdk:"microsoft_graph_permission_ids"`
+	ResourceNamePrefix               types.String `tfsdk:"resource_name_prefix"`
+	ResourceNameSuffix               types.String `tfsdk:"resource_name_suffix"`
+	Tags                             types.Map    `tfsdk:"tags"`
+	TenantId                         types.String `tfsdk:"tenant_id"`
+	RealtimeVisibility               types.Object `tfsdk:"realtime_visibility"`
+	DSPM                             types.Object `tfsdk:"dspm"`
+	AgentlessScanningSubscriptionIds types.Set    `tfsdk:"agentless_scanning_subscription_ids"`
 }
 
 type realtimeVisibilityModel struct {
@@ -257,6 +258,11 @@ func (r *cloudAzureTenantResource) Schema(
 				Optional:            true,
 				MarkdownDescription: "Tags applied to managed resources. This does not effect the registration of the tenant. It will be used if you generate new .tfvars from the UI.",
 			},
+			"agentless_scanning_subscription_ids": schema.SetAttribute{
+				ElementType:         types.StringType,
+				Optional:            true,
+				MarkdownDescription: "Azure subscription IDs where agentless scanning is enabled. These are sent as `additional_features` to the CrowdStrike API.",
+			},
 		},
 	}
 }
@@ -316,6 +322,15 @@ func (m *cloudAzureTenantModel) wrap(
 		}
 	}
 
+	var agentlessSubIdsSlice []string
+	for _, af := range registration.AdditionalFeatures {
+		if af != nil && af.Feature != nil && *af.Feature == "dspm" {
+			hasDSPM = true
+			agentlessSubIdsSlice = af.SubscriptionIds
+			break
+		}
+	}
+
 	rtv := realtimeVisibilityModel{Enabled: types.BoolValue(hasIOA)}
 	rtvObj, d := rtv.ToObject(ctx)
 	diags.Append(d...)
@@ -325,6 +340,12 @@ func (m *cloudAzureTenantModel) wrap(
 	dspmObj, d := dspm.ToObject(ctx)
 	diags.Append(d...)
 	m.DSPM = dspmObj
+
+	if !m.AgentlessScanningSubscriptionIds.IsNull() && len(agentlessSubIdsSlice) > 0 {
+		agentlessSubIds, d := flex.FlattenStringValueSet(ctx, agentlessSubIdsSlice)
+		diags.Append(d...)
+		m.AgentlessScanningSubscriptionIds = agentlessSubIds
+	}
 
 	return diags
 }
@@ -614,6 +635,17 @@ func (r *cloudAzureTenantResource) createRegistration(
 		Context: ctx,
 	}
 
+	agentlessSubIds := flex.ExpandSetAs[string](ctx, data.AgentlessScanningSubscriptionIds, &diags)
+	if len(agentlessSubIds) > 0 {
+		params.Body.Resource.AdditionalFeatures = []*models.AzureAdditionalFeature{
+			{
+				Feature:         utils.Addr("dspm"),
+				Product:         utils.Addr("cspm"),
+				SubscriptionIds: agentlessSubIds,
+			},
+		}
+	}
+
 	if diags.HasError() {
 		return nil, diags
 	}
@@ -691,6 +723,17 @@ func (r *cloudAzureTenantResource) updateRegistration(
 			},
 		},
 		Context: ctx,
+	}
+
+	agentlessSubIds := flex.ExpandSetAs[string](ctx, data.AgentlessScanningSubscriptionIds, &diags)
+	if len(agentlessSubIds) > 0 {
+		params.Body.Resource.AdditionalFeatures = []*models.AzureAdditionalFeature{
+			{
+				Feature:         utils.Addr("dspm"),
+				Product:         utils.Addr("cspm"),
+				SubscriptionIds: agentlessSubIds,
+			},
+		}
 	}
 
 	if diags.HasError() {
