@@ -3,13 +3,17 @@ package falconcontainerimage
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/falcon_container_image"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/go-openapi/runtime"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -18,11 +22,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -54,26 +60,26 @@ type falconContainerImageResourceModel struct {
 }
 
 type credentialModel struct {
-	Username                         types.String `tfsdk:"username"`
-	Password                         types.String `tfsdk:"password"`
-	AWSIAMRole                       types.String `tfsdk:"aws_iam_role"`
-	AWSExternalID                    types.String `tfsdk:"aws_external_id"`
-	AWSGovUsingCommercialConnection  types.Bool   `tfsdk:"aws_gov_using_commercial_connection"`
-	DomainURL                        types.String `tfsdk:"domain_url"`
-	CredentialType                   types.String `tfsdk:"credential_type"`
-	ProjectID                        types.String `tfsdk:"project_id"`
-	ScopeName                        types.String `tfsdk:"scope_name"`
-	Cert                             types.String `tfsdk:"cert"`
-	AuthType                         types.String `tfsdk:"auth_type"`
-	TenantID                         types.String `tfsdk:"tenant_id"`
-	Client                           types.String `tfsdk:"client"`
-	CompartmentIDs                   types.Set    `tfsdk:"compartment_ids"`
-	ServiceAccountJSON               types.Object `tfsdk:"service_account_json"`
-	CredentialID                     types.String `tfsdk:"credential_id"`
-	CredentialExpired                types.Bool   `tfsdk:"credential_expired"`
-	CredentialExpiredAt              types.String `tfsdk:"credential_expired_at"`
-	CredentialCreatedAt              types.String `tfsdk:"credential_created_at"`
-	CredentialUpdatedAt              types.String `tfsdk:"credential_updated_at"`
+	Username                        types.String `tfsdk:"username"`
+	Password                        types.String `tfsdk:"password"`
+	AWSIAMRole                      types.String `tfsdk:"aws_iam_role"`
+	AWSExternalID                   types.String `tfsdk:"aws_external_id"`
+	AWSGovUsingCommercialConnection types.Bool   `tfsdk:"aws_gov_using_commercial_connection"`
+	DomainURL                       types.String `tfsdk:"domain_url"`
+	CredentialType                  types.String `tfsdk:"credential_type"`
+	ProjectID                       types.String `tfsdk:"project_id"`
+	ScopeName                       types.String `tfsdk:"scope_name"`
+	Cert                            types.String `tfsdk:"cert"`
+	AuthType                        types.String `tfsdk:"auth_type"`
+	TenantID                        types.String `tfsdk:"tenant_id"`
+	Client                          types.String `tfsdk:"client"`
+	CompartmentIDs                  types.Set    `tfsdk:"compartment_ids"`
+	ServiceAccountJSON              types.Object `tfsdk:"service_account_json"`
+	CredentialID                    types.String `tfsdk:"credential_id"`
+	CredentialExpired               types.Bool   `tfsdk:"credential_expired"`
+	CredentialExpiredAt             types.String `tfsdk:"credential_expired_at"`
+	CredentialCreatedAt             types.String `tfsdk:"credential_created_at"`
+	CredentialUpdatedAt             types.String `tfsdk:"credential_updated_at"`
 }
 
 type serviceAccountJSONModel struct {
@@ -138,9 +144,13 @@ func (r *falconContainerImageResource) Schema(
 			},
 			"user_defined_alias": schema.StringAttribute{
 				Optional:    true,
-				Description: "A user-defined friendly name for the registry.",
+				Computed:    true,
+				Description: "A user-defined friendly name for the registry. When omitted, Terraform retains the value returned by the API. Once set, this value can be updated but not cleared via Terraform due to API limitations.",
 				Validators: []validator.String{
 					validators.StringNotWhitespace(),
+				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"url_uniqueness_key": schema.StringAttribute{
@@ -294,21 +304,21 @@ func (r *falconContainerImageResource) Schema(
 						Description: "GCP service account JSON. Required for: `gar`, `gcr`.",
 						Attributes: map[string]schema.Attribute{
 							"type": schema.StringAttribute{
-								Optional:    true,
+								Required:    true,
 								Description: "Service account type. Typically `service_account`.",
 								Validators: []validator.String{
 									validators.StringNotWhitespace(),
 								},
 							},
 							"private_key_id": schema.StringAttribute{
-								Optional:    true,
+								Required:    true,
 								Description: "Private key ID.",
 								Validators: []validator.String{
 									validators.StringNotWhitespace(),
 								},
 							},
 							"private_key": schema.StringAttribute{
-								Optional:    true,
+								Required:    true,
 								Sensitive:   true,
 								Description: "Private key.",
 								Validators: []validator.String{
@@ -316,21 +326,21 @@ func (r *falconContainerImageResource) Schema(
 								},
 							},
 							"client_email": schema.StringAttribute{
-								Optional:    true,
+								Required:    true,
 								Description: "Client email.",
 								Validators: []validator.String{
 									validators.StringIsEmailAddress(),
 								},
 							},
 							"client_id": schema.StringAttribute{
-								Optional:    true,
+								Required:    true,
 								Description: "Client ID.",
 								Validators: []validator.String{
 									validators.StringNotWhitespace(),
 								},
 							},
 							"project_id": schema.StringAttribute{
-								Optional:    true,
+								Required:    true,
 								Description: "Project ID.",
 								Validators: []validator.String{
 									validators.StringNotWhitespace(),
@@ -341,22 +351,37 @@ func (r *falconContainerImageResource) Schema(
 					"credential_id": schema.StringAttribute{
 						Computed:    true,
 						Description: "The ID of the credential.",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"credential_expired": schema.BoolAttribute{
 						Computed:    true,
 						Description: "Whether the credential has expired.",
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"credential_expired_at": schema.StringAttribute{
 						Computed:    true,
 						Description: "Timestamp when the credential expired.",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"credential_created_at": schema.StringAttribute{
 						Computed:    true,
 						Description: "Timestamp when the credential was created.",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 					"credential_updated_at": schema.StringAttribute{
 						Computed:    true,
 						Description: "Timestamp when the credential was last updated.",
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
 					},
 				},
 			},
@@ -373,16 +398,16 @@ func (r *falconContainerImageResource) Configure(
 		return
 	}
 
-	client, ok := req.ProviderData.(*client.CrowdStrikeAPISpecification)
+	providerConfig, ok := req.ProviderData.(config.ProviderConfig)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
-			"Expected *client.CrowdStrikeAPISpecification, got something else.",
+			fmt.Sprintf("Expected config.ProviderConfig, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 		return
 	}
 
-	r.client = client
+	r.client = providerConfig.Client
 }
 
 func (r *falconContainerImageResource) Create(
@@ -421,9 +446,70 @@ func (r *falconContainerImageResource) Create(
 		WithContext(ctx).
 		WithBody(payload)
 
-	res, err := r.client.FalconContainerImage.CreateRegistryEntities(params)
-	if err != nil {
-		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Create, err, apiScopesReadWrite))
+	// Retry the create up to maxAttempts times. A 400 "failed to validate registry
+	// credential" is transient for ECR when an IAM role has just been created and
+	// hasn't propagated across AWS yet; sleeping between attempts gives it time to
+	// settle. For all other registry types the error is permanent (bad credentials)
+	// so we skip retrying entirely.
+	const (
+		maxAttempts   = 5
+		retryInterval = 15 * time.Second
+	)
+	ecrRetryEnabled := plan.Type.ValueString() == "ecr"
+
+	var (
+		res          *falcon_container_image.CreateRegistryEntitiesCreated
+		lastErr      error
+		credValError bool
+	)
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		res, lastErr = r.client.FalconContainerImage.CreateRegistryEntities(params)
+		if lastErr == nil {
+			break
+		}
+		credValError = isCredentialValidationError(lastErr)
+		if !credValError || !ecrRetryEnabled || attempt == maxAttempts {
+			break
+		}
+		tflog.Debug(ctx, "registry credential validation failed, retrying after IAM propagation delay",
+			map[string]any{
+				"attempt":  attempt,
+				"max":      maxAttempts,
+				"delay_ms": retryInterval.Milliseconds(),
+				"url":      plan.URL.ValueString(),
+			})
+		select {
+		case <-ctx.Done():
+			resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Create, ctx.Err(), apiScopesReadWrite))
+			return
+		case <-time.After(retryInterval):
+		}
+	}
+
+	if lastErr != nil {
+		// After exhausting retries, check whether CrowdStrike may have persisted the
+		// record despite the error (async validation) or if a duplicate already exists
+		// (status 200 with empty body from a previous failed apply).
+		if credValError || isUnrecognized200Error(lastErr) {
+			registry, findErr := r.findRegistryByURL(ctx, plan.URL.ValueString(), plan.URLUniquenessKey.ValueString())
+			if findErr == nil && registry != nil {
+				resp.Diagnostics.AddWarning(
+					"Registry Created with Credential Validation Pending",
+					"The registry was created but CrowdStrike reported a credential validation issue. "+
+						"This is expected when IAM roles have not yet fully propagated. "+
+						"The resource has been saved to state; CrowdStrike will retry validation automatically.",
+				)
+				plan.ID = types.StringValue(*registry.ID)
+				resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)...)
+				if resp.Diagnostics.HasError() {
+					return
+				}
+				resp.Diagnostics.Append(plan.wrap(ctx, registry)...)
+				resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+				return
+			}
+		}
+		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Create, lastErr, apiScopesReadWrite))
 		return
 	}
 
@@ -437,9 +523,128 @@ func (r *falconContainerImageResource) Create(
 		return
 	}
 
+	if res.Payload.Resources.ID == nil {
+		resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
+		return
+	}
+	plan.ID = types.StringValue(*res.Payload.Resources.ID)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	tflog.Debug(ctx, "created falcon container image registry", map[string]any{
+		"id":   plan.ID.ValueString(),
+		"url":  plan.URL.ValueString(),
+		"type": plan.Type.ValueString(),
+	})
+
 	registry := res.Payload.Resources
 	resp.Diagnostics.Append(plan.wrap(ctx, registry)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+}
+
+// isCredentialValidationError returns true for 400 responses where CrowdStrike
+// reports that it cannot validate the registry credential. This is a transient
+// error when the underlying IAM role has been created but not yet propagated.
+func isCredentialValidationError(err error) bool {
+	if err == nil {
+		return false
+	}
+	// Fast path: check the structured payload when available.
+	type badRequestPayload interface {
+		GetPayload() *models.DomainExternalRegistryResponse
+	}
+	if brErr, ok := err.(badRequestPayload); ok {
+		if payload := brErr.GetPayload(); payload != nil {
+			for _, e := range payload.Errors {
+				if e != nil && e.Message != nil && strings.Contains(*e.Message, "failed to validate registry credential") {
+					return true
+				}
+			}
+		}
+	}
+	// Fallback: match against err.Error(), which prints the API *response* body via
+	// fmt.Sprintf("%+v", payload) — it contains only CrowdStrike's error fields, not
+	// any credential data from the request. This covers cases where the errors slice
+	// is empty but the message appears elsewhere in the response, or where the
+	// transport wraps the error before returning it.
+	return strings.Contains(err.Error(), "failed to validate registry credential")
+}
+
+// isUnrecognized200Error returns true for HTTP 200 responses that fall into the
+// swagger default case (not a defined response code for this endpoint). CrowdStrike
+// returns 200 with an empty body when a duplicate URL is submitted, indicating the
+// registry already exists.
+func isUnrecognized200Error(err error) bool {
+	if err == nil {
+		return false
+	}
+	apiErr, ok := err.(*runtime.APIError)
+	return ok && apiErr.Code == 200
+}
+
+// findRegistryByURL scans all registry entities to find one matching the given URL
+// and, when non-empty, url_uniqueness_key. Returns nil if no match is found.
+func (r *falconContainerImageResource) findRegistryByURL(
+	ctx context.Context,
+	targetURL string,
+	urlUniquenessKey string,
+) (*models.DomainExternalAPIRegistry, error) {
+	const pageSize = int64(100)
+	offset := int64(0)
+
+	for {
+		limit := pageSize
+		listParams := falcon_container_image.NewReadRegistryEntitiesParams().
+			WithContext(ctx).
+			WithLimit(&limit).
+			WithOffset(&offset)
+
+		listRes, err := r.client.FalconContainerImage.ReadRegistryEntities(listParams)
+		if err != nil {
+			return nil, fmt.Errorf("listing registry entities: %w", err)
+		}
+		if listRes == nil || listRes.Payload == nil || len(listRes.Payload.Resources) == 0 {
+			return nil, nil
+		}
+
+		for _, id := range listRes.Payload.Resources {
+			byIDParams := falcon_container_image.NewReadRegistryEntitiesByUUIDParams().
+				WithContext(ctx).
+				WithIds(id)
+
+			byIDRes, err := r.client.FalconContainerImage.ReadRegistryEntitiesByUUID(byIDParams)
+			if err != nil {
+				tflog.Debug(ctx, "findRegistryByURL: skipping ID that could not be fetched",
+					map[string]any{"id": id, "error": err.Error()})
+				continue
+			}
+			if byIDRes == nil || byIDRes.Payload == nil || len(byIDRes.Payload.Resources) == 0 {
+				continue
+			}
+
+			reg := byIDRes.Payload.Resources[0]
+			if reg == nil || reg.URL == nil || reg.ID == nil {
+				continue
+			}
+			if *reg.URL != targetURL {
+				continue
+			}
+			if urlUniquenessKey != "" {
+				if reg.URLUniquenessAlias == nil || *reg.URLUniquenessAlias != urlUniquenessKey {
+					continue
+				}
+			}
+			return reg, nil
+		}
+
+		// Stop when we've received a partial page (no more results).
+		if int64(len(listRes.Payload.Resources)) < pageSize {
+			return nil, nil
+		}
+		offset += pageSize
+	}
 }
 
 func (r *falconContainerImageResource) Read(
@@ -461,6 +666,7 @@ func (r *falconContainerImageResource) Read(
 	if err != nil {
 		diag := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopesReadWrite)
 		if diag.Summary() == tferrors.NotFoundErrorSummary {
+			tflog.Debug(ctx, "falcon container image registry not found, removing from state", map[string]any{"id": state.ID.ValueString()})
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -469,6 +675,7 @@ func (r *falconContainerImageResource) Read(
 	}
 
 	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+		tflog.Debug(ctx, "falcon container image registry not found, removing from state", map[string]any{"id": state.ID.ValueString()})
 		resp.State.RemoveResource(ctx)
 		return
 	}
@@ -533,6 +740,12 @@ func (r *falconContainerImageResource) Update(
 		return
 	}
 
+	tflog.Debug(ctx, "updated falcon container image registry", map[string]any{
+		"id":   state.ID.ValueString(),
+		"url":  state.URL.ValueString(),
+		"type": state.Type.ValueString(),
+	})
+
 	registry := res.Payload.Resources
 	resp.Diagnostics.Append(plan.wrap(ctx, registry)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -553,10 +766,13 @@ func (r *falconContainerImageResource) Delete(
 		WithContext(ctx).
 		WithIds(state.ID.ValueString())
 
+	tflog.Debug(ctx, "deleting falcon container image registry", map[string]any{"id": state.ID.ValueString()})
+
 	_, err := r.client.FalconContainerImage.DeleteRegistryEntities(params)
 	if err != nil {
 		diag := tferrors.NewDiagnosticFromAPIError(tferrors.Delete, err, apiScopesReadWrite)
 		if diag.Summary() == tferrors.NotFoundErrorSummary {
+			tflog.Debug(ctx, "falcon container image registry already deleted", map[string]any{"id": state.ID.ValueString()})
 			return
 		}
 		resp.Diagnostics.Append(diag)
@@ -596,56 +812,45 @@ func (r *falconContainerImageResource) ValidateConfig(
 
 	validateCredentials := func(required []string) {
 		for _, field := range required {
-			var isSet bool
+			var val attr.Value
 			switch field {
 			case "username":
-				isSet = utils.IsKnown(cred.Username)
+				val = cred.Username
 			case "password":
-				isSet = utils.IsKnown(cred.Password)
+				val = cred.Password
 			case "aws_iam_role":
-				isSet = utils.IsKnown(cred.AWSIAMRole)
+				val = cred.AWSIAMRole
 			case "aws_external_id":
-				isSet = utils.IsKnown(cred.AWSExternalID)
+				val = cred.AWSExternalID
 			case "domain_url":
-				isSet = utils.IsKnown(cred.DomainURL)
+				val = cred.DomainURL
 			case "credential_type":
-				isSet = utils.IsKnown(cred.CredentialType)
+				val = cred.CredentialType
 			case "project_id":
-				isSet = utils.IsKnown(cred.ProjectID)
+				val = cred.ProjectID
 			case "scope_name":
-				isSet = utils.IsKnown(cred.ScopeName)
+				val = cred.ScopeName
 			case "cert":
-				isSet = utils.IsKnown(cred.Cert)
+				val = cred.Cert
 			case "auth_type":
-				isSet = utils.IsKnown(cred.AuthType)
+				val = cred.AuthType
 			case "tenant_id":
-				isSet = utils.IsKnown(cred.TenantID)
+				val = cred.TenantID
 			case "client":
-				isSet = utils.IsKnown(cred.Client)
+				val = cred.Client
 			case "compartment_ids":
-				isSet = utils.IsKnown(cred.CompartmentIDs)
+				val = cred.CompartmentIDs
 			case "service_account_json":
-				isSet = utils.IsKnown(cred.ServiceAccountJSON)
-				if isSet {
-					var sa serviceAccountJSONModel
-					if d := cred.ServiceAccountJSON.As(ctx, &sa, basetypes.ObjectAsOptions{}); d.HasError() {
-						resp.Diagnostics.Append(d...)
-						return
-					}
-					if !utils.IsKnown(sa.Type) || !utils.IsKnown(sa.PrivateKeyID) ||
-						!utils.IsKnown(sa.PrivateKey) || !utils.IsKnown(sa.ClientEmail) ||
-						!utils.IsKnown(sa.ClientID) || !utils.IsKnown(sa.ProjectID) {
-						resp.Diagnostics.AddAttributeError(
-							path.Root("credential").AtName("service_account_json"),
-							"Missing Required Service Account Fields",
-							fmt.Sprintf("For registry type %q, all service_account_json fields (type, private_key_id, private_key, client_email, client_id, project_id) are required.", registryType),
-						)
-						return
-					}
-				}
+				val = cred.ServiceAccountJSON
 			}
 
-			if !isSet {
+			// Unknown means the value comes from another resource and will be
+			// resolved at apply time — skip validation rather than error.
+			if val == nil || val.IsUnknown() {
+				continue
+			}
+
+			if val.IsNull() {
 				resp.Diagnostics.AddAttributeError(
 					path.Root("credential").AtName(field),
 					"Missing Required Credential Field",
@@ -672,20 +877,33 @@ func (r *falconContainerImageResource) ValidateConfig(
 		validateCredentials([]string{"project_id", "service_account_json"})
 
 	case "acr":
-		hasUsernamePassword := utils.IsKnown(cred.Username) && utils.IsKnown(cred.Password)
-		hasCertAuth := utils.IsKnown(cred.Cert) && utils.IsKnown(cred.AuthType) &&
-			utils.IsKnown(cred.TenantID) && utils.IsKnown(cred.Client)
+		// If any credential fields are unknown, skip ACR validation — values arrive at apply time.
+		acrUnknown := cred.Username.IsUnknown() || cred.Password.IsUnknown() ||
+			cred.Cert.IsUnknown() || cred.AuthType.IsUnknown() ||
+			cred.TenantID.IsUnknown() || cred.Client.IsUnknown()
+		if !acrUnknown {
+			hasUsernamePassword := utils.IsKnown(cred.Username) && utils.IsKnown(cred.Password)
+			hasCertAuth := utils.IsKnown(cred.Cert) && utils.IsKnown(cred.AuthType) &&
+				utils.IsKnown(cred.TenantID) && utils.IsKnown(cred.Client)
 
-		if !hasUsernamePassword && !hasCertAuth {
-			resp.Diagnostics.AddAttributeError(
-				path.Root("credential"),
-				"Invalid ACR Credentials",
-				"For registry type \"acr\", either (username + password) OR (cert + auth_type + tenant_id + client) must be provided.",
-			)
+			if !hasUsernamePassword && !hasCertAuth {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("credential"),
+					"Invalid ACR Credentials",
+					"For registry type \"acr\", either (username + password) OR (cert + auth_type + tenant_id + client) must be provided.",
+				)
+			}
 		}
 
 	case "oracle":
 		validateCredentials([]string{"username", "password", "compartment_ids", "scope_name"})
+		if utils.IsKnown(cred.CompartmentIDs) && len(cred.CompartmentIDs.Elements()) == 0 {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("credential").AtName("compartment_ids"),
+				"Missing Required Credential Field",
+				`For registry type "oracle", compartment_ids must contain at least one compartment ID.`,
+			)
+		}
 	}
 }
 
@@ -694,6 +912,9 @@ func (m *falconContainerImageResourceModel) wrap(
 	registry *models.DomainExternalAPIRegistry,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
+
+	// Preserve user-set fields the API does not return.
+	existingURLUniquenessKey := m.URLUniquenessKey
 
 	m.ID = types.StringPointerValue(registry.ID)
 	m.URL = types.StringPointerValue(registry.URL)
@@ -714,16 +935,35 @@ func (m *falconContainerImageResourceModel) wrap(
 	if registry.Credential != nil {
 		credAttrTypes := credentialAttrTypes()
 		credAttrs := map[string]attr.Value{
+			// Computed fields populated from API response.
 			"credential_id":         types.StringPointerValue(registry.Credential.ID),
 			"credential_expired":    types.BoolPointerValue(registry.Credential.Expired),
 			"credential_expired_at": types.StringPointerValue(registry.Credential.ExpiredAt),
 			"credential_created_at": types.StringPointerValue(registry.Credential.CreatedAt),
 			"credential_updated_at": types.StringPointerValue(registry.Credential.UpdatedAt),
+			// Write-only fields: initialized as null so types.ObjectValue always
+			// receives all required keys. Overwritten below when state is available.
+			"username":                            types.StringNull(),
+			"password":                            types.StringNull(),
+			"aws_iam_role":                        types.StringNull(),
+			"aws_external_id":                     types.StringNull(),
+			"aws_gov_using_commercial_connection": types.BoolNull(),
+			"domain_url":                          types.StringNull(),
+			"credential_type":                     types.StringNull(),
+			"project_id":                          types.StringNull(),
+			"scope_name":                          types.StringNull(),
+			"cert":                                types.StringNull(),
+			"auth_type":                           types.StringNull(),
+			"tenant_id":                           types.StringNull(),
+			"client":                              types.StringNull(),
+			"compartment_ids":                     types.SetNull(types.StringType),
+			"service_account_json":                types.ObjectNull(serviceAccountJSONAttrTypes()),
 		}
 
 		if !m.Credential.IsNull() {
 			var existingCred credentialModel
-			if d := m.Credential.As(ctx, &existingCred, basetypes.ObjectAsOptions{}); !d.HasError() {
+			diags.Append(m.Credential.As(ctx, &existingCred, basetypes.ObjectAsOptions{})...)
+			if !diags.HasError() {
 				credAttrs["username"] = existingCred.Username
 				credAttrs["password"] = existingCred.Password
 				credAttrs["aws_iam_role"] = existingCred.AWSIAMRole
@@ -746,6 +986,8 @@ func (m *falconContainerImageResourceModel) wrap(
 		diags.Append(d...)
 		m.Credential = credObj
 	}
+
+	m.URLUniquenessKey = existingURLUniquenessKey
 
 	return diags
 }

@@ -10,6 +10,7 @@ import (
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
 	customioc "github.com/crowdstrike/terraform-provider-crowdstrike/internal/custom_ioc"
 	dataprotection "github.com/crowdstrike/terraform-provider-crowdstrike/internal/data_protection"
+	falconcontainerimage "github.com/crowdstrike/terraform-provider-crowdstrike/internal/falcon_container_image"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
@@ -51,6 +52,7 @@ func registerSweepers() {
 	cloudcompliance.RegisterSweepers()
 	cloudgroup.RegisterSweepers()
 	cloudsecurity.RegisterSweepers()
+	falconcontainerimage.RegisterSweepers()
 	itautomation.RegisterSweepers()
 	rtrputfile.RegisterSweepers()
 	usergroup.RegisterSweepers()
