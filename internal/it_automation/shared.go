@@ -22,6 +22,8 @@ const (
 	TaskTypeQuery       = "query"
 	TaskTypeAction      = "action"
 	TaskTypeRemediation = "remediation"
+	ParamsTypeOption    = "option"
+	ParamsTypeDropdown  = "dropdown"
 )
 
 // stringSliceToSet converts a Go string slice to a Terraform Framework Set.
