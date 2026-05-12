@@ -22,7 +22,7 @@ func TestAccRTRScriptDataSource_ByName(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccRTRScriptDataSourceConfig_byName(rName),
+				Config:            testAccRTRScriptDataSourceConfig_byName(rName),
 				ConfigStateChecks: rtrScriptDataSourceStateChecks(resourceName, dataSourceName),
 			},
 		},
@@ -39,7 +39,7 @@ func TestAccRTRScriptDataSource_ByID(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccRTRScriptDataSourceConfig_byID(rName),
+				Config:            testAccRTRScriptDataSourceConfig_byID(rName),
 				ConfigStateChecks: rtrScriptDataSourceStateChecks(resourceName, dataSourceName),
 			},
 		},
