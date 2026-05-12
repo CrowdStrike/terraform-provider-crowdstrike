@@ -348,6 +348,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		preventionpolicy.NewPreventionPoliciesDataSource,
 		fim.NewFilevantagePoliciesDataSource,
 		hostgroups.NewHostGroupDataSource,
+		cidgroup.NewCIDGroupDataSource,
 	}
 }
 
