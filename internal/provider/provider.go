@@ -24,6 +24,7 @@ import (
 	ioaexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_exclusion"
 	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
 	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
+	mlcertificateexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ml_certificate_exclusion"
 	mlfilepathexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ml_file_path_exclusion"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	responsepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/response_policy"
@@ -302,6 +303,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		contentupdatepolicy.NewDefaultContentUpdatePolicyResource,
 		contentupdatepolicy.NewContentUpdatePolicyPrecedenceResource,
 		contentupdatepolicy.NewContentUpdatePolicyAttachmentResource,
+		mlcertificateexclusion.NewMLCertificateExclusionResource,
 		sensorvisibilityexclusion.NewSensorVisibilityExclusionResource,
 		sensorvisibilityexclusion.NewSensorVisibilityExclusionAttachmentResource,
 		mlfilepathexclusion.NewMLFilePathExclusionResource,
@@ -349,6 +351,8 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		fim.NewFilevantagePoliciesDataSource,
 		hostgroups.NewHostGroupDataSource,
 		cidgroup.NewCIDGroupDataSource,
+		rtrscript.NewRTRScriptDataSource,
+		rtrputfile.NewRtrPutFileDataSource,
 	}
 }
 

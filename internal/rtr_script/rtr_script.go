@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/real_time_response_admin"
@@ -13,13 +12,11 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwplanmodifiers "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/planmodifiers"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/retry"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -40,8 +37,6 @@ var (
 var apiScopesReadWrite = []scopes.Scope{
 	{Name: "Real Time Response (Admin)", Read: true, Write: true},
 }
-
-const contentNotRetrieved = "<COULD NOT RETRIEVE>"
 
 func NewRTRScriptResource() resource.Resource {
 	return &rtrScriptResource{}
@@ -76,9 +71,9 @@ func (m *rtrScriptResourceModel) wrap(script *models.EmpowerapiRemoteCommandPutF
 	m.SHA256 = flex.StringValueToFramework(script.Sha256)
 	m.CommentsForAuditLog = flex.StringValueToFramework(script.CommentsForAuditLog)
 	m.CreatedBy = flex.StringValueToFramework(script.CreatedBy)
-	m.CreatedTimestamp = flex.DateTimePointerToFramework(&script.CreatedTimestamp)
+	m.CreatedTimestamp = flex.DateTimeValueToFramework(script.CreatedTimestamp)
 	m.ModifiedBy = flex.StringValueToFramework(script.ModifiedBy)
-	m.ModifiedTimestamp = flex.DateTimePointerToFramework(&script.ModifiedTimestamp)
+	m.ModifiedTimestamp = flex.DateTimeValueToFramework(script.ModifiedTimestamp)
 
 	m.Size = types.Int64PointerValue(script.Size)
 
@@ -287,7 +282,7 @@ func (r *rtrScriptResource) Create(
 		return
 	}
 
-	script, readDiags := getRTRScriptWithContent(ctx, r.client, plan.ID.ValueString())
+	script, readDiags := getRTRScriptWithContent(ctx, r.client, plan.ID.ValueString(), apiScopesReadWrite)
 	resp.Diagnostics.Append(readDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -308,7 +303,7 @@ func (r *rtrScriptResource) Read(
 		return
 	}
 
-	script, readDiags := getRTRScriptWithContent(ctx, r.client, state.ID.ValueString())
+	script, readDiags := getRTRScriptWithContent(ctx, r.client, state.ID.ValueString(), apiScopesReadWrite)
 	if tferrors.HasNotFoundError(readDiags) {
 		resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 		resp.State.RemoveResource(ctx)
@@ -358,7 +353,7 @@ func (r *rtrScriptResource) Update(
 		return
 	}
 
-	script, readDiags := getRTRScriptWithContent(ctx, r.client, id)
+	script, readDiags := getRTRScriptWithContent(ctx, r.client, id, apiScopesReadWrite)
 	resp.Diagnostics.Append(readDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -399,67 +394,4 @@ func (r *rtrScriptResource) ImportState(
 	resp *resource.ImportStateResponse,
 ) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
-}
-
-func getRTRScript(
-	ctx context.Context,
-	apiClient *client.CrowdStrikeAPISpecification,
-	id string,
-) (*models.EmpowerapiRemoteCommandPutFileV2, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	params := real_time_response_admin.NewRTRGetScriptsV2ParamsWithContext(ctx)
-	params.SetIds([]string{id})
-
-	res, err := apiClient.RealTimeResponseAdmin.RTRGetScriptsV2(params)
-	if err != nil {
-		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopesReadWrite))
-		return nil, diags
-	}
-
-	if res == nil || res.Payload == nil {
-		diags.Append(tferrors.NewEmptyResponseError(tferrors.Read))
-		return nil, diags
-	}
-
-	if diagErr := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Read, res.Payload.Errors); diagErr != nil {
-		diags.Append(diagErr)
-		return nil, diags
-	}
-
-	if len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
-		diags.Append(tferrors.NewEmptyResponseError(tferrors.Read))
-		return nil, diags
-	}
-
-	return res.Payload.Resources[0], diags
-}
-
-func getRTRScriptWithContent(
-	ctx context.Context,
-	apiClient *client.CrowdStrikeAPISpecification,
-	id string,
-) (*models.EmpowerapiRemoteCommandPutFileV2, diag.Diagnostics) {
-	var script *models.EmpowerapiRemoteCommandPutFileV2
-	var readDiags diag.Diagnostics
-
-	err := retry.RetryUntilNoError(ctx, 30*time.Second, 5*time.Second, func() error {
-		script, readDiags = getRTRScript(ctx, apiClient, id)
-		if readDiags.HasError() {
-			return nil
-		}
-		if script.Content == contentNotRetrieved {
-			return fmt.Errorf("content not yet available")
-		}
-		return nil
-	})
-
-	if err != nil && !readDiags.HasError() {
-		readDiags.AddError(
-			"Error reading RTR script...",
-			"The API returned a placeholder for the script content. This is typically a temporary condition. Please try again.",
-		)
-	}
-
-	return script, readDiags
 }
