@@ -322,11 +322,14 @@ func (m *cloudAzureTenantModel) wrap(
 		}
 	}
 
-	var agentlessSubIdsSlice []string
 	for _, af := range registration.AdditionalFeatures {
 		if af != nil && af.Feature != nil && *af.Feature == "dspm" {
-			hasDSPM = true
-			agentlessSubIdsSlice = af.SubscriptionIds
+			if !m.AgentlessScanningSubscriptionIds.IsNull() && len(af.SubscriptionIds) > 0 {
+				hasDSPM = true
+				agentlessSubIds, d := flex.FlattenStringValueSet(ctx, af.SubscriptionIds)
+				diags.Append(d...)
+				m.AgentlessScanningSubscriptionIds = agentlessSubIds
+			}
 			break
 		}
 	}
@@ -340,12 +343,6 @@ func (m *cloudAzureTenantModel) wrap(
 	dspmObj, d := dspm.ToObject(ctx)
 	diags.Append(d...)
 	m.DSPM = dspmObj
-
-	if !m.AgentlessScanningSubscriptionIds.IsNull() && len(agentlessSubIdsSlice) > 0 {
-		agentlessSubIds, d := flex.FlattenStringValueSet(ctx, agentlessSubIdsSlice)
-		diags.Append(d...)
-		m.AgentlessScanningSubscriptionIds = agentlessSubIds
-	}
 
 	return diags
 }

@@ -317,6 +317,111 @@ func TestAccCloudAzureTenant_emptyGraphPermissions(t *testing.T) {
 	})
 }
 
+func TestAccCloudAzureTenant_agentlessScanningSubscriptionIds(t *testing.T) {
+	tenantID := acctest.RandomUUID()
+	mgID := acctest.RandomUUID()
+	subID1 := acctest.RandomUUID()
+	subID2 := acctest.RandomUUID()
+	subID3 := acctest.RandomUUID()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAzureTenantConfig_withManagementGroup(tenantID, mgID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("management_group_ids"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact(mgID)})),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("agentless_scanning_subscription_ids"), knownvalue.Null()),
+				},
+			},
+			{
+				Config: testAccCloudAzureTenantConfig_withAgentlessSubIds(tenantID, mgID, subID1, subID2),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("management_group_ids"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact(mgID)})),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("agentless_scanning_subscription_ids"), knownvalue.SetExact([]knownvalue.Check{
+						knownvalue.StringExact(subID1),
+						knownvalue.StringExact(subID2),
+					})),
+				},
+			},
+			{
+				Config: testAccCloudAzureTenantConfig_withAgentlessSubIds(tenantID, mgID, subID2, subID3),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("agentless_scanning_subscription_ids"), knownvalue.SetExact([]knownvalue.Check{
+						knownvalue.StringExact(subID2),
+						knownvalue.StringExact(subID3),
+					})),
+				},
+			},
+			{
+				Config: testAccCloudAzureTenantConfig_withManagementGroup(tenantID, mgID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("agentless_scanning_subscription_ids"), knownvalue.Null()),
+				},
+			},
+		},
+	})
+}
+
+func TestAccCloudAzureTenant_agentlessScanningSubscriptionIdsTenantWide(t *testing.T) {
+	tenantID := acctest.RandomUUID()
+	subID1 := acctest.RandomUUID()
+	subID2 := acctest.RandomUUID()
+	subID3 := acctest.RandomUUID()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAzureTenantConfig_basic(tenantID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("agentless_scanning_subscription_ids"), knownvalue.Null()),
+				},
+			},
+			{
+				Config: testAccCloudAzureTenantConfig_tenantWideWithAgentlessSubIds(tenantID, subID1, subID2),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("agentless_scanning_subscription_ids"), knownvalue.SetExact([]knownvalue.Check{
+						knownvalue.StringExact(subID1),
+						knownvalue.StringExact(subID2),
+					})),
+				},
+			},
+			{
+				Config: testAccCloudAzureTenantConfig_tenantWideWithAgentlessSubIds(tenantID, subID2, subID3),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("agentless_scanning_subscription_ids"), knownvalue.SetExact([]knownvalue.Check{
+						knownvalue.StringExact(subID2),
+						knownvalue.StringExact(subID3),
+					})),
+				},
+			},
+			{
+				Config: testAccCloudAzureTenantConfig_basic(tenantID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("agentless_scanning_subscription_ids"), knownvalue.Null()),
+				},
+			},
+		},
+	})
+}
+
 // Config helpers
 
 func testAccCloudAzureTenantConfig_basic(tenantID string) string {
@@ -436,4 +541,29 @@ resource "crowdstrike_cloud_azure_tenant" "test" {
   tenant_id                      = %[1]q
   microsoft_graph_permission_ids = []
 }`, tenantID)
+}
+
+func testAccCloudAzureTenantConfig_withAgentlessSubIds(tenantID, mgID, subID1, subID2 string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                              = %[1]q
+  microsoft_graph_permission_ids         = [%[2]q]
+  management_group_ids                   = [%[3]q]
+  agentless_scanning_subscription_ids    = [%[4]q, %[5]q]
+  dspm = {
+    enabled = true
+  }
+}`, tenantID, userReadAllPermissionID, mgID, subID1, subID2)
+}
+
+func testAccCloudAzureTenantConfig_tenantWideWithAgentlessSubIds(tenantID, subID1, subID2 string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                              = %[1]q
+  microsoft_graph_permission_ids         = [%[2]q]
+  agentless_scanning_subscription_ids    = [%[3]q, %[4]q]
+  dspm = {
+    enabled = true
+  }
+}`, tenantID, userReadAllPermissionID, subID1, subID2)
 }
