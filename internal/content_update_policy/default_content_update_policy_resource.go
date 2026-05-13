@@ -66,7 +66,7 @@ func (d *defaultContentUpdatePolicyResourceModel) extract(ctx context.Context) d
 	var diags diag.Diagnostics
 
 	// Extract sensor operations
-	if !d.SensorOperations.IsNull() {
+	if !d.SensorOperations.IsNull() && !d.SensorOperations.IsUnknown() {
 		var sensorOperations ringAssignmentModel
 		sensorOpsDiags := d.SensorOperations.As(ctx, &sensorOperations, basetypes.ObjectAsOptions{})
 		diags.Append(sensorOpsDiags...)
@@ -76,7 +76,7 @@ func (d *defaultContentUpdatePolicyResourceModel) extract(ctx context.Context) d
 	}
 
 	// Extract system critical
-	if !d.SystemCritical.IsNull() {
+	if !d.SystemCritical.IsNull() && !d.SystemCritical.IsUnknown() {
 		var systemCritical ringAssignmentModel
 		systemCritDiags := d.SystemCritical.As(ctx, &systemCritical, basetypes.ObjectAsOptions{})
 		diags.Append(systemCritDiags...)
@@ -86,7 +86,7 @@ func (d *defaultContentUpdatePolicyResourceModel) extract(ctx context.Context) d
 	}
 
 	// Extract vulnerability management
-	if !d.VulnerabilityManagement.IsNull() {
+	if !d.VulnerabilityManagement.IsNull() && !d.VulnerabilityManagement.IsUnknown() {
 		var vulnerabilityManagement ringAssignmentModel
 		vulnMgmtDiags := d.VulnerabilityManagement.As(ctx, &vulnerabilityManagement, basetypes.ObjectAsOptions{})
 		diags.Append(vulnMgmtDiags...)
@@ -96,7 +96,7 @@ func (d *defaultContentUpdatePolicyResourceModel) extract(ctx context.Context) d
 	}
 
 	// Extract rapid response
-	if !d.RapidResponse.IsNull() {
+	if !d.RapidResponse.IsNull() && !d.RapidResponse.IsUnknown() {
 		var rapidResponse ringAssignmentModel
 		rapidRespDiags := d.RapidResponse.As(ctx, &rapidResponse, basetypes.ObjectAsOptions{})
 		diags.Append(rapidRespDiags...)
@@ -125,7 +125,7 @@ func (d *defaultContentUpdatePolicyResourceModel) wrap(
 			case "sensor_operations":
 				if d.sensorOperationsSettings == nil {
 					d.sensorOperationsSettings = &ringAssignmentModel{}
-					if !d.SensorOperations.IsNull() {
+					if !d.SensorOperations.IsNull() && !d.SensorOperations.IsUnknown() {
 						d.SensorOperations.As(ctx, d.sensorOperationsSettings, basetypes.ObjectAsOptions{})
 					}
 				}
@@ -133,7 +133,7 @@ func (d *defaultContentUpdatePolicyResourceModel) wrap(
 			case "system_critical":
 				if d.systemCriticalSettings == nil {
 					d.systemCriticalSettings = &ringAssignmentModel{}
-					if !d.SystemCritical.IsNull() {
+					if !d.SystemCritical.IsNull() && !d.SystemCritical.IsUnknown() {
 						d.SystemCritical.As(ctx, d.systemCriticalSettings, basetypes.ObjectAsOptions{})
 					}
 				}
@@ -141,7 +141,7 @@ func (d *defaultContentUpdatePolicyResourceModel) wrap(
 			case "vulnerability_management":
 				if d.vulnerabilityManagementSettings == nil {
 					d.vulnerabilityManagementSettings = &ringAssignmentModel{}
-					if !d.VulnerabilityManagement.IsNull() {
+					if !d.VulnerabilityManagement.IsNull() && !d.VulnerabilityManagement.IsUnknown() {
 						d.VulnerabilityManagement.As(ctx, d.vulnerabilityManagementSettings, basetypes.ObjectAsOptions{})
 					}
 				}
@@ -149,7 +149,7 @@ func (d *defaultContentUpdatePolicyResourceModel) wrap(
 			case "rapid_response_al_bl_listing":
 				if d.rapidResponseSettings == nil {
 					d.rapidResponseSettings = &ringAssignmentModel{}
-					if !d.RapidResponse.IsNull() {
+					if !d.RapidResponse.IsNull() && !d.RapidResponse.IsUnknown() {
 						d.RapidResponse.As(ctx, d.rapidResponseSettings, basetypes.ObjectAsOptions{})
 					}
 				}
