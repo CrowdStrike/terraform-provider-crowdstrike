@@ -26,8 +26,8 @@ import (
 
 var (
 	taskGroupsDataSourceDocumentationSection string         = "IT Automation"
-	taskGroupsDataSourceMarkdownDescription   string         = "This data source provides information about IT Automation task groups in CrowdStrike Falcon. Task groups allow organizing tasks for RBAC and grouping purposes."
-	taskGroupsDataSourceRequiredScopes        []scopes.Scope = []scopes.Scope{
+	taskGroupsDataSourceMarkdownDescription  string         = "This data source provides information about IT Automation task groups in CrowdStrike Falcon. Task groups allow organizing tasks for RBAC and grouping purposes."
+	taskGroupsDataSourceRequiredScopes       []scopes.Scope = []scopes.Scope{
 		{
 			Name: "IT Automation - Tasks",
 			Read: true,
@@ -81,7 +81,7 @@ func (m taskGroupDataModel) AttributeTypes() map[string]attr.Type {
 		"assigned_user_group_ids": types.ListType{ElemType: types.StringType},
 		"created_by":              types.StringType,
 		"created_time":            types.StringType,
-		"modified_by":              types.StringType,
+		"modified_by":             types.StringType,
 		"modified_time":           types.StringType,
 	}
 }
