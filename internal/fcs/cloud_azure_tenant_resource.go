@@ -141,13 +141,14 @@ func buildAzureProductConfig(
 	ctx context.Context,
 	data *cloudAzureTenantModel,
 	diags *diag.Diagnostics,
-) (features []string, additional []*models.AzureAdditionalFeature) {
+) (features []string, additionalFeatures []*models.AzureAdditionalFeature) {
 	features = []string{"iom"}
+	additionalFeatures = []*models.AzureAdditionalFeature{}
 
 	var rtv realtimeVisibilityModel
 	diags.Append(rtv.FromObject(ctx, data.RealtimeVisibility)...)
 	if diags.HasError() {
-		return features, nil
+		return features, additionalFeatures
 	}
 	if rtv.Enabled.ValueBool() {
 		features = append(features, "ioa")
@@ -156,24 +157,24 @@ func buildAzureProductConfig(
 	var dspm dspmModel
 	diags.Append(dspm.FromObject(ctx, data.DSPM)...)
 	if diags.HasError() {
-		return features, nil
+		return features, additionalFeatures
 	}
 	if !dspm.Enabled.ValueBool() {
-		return features, nil
+		return features, additionalFeatures
 	}
 
 	subs := flex.ExpandSetAs[string](ctx, data.AgentlessScanningSubscriptionIds, diags)
 	if len(subs) == 0 {
 		features = append(features, "dspm")
-		return features, nil
+		return features, additionalFeatures
 	}
 
-	additional = []*models.AzureAdditionalFeature{{
+	additionalFeatures = []*models.AzureAdditionalFeature{{
 		Feature:         utils.Addr("dspm"),
 		Product:         utils.Addr("cspm"),
 		SubscriptionIds: subs,
 	}}
-	return features, additional
+	return features, additionalFeatures
 }
 
 func (r *cloudAzureTenantResource) Schema(
@@ -561,10 +562,19 @@ func (r cloudAzureTenantResource) ModifyPlan(
 		return
 	}
 
-	if !plan.AgentlessScanningSubscriptionIds.IsNull() && !plan.AgentlessScanningSubscriptionIds.IsUnknown() {
+	// ModifyPlan runs twice: once during `terraform plan` and again during `terraform apply` after
+	// upstream resources have been applied. When a value is sourced from another resource's
+	// computed output (e.g. dspm or agentless_scanning_subscription_ids set from
+	// terraform_data.output), it is unknown on the first run and resolved on the second. The
+	// IsUnknown guards skip validation on the first run to avoid false positives; the second run
+	// sees the real values and validates them.
+	if utils.IsKnown(plan.AgentlessScanningSubscriptionIds) && utils.IsKnown(plan.DSPM) {
 		var dspm dspmModel
 		resp.Diagnostics.Append(dspm.FromObject(ctx, plan.DSPM)...)
-		if !resp.Diagnostics.HasError() && !dspm.Enabled.IsUnknown() && !dspm.Enabled.ValueBool() {
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if utils.IsKnown(dspm.Enabled) && !dspm.Enabled.ValueBool() {
 			resp.Diagnostics.Append(diag.NewAttributeErrorDiagnostic(
 				path.Root("agentless_scanning_subscription_ids"),
 				"Invalid configuration",
@@ -652,7 +662,7 @@ func (r *cloudAzureTenantResource) createRegistration(
 ) (*models.AzureTenantRegistration, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	features, additional := buildAzureProductConfig(ctx, data, &diags)
+	features, additionalFeatures := buildAzureProductConfig(ctx, data, &diags)
 	if diags.HasError() {
 		return nil, diags
 	}
@@ -676,7 +686,7 @@ func (r *cloudAzureTenantResource) createRegistration(
 				Products: []*models.DomainProductFeatures{
 					{Product: utils.Addr("cspm"), Features: features},
 				},
-				AdditionalFeatures: additional,
+				AdditionalFeatures: additionalFeatures,
 				Tags:               utils.MapTypeAs[string](ctx, data.Tags, &diags),
 			},
 		},
@@ -712,7 +722,7 @@ func (r *cloudAzureTenantResource) updateRegistration(
 ) (*models.AzureTenantRegistration, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	features, additional := buildAzureProductConfig(ctx, data, &diags)
+	features, additionalFeatures := buildAzureProductConfig(ctx, data, &diags)
 	if diags.HasError() {
 		return nil, diags
 	}
@@ -736,7 +746,7 @@ func (r *cloudAzureTenantResource) updateRegistration(
 				Products: []*models.DomainProductFeatures{
 					{Product: utils.Addr("cspm"), Features: features},
 				},
-				AdditionalFeatures: additional,
+				AdditionalFeatures: additionalFeatures,
 				Tags:               utils.MapTypeAs[string](ctx, data.Tags, &diags),
 			},
 		},
@@ -761,10 +771,6 @@ func (r *cloudAzureTenantResource) updateRegistration(
 
 	if params.Body.Resource.MicrosoftGraphPermissionIds == nil {
 		params.Body.Resource.MicrosoftGraphPermissionIds = []string{}
-	}
-
-	if params.Body.Resource.AdditionalFeatures == nil {
-		params.Body.Resource.AdditionalFeatures = []*models.AzureAdditionalFeature{}
 	}
 
 	res, err := r.client.CloudAzureRegistration.CloudRegistrationAzureUpdateRegistration(&params)
