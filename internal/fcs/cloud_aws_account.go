@@ -247,16 +247,20 @@ func (r *cloudAWSAccountResource) Schema(
 					stringvalidator.OneOf("commercial", "gov"),
 				},
 			},
+			// TODO: deprecate deployment_method. The API does not allow changing this
+			// value after creation, which forces awkward import/drift handling for
+			// callers. Future direction: remove this attribute or replace it with a
+			// read-only computed field.
 			"deployment_method": schema.StringAttribute{
 				Optional:    true,
 				Default:     stringdefault.StaticString("terraform-native"),
 				Computed:    true,
-				Description: "How the account was deployed. Valid values are 'terraform-native' and 'terraform-cft'",
+				Description: "How the account was deployed. Valid values are 'terraform-native', 'terraform-cft', and 'cft'. This value cannot be changed after the account is created.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf("terraform-native", "terraform-cft"),
+					stringvalidator.OneOf("terraform-native", "terraform-cft", "cft"),
 				},
 			},
 			"asset_inventory": schema.SingleNestedAttribute{
