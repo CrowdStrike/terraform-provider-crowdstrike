@@ -452,7 +452,7 @@ func TestAccCloudAzureTenant_agentlessSubIdsRequiresDSPM(t *testing.T) {
 	})
 }
 
-func TestAccCloudAzureTenant_agentlessSubIdsUnknown(t *testing.T) {
+func TestAccCloudAzureTenant_agentless_UnknownDSPMEnabled(t *testing.T) {
 	tenantID := acctest.RandomUUID()
 	subID1 := acctest.RandomUUID()
 
@@ -482,7 +482,7 @@ func TestAccCloudAzureTenant_agentlessSubIdsUnknown(t *testing.T) {
 	})
 }
 
-func TestAccCloudAzureTenant_agentlessSubIdsUnknownIDs(t *testing.T) {
+func TestAccCloudAzureTenant_agentless_UnknownSubIds(t *testing.T) {
 	tenantID := acctest.RandomUUID()
 	subID1 := acctest.RandomUUID()
 
@@ -508,7 +508,7 @@ func TestAccCloudAzureTenant_agentlessSubIdsUnknownIDs(t *testing.T) {
 	})
 }
 
-func TestAccCloudAzureTenant_agentlessSubIdsUnknownDSPMObject(t *testing.T) {
+func TestAccCloudAzureTenant_agentless_UnknownDSPMObject(t *testing.T) {
 	tenantID := acctest.RandomUUID()
 	subID1 := acctest.RandomUUID()
 
