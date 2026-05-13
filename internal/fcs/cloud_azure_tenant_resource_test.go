@@ -360,6 +360,13 @@ func TestAccCloudAzureTenant_agentlessScanningSubscriptionIds(t *testing.T) {
 				},
 			},
 			{
+				ResourceName:                         cloudAzureTenantResourceName,
+				ImportState:                          true,
+				ImportStateId:                        tenantID,
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "tenant_id",
+			},
+			{
 				Config: testAccCloudAzureTenantConfig_withManagementGroup(tenantID, mgID),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
@@ -411,6 +418,13 @@ func TestAccCloudAzureTenant_agentlessScanningSubscriptionIdsTenantWide(t *testi
 				},
 			},
 			{
+				ResourceName:                         cloudAzureTenantResourceName,
+				ImportState:                          true,
+				ImportStateId:                        tenantID,
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "tenant_id",
+			},
+			{
 				Config: testAccCloudAzureTenantConfig_basic(tenantID),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
@@ -433,6 +447,69 @@ func TestAccCloudAzureTenant_agentlessSubIdsRequiresDSPM(t *testing.T) {
 			{
 				Config:      testAccCloudAzureTenantConfig_agentlessSubIdsNoDSPM(tenantID, subID1),
 				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm to be enabled"),
+			},
+		},
+	})
+}
+
+func TestAccCloudAzureTenant_agentlessSubIdsShapeTransitions(t *testing.T) {
+	tenantID := acctest.RandomUUID()
+	subID1 := acctest.RandomUUID()
+	subID2 := acctest.RandomUUID()
+
+	importStep := resource.TestStep{
+		ResourceName:                         cloudAzureTenantResourceName,
+		ImportState:                          true,
+		ImportStateId:                        tenantID,
+		ImportStateVerify:                    true,
+		ImportStateVerifyIdentifierAttribute: "tenant_id",
+	}
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAzureTenantConfig_basic(tenantID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("agentless_scanning_subscription_ids"), knownvalue.Null()),
+				},
+			},
+			{
+				Config: testAccCloudAzureTenantConfig_dspmEnabled(tenantID, true),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("agentless_scanning_subscription_ids"), knownvalue.Null()),
+				},
+			},
+			importStep,
+			{
+				Config: testAccCloudAzureTenantConfig_tenantWideWithAgentlessSubIds(tenantID, subID1, subID2),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("agentless_scanning_subscription_ids"), knownvalue.SetExact([]knownvalue.Check{
+						knownvalue.StringExact(subID1),
+						knownvalue.StringExact(subID2),
+					})),
+				},
+			},
+			importStep,
+			{
+				Config: testAccCloudAzureTenantConfig_dspmEnabled(tenantID, true),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("agentless_scanning_subscription_ids"), knownvalue.Null()),
+				},
+			},
+			importStep,
+			{
+				Config: testAccCloudAzureTenantConfig_basic(tenantID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("agentless_scanning_subscription_ids"), knownvalue.Null()),
+				},
 			},
 		},
 	})

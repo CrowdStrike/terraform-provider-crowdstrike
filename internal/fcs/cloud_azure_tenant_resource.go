@@ -137,6 +137,45 @@ func (r *dspmModel) FromObject(ctx context.Context, obj types.Object) diag.Diagn
 	return obj.As(ctx, r, basetypes.ObjectAsOptions{})
 }
 
+func buildAzureProductConfig(
+	ctx context.Context,
+	data *cloudAzureTenantModel,
+	diags *diag.Diagnostics,
+) (features []string, additional []*models.AzureAdditionalFeature) {
+	features = []string{"iom"}
+
+	var rtv realtimeVisibilityModel
+	diags.Append(rtv.FromObject(ctx, data.RealtimeVisibility)...)
+	if diags.HasError() {
+		return features, nil
+	}
+	if rtv.Enabled.ValueBool() {
+		features = append(features, "ioa")
+	}
+
+	var dspm dspmModel
+	diags.Append(dspm.FromObject(ctx, data.DSPM)...)
+	if diags.HasError() {
+		return features, nil
+	}
+	if !dspm.Enabled.ValueBool() {
+		return features, nil
+	}
+
+	subs := flex.ExpandSetAs[string](ctx, data.AgentlessScanningSubscriptionIds, diags)
+	if len(subs) == 0 {
+		features = append(features, "dspm")
+		return features, nil
+	}
+
+	additional = []*models.AzureAdditionalFeature{{
+		Feature:         utils.Addr("dspm"),
+		Product:         utils.Addr("cspm"),
+		SubscriptionIds: subs,
+	}}
+	return features, additional
+}
+
 func (r *cloudAzureTenantResource) Schema(
 	ctx context.Context,
 	req resource.SchemaRequest,
@@ -330,17 +369,19 @@ func (m *cloudAzureTenantModel) wrap(
 		}
 	}
 
+	var agentlessSubIds []string
 	for _, af := range registration.AdditionalFeatures {
 		if af != nil && af.Feature != nil && *af.Feature == "dspm" {
-			if !m.AgentlessScanningSubscriptionIds.IsNull() && len(af.SubscriptionIds) > 0 {
-				hasDSPM = true
-				agentlessSubIds, d := flex.FlattenStringValueSet(ctx, af.SubscriptionIds)
-				diags.Append(d...)
-				m.AgentlessScanningSubscriptionIds = agentlessSubIds
-			}
+			agentlessSubIds = af.SubscriptionIds
 			break
 		}
 	}
+	if len(agentlessSubIds) > 0 {
+		hasDSPM = true
+	}
+	agentlessSet, d := flex.FlattenStringValueSet(ctx, agentlessSubIds)
+	diags.Append(d...)
+	m.AgentlessScanningSubscriptionIds = agentlessSet
 
 	rtv := realtimeVisibilityModel{Enabled: types.BoolValue(hasIOA)}
 	rtvObj, d := rtv.ToObject(ctx)
@@ -520,10 +561,10 @@ func (r cloudAzureTenantResource) ModifyPlan(
 		return
 	}
 
-	if !plan.AgentlessScanningSubscriptionIds.IsNull() {
+	if !plan.AgentlessScanningSubscriptionIds.IsNull() && !plan.AgentlessScanningSubscriptionIds.IsUnknown() {
 		var dspm dspmModel
 		resp.Diagnostics.Append(dspm.FromObject(ctx, plan.DSPM)...)
-		if !resp.Diagnostics.HasError() && !dspm.Enabled.ValueBool() {
+		if !resp.Diagnostics.HasError() && !dspm.Enabled.IsUnknown() && !dspm.Enabled.ValueBool() {
 			resp.Diagnostics.Append(diag.NewAttributeErrorDiagnostic(
 				path.Root("agentless_scanning_subscription_ids"),
 				"Invalid configuration",
@@ -611,30 +652,9 @@ func (r *cloudAzureTenantResource) createRegistration(
 ) (*models.AzureTenantRegistration, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	cspmProductFeatures := models.DomainProductFeatures{
-		Product:  utils.Addr("cspm"),
-		Features: []string{"iom"},
-	}
-
-	// RTV&D
-	var rtv realtimeVisibilityModel
-	diags.Append(rtv.FromObject(ctx, data.RealtimeVisibility)...)
+	features, additional := buildAzureProductConfig(ctx, data, &diags)
 	if diags.HasError() {
 		return nil, diags
-	}
-	if rtv.Enabled.ValueBool() {
-		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "ioa")
-	}
-
-	// DSPM
-	var dspm dspmModel
-	diags.Append(dspm.FromObject(ctx, data.DSPM)...)
-	if diags.HasError() {
-		return nil, diags
-	}
-	agentlessSubIds := flex.ExpandSetAs[string](ctx, data.AgentlessScanningSubscriptionIds, &diags)
-	if dspm.Enabled.ValueBool() && len(agentlessSubIds) == 0 {
-		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "dspm")
 	}
 
 	params := cloud_azure_registration.CloudRegistrationAzureCreateRegistrationParams{
@@ -654,22 +674,13 @@ func (r *cloudAzureTenantResource) createRegistration(
 				ManagementGroupIds:          flex.ExpandSetAs[string](ctx, data.ManagementGroupIds, &diags),
 				MicrosoftGraphPermissionIds: flex.ExpandSetAs[string](ctx, data.MicrosoftGraphPermissionIds, &diags),
 				Products: []*models.DomainProductFeatures{
-					&cspmProductFeatures,
+					{Product: utils.Addr("cspm"), Features: features},
 				},
-				Tags: utils.MapTypeAs[string](ctx, data.Tags, &diags),
+				AdditionalFeatures: additional,
+				Tags:               utils.MapTypeAs[string](ctx, data.Tags, &diags),
 			},
 		},
 		Context: ctx,
-	}
-
-	if len(agentlessSubIds) > 0 && dspm.Enabled.ValueBool() {
-		params.Body.Resource.AdditionalFeatures = []*models.AzureAdditionalFeature{
-			{
-				Feature:         utils.Addr("dspm"),
-				Product:         utils.Addr("cspm"),
-				SubscriptionIds: agentlessSubIds,
-			},
-		}
 	}
 
 	if diags.HasError() {
@@ -701,30 +712,9 @@ func (r *cloudAzureTenantResource) updateRegistration(
 ) (*models.AzureTenantRegistration, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	cspmProductFeatures := models.DomainProductFeatures{
-		Product:  utils.Addr("cspm"),
-		Features: []string{"iom"},
-	}
-
-	// RTV&D
-	var rtv realtimeVisibilityModel
-	diags.Append(rtv.FromObject(ctx, data.RealtimeVisibility)...)
+	features, additional := buildAzureProductConfig(ctx, data, &diags)
 	if diags.HasError() {
 		return nil, diags
-	}
-	if rtv.Enabled.ValueBool() {
-		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "ioa")
-	}
-
-	// DSPM
-	var dspm dspmModel
-	diags.Append(dspm.FromObject(ctx, data.DSPM)...)
-	if diags.HasError() {
-		return nil, diags
-	}
-	agentlessSubIds := flex.ExpandSetAs[string](ctx, data.AgentlessScanningSubscriptionIds, &diags)
-	if dspm.Enabled.ValueBool() && len(agentlessSubIds) == 0 {
-		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "dspm")
 	}
 
 	params := cloud_azure_registration.CloudRegistrationAzureUpdateRegistrationParams{
@@ -744,22 +734,13 @@ func (r *cloudAzureTenantResource) updateRegistration(
 				ManagementGroupIds:          flex.ExpandSetAs[string](ctx, data.ManagementGroupIds, &diags),
 				MicrosoftGraphPermissionIds: flex.ExpandSetAs[string](ctx, data.MicrosoftGraphPermissionIds, &diags),
 				Products: []*models.DomainProductFeatures{
-					&cspmProductFeatures,
+					{Product: utils.Addr("cspm"), Features: features},
 				},
-				Tags: utils.MapTypeAs[string](ctx, data.Tags, &diags),
+				AdditionalFeatures: additional,
+				Tags:               utils.MapTypeAs[string](ctx, data.Tags, &diags),
 			},
 		},
 		Context: ctx,
-	}
-
-	if len(agentlessSubIds) > 0 && dspm.Enabled.ValueBool() {
-		params.Body.Resource.AdditionalFeatures = []*models.AzureAdditionalFeature{
-			{
-				Feature:         utils.Addr("dspm"),
-				Product:         utils.Addr("cspm"),
-				SubscriptionIds: agentlessSubIds,
-			},
-		}
 	}
 
 	if diags.HasError() {
@@ -780,6 +761,10 @@ func (r *cloudAzureTenantResource) updateRegistration(
 
 	if params.Body.Resource.MicrosoftGraphPermissionIds == nil {
 		params.Body.Resource.MicrosoftGraphPermissionIds = []string{}
+	}
+
+	if params.Body.Resource.AdditionalFeatures == nil {
+		params.Body.Resource.AdditionalFeatures = []*models.AzureAdditionalFeature{}
 	}
 
 	res, err := r.client.CloudAzureRegistration.CloudRegistrationAzureUpdateRegistration(&params)
