@@ -8,6 +8,7 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/cid"
 	cidgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cid_group"
 	cloudcompliance "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_compliance"
 	cloudgoogleregistration "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_google_registration"
@@ -351,6 +352,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		fim.NewFilevantagePoliciesDataSource,
 		hostgroups.NewHostGroupDataSource,
 		cidgroup.NewCIDGroupDataSource,
+		cid.NewCIDDataSource,
 		rtrscript.NewRTRScriptDataSource,
 		rtrputfile.NewRtrPutFileDataSource,
 	}
