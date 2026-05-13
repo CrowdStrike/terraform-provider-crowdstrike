@@ -1,6 +1,6 @@
 ---
 page_title: "crowdstrike_correlation_rules Data Source - crowdstrike"
-subcategory: "NGSIEM"
+subcategory: "Next-Gen SIEM"
 description: |-
   Use this data source to query existing CrowdStrike NGSIEM Correlation Rules.
   API Scopes
@@ -80,14 +80,16 @@ output "active_rule_names" {
 
 Read-Only:
 
+- `cid` (String) The CID of the environment.
 - `created_on` (String) Timestamp when the rule was created.
-- `customer_id` (String) The CID of the environment.
 - `description` (String) The correlation rule description.
-- `id` (String) The correlation rule ID.
+- `id` (String) Stable identifier of the correlation rule (the API's `rule_id`). Use this value with `terraform import` and when referencing the rule from other resources.
 - `name` (String) The correlation rule name.
-- `severity` (Number) The severity level (10, 30, 50, 70, 90).
+- `rule_id` (String) Alias of `id`. Stable correlation rule identifier returned by the API as `rule_id`.
+- `severity` (String) The severity level (`informational`, `low`, `medium`, `high`, `critical`).
 - `status` (String) The rule status (`active` or `inactive`).
 - `tactic` (String) The MITRE ATT&CK tactic ID.
 - `technique` (String) The MITRE ATT&CK technique ID.
 - `template_id` (String) The template ID this rule was created from.
+- `type` (String) Rule type. Always `correlation`; the data source filters out other rule types (e.g. `sensor`, `behavioral`) that this provider does not manage.
 - `updated_on` (String) Timestamp when the rule was last updated.

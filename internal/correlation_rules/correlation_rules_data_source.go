@@ -10,7 +10,10 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/correlation_rules"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
+	fwtypes "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/types"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -45,32 +48,36 @@ type correlationRulesDataSource struct {
 }
 
 type correlationRuleDataModel struct {
-	ID          types.String `tfsdk:"id"`
-	Name        types.String `tfsdk:"name"`
-	Description types.String `tfsdk:"description"`
-	CustomerID  types.String `tfsdk:"customer_id"`
-	Severity    types.Int32  `tfsdk:"severity"`
-	Status      types.String `tfsdk:"status"`
-	Tactic      types.String `tfsdk:"tactic"`
-	Technique   types.String `tfsdk:"technique"`
-	TemplateID  types.String `tfsdk:"template_id"`
-	CreatedOn   types.String `tfsdk:"created_on"`
-	UpdatedOn   types.String `tfsdk:"updated_on"`
+	ID          types.String    `tfsdk:"id"`
+	RuleID      types.String    `tfsdk:"rule_id"`
+	Name        types.String    `tfsdk:"name"`
+	Description types.String    `tfsdk:"description"`
+	CustomerID  types.String    `tfsdk:"cid"`
+	Severity    types.String    `tfsdk:"severity"`
+	Status      types.String    `tfsdk:"status"`
+	Type        types.String    `tfsdk:"type"`
+	Tactic      types.String    `tfsdk:"tactic"`
+	Technique   types.String    `tfsdk:"technique"`
+	TemplateID  types.String    `tfsdk:"template_id"`
+	CreatedOn   fwtypes.RFC3339 `tfsdk:"created_on"`
+	UpdatedOn   fwtypes.RFC3339 `tfsdk:"updated_on"`
 }
 
 func (m correlationRuleDataModel) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"id":          types.StringType,
+		"rule_id":     types.StringType,
 		"name":        types.StringType,
 		"description": types.StringType,
-		"customer_id": types.StringType,
-		"severity":    types.Int32Type,
+		"cid":         types.StringType,
+		"severity":    types.StringType,
 		"status":      types.StringType,
+		"type":        types.StringType,
 		"tactic":      types.StringType,
 		"technique":   types.StringType,
 		"template_id": types.StringType,
-		"created_on":  types.StringType,
-		"updated_on":  types.StringType,
+		"created_on":  fwtypes.RFC3339Type{},
+		"updated_on":  fwtypes.RFC3339Type{},
 	}
 }
 
@@ -82,6 +89,11 @@ type correlationRulesDataSourceModel struct {
 }
 
 // hasIndividualFilters returns true if any typed filter attributes are set.
+// correlationRuleTypeFilter restricts the data source to rules this provider
+// manages. The rules API also returns `sensor` and `behavioral` rule types,
+// which the correlation_rule resource cannot manage.
+const correlationRuleTypeFilter = "type:'correlation'"
+
 func (m correlationRulesDataSourceModel) hasIndividualFilters() bool {
 	return utils.IsKnown(m.Name) || utils.IsKnown(m.Status)
 }
@@ -135,7 +147,7 @@ func (d *correlationRulesDataSource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
-			"NGSIEM",
+			"Next-Gen SIEM",
 			"Use this data source to query existing CrowdStrike NGSIEM Correlation Rules.",
 			dataSourceAPIScopes,
 		),
@@ -168,7 +180,11 @@ func (d *correlationRulesDataSource) Schema(
 					Attributes: map[string]schema.Attribute{
 						"id": schema.StringAttribute{
 							Computed:            true,
-							MarkdownDescription: "The correlation rule ID.",
+							MarkdownDescription: "Stable identifier of the correlation rule (the API's `rule_id`). Use this value with `terraform import` and when referencing the rule from other resources.",
+						},
+						"rule_id": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "Alias of `id`. Stable correlation rule identifier returned by the API as `rule_id`.",
 						},
 						"name": schema.StringAttribute{
 							Computed:            true,
@@ -178,17 +194,21 @@ func (d *correlationRulesDataSource) Schema(
 							Computed:            true,
 							MarkdownDescription: "The correlation rule description.",
 						},
-						"customer_id": schema.StringAttribute{
+						"cid": schema.StringAttribute{
 							Computed:            true,
 							MarkdownDescription: "The CID of the environment.",
 						},
-						"severity": schema.Int32Attribute{
+						"severity": schema.StringAttribute{
 							Computed:            true,
-							MarkdownDescription: "The severity level (10, 30, 50, 70, 90).",
+							MarkdownDescription: "The severity level (`informational`, `low`, `medium`, `high`, `critical`).",
 						},
 						"status": schema.StringAttribute{
 							Computed:            true,
 							MarkdownDescription: "The rule status (`active` or `inactive`).",
+						},
+						"type": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "Rule type. Always `correlation`; the data source filters out other rule types (e.g. `sensor`, `behavioral`) that this provider does not manage.",
 						},
 						"tactic": schema.StringAttribute{
 							Computed:            true,
@@ -204,10 +224,12 @@ func (d *correlationRulesDataSource) Schema(
 						},
 						"created_on": schema.StringAttribute{
 							Computed:            true,
+							CustomType:          fwtypes.RFC3339Type{},
 							MarkdownDescription: "Timestamp when the rule was created.",
 						},
 						"updated_on": schema.StringAttribute{
 							Computed:            true,
+							CustomType:          fwtypes.RFC3339Type{},
 							MarkdownDescription: "Timestamp when the rule was last updated.",
 						},
 					},
@@ -249,17 +271,20 @@ func (d *correlationRulesDataSource) Read(
 		return
 	}
 
-	// Determine the FQL filter to use.
-	var filter *string
-	if utils.IsKnown(data.Filter) && data.Filter.ValueString() != "" {
-		f := data.Filter.ValueString()
-		filter = &f
-	} else if data.hasIndividualFilters() {
-		f := data.buildFQLFilter()
-		filter = &f
+	// Compose the FQL filter. The `type:'correlation'` clause is always
+	// included so the data source never returns rule types this provider does
+	// not manage (e.g. `sensor`, `behavioral`).
+	var f string
+	switch {
+	case utils.IsKnown(data.Filter) && data.Filter.ValueString() != "":
+		f = data.Filter.ValueString() + "+" + correlationRuleTypeFilter
+	case data.hasIndividualFilters():
+		f = data.buildFQLFilter() + "+" + correlationRuleTypeFilter
+	default:
+		f = correlationRuleTypeFilter
 	}
 
-	rules, diags := d.fetchAllRules(ctx, filter)
+	rules, diags := d.fetchAllRules(ctx, f)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -283,7 +308,7 @@ func (d *correlationRulesDataSource) Read(
 
 func (d *correlationRulesDataSource) fetchAllRules(
 	ctx context.Context,
-	filter *string,
+	filter string,
 ) ([]*models.CorrelationrulesapiRuleV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var allRules []*models.CorrelationrulesapiRuleV1
@@ -296,20 +321,22 @@ func (d *correlationRulesDataSource) fetchAllRules(
 			Offset:  &offset,
 			Limit:   &limit,
 		}
-		if filter != nil {
-			params.Filter = filter
-		}
+		params.Filter = &filter
 
 		res, err := d.client.CorrelationRules.CombinedRulesGetV1(params)
 		if err != nil {
-			diags.AddError(
-				"Failed to query correlation rules",
-				fmt.Sprintf("API call failed: %s", err),
-			)
+			diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, dataSourceAPIScopes))
 			return nil, diags
 		}
 
-		if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
+		if res == nil || res.Payload == nil {
+			break
+		}
+		if d := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Read, res.Payload.Errors); d != nil {
+			diags.Append(d)
+			return nil, diags
+		}
+		if len(res.Payload.Resources) == 0 {
 			break
 		}
 
@@ -331,37 +358,38 @@ func (d *correlationRulesDataSource) fetchAllRules(
 
 func mapRuleToDataModel(rule *models.CorrelationrulesapiRuleV1) correlationRuleDataModel {
 	m := correlationRuleDataModel{
-		Description: types.StringValue(rule.Description),
-	}
-	if rule.ID != nil {
+		Description: flex.StringValueToFramework(rule.Description),
+		Type:        flex.StringValueToFramework(rule.Type),
+	} // `id` mirrors the resource: the stable `rule_id` returned by the API.
+	// `rule.ID` is the version id which changes on every PATCH and is not
+	// accepted by GET/PATCH/DELETE on `/correlation-rules/entities/rules/v1`.
+	if rule.RuleID != "" {
+		m.ID = types.StringValue(rule.RuleID)
+		m.RuleID = types.StringValue(rule.RuleID)
+	} else if rule.ID != nil {
 		m.ID = types.StringValue(*rule.ID)
+		m.RuleID = types.StringValue(*rule.ID)
 	}
-	if rule.Name != nil {
-		m.Name = types.StringValue(*rule.Name)
-	}
-	if rule.CustomerID != nil {
-		m.CustomerID = types.StringValue(*rule.CustomerID)
-	}
+	m.Name = flex.StringPointerToFramework(rule.Name)
+	m.CustomerID = flex.StringPointerToFramework(rule.CustomerID)
 	if rule.Severity != nil {
-		m.Severity = types.Int32Value(*rule.Severity)
+		if name, ok := severityAPIToName[*rule.Severity]; ok {
+			m.Severity = types.StringValue(name)
+		}
 	}
-	if rule.Status != nil {
-		m.Status = types.StringValue(*rule.Status)
+	m.Status = flex.StringPointerToFramework(rule.Status)
+	m.Tactic = flex.StringPointerToFramework(rule.Tactic)
+	m.Technique = flex.StringPointerToFramework(rule.Technique)
+	m.TemplateID = flex.StringPointerToFramework(rule.TemplateID)
+	if rule.CreatedOn != nil && !time.Time(*rule.CreatedOn).IsZero() {
+		m.CreatedOn = fwtypes.NewRFC3339TimeValue(time.Time(*rule.CreatedOn))
+	} else {
+		m.CreatedOn = fwtypes.NewRFC3339Null()
 	}
-	if rule.Tactic != nil {
-		m.Tactic = types.StringValue(*rule.Tactic)
-	}
-	if rule.Technique != nil {
-		m.Technique = types.StringValue(*rule.Technique)
-	}
-	if rule.TemplateID != nil {
-		m.TemplateID = types.StringValue(*rule.TemplateID)
-	}
-	if rule.CreatedOn != nil {
-		m.CreatedOn = types.StringValue(time.Time(*rule.CreatedOn).Format(time.RFC3339))
-	}
-	if rule.LastUpdatedOn != nil {
-		m.UpdatedOn = types.StringValue(time.Time(*rule.LastUpdatedOn).Format(time.RFC3339))
+	if rule.LastUpdatedOn != nil && !time.Time(*rule.LastUpdatedOn).IsZero() {
+		m.UpdatedOn = fwtypes.NewRFC3339TimeValue(time.Time(*rule.LastUpdatedOn))
+	} else {
+		m.UpdatedOn = fwtypes.NewRFC3339Null()
 	}
 	return m
 }

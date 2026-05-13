@@ -3,6 +3,7 @@ package correlationrules
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
@@ -12,13 +13,16 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
+	fwtypes "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/types"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
-	"github.com/hashicorp/terraform-plugin-framework-validators/int32validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -26,7 +30,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -40,6 +43,7 @@ var (
 	_ resource.ResourceWithConfigure      = &correlationRuleResource{}
 	_ resource.ResourceWithImportState    = &correlationRuleResource{}
 	_ resource.ResourceWithValidateConfig = &correlationRuleResource{}
+	_ resource.ResourceWithModifyPlan     = &correlationRuleResource{}
 )
 
 var apiScopes = []scopes.Scope{
@@ -62,41 +66,36 @@ type correlationRuleResource struct {
 
 // CorrelationRuleResourceModel defines the Terraform resource model.
 type CorrelationRuleResourceModel struct {
-	ID                    types.String `tfsdk:"id"`
-	CustomerID            types.String `tfsdk:"customer_id"`
-	Name                  types.String `tfsdk:"name"`
-	Description           types.String `tfsdk:"description"`
-	Severity              types.Int32  `tfsdk:"severity"`
-	Status                types.String `tfsdk:"status"`
-	Comment               types.String `tfsdk:"comment"`
-	Tactic                types.String `tfsdk:"tactic"`
-	Technique             types.String `tfsdk:"technique"`
-	TemplateID            types.String `tfsdk:"template_id"`
-	TriggerOnCreate       types.Bool   `tfsdk:"trigger_on_create"`
-	Search                types.Object `tfsdk:"search"`
-	Operation             types.Object `tfsdk:"operation"`
-	MitreAttack           types.List   `tfsdk:"mitre_attack"`
-	Notification          types.List   `tfsdk:"notification"`
-	GuardrailNotification types.List   `tfsdk:"guardrail_notification"`
+	ID            types.String `tfsdk:"id"`
+	CustomerID    types.String `tfsdk:"cid"`
+	Name          types.String `tfsdk:"name"`
+	Description   types.String `tfsdk:"description"`
+	Severity      types.String `tfsdk:"severity"`
+	Status        types.String `tfsdk:"status"`
+	Comment       types.String `tfsdk:"comment"`
+	Search        types.Object `tfsdk:"search"`
+	Schedule      types.Object `tfsdk:"schedule"`
+	MitreAttack   types.List   `tfsdk:"mitre_attack"`
+	Notifications types.Set    `tfsdk:"notifications"`
 }
 
 // SearchModel defines the search block.
 type SearchModel struct {
-	Filter         types.String `tfsdk:"filter"`
-	Lookback       types.String `tfsdk:"lookback"`
-	Outcome        types.String `tfsdk:"outcome"`
-	TriggerMode    types.String `tfsdk:"trigger_mode"`
-	ExecutionMode  types.String `tfsdk:"execution_mode"`
-	UseIngestTime  types.Bool   `tfsdk:"use_ingest_time"`
-	CaseTemplateID types.String `tfsdk:"case_template_id"`
+	Filter         types.String         `tfsdk:"filter"`
+	Lookback       timetypes.GoDuration `tfsdk:"lookback"`
+	CreateCase     types.Bool           `tfsdk:"create_case"`
+	TriggerMode    types.String         `tfsdk:"trigger_mode"`
+	ExecutionMode  types.String         `tfsdk:"execution_mode"`
+	UseIngestTime  types.Bool           `tfsdk:"use_ingest_time"`
+	CaseTemplateID types.String         `tfsdk:"case_template_id"`
 }
 
 // AttributeTypes returns the attribute types for SearchModel.
 func (m SearchModel) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"filter":           types.StringType,
-		"lookback":         types.StringType,
-		"outcome":          types.StringType,
+		"lookback":         timetypes.GoDurationType{},
+		"create_case":      types.BoolType,
 		"trigger_mode":     types.StringType,
 		"execution_mode":   types.StringType,
 		"use_ingest_time":  types.BoolType,
@@ -104,31 +103,34 @@ func (m SearchModel) AttributeTypes() map[string]attr.Type {
 	}
 }
 
-// OperationModel defines the operation block.
-type OperationModel struct {
-	Schedule types.Object      `tfsdk:"schedule"`
-	StartOn  timetypes.RFC3339 `tfsdk:"start_on"`
-	StopOn   timetypes.RFC3339 `tfsdk:"stop_on"`
-}
+// outcomeDetection and outcomeCase are the wire values for search.outcome.
+// A detection is always created; outcomeCase additionally creates a case.
+const (
+	outcomeDetection = "detection"
+	outcomeCase      = "case"
+)
 
-// AttributeTypes returns the attribute types for OperationModel.
-func (m OperationModel) AttributeTypes() map[string]attr.Type {
-	return map[string]attr.Type{
-		"schedule": types.ObjectType{AttrTypes: ScheduleModel{}.AttributeTypes()},
-		"start_on": timetypes.RFC3339Type{},
-		"stop_on":  timetypes.RFC3339Type{},
+// outcomeFromCreateCase maps the create_case bool to the wire outcome string.
+func outcomeFromCreateCase(createCase bool) string {
+	if createCase {
+		return outcomeCase
 	}
+	return outcomeDetection
 }
 
-// ScheduleModel defines the schedule block within operation.
+// ScheduleModel defines the schedule block.
 type ScheduleModel struct {
-	Definition types.String `tfsdk:"definition"`
+	Interval timetypes.GoDuration `tfsdk:"interval"`
+	StartOn  fwtypes.RFC3339      `tfsdk:"start_on"`
+	StopOn   fwtypes.RFC3339      `tfsdk:"stop_on"`
 }
 
 // AttributeTypes returns the attribute types for ScheduleModel.
 func (m ScheduleModel) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"definition": types.StringType,
+		"interval": timetypes.GoDurationType{},
+		"start_on": fwtypes.RFC3339Type{},
+		"stop_on":  fwtypes.RFC3339Type{},
 	}
 }
 
@@ -146,39 +148,27 @@ func (m MitreAttackModel) AttributeTypes() map[string]attr.Type {
 	}
 }
 
-// NotificationModel defines the notification block.
+// NotificationModel defines a single notification entry. Regular and guardrail
+// notifications share this shape; the `is_guardrail` flag determines which API
+// array the entry is routed to.
 type NotificationModel struct {
-	Type    types.String `tfsdk:"type"`
-	Config  types.Object `tfsdk:"config"`
-	Options types.Map    `tfsdk:"options"`
+	Type        types.String `tfsdk:"type"`
+	IsGuardrail types.Bool   `tfsdk:"is_guardrail"`
+	Recipients  types.List   `tfsdk:"recipients"`
+	PluginID    types.String `tfsdk:"plugin_id"`
+	ConfigID    types.String `tfsdk:"config_id"`
+	Severity    types.String `tfsdk:"severity"`
 }
 
 // AttributeTypes returns the attribute types for NotificationModel.
 func (m NotificationModel) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"type":    types.StringType,
-		"config":  types.ObjectType{AttrTypes: NotificationConfigModel{}.AttributeTypes()},
-		"options": types.MapType{ElemType: types.StringType},
-	}
-}
-
-// NotificationConfigModel defines the config block within notification.
-type NotificationConfigModel struct {
-	Cid        types.String `tfsdk:"cid"`
-	ConfigID   types.String `tfsdk:"config_id"`
-	PluginID   types.String `tfsdk:"plugin_id"`
-	Recipients types.List   `tfsdk:"recipients"`
-	Severity   types.String `tfsdk:"severity"`
-}
-
-// AttributeTypes returns the attribute types for NotificationConfigModel.
-func (m NotificationConfigModel) AttributeTypes() map[string]attr.Type {
-	return map[string]attr.Type{
-		"cid":        types.StringType,
-		"config_id":  types.StringType,
-		"plugin_id":  types.StringType,
-		"recipients": types.ListType{ElemType: types.StringType},
-		"severity":   types.StringType,
+		"type":         types.StringType,
+		"is_guardrail": types.BoolType,
+		"recipients":   types.ListType{ElemType: types.StringType},
+		"plugin_id":    types.StringType,
+		"config_id":    types.StringType,
+		"severity":     types.StringType,
 	}
 }
 
@@ -221,26 +211,26 @@ func (r *correlationRuleResource) Schema(
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
-			"NGSIEM",
-			"Manages CrowdStrike NGSIEM Correlation Rules. Correlation rules allow you to define conditions for generating alerts based on event patterns.",
+			"Next-Gen SIEM",
+			"Manages CrowdStrike NGSIEM Correlation Rules. Correlation rules allow you to define conditions for generating alerts based on event patterns. For tenant limits and other product-level constraints, see the correlation rules documentation in the Falcon console.",
 			apiScopes,
 		),
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed:            true,
-				MarkdownDescription: "Unique identifier of the correlation rule. Computed.",
+				MarkdownDescription: "The rule id. This is the stable rule identifier, not a version id.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"customer_id": schema.StringAttribute{
+			"cid": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "The CID of the environment (tenant ID).",
+				MarkdownDescription: "The CID of the environment (tenant ID). Must be 32 lowercase hex characters with no `-NN` checksum suffix (the canonical form the API returns).",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					fwvalidators.StringNotWhitespace(),
+					CIDValidator(),
 				},
 			},
 			"name": schema.StringAttribute{
@@ -252,29 +242,16 @@ func (r *correlationRuleResource) Schema(
 			},
 			"description": schema.StringAttribute{
 				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString(""),
-				MarkdownDescription: "Description of the correlation rule. Optional. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplaceIf(
-						func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
-							// The PATCH model uses omitempty, so an empty string is
-							// never sent to the API.  Force replace when clearing a
-							// previously set value.
-							if req.StateValue.ValueString() != "" && req.PlanValue.ValueString() == "" {
-								resp.RequiresReplace = true
-							}
-						},
-						"Requires replacement when clearing description due to an API limitation.",
-						"Requires replacement when clearing `description` due to an API limitation.",
-					),
+				MarkdownDescription: "Description of the correlation rule.",
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
 				},
 			},
-			"severity": schema.Int32Attribute{
+			"severity": schema.StringAttribute{
 				Required:            true,
-				MarkdownDescription: "The severity level of generated alerts. Valid values are `10` (Informational), `30` (Low), `50` (Medium), `70` (High), `90` (Critical).",
-				Validators: []validator.Int32{
-					int32validator.OneOf(10, 30, 50, 70, 90),
+				MarkdownDescription: "The severity level of generated alerts. Valid values: `informational`, `low`, `medium`, `high`, `critical`.",
+				Validators: []validator.String{
+					stringvalidator.OneOf(severityNames()...),
 				},
 			},
 			"status": schema.StringAttribute{
@@ -286,53 +263,13 @@ func (r *correlationRuleResource) Schema(
 			},
 			"comment": schema.StringAttribute{
 				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString(""),
-				MarkdownDescription: "A comment. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplaceIf(
-						func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
-							// The PATCH model uses omitempty, so an empty string is
-							// never sent to the API.  Force replace when clearing a
-							// previously set value.
-							if req.StateValue.ValueString() != "" && req.PlanValue.ValueString() == "" {
-								resp.RequiresReplace = true
-							}
-						},
-						"Requires replacement when clearing comment due to an API limitation.",
-						"Requires replacement when clearing `comment` due to an API limitation.",
-					),
+				MarkdownDescription: "A comment describing the rule or its most recent change.",
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
 				},
 			},
-			"tactic": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "The MITRE ATT&CK tactic ID. Derived from the first mitre_attack entry.",
-				PlanModifiers: []planmodifier.String{
-					useStateUnlessMitreChanged{},
-				},
-			},
-			"technique": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "The MITRE ATT&CK technique ID. Derived from the first mitre_attack entry.",
-				PlanModifiers: []planmodifier.String{
-					useStateUnlessMitreChanged{},
-				},
-			},
-			"template_id": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "The ID of the template this rule was created from, if any. Read-only; only populated on import and read.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
-			"trigger_on_create": schema.BoolAttribute{
-				Optional:            true,
-				WriteOnly:           true,
-				MarkdownDescription: "Whether to trigger the rule immediately upon creation. Write-only; not stored in state.",
-			},
-		},
-		Blocks: map[string]schema.Block{
-			"search": schema.SingleNestedBlock{
+			"search": schema.SingleNestedAttribute{
+				Required:            true,
 				MarkdownDescription: "The search configuration that defines the rule's detection logic.",
 				Attributes: map[string]schema.Attribute{
 					"filter": schema.StringAttribute{
@@ -343,18 +280,18 @@ func (r *correlationRuleResource) Schema(
 						},
 					},
 					"lookback": schema.StringAttribute{
+						CustomType:          timetypes.GoDurationType{},
 						Required:            true,
-						MarkdownDescription: "The search window in hours and minutes (e.g., `1h0m`, `5h30m`, `24h0m`). Should be at least as long as the schedule frequency.",
+						MarkdownDescription: "The search window as a Go duration string (e.g., `1h0m`, `5h30m`, `24h`, `90m`). Should be at least as long as the schedule frequency. Maximum is `168h`.",
 						Validators: []validator.String{
-							fwvalidators.StringNotWhitespace(),
+							LookbackValidator(),
 						},
 					},
-					"outcome": schema.StringAttribute{
-						Required:            true,
-						MarkdownDescription: "Whether to create a detection or incident if a match is found. Valid values: `detection`, `incident`.",
-						Validators: []validator.String{
-							stringvalidator.OneOf("detection", "incident"),
-						},
+					"create_case": schema.BoolAttribute{
+						Optional:            true,
+						Computed:            true,
+						Default:             booldefault.StaticBool(false),
+						MarkdownDescription: "Whether the rule also creates a case when it matches. A detection is always created; set this to `true` to additionally create a case (optionally from `case_template_id`). Defaults to `false`.",
 					},
 					"trigger_mode": schema.StringAttribute{
 						Required:            true,
@@ -363,12 +300,14 @@ func (r *correlationRuleResource) Schema(
 							stringvalidator.OneOf("verbose", "summary"),
 						},
 					},
-					// Currently it seems like only scheduled is valid.
 					"execution_mode": schema.StringAttribute{
 						Optional:            true,
 						Computed:            true,
 						Default:             stringdefault.StaticString("scheduled"),
 						MarkdownDescription: "The execution mode for the rule. Currently only `scheduled` is supported. Defaults to `scheduled`. **Note:** Changes to this field require the resource to be destroyed and recreated.",
+						Validators: []validator.String{
+							stringvalidator.OneOf("scheduled"),
+						},
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.RequiresReplace(),
 						},
@@ -377,77 +316,41 @@ func (r *correlationRuleResource) Schema(
 						Optional:            true,
 						Computed:            true,
 						Default:             booldefault.StaticBool(false),
-						MarkdownDescription: "If true, use the timestamp of the moment the event was ingested by crowdstrike cloud. Otherwise use the moment the event was generated on the system. **Note:** Due to an API limitation, changing this value from `true` to `false` requires the resource to be destroyed and recreated.",
-						PlanModifiers: []planmodifier.Bool{
-							boolplanmodifier.RequiresReplaceIf(
-								func(_ context.Context, req planmodifier.BoolRequest, resp *boolplanmodifier.RequiresReplaceIfFuncResponse) {
-									// The API does not support unsetting use_ingest_time via PATCH.
-									// Force replace when changing from true to false.
-									if req.StateValue.ValueBool() && !req.PlanValue.ValueBool() {
-										resp.RequiresReplace = true
-									}
-								},
-								"Requires replacement when changing use_ingest_time from true to false due to an API limitation.",
-								"Requires replacement when changing `use_ingest_time` from `true` to `false` due to an API limitation.",
-							),
-						},
+						MarkdownDescription: "If true, use the timestamp of the moment the event was ingested by crowdstrike cloud. Otherwise use the moment the event was generated on the system.",
 					},
 					"case_template_id": schema.StringAttribute{
 						Optional:            true,
-						Computed:            true,
-						Default:             stringdefault.StaticString(""),
-						MarkdownDescription: "The ID of the case template used to generate a case when the rule triggers. If not set, no case template is used. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.",
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.RequiresReplaceIf(
-								func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
-									// The API omits empty strings (omitempty), so clearing case_template_id
-									// via PATCH is not possible. Force replace when removing a set value.
-									if req.StateValue.ValueString() != "" && req.PlanValue.ValueString() == "" {
-										resp.RequiresReplace = true
-									}
-								},
-								"Requires replacement when clearing case_template_id due to an API limitation.",
-								"Requires replacement when clearing `case_template_id` due to an API limitation.",
-							),
+						MarkdownDescription: "The ID of the case template used to generate a case when the rule triggers. If not set, no case template is used.",
+						Validators: []validator.String{
+							fwvalidators.StringNotWhitespace(),
 						},
 					},
 				},
 			},
-			"operation": schema.SingleNestedBlock{
-				MarkdownDescription: "The operation configuration that defines scheduling and timing for the rule.",
-				Blocks: map[string]schema.Block{
-					"schedule": schema.SingleNestedBlock{
-						MarkdownDescription: "The schedule configuration for when the rule should run.",
-						Attributes: map[string]schema.Attribute{
-							"definition": schema.StringAttribute{
-								Required:            true,
-								MarkdownDescription: "How often to run the query using `@every` format (e.g., `@every 1h0m`, `@every 5h30m`). Minimum interval is 5 minutes (`@every 0h5m`).",
-								Validators: []validator.String{
-									fwvalidators.StringNotWhitespace(),
-								},
-							},
+			"schedule": schema.SingleNestedAttribute{
+				Required:            true,
+				MarkdownDescription: "The schedule that controls when the rule runs.",
+				Attributes: map[string]schema.Attribute{
+					"interval": schema.StringAttribute{
+						CustomType:          timetypes.GoDurationType{},
+						Required:            true,
+						MarkdownDescription: "How often to run the query, as a Go duration string (e.g., `1h0m`, `5h30m`, `30m`). Minimum is `5m` (the API caps at 288 executions per day).",
+						Validators: []validator.String{
+							ScheduleIntervalValidator(),
 						},
 					},
-				},
-				Attributes: map[string]schema.Attribute{
 					"start_on": schema.StringAttribute{
-						CustomType:          timetypes.RFC3339Type{},
-						Optional:            true,
-						Computed:            true,
-						MarkdownDescription: "The UTC time to start running the query (e.g., `2024-11-19T19:00:00Z`). Defaults to 15 minutes from creation time if not specified.",
-						PlanModifiers: []planmodifier.String{
-							stringplanmodifier.UseStateForUnknown(),
-						},
+						CustomType:          fwtypes.RFC3339Type{},
+						Required:            true,
+						MarkdownDescription: "The UTC time to start running the query (e.g., `2024-11-19T19:00:00Z`). Must be at least 15 minutes in the future at create time.",
 					},
 					"stop_on": schema.StringAttribute{
-						CustomType:          timetypes.RFC3339Type{},
+						CustomType:          fwtypes.RFC3339Type{},
 						Optional:            true,
 						MarkdownDescription: "The UTC time to stop running the query (e.g., `2024-12-31T23:59:59Z`). If not specified, no stop time is used. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.",
 						PlanModifiers: []planmodifier.String{
 							stringplanmodifier.RequiresReplaceIf(
 								func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
-									// The API does not support clearing stop_on via PATCH.
-									// Force replace when removing a previously set value.
 									if !req.StateValue.IsNull() && req.PlanValue.IsNull() {
 										resp.RequiresReplace = true
 									}
@@ -459,9 +362,13 @@ func (r *correlationRuleResource) Schema(
 					},
 				},
 			},
-			"mitre_attack": schema.ListNestedBlock{
-				MarkdownDescription: "MITRE ATT&CK mappings for the rule.",
-				NestedObject: schema.NestedBlockObject{
+			"mitre_attack": schema.ListNestedAttribute{
+				Optional:            true,
+				MarkdownDescription: "MITRE ATT&CK mappings for the rule. Maximum of 10 entries.",
+				Validators: []validator.List{
+					listvalidator.SizeAtMost(10),
+				},
+				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"tactic_id": schema.StringAttribute{
 							Required:            true,
@@ -472,74 +379,62 @@ func (r *correlationRuleResource) Schema(
 						},
 						"technique_id": schema.StringAttribute{
 							Optional:            true,
-							Computed:            true,
-							Default:             stringdefault.StaticString(""),
 							MarkdownDescription: "The MITRE ATT&CK technique ID (e.g., `T1078`).",
+							Validators: []validator.String{
+								fwvalidators.StringNotWhitespace(),
+							},
 						},
 					},
 				},
 			},
-			"notification":           notificationBlock("Notification configurations for the rule. Notifications are sent when the rule triggers."),
-			"guardrail_notification": notificationBlock("Guardrail notification configurations for the rule. Guardrail notifications are sent when guardrail conditions are met."),
-		},
-	}
-}
-
-// notificationBlock returns the schema for a notification or guardrail_notification block.
-func notificationBlock(description string) schema.ListNestedBlock {
-	return schema.ListNestedBlock{
-		MarkdownDescription: description,
-		NestedObject: schema.NestedBlockObject{
-			Attributes: map[string]schema.Attribute{
-				"type": schema.StringAttribute{
-					Required:            true,
-					MarkdownDescription: "The notification type (e.g., `email`, `slack`, `webhook`).",
-					Validators: []validator.String{
-						fwvalidators.StringNotWhitespace(),
-					},
+			"notifications": schema.SetNestedAttribute{
+				Required:            true,
+				MarkdownDescription: "Notifications sent when the rule requires attention. Each entry describes a delivery channel and is routed to the rule's regular (errors/warnings) array, the guardrail (auto-deactivation) array, or both via `is_guardrail`. At least one entry MUST set `is_guardrail = true`. Regular entries always send on failure and never on success — these options are not configurable.",
+				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
 				},
-				"options": schema.MapAttribute{
-					Optional:            true,
-					ElementType:         types.StringType,
-					MarkdownDescription: "Additional options for the notification. The available options depend on the notification type.",
-				},
-			},
-			Blocks: map[string]schema.Block{
-				"config": schema.SingleNestedBlock{
-					MarkdownDescription: "The notification configuration.",
+				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"cid": schema.StringAttribute{
+						"type": schema.StringAttribute{
+							Required:            true,
+							MarkdownDescription: "The notification channel type. Valid values: `email`, `slack`, `pagerduty`, `webhook`, `ms_teams`.",
+							Validators: []validator.String{
+								stringvalidator.OneOf("email", "slack", "pagerduty", "webhook", "ms_teams"),
+							},
+						},
+						"is_guardrail": schema.BoolAttribute{
 							Optional:            true,
 							Computed:            true,
-							MarkdownDescription: "The CID for the notification configuration. Defaults to the rule's customer_id if not specified.",
+							Default:             booldefault.StaticBool(false),
+							MarkdownDescription: "If true, the entry is sent to the rule's guardrail notification list, which fires when the platform auto-deactivates the rule for exceeding outcome thresholds (50 outcomes when the rule runs more than once per 24 hours; 100 outcomes otherwise). At least one notification on every rule must set this to `true`. Defaults to `false`.",
 						},
-						"config_id": schema.StringAttribute{
+						"recipients": schema.ListAttribute{
 							Optional:            true,
-							MarkdownDescription: "The configuration ID for the notification. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.",
-							PlanModifiers: []planmodifier.String{
-								normalizeEmptyToNull{},
-								requiresReplaceIfCleared(),
+							ElementType:         types.StringType,
+							MarkdownDescription: "Email addresses to notify. Required (at least one) when `type = \"email\"`; not used by other channel types, which route through `plugin_id`/`config_id` instead.",
+							Validators: []validator.List{
+								listvalidator.ValueStringsAre(fwvalidators.StringIsEmailAddress()),
 							},
 						},
 						"plugin_id": schema.StringAttribute{
 							Optional:            true,
-							MarkdownDescription: "The plugin ID for the notification. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.",
-							PlanModifiers: []planmodifier.String{
-								normalizeEmptyToNull{},
-								requiresReplaceIfCleared(),
+							MarkdownDescription: "The Fusion SOAR plugin identifier for the delivery channel, written to the API `config.plugin_id`. Used by channels backed by a plugin connector (e.g. `slack` sends the connector kind such as `slack.incoming_webhook`). Must be unset when `type = \"email\"`.",
+							Validators: []validator.String{
+								fwvalidators.StringNotWhitespace(),
 							},
 						},
-						"recipients": schema.ListAttribute{
-							Required:            true,
-							ElementType:         types.StringType,
-							MarkdownDescription: "The list of recipients for the notification.",
+						"config_id": schema.StringAttribute{
+							Optional:            true,
+							MarkdownDescription: "The Fusion SOAR configuration identifier for the delivery channel, written to the API `config.config_id`. Holds the concrete integration instance id for non-email channels (e.g. the `slack`/`webhook`/`ms_teams` integration). Must be unset when `type = \"email\"`.",
+							Validators: []validator.String{
+								fwvalidators.StringNotWhitespace(),
+							},
 						},
 						"severity": schema.StringAttribute{
 							Optional:            true,
-							MarkdownDescription: "The severity level for the notification. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.",
-							PlanModifiers: []planmodifier.String{
-								normalizeEmptyToNull{},
-								requiresReplaceIfCleared(),
+							MarkdownDescription: "Optional per-notification severity label. Valid values: `critical`, `high`, `medium`, `low`, `informational`.",
+							Validators: []validator.String{
+								stringvalidator.OneOf("critical", "high", "medium", "low", "informational"),
 							},
 						},
 					},
@@ -576,13 +471,18 @@ func (r *correlationRuleResource) Create(
 		return
 	}
 
-	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+	if res == nil || res.Payload == nil {
 		resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
 		return
 	}
 
 	if d := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Create, res.Payload.Errors); d != nil {
 		resp.Diagnostics.Append(d)
+		return
+	}
+
+	if len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+		resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
 		return
 	}
 
@@ -638,6 +538,7 @@ func (r *correlationRuleResource) Read(
 	if err != nil {
 		d := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopes)
 		if d != nil && d.Summary() == tferrors.NotFoundErrorSummary {
+			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 			resp.State.RemoveResource(ctx)
 			return
 		}
@@ -645,13 +546,20 @@ func (r *correlationRuleResource) Read(
 		return
 	}
 
-	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+	if res == nil || res.Payload == nil {
+		resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 		resp.State.RemoveResource(ctx)
 		return
 	}
 
 	if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Read, res.Payload.Errors); diag != nil {
 		resp.Diagnostics.Append(diag)
+		return
+	}
+
+	if len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+		resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
+		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -687,30 +595,48 @@ func (r *correlationRuleResource) Update(
 		return
 	}
 
-	res, err := r.client.CorrelationRules.EntitiesRulesPatchV1(&correlation_rules.EntitiesRulesPatchV1Params{
-		Context: ctx,
-		Body:    []*models.CorrelationrulesapiRulePatchRequestV1{patchReq},
-	})
-	if err != nil {
-		d := tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, apiScopes)
-		resp.Diagnostics.Append(d)
-		return
-	}
+	expectedStatus := plan.Status.ValueString()
 
-	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
-		resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Update))
-		return
-	}
+	// The API rejects a single PATCH that both sets status to "inactive" and
+	// includes an operation (schedule/start_on/stop_on) payload. Send the
+	// status change first (without operation), wait for it to settle, then
+	// apply the schedule change in a second PATCH.
+	if patchReq.Status == "inactive" && patchReq.Operation != nil {
+		operation := patchReq.Operation
+		patchReq.Operation = nil
 
-	if d := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Update, res.Payload.Errors); d != nil {
-		resp.Diagnostics.Append(d)
-		return
+		resp.Diagnostics.Append(r.sendPatch(ctx, patchReq)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if _, err := r.waitForStatus(ctx, plan.ID.ValueString(), expectedStatus); err != nil {
+			resp.Diagnostics.AddError(
+				"Error waiting for correlation rule status",
+				fmt.Sprintf("Failed to wait for status %q: %s", expectedStatus, err),
+			)
+			return
+		}
+
+		schedulePatch := &rulePatchRequest{
+			CorrelationrulesapiRulePatchRequestV1: models.CorrelationrulesapiRulePatchRequestV1{
+				ID:        utils.Addr(plan.ID.ValueString()),
+				Operation: operation,
+			},
+		}
+		resp.Diagnostics.Append(r.sendPatch(ctx, schedulePatch)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	} else {
+		resp.Diagnostics.Append(r.sendPatch(ctx, patchReq)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 
 	// .status can become "creating" or "updating", which are undocumented intermediates.
 	// Poll for status to become the value we want.
 	// This usually happens within a few seconds
-	expectedStatus := plan.Status.ValueString()
 	rule, err := r.waitForStatus(ctx, plan.ID.ValueString(), expectedStatus)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -725,6 +651,41 @@ func (r *correlationRuleResource) Update(
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+}
+
+func (r *correlationRuleResource) sendPatch(
+	ctx context.Context,
+	patchReq *rulePatchRequest,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	res, err := r.client.CorrelationRules.EntitiesRulesPatchV1(
+		&correlation_rules.EntitiesRulesPatchV1Params{Context: ctx},
+		func(op *runtime.ClientOperation) {
+			op.Params = &patchRuleParams{Body: []*rulePatchRequest{patchReq}}
+		},
+	)
+	if err != nil {
+		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, apiScopes))
+		return diags
+	}
+
+	if res == nil || res.Payload == nil {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
+		return diags
+	}
+
+	if d := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Update, res.Payload.Errors); d != nil {
+		diags.Append(d)
+		return diags
+	}
+
+	if len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Update))
+		return diags
+	}
+
+	return diags
 }
 
 func (r *correlationRuleResource) Delete(
@@ -771,35 +732,186 @@ func (r *correlationRuleResource) ValidateConfig(
 		return
 	}
 
-	if data.Operation.IsNull() || data.Operation.IsUnknown() {
+	r.validateNotifications(ctx, data.Notifications, &resp.Diagnostics)
+}
+
+func (r *correlationRuleResource) ModifyPlan(
+	ctx context.Context,
+	req resource.ModifyPlanRequest,
+	resp *resource.ModifyPlanResponse,
+) {
+	if req.Plan.Raw.IsNull() {
 		return
 	}
 
-	var opModel OperationModel
-	resp.Diagnostics.Append(data.Operation.As(ctx, &opModel, basetypes.ObjectAsOptions{})...)
+	var plan CorrelationRuleResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if opModel.StartOn.IsNull() || opModel.StartOn.IsUnknown() {
+	planStartOn, planSchedModel, planOK := r.scheduleStartOn(ctx, plan.Schedule, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	startOnTime, d := opModel.StartOn.ValueRFC3339Time()
-	if d.HasError() {
-		resp.Diagnostics.Append(d...)
+	if !planOK {
+		return
+	}
+
+	enforce := true
+	if !req.State.Raw.IsNull() {
+		var state CorrelationRuleResourceModel
+		resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		_, stateSchedModel, stateOK := r.scheduleStartOn(ctx, state.Schedule, &resp.Diagnostics)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		if stateOK && planSchedModel.StartOn.Equal(stateSchedModel.StartOn) {
+			enforce = false
+		}
+	}
+
+	if !enforce {
 		return
 	}
 
 	minStartTime := time.Now().Add(15 * time.Minute)
-	if startOnTime.Before(minStartTime) {
+	if planStartOn.Before(minStartTime) {
 		resp.Diagnostics.AddAttributeError(
-			path.Root("operation").AtName("start_on"),
+			path.Root("schedule").AtName("start_on"),
 			"Invalid start_on time",
 			fmt.Sprintf("start_on must be at least 15 minutes in the future. Provided: %s, minimum allowed: %s",
-				startOnTime.Format(time.RFC3339),
+				planStartOn.Format(time.RFC3339),
 				minStartTime.Format(time.RFC3339),
 			),
+		)
+	}
+}
+
+func (r *correlationRuleResource) scheduleStartOn(
+	ctx context.Context,
+	sched types.Object,
+	diags *diag.Diagnostics,
+) (time.Time, ScheduleModel, bool) {
+	var schedModel ScheduleModel
+
+	if sched.IsNull() || sched.IsUnknown() {
+		return time.Time{}, schedModel, false
+	}
+
+	diags.Append(sched.As(ctx, &schedModel, basetypes.ObjectAsOptions{})...)
+	if diags.HasError() {
+		return time.Time{}, schedModel, false
+	}
+
+	if schedModel.StartOn.IsNull() || schedModel.StartOn.IsUnknown() {
+		return time.Time{}, schedModel, false
+	}
+
+	startOnTime, d := schedModel.StartOn.ValueRFC3339Time()
+	if d.HasError() {
+		diags.Append(d...)
+		return time.Time{}, schedModel, false
+	}
+
+	return startOnTime, schedModel, true
+}
+
+func (r *correlationRuleResource) validateNotifications(
+	ctx context.Context,
+	notifs types.Set,
+	diags *diag.Diagnostics,
+) {
+	if notifs.IsNull() || notifs.IsUnknown() {
+		return
+	}
+
+	var models []NotificationModel
+	diags.Append(notifs.ElementsAs(ctx, &models, false)...)
+	if diags.HasError() {
+		return
+	}
+
+	root := path.Root("notifications")
+	hasGuardrail := false
+	allKnownGuardrail := true
+	for i, n := range models {
+		elem := root.AtSetValue(notifs.Elements()[i])
+
+		if n.IsGuardrail.IsUnknown() {
+			allKnownGuardrail = false
+		} else if n.IsGuardrail.ValueBool() {
+			hasGuardrail = true
+		}
+
+		if n.Type.IsUnknown() {
+			continue
+		}
+		ntype := n.Type.ValueString()
+		isEmail := ntype == "email"
+
+		pluginSet := !n.PluginID.IsNull() && !n.PluginID.IsUnknown()
+		configSet := !n.ConfigID.IsNull() && !n.ConfigID.IsUnknown()
+		recipientsSet := !n.Recipients.IsNull() && !n.Recipients.IsUnknown()
+
+		if isEmail {
+			if pluginSet {
+				diags.AddAttributeError(
+					elem.AtName("plugin_id"),
+					"Invalid notification",
+					"plugin_id must not be set when type is email.",
+				)
+			}
+			if configSet {
+				diags.AddAttributeError(
+					elem.AtName("config_id"),
+					"Invalid notification",
+					"config_id must not be set when type is email.",
+				)
+			}
+			if recipientsSet && len(n.Recipients.Elements()) == 0 {
+				diags.AddAttributeError(
+					elem.AtName("recipients"),
+					"Invalid notification",
+					"recipients must contain at least one email address when type is email.",
+				)
+			}
+			if !recipientsSet {
+				diags.AddAttributeError(
+					elem.AtName("recipients"),
+					"Invalid notification",
+					"recipients is required when type is email.",
+				)
+			}
+		} else {
+			if !pluginSet && !configSet {
+				diags.AddAttributeError(
+					elem.AtName("config_id"),
+					"Invalid notification",
+					fmt.Sprintf("at least one of plugin_id or config_id is required when type is %q.", ntype),
+				)
+			}
+			if recipientsSet {
+				diags.AddAttributeError(
+					elem.AtName("recipients"),
+					"Invalid notification",
+					fmt.Sprintf("recipients must not be set when type is %q; use plugin_id/config_id instead.", ntype),
+				)
+			}
+		}
+	}
+
+	if !hasGuardrail && allKnownGuardrail {
+		diags.AddAttributeError(
+			root,
+			"Missing guardrail notification",
+			"At least one notification entry must set is_guardrail = true so the platform can alert when the rule is auto-deactivated for exceeding outcome thresholds.",
 		)
 	}
 }
@@ -866,15 +978,15 @@ func (r *correlationRuleResource) buildCreateRequest(
 	search := &models.CorrelationrulesapiRuleSearchV1{
 		Filter:         utils.Addr(searchModel.Filter.ValueString()),
 		Lookback:       utils.Addr(searchModel.Lookback.ValueString()),
-		Outcome:        utils.Addr(searchModel.Outcome.ValueString()),
+		Outcome:        utils.Addr(outcomeFromCreateCase(searchModel.CreateCase.ValueBool())),
 		TriggerMode:    utils.Addr(searchModel.TriggerMode.ValueString()),
 		ExecutionMode:  utils.Addr(searchModel.ExecutionMode.ValueString()),
 		UseIngestTime:  utils.Addr(searchModel.UseIngestTime.ValueBool()),
 		CaseTemplateID: searchModel.CaseTemplateID.ValueString(),
 	}
 
-	// Extract operation block
-	operation, d := r.buildCreateOperation(ctx, plan.Operation)
+	// Extract schedule block
+	schedule, d := r.buildCreateSchedule(ctx, plan.Schedule)
 	diags.Append(d...)
 	if diags.HasError() {
 		return nil, diags
@@ -887,15 +999,8 @@ func (r *correlationRuleResource) buildCreateRequest(
 		return nil, diags
 	}
 
-	// Extract notifications list
-	notifications, d := r.buildCreateNotifications(ctx, plan.Notification, plan.CustomerID.ValueString())
-	diags.Append(d...)
-	if diags.HasError() {
-		return nil, diags
-	}
-
-	// Extract guardrail notifications list
-	guardrailNotifications, d := r.buildCreateNotifications(ctx, plan.GuardrailNotification, plan.CustomerID.ValueString())
+	// Extract notifications set, partitioning into regular and guardrail slices.
+	notifications, guardrailNotifications, d := r.buildCreateNotifications(ctx, plan.Notifications, plan.CustomerID.ValueString())
 	diags.Append(d...)
 	if diags.HasError() {
 		return nil, diags
@@ -905,13 +1010,12 @@ func (r *correlationRuleResource) buildCreateRequest(
 		CustomerID:             utils.Addr(plan.CustomerID.ValueString()),
 		Name:                   utils.Addr(plan.Name.ValueString()),
 		Description:            plan.Description.ValueString(),
-		Severity:               utils.Addr(plan.Severity.ValueInt32()),
+		Severity:               utils.Addr(severityNameToAPI[plan.Severity.ValueString()]),
 		Status:                 utils.Addr(plan.Status.ValueString()),
 		TemplateID:             utils.Addr(""),
 		Comment:                plan.Comment.ValueString(),
-		TriggerOnCreate:        plan.TriggerOnCreate.ValueBool(),
 		Search:                 search,
-		Operation:              operation,
+		Operation:              schedule,
 		MitreAttack:            mitreAttack,
 		Notifications:          notifications,
 		GuardrailNotifications: guardrailNotifications,
@@ -920,39 +1024,35 @@ func (r *correlationRuleResource) buildCreateRequest(
 	return createReq, diags
 }
 
-// buildCreateOperation builds the operation for create request.
-func (r *correlationRuleResource) buildCreateOperation(
+// buildCreateSchedule builds the operation payload for the create request from
+// the schedule block. The provider stores the schedule cadence as a bare
+// duration (`1h0m`); the API expects `@every 1h0m`, so we prepend the prefix
+// here and strip it on read.
+func (r *correlationRuleResource) buildCreateSchedule(
 	ctx context.Context,
-	operationObj types.Object,
+	scheduleObj types.Object,
 ) (*models.CorrelationrulesapiCreateRuleOperationV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	operation := &models.CorrelationrulesapiCreateRuleOperationV1{}
 
-	if operationObj.IsNull() || operationObj.IsUnknown() {
+	if scheduleObj.IsNull() || scheduleObj.IsUnknown() {
 		return operation, diags
 	}
 
-	var opModel OperationModel
-	diags.Append(operationObj.As(ctx, &opModel, basetypes.ObjectAsOptions{})...)
+	var schedModel ScheduleModel
+	diags.Append(scheduleObj.As(ctx, &schedModel, basetypes.ObjectAsOptions{})...)
 	if diags.HasError() {
 		return nil, diags
 	}
 
-	// Handle schedule
-	if !opModel.Schedule.IsNull() && !opModel.Schedule.IsUnknown() {
-		var schedModel ScheduleModel
-		diags.Append(opModel.Schedule.As(ctx, &schedModel, basetypes.ObjectAsOptions{})...)
-		if diags.HasError() {
-			return nil, diags
-		}
+	if !schedModel.Interval.IsNull() && !schedModel.Interval.IsUnknown() {
 		operation.Schedule = &models.CorrelationrulesapiRuleScheduleV1{
-			Definition: utils.Addr(schedModel.Definition.ValueString()),
+			Definition: utils.Addr("@every " + schedModel.Interval.ValueString()),
 		}
 	}
 
-	// Handle start_on
-	if !opModel.StartOn.IsNull() && !opModel.StartOn.IsUnknown() {
-		startOn, err := strfmt.ParseDateTime(opModel.StartOn.ValueString())
+	if !schedModel.StartOn.IsNull() && !schedModel.StartOn.IsUnknown() {
+		startOn, err := strfmt.ParseDateTime(schedModel.StartOn.ValueString())
 		if err != nil {
 			diags.AddError("Invalid start_on format", fmt.Sprintf("Failed to parse start_on: %s", err))
 			return nil, diags
@@ -960,9 +1060,8 @@ func (r *correlationRuleResource) buildCreateOperation(
 		operation.StartOn = &startOn
 	}
 
-	// Handle stop_on
-	if !opModel.StopOn.IsNull() && !opModel.StopOn.IsUnknown() {
-		stopOn, err := strfmt.ParseDateTime(opModel.StopOn.ValueString())
+	if !schedModel.StopOn.IsNull() && !schedModel.StopOn.IsUnknown() {
+		stopOn, err := strfmt.ParseDateTime(schedModel.StopOn.ValueString())
 		if err != nil {
 			diags.AddError("Invalid stop_on format", fmt.Sprintf("Failed to parse stop_on: %s", err))
 			return nil, diags
@@ -979,12 +1078,13 @@ func (r *correlationRuleResource) buildPatchRequest(
 	ctx context.Context,
 	plan CorrelationRuleResourceModel,
 	state CorrelationRuleResourceModel,
-) (*models.CorrelationrulesapiRulePatchRequestV1, diag.Diagnostics) {
+) (*rulePatchRequest, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	// ID is always required
-	patchReq := &models.CorrelationrulesapiRulePatchRequestV1{
-		ID: utils.Addr(plan.ID.ValueString()),
+	patchReq := &rulePatchRequest{
+		CorrelationrulesapiRulePatchRequestV1: models.CorrelationrulesapiRulePatchRequestV1{
+			ID: utils.Addr(plan.ID.ValueString()),
+		},
 	}
 
 	// Only include fields that have changed
@@ -993,11 +1093,11 @@ func (r *correlationRuleResource) buildPatchRequest(
 	}
 
 	if !plan.Description.Equal(state.Description) {
-		patchReq.Description = plan.Description.ValueString()
+		patchReq.Description = flex.FrameworkToStringPointer(plan.Description)
 	}
 
 	if !plan.Severity.Equal(state.Severity) {
-		patchReq.Severity = plan.Severity.ValueInt32()
+		patchReq.Severity = severityNameToAPI[plan.Severity.ValueString()]
 	}
 
 	if !plan.Status.Equal(state.Status) {
@@ -1005,29 +1105,31 @@ func (r *correlationRuleResource) buildPatchRequest(
 	}
 
 	if !plan.Comment.Equal(state.Comment) {
-		patchReq.Comment = plan.Comment.ValueString()
+		patchReq.Comment = flex.FrameworkToStringPointer(plan.Comment)
 	}
 
 	// Only include search if it changed
 	if !plan.Search.Equal(state.Search) {
 		if !plan.Search.IsNull() && !plan.Search.IsUnknown() {
-			var searchModel SearchModel
-			diags.Append(plan.Search.As(ctx, &searchModel, basetypes.ObjectAsOptions{})...)
+			var planSearch SearchModel
+			diags.Append(plan.Search.As(ctx, &planSearch, basetypes.ObjectAsOptions{})...)
 			if diags.HasError() {
 				return nil, diags
 			}
-			patchReq.Search = &models.CorrelationrulesapiPatchRuleSearchV1{
-				Filter:         searchModel.Filter.ValueString(),
-				Lookback:       searchModel.Lookback.ValueString(),
-				Outcome:        searchModel.Outcome.ValueString(),
-				TriggerMode:    utils.Addr(searchModel.TriggerMode.ValueString()), // must be a pointer that is not nil for some reason
-				UseIngestTime:  searchModel.UseIngestTime.ValueBool(),
-				CaseTemplateID: searchModel.CaseTemplateID.ValueString(),
+			patchReq.Search = &patchRuleSearch{
+				CorrelationrulesapiPatchRuleSearchV1: models.CorrelationrulesapiPatchRuleSearchV1{
+					Filter:      planSearch.Filter.ValueString(),
+					Lookback:    planSearch.Lookback.ValueString(),
+					Outcome:     outcomeFromCreateCase(planSearch.CreateCase.ValueBool()),
+					TriggerMode: planSearch.TriggerMode.ValueString(),
+				},
+				CaseTemplateID: flex.FrameworkToStringPointer(planSearch.CaseTemplateID),
+				UseIngestTime:  utils.Addr(planSearch.UseIngestTime.ValueBool()),
 			}
 		}
 	}
 
-	operation, d := r.buildPatchOperation(ctx, plan.Operation, state.Operation)
+	operation, d := r.buildPatchSchedule(ctx, plan.Schedule, state.Schedule)
 	diags.Append(d...)
 	if diags.HasError() {
 		return nil, diags
@@ -1047,49 +1149,42 @@ func (r *correlationRuleResource) buildPatchRequest(
 		patchReq.MitreAttack = mitreAttack
 	}
 
-	if !plan.Notification.Equal(state.Notification) {
-		notifications, d := r.buildPatchNotifications(ctx, plan.Notification, plan.CustomerID.ValueString())
+	if !plan.Notifications.Equal(state.Notifications) {
+		notifications, guardrailNotifications, d := r.buildPatchNotifications(ctx, plan.Notifications, plan.CustomerID.ValueString())
 		diags.Append(d...)
 		if diags.HasError() {
 			return nil, diags
 		}
 		patchReq.Notifications = notifications
-	}
-
-	if !plan.GuardrailNotification.Equal(state.GuardrailNotification) {
-		guardrailNotifications, d := r.buildPatchNotifications(ctx, plan.GuardrailNotification, plan.CustomerID.ValueString())
-		diags.Append(d...)
-		if diags.HasError() {
-			return nil, diags
-		}
 		patchReq.GuardrailNotifications = guardrailNotifications
 	}
 
 	return patchReq, diags
 }
 
-// buildPatchOperation builds the operation for patch request.
-// Only includes fields that have changed between state and plan.
-func (r *correlationRuleResource) buildPatchOperation(
+// buildPatchSchedule builds the operation payload for the patch request from
+// the schedule block. Only includes fields that have changed between state and
+// plan. Prepends `@every ` to the cadence on the wire.
+func (r *correlationRuleResource) buildPatchSchedule(
 	ctx context.Context,
-	planOperationObj types.Object,
-	stateOperationObj types.Object,
+	planScheduleObj types.Object,
+	stateScheduleObj types.Object,
 ) (*models.CorrelationrulesapiPatchRuleOperationV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	if planOperationObj.IsNull() || planOperationObj.IsUnknown() {
+	if planScheduleObj.IsNull() || planScheduleObj.IsUnknown() {
 		return nil, diags
 	}
 
-	var planOp OperationModel
-	diags.Append(planOperationObj.As(ctx, &planOp, basetypes.ObjectAsOptions{})...)
+	var planSched ScheduleModel
+	diags.Append(planScheduleObj.As(ctx, &planSched, basetypes.ObjectAsOptions{})...)
 	if diags.HasError() {
 		return nil, diags
 	}
 
-	var stateOp OperationModel
-	if !stateOperationObj.IsNull() && !stateOperationObj.IsUnknown() {
-		diags.Append(stateOperationObj.As(ctx, &stateOp, basetypes.ObjectAsOptions{})...)
+	var stateSched ScheduleModel
+	if !stateScheduleObj.IsNull() && !stateScheduleObj.IsUnknown() {
+		diags.Append(stateScheduleObj.As(ctx, &stateSched, basetypes.ObjectAsOptions{})...)
 		if diags.HasError() {
 			return nil, diags
 		}
@@ -1098,23 +1193,18 @@ func (r *correlationRuleResource) buildPatchOperation(
 	operation := &models.CorrelationrulesapiPatchRuleOperationV1{}
 	changed := false
 
-	if !planOp.Schedule.Equal(stateOp.Schedule) {
-		if !planOp.Schedule.IsNull() && !planOp.Schedule.IsUnknown() {
-			var schedModel ScheduleModel
-			diags.Append(planOp.Schedule.As(ctx, &schedModel, basetypes.ObjectAsOptions{})...)
-			if diags.HasError() {
-				return nil, diags
-			}
+	if !planSched.Interval.Equal(stateSched.Interval) {
+		if !planSched.Interval.IsNull() && !planSched.Interval.IsUnknown() {
 			operation.Schedule = &models.CorrelationrulesapiRuleScheduleV1Patch{
-				Definition: utils.Addr(schedModel.Definition.ValueString()),
+				Definition: utils.Addr("@every " + planSched.Interval.ValueString()),
 			}
 			changed = true
 		}
 	}
 
-	if !planOp.StartOn.Equal(stateOp.StartOn) {
-		if !planOp.StartOn.IsNull() && !planOp.StartOn.IsUnknown() {
-			startOn, err := strfmt.ParseDateTime(planOp.StartOn.ValueString())
+	if !planSched.StartOn.Equal(stateSched.StartOn) {
+		if !planSched.StartOn.IsNull() && !planSched.StartOn.IsUnknown() {
+			startOn, err := strfmt.ParseDateTime(planSched.StartOn.ValueString())
 			if err != nil {
 				diags.AddError("Invalid start_on format", fmt.Sprintf("Failed to parse start_on: %s", err))
 				return nil, diags
@@ -1124,9 +1214,9 @@ func (r *correlationRuleResource) buildPatchOperation(
 		}
 	}
 
-	if !planOp.StopOn.Equal(stateOp.StopOn) {
-		if !planOp.StopOn.IsNull() && !planOp.StopOn.IsUnknown() {
-			stopOnStr := planOp.StopOn.ValueString()
+	if !planSched.StopOn.Equal(stateSched.StopOn) {
+		if !planSched.StopOn.IsNull() && !planSched.StopOn.IsUnknown() {
+			stopOnStr := planSched.StopOn.ValueString()
 			operation.StopOn = &stopOnStr
 			changed = true
 		}
@@ -1171,68 +1261,56 @@ func (r *correlationRuleResource) buildMitreAttack(
 	return mitreAttack, diags
 }
 
-// buildCreateNotifications builds the notifications list for create request.
-// customerID is used as the default value for notification config cid if not explicitly set.
+// regularNotificationOptions returns the fixed options map applied to every
+// non-guardrail notification. The UI does not expose these as configurable, so
+// the provider hardcodes them: notifications are only sent on failure.
+func regularNotificationOptions() map[string]string {
+	return map[string]string{
+		"send_on_success": "never",
+		"send_on_failure": "always",
+	}
+}
+
+// buildCreateNotifications partitions the notifications set into regular and
+// guardrail slices for the create API. `customerID` seeds the per-entry
+// `config.cid` field (the API mirrors this back as the rule's own CID).
 func (r *correlationRuleResource) buildCreateNotifications(
 	ctx context.Context,
-	notificationList types.List,
+	notificationSet types.Set,
 	customerID string,
-) ([]*models.CorrelationrulesapiCreateRuleNotifications, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	if notificationList.IsNull() || notificationList.IsUnknown() || len(notificationList.Elements()) == 0 {
-		return nil, diags
+) (regular, guardrail []*models.CorrelationrulesapiCreateRuleNotifications, diags diag.Diagnostics) {
+	if notificationSet.IsNull() || notificationSet.IsUnknown() || len(notificationSet.Elements()) == 0 {
+		return nil, nil, diags
 	}
 
 	var notifModels []NotificationModel
-	diags.Append(notificationList.ElementsAs(ctx, &notifModels, false)...)
+	diags.Append(notificationSet.ElementsAs(ctx, &notifModels, false)...)
 	if diags.HasError() {
-		return nil, diags
+		return nil, nil, diags
 	}
 
-	notifications := make([]*models.CorrelationrulesapiCreateRuleNotifications, 0, len(notifModels))
 	for _, n := range notifModels {
-		if n.Config.IsNull() || n.Config.IsUnknown() {
-			diags.AddError(
-				"Missing notification config",
-				"Each notification block requires a config sub-block.",
-			)
-			return nil, diags
-		}
-
-		// Extract config block
-		var configModel NotificationConfigModel
-		diags.Append(n.Config.As(ctx, &configModel, basetypes.ObjectAsOptions{})...)
-		if diags.HasError() {
-			return nil, diags
-		}
-
-		// Extract recipients list
 		var recipients []string
-		diags.Append(configModel.Recipients.ElementsAs(ctx, &recipients, false)...)
-		if diags.HasError() {
-			return nil, diags
-		}
-
-		// Use explicit cid if set, otherwise default to rule's customer_id
-		cid := customerID
-		if !configModel.Cid.IsNull() && configModel.Cid.ValueString() != "" {
-			cid = configModel.Cid.ValueString()
+		if !n.Recipients.IsNull() && !n.Recipients.IsUnknown() {
+			diags.Append(n.Recipients.ElementsAs(ctx, &recipients, false)...)
+			if diags.HasError() {
+				return nil, nil, diags
+			}
 		}
 
 		config := &models.CorrelationrulesapiCreateRuleNotificationConfig{
-			Cid:        utils.Addr(cid),
+			Cid:        utils.Addr(customerID),
 			Recipients: recipients,
 		}
-		// Only set optional fields if they have values
-		if !configModel.ConfigID.IsNull() && configModel.ConfigID.ValueString() != "" {
-			config.ConfigID = utils.Addr(configModel.ConfigID.ValueString())
+
+		if !n.PluginID.IsNull() && !n.PluginID.IsUnknown() {
+			config.PluginID = utils.Addr(n.PluginID.ValueString())
 		}
-		if !configModel.PluginID.IsNull() && configModel.PluginID.ValueString() != "" {
-			config.PluginID = utils.Addr(configModel.PluginID.ValueString())
+		if !n.ConfigID.IsNull() && !n.ConfigID.IsUnknown() {
+			config.ConfigID = utils.Addr(n.ConfigID.ValueString())
 		}
-		if !configModel.Severity.IsNull() && configModel.Severity.ValueString() != "" {
-			config.Severity = utils.Addr(configModel.Severity.ValueString())
+		if !n.Severity.IsNull() && !n.Severity.IsUnknown() {
+			config.Severity = utils.Addr(n.Severity.ValueString())
 		}
 
 		notif := &models.CorrelationrulesapiCreateRuleNotifications{
@@ -1240,111 +1318,85 @@ func (r *correlationRuleResource) buildCreateNotifications(
 			Config: config,
 		}
 
-		// Extract options map if present
-		if !n.Options.IsNull() && !n.Options.IsUnknown() {
-			options := make(map[string]string)
-			diags.Append(n.Options.ElementsAs(ctx, &options, false)...)
-			if diags.HasError() {
-				return nil, diags
-			}
-			notif.Options = options
+		if n.IsGuardrail.ValueBool() {
+			guardrail = append(guardrail, notif)
+		} else {
+			notif.Options = regularNotificationOptions()
+			regular = append(regular, notif)
 		}
-
-		notifications = append(notifications, notif)
 	}
 
-	return notifications, diags
+	return regular, guardrail, diags
 }
 
-// buildPatchNotifications builds the notifications list for patch request.
-// customerID is used as the default value for notification config cid if not explicitly set.
+// buildPatchNotifications partitions the notifications set into regular and
+// guardrail slices for the patch API. The returned slices are always non-nil
+// (empty slice when no entries belong to a side) so the API interprets them as
+// "replace with this exact set".
 func (r *correlationRuleResource) buildPatchNotifications(
 	ctx context.Context,
-	notificationList types.List,
+	notificationSet types.Set,
 	customerID string,
-) ([]*models.CorrelationrulesapiPatchRuleNotificationsV1, diag.Diagnostics) {
-	var diags diag.Diagnostics
+) (regular, guardrail []*patchRuleNotification, diags diag.Diagnostics) {
+	regular = []*patchRuleNotification{}
+	guardrail = []*patchRuleNotification{}
 
-	if notificationList.IsNull() || notificationList.IsUnknown() {
-		return nil, diags
-	}
-
-	// An explicitly empty list signals the API to clear all notifications.
-	if len(notificationList.Elements()) == 0 {
-		return []*models.CorrelationrulesapiPatchRuleNotificationsV1{}, diags
+	if notificationSet.IsNull() || notificationSet.IsUnknown() {
+		return regular, guardrail, diags
 	}
 
 	var notifModels []NotificationModel
-	diags.Append(notificationList.ElementsAs(ctx, &notifModels, false)...)
+	diags.Append(notificationSet.ElementsAs(ctx, &notifModels, false)...)
 	if diags.HasError() {
-		return nil, diags
+		return nil, nil, diags
 	}
 
-	notifications := make([]*models.CorrelationrulesapiPatchRuleNotificationsV1, 0, len(notifModels))
 	for _, n := range notifModels {
-		if n.Config.IsNull() || n.Config.IsUnknown() {
-			diags.AddError(
-				"Missing notification config",
-				"Each notification block requires a config sub-block.",
-			)
-			return nil, diags
-		}
-
-		// Extract config block
-		var configModel NotificationConfigModel
-		diags.Append(n.Config.As(ctx, &configModel, basetypes.ObjectAsOptions{})...)
-		if diags.HasError() {
-			return nil, diags
-		}
-
-		// Extract recipients list
 		var recipients []string
-		diags.Append(configModel.Recipients.ElementsAs(ctx, &recipients, false)...)
-		if diags.HasError() {
-			return nil, diags
+		if !n.Recipients.IsNull() && !n.Recipients.IsUnknown() {
+			diags.Append(n.Recipients.ElementsAs(ctx, &recipients, false)...)
+			if diags.HasError() {
+				return nil, nil, diags
+			}
 		}
 
-		// Use explicit cid if set, otherwise default to rule's customer_id
-		cid := customerID
-		if !configModel.Cid.IsNull() && configModel.Cid.ValueString() != "" {
-			cid = configModel.Cid.ValueString()
+		config := &patchRuleNotificationConfig{
+			CorrelationrulesapiPatchRuleNotificationConfigV1: models.CorrelationrulesapiPatchRuleNotificationConfigV1{
+				Cid:        customerID,
+				Recipients: recipients,
+			},
 		}
 
-		config := &models.CorrelationrulesapiPatchRuleNotificationConfigV1{
-			Cid:        cid,
-			Recipients: recipients,
+		// Always set pointers so PATCH can clear previously-set values when a
+		// channel switches type or drops an id (see patch_overrides.go).
+		pluginID := ""
+		if !n.PluginID.IsNull() && !n.PluginID.IsUnknown() {
+			pluginID = n.PluginID.ValueString()
 		}
-		// Only set optional fields if they have values, to avoid overwriting existing
-		// values with empty strings.
-		if !configModel.ConfigID.IsNull() && configModel.ConfigID.ValueString() != "" {
-			config.ConfigID = configModel.ConfigID.ValueString()
+		configID := ""
+		if !n.ConfigID.IsNull() && !n.ConfigID.IsUnknown() {
+			configID = n.ConfigID.ValueString()
 		}
-		if !configModel.PluginID.IsNull() && configModel.PluginID.ValueString() != "" {
-			config.PluginID = configModel.PluginID.ValueString()
-		}
-		if !configModel.Severity.IsNull() && configModel.Severity.ValueString() != "" {
-			config.Severity = configModel.Severity.ValueString()
-		}
+		config.PluginID = utils.Addr(pluginID)
+		config.ConfigID = utils.Addr(configID)
+		config.Severity = utils.Addr(n.Severity.ValueString())
 
-		notif := &models.CorrelationrulesapiPatchRuleNotificationsV1{
-			Type:   n.Type.ValueString(),
+		notif := &patchRuleNotification{
+			CorrelationrulesapiPatchRuleNotificationsV1: models.CorrelationrulesapiPatchRuleNotificationsV1{
+				Type: n.Type.ValueString(),
+			},
 			Config: config,
 		}
 
-		// Extract options map if present
-		if !n.Options.IsNull() && !n.Options.IsUnknown() {
-			options := make(map[string]string)
-			diags.Append(n.Options.ElementsAs(ctx, &options, false)...)
-			if diags.HasError() {
-				return nil, diags
-			}
-			notif.Options = options
+		if n.IsGuardrail.ValueBool() {
+			guardrail = append(guardrail, notif)
+		} else {
+			notif.Options = regularNotificationOptions()
+			regular = append(regular, notif)
 		}
-
-		notifications = append(notifications, notif)
 	}
 
-	return notifications, diags
+	return regular, guardrail, diags
 }
 
 // wrap transforms API response values to their Terraform model values.
@@ -1355,8 +1407,12 @@ func (model *CorrelationRuleResourceModel) wrap(
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	// Special case: ID returned by patch or read seems to be the version id.
-	// But we can't query the entity by the version id, only the "original" id.
+	// The `id` field returned by the API is a version id that changes on every
+	// PATCH. The stable identifier is `rule_id`. GET/PATCH/DELETE on
+	// `/correlation-rules/entities/rules/v1` only accept `rule_id`, so we must
+	// never overwrite state's `id` with the drifting version id from Read or
+	// Update responses. Create passes the response's initial `id` (which equals
+	// `rule_id` at that moment); Read and Update pass nil so state is preserved.
 	if id != nil {
 		model.ID = types.StringValue(*id)
 	}
@@ -1366,33 +1422,31 @@ func (model *CorrelationRuleResourceModel) wrap(
 	if rule.Name != nil {
 		model.Name = types.StringValue(*rule.Name)
 	}
-	model.Description = types.StringValue(rule.Description)
+	model.Description = flex.StringValueToFramework(rule.Description)
 	if rule.Severity != nil {
-		model.Severity = types.Int32Value(*rule.Severity)
+		if name, ok := severityAPIToName[*rule.Severity]; ok {
+			model.Severity = types.StringValue(name)
+		}
 	}
 	if rule.Status != nil {
 		model.Status = types.StringValue(*rule.Status)
 	}
-	model.Comment = types.StringValue(rule.Comment)
-	if rule.Tactic != nil {
-		model.Tactic = types.StringValue(*rule.Tactic)
-	}
-	if rule.Technique != nil {
-		model.Technique = types.StringValue(*rule.Technique)
-	}
-	if rule.TemplateID != nil {
-		model.TemplateID = types.StringValue(*rule.TemplateID)
-	}
+	model.Comment = flex.StringValueToFramework(rule.Comment)
 
 	if rule.Search != nil {
+		lookback, d := timetypes.NewGoDurationValueFromPointerString(rule.Search.Lookback)
+		diags.Append(d...)
+		if diags.HasError() {
+			return diags
+		}
 		searchModel := SearchModel{
 			Filter:         types.StringPointerValue(rule.Search.Filter),
-			Lookback:       types.StringPointerValue(rule.Search.Lookback),
-			Outcome:        types.StringPointerValue(rule.Search.Outcome),
+			Lookback:       lookback,
+			CreateCase:     types.BoolValue(rule.Search.Outcome != nil && *rule.Search.Outcome == outcomeCase),
 			TriggerMode:    types.StringPointerValue(rule.Search.TriggerMode),
 			ExecutionMode:  types.StringPointerValue(rule.Search.ExecutionMode),
 			UseIngestTime:  types.BoolValue(rule.Search.UseIngestTime != nil && *rule.Search.UseIngestTime),
-			CaseTemplateID: types.StringValue(rule.Search.CaseTemplateID),
+			CaseTemplateID: flex.StringValueToFramework(rule.Search.CaseTemplateID),
 		}
 		searchObj, d := types.ObjectValueFrom(ctx, searchModel.AttributeTypes(), searchModel)
 		diags.Append(d...)
@@ -1403,44 +1457,37 @@ func (model *CorrelationRuleResourceModel) wrap(
 	}
 
 	if rule.Operation != nil {
-		opModel := OperationModel{}
+		schedModel := ScheduleModel{}
 
 		if rule.Operation.Schedule != nil && rule.Operation.Schedule.Definition != nil {
-			schedModel := ScheduleModel{
-				Definition: types.StringPointerValue(rule.Operation.Schedule.Definition),
-			}
-			schedObj, d := types.ObjectValueFrom(ctx, schedModel.AttributeTypes(), schedModel)
+			interval := *rule.Operation.Schedule.Definition
+			interval = strings.TrimPrefix(interval, "@every ")
+			intervalVal, d := timetypes.NewGoDurationValueFromString(interval)
 			diags.Append(d...)
 			if diags.HasError() {
 				return diags
 			}
-			opModel.Schedule = schedObj
-		} else {
-			opModel.Schedule = types.ObjectNull(ScheduleModel{}.AttributeTypes())
+			schedModel.Interval = intervalVal
 		}
 
 		if !rule.Operation.StartOn.IsZero() {
-			startOn, d := flex.RFC3339ValueToFramework(time.Time(rule.Operation.StartOn).Format(time.RFC3339))
-			diags.Append(d...)
-			opModel.StartOn = startOn
+			schedModel.StartOn = fwtypes.NewRFC3339TimeValue(time.Time(rule.Operation.StartOn))
 		} else {
-			opModel.StartOn = timetypes.NewRFC3339Null()
+			schedModel.StartOn = fwtypes.NewRFC3339Null()
 		}
 
 		if !rule.Operation.StopOn.IsZero() {
-			stopOn, d := flex.RFC3339ValueToFramework(time.Time(rule.Operation.StopOn).Format(time.RFC3339))
-			diags.Append(d...)
-			opModel.StopOn = stopOn
+			schedModel.StopOn = fwtypes.NewRFC3339TimeValue(time.Time(rule.Operation.StopOn))
 		} else {
-			opModel.StopOn = timetypes.NewRFC3339Null()
+			schedModel.StopOn = fwtypes.NewRFC3339Null()
 		}
 
-		opObj, d := types.ObjectValueFrom(ctx, opModel.AttributeTypes(), opModel)
+		schedObj, d := types.ObjectValueFrom(ctx, schedModel.AttributeTypes(), schedModel)
 		diags.Append(d...)
 		if diags.HasError() {
 			return diags
 		}
-		model.Operation = opObj
+		model.Schedule = schedObj
 	}
 
 	// Map mitre_attack
@@ -1452,7 +1499,7 @@ func (model *CorrelationRuleResourceModel) wrap(
 			}
 			mitreModel := MitreAttackModel{
 				TacticID:    types.StringPointerValue(m.TacticID),
-				TechniqueID: types.StringValue(m.TechniqueID),
+				TechniqueID: flex.StringValueToFramework(m.TechniqueID),
 			}
 			mitreModels = append(mitreModels, mitreModel)
 		}
@@ -1466,96 +1513,93 @@ func (model *CorrelationRuleResourceModel) wrap(
 		model.MitreAttack = types.ListNull(types.ObjectType{AttrTypes: MitreAttackModel{}.AttributeTypes()})
 	}
 
-	// Map notifications
-	notifList, d := mapNotificationsFromAPI(ctx, rule.Notifications)
-	diags.Append(d...)
-	if diags.HasError() {
-		return diags
+	// Map notifications (merge regular + guardrail into single set)
+	if len(rule.Notifications) == 0 && len(rule.GuardrailNotifications) == 0 {
+		elemType := types.ObjectType{AttrTypes: NotificationModel{}.AttributeTypes()}
+		if model.Notifications.IsNull() || model.Notifications.IsUnknown() {
+			model.Notifications = types.SetNull(elemType)
+		} else {
+			model.Notifications = types.SetValueMust(elemType, []attr.Value{})
+		}
+	} else {
+		notifSet, d := mapNotificationsFromAPI(ctx, rule.Notifications, rule.GuardrailNotifications)
+		diags.Append(d...)
+		if diags.HasError() {
+			return diags
+		}
+		model.Notifications = notifSet
 	}
-	model.Notification = notifList
-
-	// Map guardrail notifications
-	guardrailNotifList, d := mapNotificationsFromAPI(ctx, rule.GuardrailNotifications)
-	diags.Append(d...)
-	if diags.HasError() {
-		return diags
-	}
-	model.GuardrailNotification = guardrailNotifList
 
 	return diags
 }
 
-// mapNotificationsFromAPI converts API notification response to Terraform list.
 func mapNotificationsFromAPI(
 	ctx context.Context,
-	apiNotifications []*models.CorrelationrulesapiRuleNotificationsV1,
-) (types.List, diag.Diagnostics) {
+	regular []*models.CorrelationrulesapiRuleNotificationsV1,
+	guardrail []*models.CorrelationrulesapiRuleNotificationsV1,
+) (types.Set, diag.Diagnostics) {
 	var diags diag.Diagnostics
+	elemType := types.ObjectType{AttrTypes: NotificationModel{}.AttributeTypes()}
 
-	if len(apiNotifications) == 0 {
-		return types.ListNull(types.ObjectType{AttrTypes: NotificationModel{}.AttributeTypes()}), diags
+	notifModels := make([]NotificationModel, 0, len(regular)+len(guardrail))
+
+	for _, n := range regular {
+		m, d := flattenNotification(ctx, n, false)
+		diags.Append(d...)
+		if diags.HasError() {
+			return types.SetNull(elemType), diags
+		}
+		if m != nil {
+			notifModels = append(notifModels, *m)
+		}
+	}
+	for _, n := range guardrail {
+		m, d := flattenNotification(ctx, n, true)
+		diags.Append(d...)
+		if diags.HasError() {
+			return types.SetNull(elemType), diags
+		}
+		if m != nil {
+			notifModels = append(notifModels, *m)
+		}
 	}
 
-	notifModels := make([]NotificationModel, 0, len(apiNotifications))
-	for _, n := range apiNotifications {
-		if n == nil || n.Config == nil {
-			continue
-		}
+	notifSet, d := types.SetValueFrom(ctx, elemType, notifModels)
+	diags.Append(d...)
+	return notifSet, diags
+}
 
-		// Build recipients list
+func flattenNotification(
+	ctx context.Context,
+	n *models.CorrelationrulesapiRuleNotificationsV1,
+	isGuardrail bool,
+) (*NotificationModel, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	if n == nil || n.Config == nil {
+		return nil, diags
+	}
+
+	m := NotificationModel{
+		Type:        types.StringPointerValue(n.Type),
+		IsGuardrail: types.BoolValue(isGuardrail),
+	}
+
+	// Non-email channels come back with recipients=null; keep the attribute
+	// null in that case so config (which omits recipients) round-trips cleanly.
+	if len(n.Config.Recipients) == 0 {
+		m.Recipients = types.ListNull(types.StringType)
+	} else {
 		recipients, d := types.ListValueFrom(ctx, types.StringType, n.Config.Recipients)
 		diags.Append(d...)
 		if diags.HasError() {
-			return types.ListNull(types.ObjectType{AttrTypes: NotificationModel{}.AttributeTypes()}), diags
+			return nil, diags
 		}
-
-		configModel := NotificationConfigModel{
-			Cid:        types.StringPointerValue(n.Config.Cid),
-			Recipients: recipients,
-		}
-		// Handle optional fields - keep null if not set
-		if n.Config.ConfigID != nil && *n.Config.ConfigID != "" {
-			configModel.ConfigID = types.StringPointerValue(n.Config.ConfigID)
-		} else {
-			configModel.ConfigID = types.StringNull()
-		}
-		if n.Config.PluginID != nil && *n.Config.PluginID != "" {
-			configModel.PluginID = types.StringPointerValue(n.Config.PluginID)
-		} else {
-			configModel.PluginID = types.StringNull()
-		}
-		if n.Config.Severity != nil && *n.Config.Severity != "" {
-			configModel.Severity = types.StringPointerValue(n.Config.Severity)
-		} else {
-			configModel.Severity = types.StringNull()
-		}
-		configObj, d := types.ObjectValueFrom(ctx, configModel.AttributeTypes(), configModel)
-		diags.Append(d...)
-		if diags.HasError() {
-			return types.ListNull(types.ObjectType{AttrTypes: NotificationModel{}.AttributeTypes()}), diags
-		}
-
-		// Build options map
-		var optionsMap types.Map
-		if len(n.Options) > 0 {
-			optionsMap, d = types.MapValueFrom(ctx, types.StringType, n.Options)
-			diags.Append(d...)
-			if diags.HasError() {
-				return types.ListNull(types.ObjectType{AttrTypes: NotificationModel{}.AttributeTypes()}), diags
-			}
-		} else {
-			optionsMap = types.MapNull(types.StringType)
-		}
-
-		notifModel := NotificationModel{
-			Type:    types.StringPointerValue(n.Type),
-			Config:  configObj,
-			Options: optionsMap,
-		}
-		notifModels = append(notifModels, notifModel)
+		m.Recipients = recipients
 	}
 
-	notifList, d := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: NotificationModel{}.AttributeTypes()}, notifModels)
-	diags.Append(d...)
-	return notifList, diags
+	m.PluginID = flex.StringPointerToFramework(n.Config.PluginID)
+	m.ConfigID = flex.StringPointerToFramework(n.Config.ConfigID)
+	m.Severity = flex.StringPointerToFramework(n.Config.Severity)
+
+	return &m, diags
 }

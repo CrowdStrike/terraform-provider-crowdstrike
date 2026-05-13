@@ -1,8 +1,8 @@
 ---
 page_title: "crowdstrike_correlation_rule Resource - crowdstrike"
-subcategory: "NGSIEM"
+subcategory: "Next-Gen SIEM"
 description: |-
-  Manages CrowdStrike NGSIEM Correlation Rules. Correlation rules allow you to define conditions for generating alerts based on event patterns.
+  Manages CrowdStrike NGSIEM Correlation Rules. Correlation rules allow you to define conditions for generating alerts based on event patterns. For tenant limits and other product-level constraints, see the correlation rules documentation in the Falcon console.
   API Scopes
   The following API scopes are required:
   Correlation Rules | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_correlation_rule (Resource)
 
-Manages CrowdStrike NGSIEM Correlation Rules. Correlation rules allow you to define conditions for generating alerts based on event patterns.
+Manages CrowdStrike NGSIEM Correlation Rules. Correlation rules allow you to define conditions for generating alerts based on event patterns. For tenant limits and other product-level constraints, see the correlation rules documentation in the Falcon console.
 
 ## API Scopes
 
@@ -19,23 +19,9 @@ The following API scopes are required:
 - Correlation Rules | Read & Write
 
 
-## Notes
-There are two issues that are important to note:
-- The `trigger_on_create` attribute is write-only. It is sent to the API during creation but never stored in state and can't be retrieved from the API.
-- Several fields (`description`, `comment`, `case_template_id`, `use_ingest_time`, `stop_on`) cannot be cleared or set to false, once set. Removing these values requires the resource to be destroyed and recreated. Each affected field documents this in its description. This is due to limitations of the gofalcon library.
-
-The combination of these behaviours entail, that when `trigger_on_create` is set and a rule must be recreated, the rule might be triggered unintentionally.
-
-Further details of note:
-- The `tactic` and `technique` attributes are derived from the first `mitre_attack` entry and are read-only.
-- The `template_id` attribute is read-only and populated on import/read. It cannot be set in configuration.
-- Use the `crowdstrike_correlation_rules` data source to query existing rules.
-
-
 ## Example Usage
 
 ```terraform
-# Manage NGSIEM Correlation Rules using the CrowdStrike provider.
 terraform {
   required_providers {
     crowdstrike = {
@@ -46,86 +32,69 @@ terraform {
 
 provider "crowdstrike" {}
 
-# Basic correlation rule
-resource "crowdstrike_correlation_rule" "basic_rule" {
-  name        = "tf-example-basic-rule"
-  customer_id = "your-customer-id" # The CID of the environment (tenant ID)
-  severity    = 50                 # Medium
-  status      = "inactive"         # All examples are set to "inactive" to ensure that accidental deployments don't cause issues.
+# Resolve the Customer ID (CID) for the tenant authenticated by the provider.
+data "crowdstrike_cid" "this" {}
 
-  search {
+resource "crowdstrike_correlation_rule" "basic_rule" {
+  name     = "tf-example-basic-rule"
+  cid      = data.crowdstrike_cid.this.cid
+  severity = "medium"
+  status   = "inactive"
+
+  search = {
     filter       = "#repo=\"base_sensor\" #event_simpleName=ProcessRollup2"
     lookback     = "1h0m"
-    outcome      = "detection"
     trigger_mode = "verbose"
   }
 
-  operation {
-    schedule {
-      definition = "@every 1h0m"
-    }
+  schedule = {
+    interval = "1h0m"
+    start_on = "2030-01-01T00:00:00Z"
   }
+
+  notifications = [
+    {
+      type         = "email"
+      is_guardrail = true
+      recipients   = ["oncall@example.com"]
+    },
+  ]
 }
 
-# Correlation rule with description and MITRE ATT&CK mappings
 resource "crowdstrike_correlation_rule" "advanced_rule" {
   name        = "tf-example-advanced-rule"
-  customer_id = "your-customer-id" # The CID of the environment (tenant ID)
+  cid         = data.crowdstrike_cid.this.cid
   description = "Detects AWS IAM policy attachments"
-  severity    = 70 # High
+  severity    = "high"
   status      = "inactive"
 
-  search {
+  search = {
     filter          = "#Vendor=\"aws\" #event.module=\"cloudtrail\" event.provider=\"iam.amazonaws.com\" event.action=\"AttachUserPolicy\""
     lookback        = "1h15m"
-    outcome         = "detection"
+    create_case     = true
     trigger_mode    = "summary"
     use_ingest_time = true
   }
 
-  operation {
-    schedule {
-      definition = "@every 1h0m"
-    }
+  schedule = {
+    interval = "1h0m"
+    start_on = "2030-01-01T00:00:00Z"
   }
 
-  mitre_attack {
-    tactic_id    = "TA0004"
-    technique_id = "T1098.003"
-  }
-}
+  mitre_attack = [
+    {
+      tactic_id    = "TA0004"
+      technique_id = "T1098.003"
+    },
+  ]
 
-# Correlation rule with notifications
-resource "crowdstrike_correlation_rule" "rule_with_notification" {
-  name        = "tf-example-rule-with-notification"
-  customer_id = "your-customer-id" # The CID of the environment (tenant ID)
-  description = "Rule with email notification"
-  severity    = 70 # High
-  status      = "inactive"
-
-  search {
-    filter       = "#repo=\"base_sensor\" #event_simpleName=ProcessRollup2"
-    lookback     = "1h0m"
-    outcome      = "detection"
-    trigger_mode = "verbose"
-  }
-
-  operation {
-    schedule {
-      definition = "@every 1h0m"
-    }
-  }
-
-  notification {
-    type = "email"
-    config {
-      cid        = "your-customer-id"
-      config_id  = "your-config-id"
-      plugin_id  = "your-plugin-id"
-      recipients = ["security-team@example.com"]
-      severity   = "high"
-    }
-  }
+  notifications = [
+    {
+      type         = "email"
+      is_guardrail = true
+      recipients   = ["oncall@example.com"]
+    },
+  ]
 }
 ```
 
@@ -134,58 +103,71 @@ resource "crowdstrike_correlation_rule" "rule_with_notification" {
 
 ### Required
 
-- `customer_id` (String) The CID of the environment (tenant ID).
+- `cid` (String) The CID of the environment (tenant ID). Must be 32 lowercase hex characters with no `-NN` checksum suffix (the canonical form the API returns).
 - `name` (String) Name of the correlation rule.
-- `severity` (Number) The severity level of generated alerts. Valid values are `10` (Informational), `30` (Low), `50` (Medium), `70` (High), `90` (Critical).
+- `notifications` (Attributes Set) Notifications sent when the rule requires attention. Each entry describes a delivery channel and is routed to the rule's regular (errors/warnings) array, the guardrail (auto-deactivation) array, or both via `is_guardrail`. At least one entry MUST set `is_guardrail = true`. Regular entries always send on failure and never on success — these options are not configurable. (see [below for nested schema](#nestedatt--notifications))
+- `schedule` (Attributes) The schedule that controls when the rule runs. (see [below for nested schema](#nestedatt--schedule))
+- `search` (Attributes) The search configuration that defines the rule's detection logic. (see [below for nested schema](#nestedatt--search))
+- `severity` (String) The severity level of generated alerts. Valid values: `informational`, `low`, `medium`, `high`, `critical`.
 - `status` (String) Whether the rule is `active` or `inactive`.
 
 ### Optional
 
-- `comment` (String) A comment. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.
-- `description` (String) Description of the correlation rule. Optional. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.
-- `guardrail_notification` (Block List) Guardrail notification configurations for the rule. Guardrail notifications are sent when guardrail conditions are met. (see [below for nested schema](#nestedblock--guardrail_notification))
-- `mitre_attack` (Block List) MITRE ATT&CK mappings for the rule. (see [below for nested schema](#nestedblock--mitre_attack))
-- `notification` (Block List) Notification configurations for the rule. Notifications are sent when the rule triggers. (see [below for nested schema](#nestedblock--notification))
-- `operation` (Block, Optional) The operation configuration that defines scheduling and timing for the rule. (see [below for nested schema](#nestedblock--operation))
-- `search` (Block, Optional) The search configuration that defines the rule's detection logic. (see [below for nested schema](#nestedblock--search))
-- `trigger_on_create` (Boolean) Whether to trigger the rule immediately upon creation. Write-only; not stored in state.
+- `comment` (String) A comment describing the rule or its most recent change.
+- `description` (String) Description of the correlation rule.
+- `mitre_attack` (Attributes List) MITRE ATT&CK mappings for the rule. Maximum of 10 entries. (see [below for nested schema](#nestedatt--mitre_attack))
 
 ### Read-Only
 
-- `id` (String) Unique identifier of the correlation rule. Computed.
-- `tactic` (String) The MITRE ATT&CK tactic ID. Derived from the first mitre_attack entry.
-- `technique` (String) The MITRE ATT&CK technique ID. Derived from the first mitre_attack entry.
-- `template_id` (String) The ID of the template this rule was created from, if any. Read-only; only populated on import and read.
+- `id` (String) The rule id. This is the stable rule identifier, not a version id.
 
-<a id="nestedblock--guardrail_notification"></a>
-### Nested Schema for `guardrail_notification`
+<a id="nestedatt--notifications"></a>
+### Nested Schema for `notifications`
 
 Required:
 
-- `type` (String) The notification type (e.g., `email`, `slack`, `webhook`).
+- `type` (String) The notification channel type. Valid values: `email`, `slack`, `pagerduty`, `webhook`, `ms_teams`.
 
 Optional:
 
-- `config` (Block, Optional) The notification configuration. (see [below for nested schema](#nestedblock--guardrail_notification--config))
-- `options` (Map of String) Additional options for the notification. The available options depend on the notification type.
+- `config_id` (String) The Fusion SOAR configuration identifier for the delivery channel, written to the API `config.config_id`. Holds the concrete integration instance id for non-email channels (e.g. the `slack`/`webhook`/`ms_teams` integration). Must be unset when `type = "email"`.
+- `is_guardrail` (Boolean) If true, the entry is sent to the rule's guardrail notification list, which fires when the platform auto-deactivates the rule for exceeding outcome thresholds (50 outcomes when the rule runs more than once per 24 hours; 100 outcomes otherwise). At least one notification on every rule must set this to `true`. Defaults to `false`.
+- `plugin_id` (String) The Fusion SOAR plugin identifier for the delivery channel, written to the API `config.plugin_id`. Used by channels backed by a plugin connector (e.g. `slack` sends the connector kind such as `slack.incoming_webhook`). Must be unset when `type = "email"`.
+- `recipients` (List of String) Email addresses to notify. Required (at least one) when `type = "email"`; not used by other channel types, which route through `plugin_id`/`config_id` instead.
+- `severity` (String) Optional per-notification severity label. Valid values: `critical`, `high`, `medium`, `low`, `informational`.
 
-<a id="nestedblock--guardrail_notification--config"></a>
-### Nested Schema for `guardrail_notification.config`
+
+<a id="nestedatt--schedule"></a>
+### Nested Schema for `schedule`
 
 Required:
 
-- `recipients` (List of String) The list of recipients for the notification.
+- `interval` (String) How often to run the query, as a Go duration string (e.g., `1h0m`, `5h30m`, `30m`). Minimum is `5m` (the API caps at 288 executions per day).
+- `start_on` (String) The UTC time to start running the query (e.g., `2024-11-19T19:00:00Z`). Must be at least 15 minutes in the future at create time.
 
 Optional:
 
-- `cid` (String) The CID for the notification configuration. Defaults to the rule's customer_id if not specified.
-- `config_id` (String) The configuration ID for the notification. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.
-- `plugin_id` (String) The plugin ID for the notification. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.
-- `severity` (String) The severity level for the notification. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.
+- `stop_on` (String) The UTC time to stop running the query (e.g., `2024-12-31T23:59:59Z`). If not specified, no stop time is used. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.
 
 
+<a id="nestedatt--search"></a>
+### Nested Schema for `search`
 
-<a id="nestedblock--mitre_attack"></a>
+Required:
+
+- `filter` (String) The query to base the rule on. For info about writing search queries, see [CrowdStrike Query Language](https://falcon.crowdstrike.com/documentation/page/d3c84a1b/crowdstrike-query-language-quick-reference).
+- `lookback` (String) The search window as a Go duration string (e.g., `1h0m`, `5h30m`, `24h`, `90m`). Should be at least as long as the schedule frequency. Maximum is `168h`.
+- `trigger_mode` (String) Must be `verbose` (One outcome generated for each result matching the query. Total outcomes are limited per rule trigger.) or `summary` (One outcome generated for all results matching the query. Total results included in the outcome are limited per rule trigger.).
+
+Optional:
+
+- `case_template_id` (String) The ID of the case template used to generate a case when the rule triggers. If not set, no case template is used.
+- `create_case` (Boolean) Whether the rule also creates a case when it matches. A detection is always created; set this to `true` to additionally create a case (optionally from `case_template_id`). Defaults to `false`.
+- `execution_mode` (String) The execution mode for the rule. Currently only `scheduled` is supported. Defaults to `scheduled`. **Note:** Changes to this field require the resource to be destroyed and recreated.
+- `use_ingest_time` (Boolean) If true, use the timestamp of the moment the event was ingested by crowdstrike cloud. Otherwise use the moment the event was generated on the system.
+
+
+<a id="nestedatt--mitre_attack"></a>
 ### Nested Schema for `mitre_attack`
 
 Required:
@@ -195,69 +177,6 @@ Required:
 Optional:
 
 - `technique_id` (String) The MITRE ATT&CK technique ID (e.g., `T1078`).
-
-
-<a id="nestedblock--notification"></a>
-### Nested Schema for `notification`
-
-Required:
-
-- `type` (String) The notification type (e.g., `email`, `slack`, `webhook`).
-
-Optional:
-
-- `config` (Block, Optional) The notification configuration. (see [below for nested schema](#nestedblock--notification--config))
-- `options` (Map of String) Additional options for the notification. The available options depend on the notification type.
-
-<a id="nestedblock--notification--config"></a>
-### Nested Schema for `notification.config`
-
-Required:
-
-- `recipients` (List of String) The list of recipients for the notification.
-
-Optional:
-
-- `cid` (String) The CID for the notification configuration. Defaults to the rule's customer_id if not specified.
-- `config_id` (String) The configuration ID for the notification. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.
-- `plugin_id` (String) The plugin ID for the notification. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.
-- `severity` (String) The severity level for the notification. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.
-
-
-
-<a id="nestedblock--operation"></a>
-### Nested Schema for `operation`
-
-Optional:
-
-- `schedule` (Block, Optional) The schedule configuration for when the rule should run. (see [below for nested schema](#nestedblock--operation--schedule))
-- `start_on` (String) The UTC time to start running the query (e.g., `2024-11-19T19:00:00Z`). Defaults to 15 minutes from creation time if not specified.
-- `stop_on` (String) The UTC time to stop running the query (e.g., `2024-12-31T23:59:59Z`). If not specified, no stop time is used. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.
-
-<a id="nestedblock--operation--schedule"></a>
-### Nested Schema for `operation.schedule`
-
-Required:
-
-- `definition` (String) How often to run the query using `@every` format (e.g., `@every 1h0m`, `@every 5h30m`). Minimum interval is 5 minutes (`@every 0h5m`).
-
-
-
-<a id="nestedblock--search"></a>
-### Nested Schema for `search`
-
-Required:
-
-- `filter` (String) The query to base the rule on. For info about writing search queries, see [CrowdStrike Query Language](https://falcon.crowdstrike.com/documentation/page/d3c84a1b/crowdstrike-query-language-quick-reference).
-- `lookback` (String) The search window in hours and minutes (e.g., `1h0m`, `5h30m`, `24h0m`). Should be at least as long as the schedule frequency.
-- `outcome` (String) Whether to create a detection or incident if a match is found. Valid values: `detection`, `incident`.
-- `trigger_mode` (String) Must be `verbose` (One outcome generated for each result matching the query. Total outcomes are limited per rule trigger.) or `summary` (One outcome generated for all results matching the query. Total results included in the outcome are limited per rule trigger.).
-
-Optional:
-
-- `case_template_id` (String) The ID of the case template used to generate a case when the rule triggers. If not set, no case template is used. **Note:** Due to an API limitation, removing this value once set requires the resource to be destroyed and recreated.
-- `execution_mode` (String) The execution mode for the rule. Currently only `scheduled` is supported. Defaults to `scheduled`. **Note:** Changes to this field require the resource to be destroyed and recreated.
-- `use_ingest_time` (Boolean) If true, use the timestamp of the moment the event was ingested by crowdstrike cloud. Otherwise use the moment the event was generated on the system. **Note:** Due to an API limitation, changing this value from `true` to `false` requires the resource to be destroyed and recreated.
 
 ## Import
 

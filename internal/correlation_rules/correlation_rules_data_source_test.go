@@ -6,41 +6,44 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	"github.com/hashicorp/terraform-plugin-testing/compare"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
-// TestAccCorrelationRulesDataSource_NoFilter returns all rules.
-func TestAccCorrelationRulesDataSource_NoFilter(t *testing.T) {
+func TestAccCorrelationRulesDataSource_noFilter(t *testing.T) {
 	rName := acctest.RandomResourceName()
+	dataSourceName := "data.crowdstrike_correlation_rules.all"
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t, acctest.RequireCustomerID) },
+		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
-			// Create a rule so we know at least one exists
 			{
 				Config: testAccCorrelationRulesDataSourceSetup(rName) + `
 data "crowdstrike_correlation_rules" "all" {
   depends_on = [crowdstrike_correlation_rule.test]
 }
 `,
-				Check: resource.ComposeAggregateTestCheckFunc(
-					// At least one rule should be returned
-					resource.TestCheckResourceAttrSet(
-						"data.crowdstrike_correlation_rules.all",
-						"rules.0.id",
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						dataSourceName,
+						tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("id"),
+						knownvalue.NotNull(),
 					),
-				),
+				},
 			},
 		},
 	})
 }
 
-// TestAccCorrelationRulesDataSource_FilterByStatus uses the status attribute.
-func TestAccCorrelationRulesDataSource_FilterByStatus(t *testing.T) {
+func TestAccCorrelationRulesDataSource_status(t *testing.T) {
 	rName := acctest.RandomResourceName()
+	dataSourceName := "data.crowdstrike_correlation_rules.inactive"
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t, acctest.RequireCustomerID) },
+		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCorrelationRulesDataSourceSetup(rName) + `
@@ -49,60 +52,29 @@ data "crowdstrike_correlation_rules" "inactive" {
   depends_on = [crowdstrike_correlation_rule.test]
 }
 `,
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(
-						"data.crowdstrike_correlation_rules.inactive",
-						"rules.0.id",
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						dataSourceName,
+						tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("id"),
+						knownvalue.NotNull(),
 					),
-					// All returned rules must be inactive
-					resource.TestCheckResourceAttr(
-						"data.crowdstrike_correlation_rules.inactive",
-						"rules.0.status",
-						"inactive",
+					statecheck.ExpectKnownValue(
+						dataSourceName,
+						tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("status"),
+						knownvalue.StringExact("inactive"),
 					),
-				),
+				},
 			},
 		},
 	})
 }
 
-// TestAccCorrelationRulesDataSource_FilterByName uses the name attribute.
-func TestAccCorrelationRulesDataSource_FilterByName(t *testing.T) {
+func TestAccCorrelationRulesDataSource_fql(t *testing.T) {
 	rName := acctest.RandomResourceName()
+	dataSourceName := "data.crowdstrike_correlation_rules.by_fql"
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t, acctest.RequireCustomerID) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccCorrelationRulesDataSourceSetup(rName) + fmt.Sprintf(`
-data "crowdstrike_correlation_rules" "by_name" {
-  name       = %[1]q
-  depends_on = [crowdstrike_correlation_rule.test]
-}
-`, rName),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(
-						"data.crowdstrike_correlation_rules.by_name",
-						"rules.#",
-						"1",
-					),
-					resource.TestCheckResourceAttr(
-						"data.crowdstrike_correlation_rules.by_name",
-						"rules.0.name",
-						rName,
-					),
-				),
-			},
-		},
-	})
-}
-
-// TestAccCorrelationRulesDataSource_FQLFilter uses the raw filter attribute.
-func TestAccCorrelationRulesDataSource_FQLFilter(t *testing.T) {
-	rName := acctest.RandomResourceName()
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t, acctest.RequireCustomerID) },
+		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCorrelationRulesDataSourceSetup(rName) + fmt.Sprintf(`
@@ -111,26 +83,103 @@ data "crowdstrike_correlation_rules" "by_fql" {
   depends_on = [crowdstrike_correlation_rule.test]
 }
 `, rName),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(
-						"data.crowdstrike_correlation_rules.by_fql",
-						"rules.#",
-						"1",
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						dataSourceName,
+						tfjsonpath.New("rules"),
+						knownvalue.ListSizeExact(1),
 					),
-					resource.TestCheckResourceAttr(
-						"data.crowdstrike_correlation_rules.by_fql",
-						"rules.0.name",
-						rName,
+					statecheck.ExpectKnownValue(
+						dataSourceName,
+						tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("name"),
+						knownvalue.StringExact(rName),
 					),
-				),
+				},
 			},
 		},
 	})
 }
 
-// TestAccCorrelationRulesDataSource_FilterConflict verifies that filter and
-// individual attributes cannot be used together.
-func TestAccCorrelationRulesDataSource_FilterConflict(t *testing.T) {
+func TestAccCorrelationRulesDataSource_filter(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	resourceName := "crowdstrike_correlation_rule.test"
+	dataSourceName := "data.crowdstrike_correlation_rules.by_name"
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCorrelationRulesDataSourceSetup(rName) + fmt.Sprintf(`
+data "crowdstrike_correlation_rules" "by_name" {
+  name       = %[1]q
+  depends_on = [crowdstrike_correlation_rule.test]
+}
+`, rName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						dataSourceName,
+						tfjsonpath.New("rules"),
+						knownvalue.ListSizeExact(1),
+					),
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("id"),
+						dataSourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("id"),
+						compare.ValuesSame(),
+					),
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("name"),
+						dataSourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("name"),
+						compare.ValuesSame(),
+					),
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("cid"),
+						dataSourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("cid"),
+						compare.ValuesSame(),
+					),
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("severity"),
+						dataSourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("severity"),
+						compare.ValuesSame(),
+					),
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("status"),
+						dataSourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("status"),
+						compare.ValuesSame(),
+					),
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("description"),
+						dataSourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("description"),
+						compare.ValuesSame(),
+					),
+					// rule_id is the stable identifier and aliases id.
+					statecheck.CompareValuePairs(
+						dataSourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("id"),
+						dataSourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("rule_id"),
+						compare.ValuesSame(),
+					),
+					// The data source always restricts results to correlation rules.
+					statecheck.ExpectKnownValue(
+						dataSourceName,
+						tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("type"),
+						knownvalue.StringExact("correlation"),
+					),
+					statecheck.ExpectKnownValue(
+						dataSourceName,
+						tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("created_on"),
+						knownvalue.NotNull(),
+					),
+					statecheck.ExpectKnownValue(
+						dataSourceName,
+						tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("updated_on"),
+						knownvalue.NotNull(),
+					),
+				},
+			},
+		},
+	})
+}
+
+func TestAccCorrelationRulesDataSource_filterConflict(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
@@ -147,27 +196,36 @@ data "crowdstrike_correlation_rules" "bad" {
 	})
 }
 
-// testAccCorrelationRulesDataSourceSetup creates a single rule to query against.
 func testAccCorrelationRulesDataSourceSetup(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
+data "crowdstrike_cid" "test" {}
+
 resource "crowdstrike_correlation_rule" "test" {
   name        = %[1]q
-  customer_id = %[2]q
-  severity    = 50
+  cid         = data.crowdstrike_cid.test.cid
+  severity    = "medium"
   status      = "inactive"
+  description = "Acceptance test correlation rule"
 
-  search {
+  search = {
     filter       = "#repo=\"base_sensor\" #event_simpleName=ProcessRollup2"
     lookback     = "1h0m"
-    outcome      = "detection"
+    create_case  = false
     trigger_mode = "verbose"
   }
 
-  operation {
-    schedule {
-      definition = "@every 1h0m"
-    }
+  schedule = {
+    interval = "1h0m"
+    start_on = "2030-01-01T00:00:00Z"
   }
+
+  notifications = [
+    {
+      type         = "email"
+      is_guardrail = true
+      recipients   = ["acc-tests@crowdstrike.com"]
+    }
+  ]
 }
-`, rName, acctest.CustomerID())
+`, rName)
 }
