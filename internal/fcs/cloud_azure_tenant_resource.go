@@ -9,9 +9,11 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -262,6 +264,12 @@ func (r *cloudAzureTenantResource) Schema(
 				ElementType:         types.StringType,
 				Optional:            true,
 				MarkdownDescription: "Azure subscription IDs where agentless scanning is enabled. These are sent as `additional_features` to the CrowdStrike API.",
+				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
+					setvalidator.ValueStringsAre(
+						validators.StringNotWhitespace(),
+					),
+				},
 			},
 		},
 	}
@@ -502,14 +510,35 @@ func (r cloudAzureTenantResource) ModifyPlan(
 	req resource.ModifyPlanRequest,
 	resp *resource.ModifyPlanResponse,
 ) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+	if req.Plan.Raw.IsNull() {
 		return
 	}
 
-	var state, plan cloudAzureTenantModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	var plan cloudAzureTenantModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
+	if !plan.AgentlessScanningSubscriptionIds.IsNull() {
+		var dspm dspmModel
+		resp.Diagnostics.Append(dspm.FromObject(ctx, plan.DSPM)...)
+		if !resp.Diagnostics.HasError() && !dspm.Enabled.ValueBool() {
+			resp.Diagnostics.Append(diag.NewAttributeErrorDiagnostic(
+				path.Root("agentless_scanning_subscription_ids"),
+				"Invalid configuration",
+				"agentless_scanning_subscription_ids requires dspm to be enabled.",
+			))
+			return
+		}
+	}
+
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var state cloudAzureTenantModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -603,7 +632,8 @@ func (r *cloudAzureTenantResource) createRegistration(
 	if diags.HasError() {
 		return nil, diags
 	}
-	if dspm.Enabled.ValueBool() {
+	agentlessSubIds := flex.ExpandSetAs[string](ctx, data.AgentlessScanningSubscriptionIds, &diags)
+	if dspm.Enabled.ValueBool() && len(agentlessSubIds) == 0 {
 		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "dspm")
 	}
 
@@ -632,8 +662,7 @@ func (r *cloudAzureTenantResource) createRegistration(
 		Context: ctx,
 	}
 
-	agentlessSubIds := flex.ExpandSetAs[string](ctx, data.AgentlessScanningSubscriptionIds, &diags)
-	if len(agentlessSubIds) > 0 {
+	if len(agentlessSubIds) > 0 && dspm.Enabled.ValueBool() {
 		params.Body.Resource.AdditionalFeatures = []*models.AzureAdditionalFeature{
 			{
 				Feature:         utils.Addr("dspm"),
@@ -693,7 +722,8 @@ func (r *cloudAzureTenantResource) updateRegistration(
 	if diags.HasError() {
 		return nil, diags
 	}
-	if dspm.Enabled.ValueBool() {
+	agentlessSubIds := flex.ExpandSetAs[string](ctx, data.AgentlessScanningSubscriptionIds, &diags)
+	if dspm.Enabled.ValueBool() && len(agentlessSubIds) == 0 {
 		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "dspm")
 	}
 
@@ -722,8 +752,7 @@ func (r *cloudAzureTenantResource) updateRegistration(
 		Context: ctx,
 	}
 
-	agentlessSubIds := flex.ExpandSetAs[string](ctx, data.AgentlessScanningSubscriptionIds, &diags)
-	if len(agentlessSubIds) > 0 {
+	if len(agentlessSubIds) > 0 && dspm.Enabled.ValueBool() {
 		params.Body.Resource.AdditionalFeatures = []*models.AzureAdditionalFeature{
 			{
 				Feature:         utils.Addr("dspm"),

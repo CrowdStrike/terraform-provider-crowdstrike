@@ -422,6 +422,22 @@ func TestAccCloudAzureTenant_agentlessScanningSubscriptionIdsTenantWide(t *testi
 	})
 }
 
+func TestAccCloudAzureTenant_agentlessSubIdsRequiresDSPM(t *testing.T) {
+	tenantID := acctest.RandomUUID()
+	subID1 := acctest.RandomUUID()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccCloudAzureTenantConfig_agentlessSubIdsNoDSPM(tenantID, subID1),
+				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm to be enabled"),
+			},
+		},
+	})
+}
+
 // Config helpers
 
 func testAccCloudAzureTenantConfig_basic(tenantID string) string {
@@ -566,4 +582,13 @@ resource "crowdstrike_cloud_azure_tenant" "test" {
     enabled = true
   }
 }`, tenantID, userReadAllPermissionID, subID1, subID2)
+}
+
+func testAccCloudAzureTenantConfig_agentlessSubIdsNoDSPM(tenantID, subID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                              = %[1]q
+  microsoft_graph_permission_ids         = [%[2]q]
+  agentless_scanning_subscription_ids    = [%[3]q]
+}`, tenantID, userReadAllPermissionID, subID)
 }
