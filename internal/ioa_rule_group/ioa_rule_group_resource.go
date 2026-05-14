@@ -176,7 +176,7 @@ var fileTypeLabelMap = map[string]string{
 }
 
 var connectionTypeLabelMap = map[string]string{
-	"ICMP": "ICMP",
+	"ICMP": "ICMP (Ping)",
 	"TCP":  "TCP",
 	"UDP":  "UDP",
 }

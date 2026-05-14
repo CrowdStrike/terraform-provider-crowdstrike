@@ -18,6 +18,7 @@ import (
 	ioaexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_exclusion"
 	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
 	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
+	mlcertificateexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ml_certificate_exclusion"
 	mlfilepathexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ml_file_path_exclusion"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	rtrputfile "github.com/crowdstrike/terraform-provider-crowdstrike/internal/rtr_put_file"
@@ -47,6 +48,7 @@ func registerSweepers() {
 	sensorvisibilityexclusion.RegisterSweepers()
 	mlfilepathexclusion.RegisterSweepers()
 	dataprotection.RegisterSweepers()
+	mlcertificateexclusion.RegisterSweepers()
 	cloudcompliance.RegisterSweepers()
 	cloudgroup.RegisterSweepers()
 	cloudsecurity.RegisterSweepers()

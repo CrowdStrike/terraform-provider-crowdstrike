@@ -72,7 +72,7 @@ resource "crowdstrike_cloud_aws_account" "org" {
 
 - `account_type` (String) The AWS account type. Value is 'commercial' for Commercial cloud accounts. For GovCloud environments, value can be either 'commercial' or 'gov' depending on the account type
 - `asset_inventory` (Attributes) (see [below for nested schema](#nestedatt--asset_inventory))
-- `deployment_method` (String) How the account was deployed. Valid values are 'terraform-native' and 'terraform-cft'
+- `deployment_method` (String) How the account was deployed. Valid values are 'terraform-native', 'terraform-cft', and 'cft'. This value cannot be changed after the account is created.
 - `dspm` (Attributes) (see [below for nested schema](#nestedatt--dspm))
 - `idp` (Attributes) (see [below for nested schema](#nestedatt--idp))
 - `organization_id` (String) The AWS Organization ID (starts with `o-`). When specified, accounts within the organization will be registered. If `target_ous` is empty, all accounts in the organization will be registered. The `account_id` must be the organization's management account ID.

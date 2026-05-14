@@ -388,6 +388,7 @@ func TestAccIOARuleGroupResource_NetworkConnection(t *testing.T) {
 									"exclude": knownvalue.Null(),
 								}),
 								"connection_type": knownvalue.SetExact([]knownvalue.Check{
+									knownvalue.StringExact("ICMP"),
 									knownvalue.StringExact("TCP"),
 									knownvalue.StringExact("UDP"),
 								}),
@@ -908,7 +909,7 @@ resource "crowdstrike_ioa_rule_group" "test" {
         include = ".*"
       }
 
-      connection_type = ["TCP", "UDP"]
+      connection_type = ["ICMP", "TCP", "UDP"]
     }
   ]
 }
