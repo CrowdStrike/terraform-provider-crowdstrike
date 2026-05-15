@@ -294,8 +294,19 @@ func (m *cloudAzureTenantModel) wrap(
 	m.TenantId = types.StringValue(*registration.TenantID)
 	m.AppRegistrationId = types.StringValue(registration.AppRegistrationID)
 	m.AccountType = types.StringValue(registration.AccountType)
-	m.CsInfraRegion = types.StringPointerValue(registration.CsInfraRegion)
-	m.CsInfraSubscriptionId = types.StringPointerValue(registration.CsInfraSubscriptionID)
+
+	csInfraRegion := types.StringPointerValue(registration.CsInfraRegion)
+	if csInfraRegion.IsNull() && !m.CsInfraRegion.IsNull() {
+		csInfraRegion = types.StringValue("")
+	}
+	m.CsInfraRegion = csInfraRegion
+
+	csInfraSubscriptionId := types.StringPointerValue(registration.CsInfraSubscriptionID)
+	if csInfraSubscriptionId.IsNull() && !m.CsInfraSubscriptionId.IsNull() {
+		csInfraSubscriptionId = types.StringValue("")
+	}
+	m.CsInfraSubscriptionId = csInfraSubscriptionId
+
 	m.Environment = types.StringPointerValue(registration.Environment)
 	m.ResourceNamePrefix = types.StringPointerValue(registration.ResourceNamePrefix)
 	m.ResourceNameSuffix = types.StringPointerValue(registration.ResourceNameSuffix)

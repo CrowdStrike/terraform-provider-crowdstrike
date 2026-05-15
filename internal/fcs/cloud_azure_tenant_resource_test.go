@@ -235,6 +235,43 @@ func TestAccCloudAzureTenant_environment(t *testing.T) {
 	})
 }
 
+func TestAccCloudAzureTenant_csInfra(t *testing.T) {
+	tenantID := acctest.RandomUUID()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAzureTenantConfig_csInfra(tenantID, "", ""),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("cs_infra_subscription_id"), knownvalue.StringExact("")),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("cs_infra_location"), knownvalue.StringExact("")),
+				},
+			},
+			{
+				Config: testAccCloudAzureTenantConfig_csInfra(tenantID, tenantID, "westus"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("cs_infra_subscription_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("cs_infra_location"), knownvalue.StringExact("westus")),
+				},
+			},
+			// TODO: API silently ignores empty-string clears for cs_infra_subscription_id
+			// and cs_infra_location, so unsetting after set is not currently supported.
+			// {
+			// 	Config: testAccCloudAzureTenantConfig_basic(tenantID),
+			// 	ConfigStateChecks: []statecheck.StateCheck{
+			// 		statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+			// 		statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("cs_infra_subscription_id"), knownvalue.Null()),
+			// 		statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("cs_infra_location"), knownvalue.Null()),
+			// 	},
+			// },
+		},
+	})
+}
+
 func TestAccCloudAzureTenant_realtimeVisibility(t *testing.T) {
 	tenantID := acctest.RandomUUID()
 
@@ -406,6 +443,16 @@ resource "crowdstrike_cloud_azure_tenant" "test" {
   microsoft_graph_permission_ids = [%[2]q]
   environment                    = %[3]q
 }`, tenantID, userReadAllPermissionID, env)
+}
+
+func testAccCloudAzureTenantConfig_csInfra(tenantID, csInfraSubscriptionID, csInfraLocation string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                      = %[1]q
+  microsoft_graph_permission_ids = [%[2]q]
+  cs_infra_subscription_id       = %[3]q
+  cs_infra_location              = %[4]q
+}`, tenantID, userReadAllPermissionID, csInfraSubscriptionID, csInfraLocation)
 }
 
 func testAccCloudAzureTenantConfig_rtvEnabled(tenantID string, enabled bool) string {
