@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/it_automation"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
@@ -134,7 +135,7 @@ func (m *itAutomationPolicyDataModel) wrapPolicy(
 	m.ModifiedBy = types.StringPointerValue(policy.ModifiedBy)
 
 	var hostGroupDiags diag.Diagnostics
-	m.HostGroups, hostGroupDiags = stringSliceToSet(ctx, policy.HostGroups)
+	m.HostGroups, hostGroupDiags = flex.FlattenStringValueSet(ctx, policy.HostGroups)
 	diags.Append(hostGroupDiags...)
 
 	m.wrapConcurrency(policy.Config)

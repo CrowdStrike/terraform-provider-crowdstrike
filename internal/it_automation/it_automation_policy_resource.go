@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/it_automation"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int32validator"
@@ -86,7 +87,7 @@ func (t *itAutomationPolicyResourceModel) wrap(
 	t.Description = types.StringPointerValue(policy.Description)
 	t.PlatformName = types.StringPointerValue(policy.Target)
 
-	hostGroups, diag := stringSliceToSet(ctx, policy.HostGroups)
+	hostGroups, diag := flex.FlattenStringValueSet(ctx, policy.HostGroups)
 	diags.Append(diag...)
 	if !diags.HasError() {
 		t.HostGroups = hostGroups
@@ -433,9 +434,8 @@ func (r *itAutomationPolicyResource) Create(
 	}
 
 	if !plan.HostGroups.IsNull() && len(plan.HostGroups.Elements()) != 0 {
-		hostGroups, diags := setToStringSlice(ctx, plan.HostGroups)
-		resp.Diagnostics.Append(diags...)
-		if diags.HasError() {
+		hostGroups := flex.ExpandSetAs[string](ctx, plan.HostGroups, &resp.Diagnostics)
+		if resp.Diagnostics.HasError() {
 			return
 		}
 
