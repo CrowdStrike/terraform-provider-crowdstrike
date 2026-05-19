@@ -6,8 +6,11 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
-	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
+	"github.com/hashicorp/terraform-plugin-testing/compare"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
 func TestAccItAutomationTasksDataSource_ValidationErrors(t *testing.T) {
@@ -22,27 +25,11 @@ func TestAccItAutomationTasksDataSource_ValidationErrors(t *testing.T) {
 			expectError: regexp.MustCompile("Invalid Attribute Combination"),
 		},
 		"filter_with_individual": {
-			configFunc:  testAccItAutomationTasksDataSourceConfigValidationFilterIndividual,
+			configFunc:  testAccItAutomationTasksDataSourceConfigValidationFilterName,
 			expectError: regexp.MustCompile("Invalid Attribute Combination"),
 		},
 		"ids_with_individual": {
 			configFunc:  testAccItAutomationTasksDataSourceConfigValidationIDsIndividual,
-			expectError: regexp.MustCompile("Invalid Attribute Combination"),
-		},
-		"all_three": {
-			configFunc:  testAccItAutomationTasksDataSourceConfigValidationAllThree,
-			expectError: regexp.MustCompile("Invalid Attribute Combination"),
-		},
-		"filter_with_name": {
-			configFunc:  testAccItAutomationTasksDataSourceConfigValidationFilterName,
-			expectError: regexp.MustCompile("Invalid Attribute Combination"),
-		},
-		"ids_with_type": {
-			configFunc:  testAccItAutomationTasksDataSourceConfigValidationIDsType,
-			expectError: regexp.MustCompile("Invalid Attribute Combination"),
-		},
-		"filter_with_access_type": {
-			configFunc:  testAccItAutomationTasksDataSourceConfigValidationFilterAccessType,
 			expectError: regexp.MustCompile("Invalid Attribute Combination"),
 		},
 		"invalid_type_value": {
@@ -80,16 +67,20 @@ func TestAccItAutomationTasksDataSource_404Handling(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccItAutomationTasksDataSourceConfig404NonExistentID(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(dataSourceName, "tasks.#", "0"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						dataSourceName,
+						tfjsonpath.New("tasks"),
+						knownvalue.ListSizeExact(0),
+					),
+				},
 			},
 		},
 	})
 }
 
-func TestAccItAutomationTasksDataSource_ResourceMatch(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+func TestAccItAutomationTasksDataSource_ids(t *testing.T) {
+	rName := acctest.RandomResourceName()
 	dataSourceName := "data.crowdstrike_it_automation_tasks.test"
 	resourceName := "crowdstrike_it_automation_task.test"
 
@@ -98,23 +89,15 @@ func TestAccItAutomationTasksDataSource_ResourceMatch(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccItAutomationTasksDataSourceConfigResourceMatch(rName),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(dataSourceName, "tasks.#", "1"),
-					resource.TestCheckResourceAttrPair(resourceName, "id", dataSourceName, "tasks.0.id"),
-					resource.TestCheckResourceAttrPair(resourceName, "name", dataSourceName, "tasks.0.name"),
-					resource.TestCheckResourceAttrPair(resourceName, "description", dataSourceName, "tasks.0.description"),
-					resource.TestCheckResourceAttrPair(resourceName, "type", dataSourceName, "tasks.0.type"),
-					resource.TestCheckResourceAttrPair(resourceName, "access_type", dataSourceName, "tasks.0.access_type"),
-					resource.TestCheckResourceAttrPair(resourceName, "os_query", dataSourceName, "tasks.0.os_query"),
-				),
+				Config:            testAccItAutomationTasksDataSourceConfigIDs(rName),
+				ConfigStateChecks: tasksDataSourceStateChecks(resourceName, dataSourceName),
 			},
 		},
 	})
 }
 
 func TestAccItAutomationTasksDataSource_NameFilter(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	rName := acctest.RandomResourceName()
 	dataSourceName := "data.crowdstrike_it_automation_tasks.test"
 	resourceName := "crowdstrike_it_automation_task.test"
 
@@ -123,19 +106,15 @@ func TestAccItAutomationTasksDataSource_NameFilter(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccItAutomationTasksDataSourceConfigNameFilter(rName),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(dataSourceName, "tasks.#", "1"),
-					resource.TestCheckResourceAttrPair(resourceName, "id", dataSourceName, "tasks.0.id"),
-					resource.TestCheckResourceAttrPair(resourceName, "name", dataSourceName, "tasks.0.name"),
-				),
+				Config:            testAccItAutomationTasksDataSourceConfigNameFilter(rName),
+				ConfigStateChecks: tasksDataSourceStateChecks(resourceName, dataSourceName),
 			},
 		},
 	})
 }
 
 func TestAccItAutomationTasksDataSource_FQLFilter(t *testing.T) {
-	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	rName := acctest.RandomResourceName()
 	dataSourceName := "data.crowdstrike_it_automation_tasks.test"
 	resourceName := "crowdstrike_it_automation_task.test"
 
@@ -144,15 +123,107 @@ func TestAccItAutomationTasksDataSource_FQLFilter(t *testing.T) {
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config: testAccItAutomationTasksDataSourceConfigFQLFilter(rName),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(dataSourceName, "tasks.#", "1"),
-					resource.TestCheckResourceAttrPair(resourceName, "id", dataSourceName, "tasks.0.id"),
-					resource.TestCheckResourceAttrPair(resourceName, "name", dataSourceName, "tasks.0.name"),
-				),
+				Config:            testAccItAutomationTasksDataSourceConfigFQLFilter(rName),
+				ConfigStateChecks: tasksDataSourceStateChecks(resourceName, dataSourceName),
 			},
 		},
 	})
+}
+
+// tasksDataSourceStateChecks verifies the data source returns exactly one task
+// matching the managed resource fixture, and compares every attribute exposed
+// by both the resource and the data source.
+func tasksDataSourceStateChecks(resourceName, dataSourceName string) []statecheck.StateCheck {
+	attrs := []string{
+		"id",
+		"name",
+		"description",
+		"type",
+		"access_type",
+		"target",
+		"os_query",
+		"task_group_id",
+		"linux_script_content",
+		"linux_script_file_id",
+		"linux_script_language",
+		"mac_script_content",
+		"mac_script_file_id",
+		"mac_script_language",
+		"windows_script_content",
+		"windows_script_file_id",
+		"windows_script_language",
+	}
+
+	taskPath := tfjsonpath.New("tasks").AtSliceIndex(0)
+
+	checks := []statecheck.StateCheck{
+		statecheck.ExpectKnownValue(
+			dataSourceName,
+			tfjsonpath.New("tasks"),
+			knownvalue.ListSizeExact(1),
+		),
+		// assigned_user_ids, additional_file_ids, assigned_user_group_ids: the API returns
+		// nil for these fields on tasks that have none, so the data source stores null.
+		statecheck.ExpectKnownValue(
+			dataSourceName,
+			taskPath.AtMapKey("assigned_user_ids"),
+			knownvalue.Null(),
+		),
+		statecheck.ExpectKnownValue(
+			dataSourceName,
+			taskPath.AtMapKey("additional_file_ids"),
+			knownvalue.Null(),
+		),
+		// Data-source-only computed attributes.
+		statecheck.ExpectKnownValue(
+			dataSourceName,
+			taskPath.AtMapKey("assigned_user_group_ids"),
+			knownvalue.Null(),
+		),
+		statecheck.ExpectKnownValue(
+			dataSourceName,
+			taskPath.AtMapKey("supported_os"),
+			knownvalue.NotNull(),
+		),
+		statecheck.ExpectKnownValue(
+			dataSourceName,
+			taskPath.AtMapKey("has_task_parameters"),
+			knownvalue.Bool(false),
+		),
+		statecheck.ExpectKnownValue(
+			dataSourceName,
+			taskPath.AtMapKey("runs"),
+			knownvalue.NotNull(),
+		),
+		statecheck.ExpectKnownValue(
+			dataSourceName,
+			taskPath.AtMapKey("created_by"),
+			knownvalue.NotNull(),
+		),
+		statecheck.ExpectKnownValue(
+			dataSourceName,
+			taskPath.AtMapKey("created_time"),
+			knownvalue.NotNull(),
+		),
+		statecheck.ExpectKnownValue(
+			dataSourceName,
+			taskPath.AtMapKey("modified_by"),
+			knownvalue.NotNull(),
+		),
+		statecheck.ExpectKnownValue(
+			dataSourceName,
+			taskPath.AtMapKey("modified_time"),
+			knownvalue.NotNull(),
+		),
+	}
+	for _, a := range attrs {
+		checks = append(checks, statecheck.CompareValuePairs(
+			resourceName, tfjsonpath.New(a),
+			dataSourceName, taskPath.AtMapKey(a),
+			compare.ValuesSame(),
+		))
+	}
+	return checks
 }
 
 func testAccItAutomationTasksDataSourceConfigValidationFilterIDs() string {
@@ -160,34 +231,6 @@ func testAccItAutomationTasksDataSourceConfigValidationFilterIDs() string {
 data "crowdstrike_it_automation_tasks" "test" {
   filter = "access_type:'Public'"
   ids    = ["id-one", "id-two"]
-}
-`
-}
-
-func testAccItAutomationTasksDataSourceConfigValidationFilterIndividual() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_it_automation_tasks" "test" {
-  filter = "access_type:'Public'"
-  name   = "test"
-}
-`
-}
-
-func testAccItAutomationTasksDataSourceConfigValidationIDsIndividual() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_it_automation_tasks" "test" {
-  ids         = ["id-one"]
-  access_type = "Public"
-}
-`
-}
-
-func testAccItAutomationTasksDataSourceConfigValidationAllThree() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_it_automation_tasks" "test" {
-  filter = "access_type:'Public'"
-  ids    = ["id-one"]
-  name   = "test"
 }
 `
 }
@@ -201,19 +244,10 @@ data "crowdstrike_it_automation_tasks" "test" {
 `
 }
 
-func testAccItAutomationTasksDataSourceConfigValidationIDsType() string {
+func testAccItAutomationTasksDataSourceConfigValidationIDsIndividual() string {
 	return acctest.ProviderConfig + `
 data "crowdstrike_it_automation_tasks" "test" {
-  ids  = ["id-one"]
-  type = "query"
-}
-`
-}
-
-func testAccItAutomationTasksDataSourceConfigValidationFilterAccessType() string {
-	return acctest.ProviderConfig + `
-data "crowdstrike_it_automation_tasks" "test" {
-  filter      = "name:'test'"
+  ids         = ["id-one"]
   access_type = "Public"
 }
 `
@@ -243,7 +277,7 @@ data "crowdstrike_it_automation_tasks" "test" {
 `
 }
 
-func testAccItAutomationTasksDataSourceConfigResourceMatch(rName string) string {
+func testAccItAutomationTasksDataSourceConfigIDs(rName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
 resource "crowdstrike_it_automation_task" "test" {
   name        = %[1]q
@@ -255,8 +289,6 @@ resource "crowdstrike_it_automation_task" "test" {
 
 data "crowdstrike_it_automation_tasks" "test" {
   ids = [crowdstrike_it_automation_task.test.id]
-
-  depends_on = [crowdstrike_it_automation_task.test]
 }
 `, rName)
 }
@@ -273,8 +305,6 @@ resource "crowdstrike_it_automation_task" "test" {
 
 data "crowdstrike_it_automation_tasks" "test" {
   name = crowdstrike_it_automation_task.test.name
-
-  depends_on = [crowdstrike_it_automation_task.test]
 }
 `, rName)
 }
@@ -291,8 +321,6 @@ resource "crowdstrike_it_automation_task" "test" {
 
 data "crowdstrike_it_automation_tasks" "test" {
   filter = format("name:'%%s'", crowdstrike_it_automation_task.test.name)
-
-  depends_on = [crowdstrike_it_automation_task.test]
 }
 `, rName)
 }

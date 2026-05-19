@@ -14,6 +14,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -103,36 +104,36 @@ func (m taskVerificationConditionDataModel) AttributeTypes() map[string]attr.Typ
 }
 
 type taskDataModel struct {
-	ID                    types.String `tfsdk:"id"`
-	Name                  types.String `tfsdk:"name"`
-	Description           types.String `tfsdk:"description"`
-	Type                  types.String `tfsdk:"type"`
-	AccessType            types.String `tfsdk:"access_type"`
-	AssignedUserIds       types.List   `tfsdk:"assigned_user_ids"`
-	AssignedUserGroupIds  types.List   `tfsdk:"assigned_user_group_ids"`
-	Target                types.String `tfsdk:"target"`
-	SupportedOs           types.List   `tfsdk:"supported_os"`
-	OsQuery               types.String `tfsdk:"os_query"`
-	Runs                  types.Int32  `tfsdk:"runs"`
-	HasTaskParameters     types.Bool   `tfsdk:"has_task_parameters"`
-	TaskGroupID           types.String `tfsdk:"task_group_id"`
-	LinuxScriptContent    types.String `tfsdk:"linux_script_content"`
-	LinuxScriptFileId     types.String `tfsdk:"linux_script_file_id"`
-	LinuxScriptLanguage   types.String `tfsdk:"linux_script_language"`
-	MacScriptContent      types.String `tfsdk:"mac_script_content"`
-	MacScriptFileId       types.String `tfsdk:"mac_script_file_id"`
-	MacScriptLanguage     types.String `tfsdk:"mac_script_language"`
-	WindowsScriptContent  types.String `tfsdk:"windows_script_content"`
-	WindowsScriptFileId   types.String `tfsdk:"windows_script_file_id"`
-	WindowsScriptLanguage types.String `tfsdk:"windows_script_language"`
-	AdditionalFileIds     types.List   `tfsdk:"additional_file_ids"`
-	ScriptColumns         types.Object `tfsdk:"script_columns"`
-	VerificationCondition types.List   `tfsdk:"verification_condition"`
-	CreatedBy             types.String `tfsdk:"created_by"`
-	CreatedTime           types.String `tfsdk:"created_time"`
-	ModifiedBy            types.String `tfsdk:"modified_by"`
-	ModifiedTime          types.String `tfsdk:"modified_time"`
-	LastRunTime           types.String `tfsdk:"last_run_time"`
+	ID                    types.String      `tfsdk:"id"`
+	Name                  types.String      `tfsdk:"name"`
+	Description           types.String      `tfsdk:"description"`
+	Type                  types.String      `tfsdk:"type"`
+	AccessType            types.String      `tfsdk:"access_type"`
+	AssignedUserIds       types.List        `tfsdk:"assigned_user_ids"`
+	AssignedUserGroupIds  types.List        `tfsdk:"assigned_user_group_ids"`
+	Target                types.String      `tfsdk:"target"`
+	SupportedOs           types.List        `tfsdk:"supported_os"`
+	OsQuery               types.String      `tfsdk:"os_query"`
+	Runs                  types.Int32       `tfsdk:"runs"`
+	HasTaskParameters     types.Bool        `tfsdk:"has_task_parameters"`
+	TaskGroupID           types.String      `tfsdk:"task_group_id"`
+	LinuxScriptContent    types.String      `tfsdk:"linux_script_content"`
+	LinuxScriptFileId     types.String      `tfsdk:"linux_script_file_id"`
+	LinuxScriptLanguage   types.String      `tfsdk:"linux_script_language"`
+	MacScriptContent      types.String      `tfsdk:"mac_script_content"`
+	MacScriptFileId       types.String      `tfsdk:"mac_script_file_id"`
+	MacScriptLanguage     types.String      `tfsdk:"mac_script_language"`
+	WindowsScriptContent  types.String      `tfsdk:"windows_script_content"`
+	WindowsScriptFileId   types.String      `tfsdk:"windows_script_file_id"`
+	WindowsScriptLanguage types.String      `tfsdk:"windows_script_language"`
+	AdditionalFileIds     types.List        `tfsdk:"additional_file_ids"`
+	ScriptColumns         types.Object      `tfsdk:"script_columns"`
+	VerificationCondition types.List        `tfsdk:"verification_condition"`
+	CreatedBy             types.String      `tfsdk:"created_by"`
+	CreatedTime           timetypes.RFC3339 `tfsdk:"created_time"`
+	ModifiedBy            types.String      `tfsdk:"modified_by"`
+	ModifiedTime          timetypes.RFC3339 `tfsdk:"modified_time"`
+	LastRunTime           timetypes.RFC3339 `tfsdk:"last_run_time"`
 }
 
 func (m taskDataModel) AttributeTypes() map[string]attr.Type {
@@ -163,10 +164,10 @@ func (m taskDataModel) AttributeTypes() map[string]attr.Type {
 		"script_columns":          types.ObjectType{AttrTypes: taskScriptColumnsDataModel{}.AttributeTypes()},
 		"verification_condition":  types.ListType{ElemType: types.ObjectType{AttrTypes: taskVerificationConditionDataModel{}.AttributeTypes()}},
 		"created_by":              types.StringType,
-		"created_time":            types.StringType,
+		"created_time":            timetypes.RFC3339Type{},
 		"modified_by":             types.StringType,
-		"modified_time":           types.StringType,
-		"last_run_time":           types.StringType,
+		"modified_time":           timetypes.RFC3339Type{},
+		"last_run_time":           timetypes.RFC3339Type{},
 	}
 }
 
@@ -217,16 +218,16 @@ func (m *itAutomationTasksDataSourceModel) wrap(ctx context.Context, tasks []*mo
 		}
 
 		tm := taskDataModel{}
-		tm.ID = types.StringPointerValue(task.ID)
-		tm.Name = types.StringPointerValue(task.Name)
-		tm.Description = types.StringPointerValue(task.Description)
-		tm.AccessType = types.StringValue(task.AccessType)
-		tm.Target = types.StringPointerValue(task.Target)
-		tm.OsQuery = types.StringValue(task.OsQuery)
+		tm.ID = flex.StringPointerToFramework(task.ID)
+		tm.Name = flex.StringPointerToFramework(task.Name)
+		tm.Description = flex.StringPointerToFramework(task.Description)
+		tm.AccessType = flex.StringValueToFramework(task.AccessType)
+		tm.Target = flex.StringPointerToFramework(task.Target)
+		tm.OsQuery = flex.StringValueToFramework(task.OsQuery)
 		tm.Runs = flex.Int32PointerToFramework(task.Runs)
 		tm.HasTaskParameters = types.BoolValue(task.HasTaskParameters)
-		tm.CreatedBy = types.StringPointerValue(task.CreatedBy)
-		tm.ModifiedBy = types.StringPointerValue(task.ModifiedBy)
+		tm.CreatedBy = flex.StringPointerToFramework(task.CreatedBy)
+		tm.ModifiedBy = flex.StringPointerToFramework(task.ModifiedBy)
 
 		if task.TaskType != nil {
 			tm.Type = types.StringValue(convertType(*task.TaskType, "terraform"))
@@ -234,38 +235,24 @@ func (m *itAutomationTasksDataSourceModel) wrap(ctx context.Context, tasks []*mo
 			tm.Type = types.StringNull()
 		}
 
-		if task.CreatedTime != nil {
-			tm.CreatedTime = types.StringValue(task.CreatedTime.String())
-		} else {
-			tm.CreatedTime = types.StringNull()
-		}
+		tm.CreatedTime = flex.DateTimePointerToFramework(task.CreatedTime)
+		tm.ModifiedTime = flex.DateTimePointerToFramework(task.ModifiedTime)
+		tm.LastRunTime = flex.DateTimePointerToFramework(task.LastRunTime)
 
-		if task.ModifiedTime != nil {
-			tm.ModifiedTime = types.StringValue(task.ModifiedTime.String())
-		} else {
-			tm.ModifiedTime = types.StringNull()
-		}
-
-		if task.LastRunTime != nil {
-			tm.LastRunTime = types.StringValue(task.LastRunTime.String())
-		} else {
-			tm.LastRunTime = types.StringNull()
-		}
-
-		assignedUsers, listDiags := stringSliceToList(ctx, task.AssignedUserIds)
+		assignedUsers, listDiags := types.ListValueFrom(ctx, types.StringType, task.AssignedUserIds)
 		diags.Append(listDiags...)
 		tm.AssignedUserIds = assignedUsers
 
-		assignedUserGroups, listDiags := stringSliceToList(ctx, task.AssignedUserGroupIds)
+		assignedUserGroups, listDiags := types.ListValueFrom(ctx, types.StringType, task.AssignedUserGroupIds)
 		diags.Append(listDiags...)
 		tm.AssignedUserGroupIds = assignedUserGroups
 
-		supportedOs, listDiags := stringSliceToList(ctx, task.SupportedOs)
+		supportedOs, listDiags := types.ListValueFrom(ctx, types.StringType, task.SupportedOs)
 		diags.Append(listDiags...)
 		tm.SupportedOs = supportedOs
 
 		if hasTaskGroupMembership(task.Groups) {
-			tm.TaskGroupID = types.StringPointerValue(task.Groups[0].ID)
+			tm.TaskGroupID = flex.StringPointerToFramework(task.Groups[0].ID)
 		} else {
 			tm.TaskGroupID = types.StringNull()
 		}
@@ -316,7 +303,7 @@ func (m *itAutomationTasksDataSourceModel) wrap(ctx context.Context, tasks []*mo
 			tm.WindowsScriptFileId = types.StringNull()
 		}
 
-		additionalList, listDiags := stringSliceToList(ctx, additionalFileIds)
+		additionalList, listDiags := types.ListValueFrom(ctx, types.StringType, additionalFileIds)
 		diags.Append(listDiags...)
 		tm.AdditionalFileIds = additionalList
 
@@ -333,13 +320,6 @@ func (m *itAutomationTasksDataSourceModel) wrap(ctx context.Context, tasks []*mo
 
 	m.Tasks = utils.SliceToListTypeObject(ctx, taskModels, taskDataModel{}.AttributeTypes(), &diags)
 	return diags
-}
-
-// stringSliceToList is a data-source helper that converts a []string to a
-// types.List of strings. An empty slice produces a known empty list rather
-// than null, to keep the nested attribute shape consistent.
-func stringSliceToList(ctx context.Context, values []string) (types.List, diag.Diagnostics) {
-	return types.ListValueFrom(ctx, types.StringType, values)
 }
 
 func convertOutputParserToObject(ctx context.Context, parser *models.ItautomationOutputParserConfig) (types.Object, diag.Diagnostics) {
@@ -473,7 +453,7 @@ func (d *itAutomationTasksDataSource) Schema(
 		Attributes: map[string]schema.Attribute{
 			"filter": schema.StringAttribute{
 				Optional:    true,
-				Description: "FQL filter to apply to the tasks query. Allowed filter fields: `access_type`, `created_by`, `created_time`, `last_run_time`, `modified_by`, `modified_time`, `name`, `runs`, `task_type`. Cannot be used together with `ids` or individual filter attributes.",
+				Description: "FQL filter to apply to the tasks query. Allowed filter fields: `access_type`, `created_by`, `created_time`, `last_run_time`, `modified_by`, `modified_time`, `name`, `runs`, `task_type`. The `task_type` field accepts `query` or `remediation` (note: the `type` attribute on this data source and the `crowdstrike_it_automation_task` resource exposes `remediation` as `action`). Cannot be used together with `ids` or individual filter attributes.",
 				Validators: []validator.String{
 					fwvalidators.StringNotWhitespace(),
 				},
@@ -691,7 +671,8 @@ func (d *itAutomationTasksDataSource) Schema(
 						},
 						"created_time": schema.StringAttribute{
 							Computed:    true,
-							Description: "Timestamp when the task was created.",
+							CustomType:  timetypes.RFC3339Type{},
+							Description: "Timestamp when the task was created, in RFC3339 format.",
 						},
 						"modified_by": schema.StringAttribute{
 							Computed:    true,
@@ -699,11 +680,13 @@ func (d *itAutomationTasksDataSource) Schema(
 						},
 						"modified_time": schema.StringAttribute{
 							Computed:    true,
-							Description: "Timestamp when the task was last modified.",
+							CustomType:  timetypes.RFC3339Type{},
+							Description: "Timestamp when the task was last modified, in RFC3339 format.",
 						},
 						"last_run_time": schema.StringAttribute{
 							Computed:    true,
-							Description: "Timestamp of the last execution.",
+							CustomType:  timetypes.RFC3339Type{},
+							Description: "Timestamp of the last execution, in RFC3339 format.",
 						},
 					},
 				},
@@ -825,6 +808,12 @@ func (d *itAutomationTasksDataSource) getTasksByIDs(
 		if err != nil {
 			d := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, tasksDataSourceApiScopes)
 			if d.Summary() == tferrors.NotFoundErrorSummary {
+				tflog.Debug(ctx, "[datasource] No IT Automation tasks found for batch",
+					map[string]any{
+						"batch_start": i,
+						"batch_end":   end,
+						"batch_size":  end - i,
+					})
 				continue
 			}
 			diags.Append(d)

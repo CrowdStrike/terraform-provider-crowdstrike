@@ -82,7 +82,7 @@ data "crowdstrike_it_automation_tasks" "admin_tasks" {
 ### Optional
 
 - `access_type` (String) Filter tasks by access type. One of: `Public`, `Shared`. Cannot be used together with `filter` or `ids`.
-- `filter` (String) FQL filter to apply to the tasks query. Allowed filter fields: `access_type`, `created_by`, `created_time`, `last_run_time`, `modified_by`, `modified_time`, `name`, `runs`, `task_type`. Cannot be used together with `ids` or individual filter attributes.
+- `filter` (String) FQL filter to apply to the tasks query. Allowed filter fields: `access_type`, `created_by`, `created_time`, `last_run_time`, `modified_by`, `modified_time`, `name`, `runs`, `task_type`. The `task_type` field accepts `query` or `remediation` (note: the `type` attribute on this data source and the `crowdstrike_it_automation_task` resource exposes `remediation` as `action`). Cannot be used together with `ids` or individual filter attributes.
 - `ids` (List of String) List of task IDs to retrieve. Cannot be used together with `filter` or individual filter attributes.
 - `name` (String) Filter tasks by name. Supports FQL wildcard matching. Cannot be used together with `filter` or `ids`.
 - `sort` (String) Sort expression for the results. Allowed sort fields: `access_type`, `created_by`, `created_time`, `last_run_time`, `modified_by`, `modified_time`, `name`, `runs`, `task_type`. Example: `name|asc`.
@@ -102,11 +102,11 @@ Read-Only:
 - `assigned_user_group_ids` (List of String) Assigned user group IDs of the task.
 - `assigned_user_ids` (List of String) Assigned user IDs of the task.
 - `created_by` (String) User who created the task.
-- `created_time` (String) Timestamp when the task was created.
+- `created_time` (String) Timestamp when the task was created, in RFC3339 format.
 - `description` (String) Description of the task.
 - `has_task_parameters` (Boolean) Whether the task has parameters.
 - `id` (String) Identifier for the task.
-- `last_run_time` (String) Timestamp of the last execution.
+- `last_run_time` (String) Timestamp of the last execution, in RFC3339 format.
 - `linux_script_content` (String) Linux script content.
 - `linux_script_file_id` (String) Linux RTR Response script ID.
 - `linux_script_language` (String) Linux script language.
@@ -114,7 +114,7 @@ Read-Only:
 - `mac_script_file_id` (String) Mac RTR Response script ID.
 - `mac_script_language` (String) Mac script language.
 - `modified_by` (String) User who last modified the task.
-- `modified_time` (String) Timestamp when the task was last modified.
+- `modified_time` (String) Timestamp when the task was last modified, in RFC3339 format.
 - `name` (String) Name of the task.
 - `os_query` (String) OSQuery string to execute.
 - `runs` (Number) Number of times the task has been executed.
