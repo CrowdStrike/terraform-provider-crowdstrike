@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/it_automation"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
@@ -155,10 +156,7 @@ func createScriptsFromPlan(
 
 	var fileIDs []string
 	if !model.AdditionalFileIds.IsNull() && !model.AdditionalFileIds.IsUnknown() {
-		var err diag.Diagnostics
-		fileIDs, err = setToStringSlice(ctx, model.AdditionalFileIds)
-
-		diags.Append(err...)
+		fileIDs = flex.ExpandSetAs[string](ctx, model.AdditionalFileIds, &diags)
 		if diags.HasError() {
 			return nil, diags
 		}
@@ -343,7 +341,7 @@ func (t *itAutomationTaskResourceModel) wrap(
 	}
 
 	if len(task.AssignedUserIds) > 0 {
-		userIds, diag := stringSliceToSet(ctx, task.AssignedUserIds)
+		userIds, diag := flex.FlattenStringValueSet(ctx, task.AssignedUserIds)
 		diags.Append(diag...)
 		if diags.HasError() {
 			return diags
@@ -439,7 +437,7 @@ func (t *itAutomationTaskResourceModel) wrap(
 			}
 
 			if len(s.script.FileIds) > 0 {
-				fileIds, fileDiags := stringSliceToSet(ctx, s.script.FileIds)
+				fileIds, fileDiags := flex.FlattenStringValueSet(ctx, s.script.FileIds)
 				diags.Append(fileDiags...)
 				if !diags.HasError() {
 					t.AdditionalFileIds = fileIds
@@ -836,9 +834,7 @@ func (r *itAutomationTaskResource) Create(
 	}
 
 	if !plan.AssignedUserIds.IsNull() && !plan.AssignedUserIds.IsUnknown() {
-		assignedUserIds, diags := setToStringSlice(ctx, plan.AssignedUserIds)
-		resp.Diagnostics.Append(diags...)
-
+		assignedUserIds := flex.ExpandSetAs[string](ctx, plan.AssignedUserIds, &resp.Diagnostics)
 		if resp.Diagnostics.HasError() {
 			return
 		}

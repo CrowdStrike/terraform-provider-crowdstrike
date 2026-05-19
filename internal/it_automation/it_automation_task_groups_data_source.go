@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/it_automation"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
@@ -112,14 +113,6 @@ func (m itAutomationTaskGroupsDataSourceModel) toFQL() string {
 	return strings.Join(parts, "+")
 }
 
-func stringSliceToList(ctx context.Context, items []string) (types.List, diag.Diagnostics) {
-	var diags diag.Diagnostics
-	if len(items) == 0 {
-		return types.ListNull(types.StringType), diags
-	}
-	return types.ListValueFrom(ctx, types.StringType, items)
-}
-
 func (m *itAutomationTaskGroupsDataSourceModel) wrap(ctx context.Context, groups []*models.ItautomationTaskGroup) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -130,39 +123,30 @@ func (m *itAutomationTaskGroupsDataSourceModel) wrap(ctx context.Context, groups
 		}
 
 		groupModel := taskGroupDataModel{
-			ID:          types.StringPointerValue(group.ID),
-			Name:        types.StringPointerValue(group.Name),
-			Description: types.StringPointerValue(group.Description),
-			AccessType:  types.StringPointerValue(group.AccessType),
-			IsPreset:    types.BoolPointerValue(group.IsPreset),
-			CreatedBy:   types.StringPointerValue(group.CreatedBy),
-			ModifiedBy:  types.StringPointerValue(group.ModifiedBy),
+			ID:           flex.StringPointerToFramework(group.ID),
+			Name:         flex.StringPointerToFramework(group.Name),
+			Description:  flex.StringPointerToFramework(group.Description),
+			AccessType:   flex.StringPointerToFramework(group.AccessType),
+			IsPreset:     types.BoolPointerValue(group.IsPreset),
+			CreatedBy:    flex.StringPointerToFramework(group.CreatedBy),
+			ModifiedBy:   flex.StringPointerToFramework(group.ModifiedBy),
+			CreatedTime:  flex.StringValueToFramework(group.CreatedTime.String()),
+			ModifiedTime: flex.StringValueToFramework(group.ModifiedTime.String()),
 		}
 
-		if group.CreatedTime != nil {
-			groupModel.CreatedTime = types.StringValue(group.CreatedTime.String())
-		} else {
-			groupModel.CreatedTime = types.StringNull()
-		}
-		if group.ModifiedTime != nil {
-			groupModel.ModifiedTime = types.StringValue(group.ModifiedTime.String())
-		} else {
-			groupModel.ModifiedTime = types.StringNull()
-		}
-
-		supportedOs, d := stringSliceToList(ctx, group.SupportedOs)
+		supportedOs, d := flex.FlattenStringValueList(ctx, group.SupportedOs)
 		diags.Append(d...)
 		groupModel.SupportedOs = supportedOs
 
-		taskIDs, d := stringSliceToList(ctx, group.TaskIds)
+		taskIDs, d := flex.FlattenStringValueList(ctx, group.TaskIds)
 		diags.Append(d...)
 		groupModel.TaskIds = taskIDs
 
-		assignedUserIds, d := stringSliceToList(ctx, group.AssignedUserIds)
+		assignedUserIds, d := flex.FlattenStringValueList(ctx, group.AssignedUserIds)
 		diags.Append(d...)
 		groupModel.AssignedUserIds = assignedUserIds
 
-		assignedUserGroupIds, d := stringSliceToList(ctx, group.AssignedUserGroupIds)
+		assignedUserGroupIds, d := flex.FlattenStringValueList(ctx, group.AssignedUserGroupIds)
 		diags.Append(d...)
 		groupModel.AssignedUserGroupIds = assignedUserGroupIds
 
@@ -340,7 +324,7 @@ func (d *itAutomationTaskGroupsDataSource) ValidateConfig(
 		return
 	}
 
-	hasFilter := utils.IsKnown(data.Filter) && data.Filter.ValueString() != ""
+	hasFilter := utils.IsKnown(data.Filter)
 	hasIDs := utils.IsKnown(data.IDs) && len(data.IDs.Elements()) > 0
 
 	filterCount := 0
@@ -378,6 +362,15 @@ func (d *itAutomationTaskGroupsDataSource) getTaskGroupsByIDs(
 			Ids:     ids,
 		},
 	)
+	if err != nil {
+		apiDiag := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, taskGroupsDataSourceRequiredScopes)
+		if apiDiag.Summary() == tferrors.NotFoundErrorSummary {
+			tflog.Debug(ctx, "[datasource] No IT automation task groups found for the provided IDs (404), returning empty list")
+			return []*models.ItautomationTaskGroup{}, diags
+		}
+		diags.Append(apiDiag)
+		return []*models.ItautomationTaskGroup{}, diags
+	}
 
 	if ok != nil && ok.Payload != nil {
 		return ok.Payload.Resources, diags
@@ -385,13 +378,6 @@ func (d *itAutomationTaskGroupsDataSource) getTaskGroupsByIDs(
 
 	if multi != nil && multi.Payload != nil {
 		return multi.Payload.Resources, diags
-	}
-
-	if err != nil {
-		if isNotFoundError(err) {
-			return []*models.ItautomationTaskGroup{}, diags
-		}
-		diags.Append(tferrors.NewOperationError(tferrors.Read, err))
 	}
 
 	return []*models.ItautomationTaskGroup{}, diags
@@ -428,7 +414,12 @@ func (d *itAutomationTaskGroupsDataSource) getTaskGroupsByQuery(
 
 		ok, multi, err := d.client.ItAutomation.ITAutomationGetTaskGroupsByQuery(params)
 		if err != nil {
-			diags.Append(tferrors.NewOperationError(tferrors.Read, err))
+			apiDiag := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, taskGroupsDataSourceRequiredScopes)
+			if apiDiag.Summary() == tferrors.NotFoundErrorSummary {
+				tflog.Debug(ctx, "[datasource] No IT automation task groups found (404), returning empty list")
+				return allGroups, diags
+			}
+			diags.Append(apiDiag)
 			return allGroups, diags
 		}
 
@@ -451,15 +442,13 @@ func (d *itAutomationTaskGroupsDataSource) getTaskGroupsByQuery(
 		}
 
 		if payload.Meta != nil && payload.Meta.Pagination != nil &&
-			payload.Meta.Pagination.Offset != nil && payload.Meta.Pagination.Total != nil {
-			offset = int64(*payload.Meta.Pagination.Offset)
-			if offset >= *payload.Meta.Pagination.Total {
+			payload.Meta.Pagination.Total != nil {
+			if int64(len(allGroups)) >= *payload.Meta.Pagination.Total {
 				break
 			}
-			continue
 		}
 
-		offset += limit
+		offset += pageCount
 	}
 
 	return allGroups, diags

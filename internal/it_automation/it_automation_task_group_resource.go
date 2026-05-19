@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/it_automation"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
@@ -70,14 +71,14 @@ func (t *itAutomationTaskGroupResourceModel) wrap(
 	t.Name = types.StringPointerValue(group.Name)
 	t.Description = utils.PlanAwareStringValue(t.Description, group.Description)
 
-	assignedUserIds, diag := stringSliceToSet(ctx, group.AssignedUserIds)
+	assignedUserIds, diag := flex.FlattenStringValueSet(ctx, group.AssignedUserIds)
 	diags.Append(diag...)
 	if diags.HasError() {
 		return diags
 	}
 	t.AssignedUserIds = assignedUserIds
 
-	taskIDs, diag := stringSliceToSet(ctx, group.TaskIds)
+	taskIDs, diag := flex.FlattenStringValueSet(ctx, group.TaskIds)
 	diags.Append(diag...)
 	if diags.HasError() {
 		return diags
