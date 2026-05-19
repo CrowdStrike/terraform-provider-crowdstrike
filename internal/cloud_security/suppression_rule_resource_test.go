@@ -9,7 +9,10 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
 func TestCloudSecuritySuppressionRuleResource_Basic(t *testing.T) {
@@ -1725,4 +1728,56 @@ resource "crowdstrike_cloud_security_suppression_rule" "whitespace_tag_value_tes
   }
 }
 `, suffix)
+}
+
+// TestCloudSecuritySuppressionRuleResource_ExpirationDateNonUTCOffset is a
+// regression test for https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues/328.
+//
+// The API normalizes suppression_expiration_date to UTC on the server side, so
+// a configuration value like "2026-07-01T00:00:00+10:00" is returned as
+// "2026-06-30T14:00:00Z" on subsequent reads. Because timetypes.RFC3339 only
+// treats "Z" and "+00:00" as semantically equal, Terraform's post-apply check
+// fails with "produced an unexpected new value" even though both strings
+// represent the same instant.
+func TestCloudSecuritySuppressionRuleResource_ExpirationDateNonUTCOffset(t *testing.T) {
+	randomSuffix := sdkacctest.RandString(8)
+	resourceName := "crowdstrike_cloud_security_suppression_rule.nonutc_expiration_test"
+
+	future := time.Now().Add(30 * 24 * time.Hour).In(time.FixedZone("AEST", 10*60*60))
+	expirationDate := future.Format("2006-01-02T15:04:05-07:00")
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testSuppressionRuleNonUTCExpirationConfig(randomSuffix, expirationDate),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("expiration_date"), knownvalue.StringExact(expirationDate)),
+				},
+			},
+		},
+	})
+}
+
+func testSuppressionRuleNonUTCExpirationConfig(suffix, expirationDate string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_security_suppression_rule" "nonutc_expiration_test" {
+  name            = "TF Test NonUTC Expiration %[1]s"
+  type            = "IOM"
+  description     = "Regression test for issue #328 - non-UTC timezone offset"
+  reason          = "false-positive"
+  expiration_date = %[2]q
+
+  rule_selection_filter = {
+    names = ["Test Rule with NonUTC Expiration"]
+  }
+
+  asset_filter = {
+    cloud_providers = ["aws"]
+    regions         = ["us-east-1"]
+  }
+}
+`, suffix, expirationDate)
 }

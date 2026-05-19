@@ -176,7 +176,7 @@ var fileTypeLabelMap = map[string]string{
 }
 
 var connectionTypeLabelMap = map[string]string{
-	"ICMP": "ICMP",
+	"ICMP": "ICMP (Ping)",
 	"TCP":  "TCP",
 	"UDP":  "UDP",
 }
@@ -482,8 +482,8 @@ func (r *ioaRuleGroupResource) Schema(
 							},
 						},
 						"comment": schema.StringAttribute{
-							Required:    true,
-							Description: "The comment stored in audit logs when making changes to the IOA rule group rule.",
+							Optional:    true,
+							Description: "The comment stored in audit logs when making changes to the IOA rule group rule. This attribute behaves as write-only: the configured value is sent to the API on every apply, but Terraform does not reconcile drift in this field.",
 							Validators: []validator.String{
 								validators.StringNotWhitespace(),
 							},
@@ -552,11 +552,16 @@ func (r *ioaRuleGroupResource) Schema(
 	}
 }
 
+type trackedRule struct {
+	instanceID string
+	comment    types.String
+}
+
 func (m *ioaRuleGroupResourceModel) wrap(
 	ctx context.Context,
 	group *models.APIRuleGroupV1,
 	platform string,
-	ruleOrder []string,
+	trackedRules []trackedRule,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -566,6 +571,7 @@ func (m *ioaRuleGroupResourceModel) wrap(
 		m.Platform = types.StringValue(normalizePlatform(*group.Platform))
 	}
 	m.Description = flex.StringPointerToFramework(group.Description)
+	m.Comment = flex.StringPointerToFramework(group.Comment)
 	m.Enabled = types.BoolPointerValue(group.Enabled)
 	m.CreatedBy = types.StringPointerValue(group.CreatedBy)
 	m.ModifiedBy = types.StringPointerValue(group.ModifiedBy)
@@ -582,7 +588,7 @@ func (m *ioaRuleGroupResourceModel) wrap(
 		m.CommittedOn = types.StringValue(group.CommittedOn.String())
 	}
 
-	rules, d := wrapRules(ctx, group.Rules, platform, ruleOrder)
+	rules, d := wrapRules(ctx, group.Rules, platform, trackedRules)
 	diags.Append(d...)
 	if diags.HasError() {
 		return diags
@@ -596,7 +602,7 @@ func wrapRules(
 	ctx context.Context,
 	apiRules []*models.APIRuleV1,
 	platform string,
-	ruleOrder []string,
+	trackedRules []trackedRule,
 ) (types.List, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
@@ -604,6 +610,16 @@ func wrapRules(
 
 	if len(apiRules) == 0 {
 		return types.ListNull(types.ObjectType{AttrTypes: ruleAttrTypes}), diags
+	}
+
+	priorComments := make(map[string]types.String, len(trackedRules))
+	ruleOrder := make([]string, 0, len(trackedRules))
+	for _, t := range trackedRules {
+		if t.instanceID == "" {
+			continue
+		}
+		ruleOrder = append(ruleOrder, t.instanceID)
+		priorComments[t.instanceID] = t.comment
 	}
 
 	if len(ruleOrder) > 0 {
@@ -644,11 +660,18 @@ func wrapRules(
 			}
 		}
 
+		commentVal := flex.StringPointerToFramework(apiRule.Comment)
+		if apiRule.InstanceID != nil {
+			if prior, ok := priorComments[*apiRule.InstanceID]; ok {
+				commentVal = prior
+			}
+		}
+
 		ruleAttrs := map[string]attr.Value{
 			"instance_id":      types.StringPointerValue(apiRule.InstanceID),
 			"name":             types.StringPointerValue(apiRule.Name),
 			"description":      types.StringPointerValue(apiRule.Description),
-			"comment":          types.StringPointerValue(apiRule.Comment),
+			"comment":          commentVal,
 			"pattern_severity": types.StringPointerValue(apiRule.PatternSeverity),
 			"type":             types.StringValue(ruleTypeName),
 			"action":           types.StringValue(actionName),
@@ -935,9 +958,6 @@ func (r *ioaRuleGroupResource) Create(
 	}
 
 	comment := plan.Comment.ValueString()
-	if comment == "" {
-		comment = "Created by Terraform"
-	}
 	description := plan.Description.ValueString()
 
 	apiPlatform := platformToAPI[plan.Platform.ValueString()]
@@ -993,7 +1013,7 @@ func (r *ioaRuleGroupResource) Create(
 		return
 	}
 
-	var orderedInstanceIDs []string
+	var trackedRules []trackedRule
 
 	rules := utils.ListTypeAs[ioaRuleModel](ctx, plan.Rules, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
@@ -1011,7 +1031,7 @@ func (r *ioaRuleGroupResource) Create(
 			}
 			version = newVersion
 			if instanceID != "" {
-				orderedInstanceIDs = append(orderedInstanceIDs, instanceID)
+				trackedRules = append(trackedRules, trackedRule{instanceID: instanceID, comment: rule.Comment})
 			}
 		}
 	}
@@ -1030,7 +1050,7 @@ func (r *ioaRuleGroupResource) Create(
 		return
 	}
 
-	resp.Diagnostics.Append(plan.wrap(ctx, group, plan.Platform.ValueString(), orderedInstanceIDs)...)
+	resp.Diagnostics.Append(plan.wrap(ctx, group, plan.Platform.ValueString(), trackedRules)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
@@ -1045,14 +1065,14 @@ func (r *ioaRuleGroupResource) Read(
 		return
 	}
 
-	var ruleOrder []string
+	var trackedRules []trackedRule
 	stateRules := utils.ListTypeAs[ioaRuleModel](ctx, state.Rules, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	for _, r := range stateRules {
 		if !r.InstanceID.IsNull() {
-			ruleOrder = append(ruleOrder, r.InstanceID.ValueString())
+			trackedRules = append(trackedRules, trackedRule{instanceID: r.InstanceID.ValueString(), comment: r.Comment})
 		}
 	}
 
@@ -1072,7 +1092,7 @@ func (r *ioaRuleGroupResource) Read(
 		platform = normalizePlatform(*group.Platform)
 	}
 
-	resp.Diagnostics.Append(state.wrap(ctx, group, platform, ruleOrder)...)
+	resp.Diagnostics.Append(state.wrap(ctx, group, platform, trackedRules)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -1099,9 +1119,6 @@ func (r *ioaRuleGroupResource) Update(
 	version := *currentGroup.Version
 
 	comment := plan.Comment.ValueString()
-	if comment == "" {
-		comment = "Updated by Terraform"
-	}
 	description := plan.Description.ValueString()
 
 	updateGroupParams := custom_ioa.NewUpdateRuleGroupMixin0ParamsWithContext(ctx)
@@ -1194,7 +1211,7 @@ func (r *ioaRuleGroupResource) Update(
 		existingRules = indexRulesByInstanceID(refreshedGroup.Rules)
 	}
 
-	var orderedInstanceIDs []string
+	var trackedRules []trackedRule
 
 	for _, planRule := range planRules {
 		var existingRule *models.APIRuleV1
@@ -1209,7 +1226,7 @@ func (r *ioaRuleGroupResource) Update(
 				return
 			}
 			version = newVersion
-			orderedInstanceIDs = append(orderedInstanceIDs, *existingRule.InstanceID)
+			trackedRules = append(trackedRules, trackedRule{instanceID: *existingRule.InstanceID, comment: planRule.Comment})
 		} else {
 			instanceID, newVersion, d := r.createRule(ctx, groupID, planRule, platform, version)
 			resp.Diagnostics.Append(d...)
@@ -1218,7 +1235,7 @@ func (r *ioaRuleGroupResource) Update(
 			}
 			version = newVersion
 			if instanceID != "" {
-				orderedInstanceIDs = append(orderedInstanceIDs, instanceID)
+				trackedRules = append(trackedRules, trackedRule{instanceID: instanceID, comment: planRule.Comment})
 			}
 		}
 	}
@@ -1229,7 +1246,7 @@ func (r *ioaRuleGroupResource) Update(
 		return
 	}
 
-	resp.Diagnostics.Append(plan.wrap(ctx, group, platform, orderedInstanceIDs)...)
+	resp.Diagnostics.Append(plan.wrap(ctx, group, platform, trackedRules)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
@@ -1600,9 +1617,6 @@ func (r *ioaRuleGroupResource) enableRuleGroup(
 
 	enabled := true
 	comment := plan.Comment.ValueString()
-	if comment == "" {
-		comment = "Enable rule group via Terraform"
-	}
 	description := plan.Description.ValueString()
 
 	updateParams := custom_ioa.NewUpdateRuleGroupMixin0ParamsWithContext(ctx)

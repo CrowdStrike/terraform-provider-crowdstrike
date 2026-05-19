@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/it_automation"
@@ -15,7 +14,6 @@ import (
 )
 
 const (
-	timeFormat          = time.RFC850
 	paginationLimit     = 100
 	AccessTypePublic    = "Public"
 	AccessTypeShared    = "Shared"

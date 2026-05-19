@@ -17,7 +17,6 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
-	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
@@ -64,15 +63,15 @@ type cloudSecuritySuppressionRuleResource struct {
 }
 
 type cloudSecuritySuppressionRuleResourceModel struct {
-	ID                  types.String      `tfsdk:"id"`
-	Type                types.String      `tfsdk:"type"`
-	Description         types.String      `tfsdk:"description"`
-	Name                types.String      `tfsdk:"name"`
-	RuleSelectionFilter types.Object      `tfsdk:"rule_selection_filter"`
-	AssetFilter         types.Object      `tfsdk:"asset_filter"`
-	Comment             types.String      `tfsdk:"comment"`
-	ExpirationDate      timetypes.RFC3339 `tfsdk:"expiration_date"`
-	Reason              types.String      `tfsdk:"reason"`
+	ID                  types.String    `tfsdk:"id"`
+	Type                types.String    `tfsdk:"type"`
+	Description         types.String    `tfsdk:"description"`
+	Name                types.String    `tfsdk:"name"`
+	RuleSelectionFilter types.Object    `tfsdk:"rule_selection_filter"`
+	AssetFilter         types.Object    `tfsdk:"asset_filter"`
+	Comment             types.String    `tfsdk:"comment"`
+	ExpirationDate      fwtypes.RFC3339 `tfsdk:"expiration_date"`
+	Reason              types.String    `tfsdk:"reason"`
 }
 
 type ruleSelectionFilterModel struct {
@@ -210,7 +209,7 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 				},
 			},
 			"expiration_date": schema.StringAttribute{
-				CustomType:          timetypes.RFC3339Type{},
+				CustomType:          fwtypes.RFC3339Type{},
 				MarkdownDescription: "Expiration date for suppression. If defined, must be in RFC3339 format (e.g., `2025-08-11T10:00:00Z`). Once set, clearing this field requires resource replacement. The suppression rule will still exist after expiration and can be reset by updating the expiration date.",
 				Optional:            true,
 				Validators: []validator.String{
@@ -222,7 +221,7 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 							return
 						}
 
-						var stateValue timetypes.RFC3339
+						var stateValue fwtypes.RFC3339
 						diags := req.State.GetAttribute(ctx, req.Path, &stateValue)
 						if diags.HasError() {
 							return
@@ -515,7 +514,7 @@ func (r *cloudSecuritySuppressionRuleResource) Update(
 	if plan.ExpirationDate.Equal(state.ExpirationDate) {
 		// Don't send expiration date to API if it hasn't changed, even if it's expired.
 		// A warning for the expired date is already in Read()
-		plan.ExpirationDate = timetypes.NewRFC3339Null()
+		plan.ExpirationDate = fwtypes.NewRFC3339Null()
 	}
 
 	rule, diags := r.updateSuppressionRule(ctx, plan)
@@ -577,7 +576,7 @@ func (r *cloudSecuritySuppressionRuleResource) ModifyPlan(
 	}
 }
 
-func isTimestampExpired(timestampStr timetypes.RFC3339) (bool, diag.Diagnostics) {
+func isTimestampExpired(timestampStr fwtypes.RFC3339) (bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	timestamp, err := timestampStr.ValueRFC3339Time()
@@ -796,9 +795,16 @@ func (m *cloudSecuritySuppressionRuleResourceModel) wrap(
 	m.Reason = flex.StringPointerToFramework(rule.SuppressionReason)
 	m.Type = flex.StringPointerToFramework(rule.Subdomain)
 
-	m.ExpirationDate, diags = flex.RFC3339ValueToFramework(rule.SuppressionExpirationDate)
-	if diags.HasError() {
-		return diags
+	// TODO: replace with flex.RFC3339ValueToFramework once the helper is updated
+	// to return fwtypes.RFC3339 and other call sites (e.g. install_token) are
+	// migrated to the fwtypes fork.
+	if rule.SuppressionExpirationDate == "" {
+		m.ExpirationDate = fwtypes.NewRFC3339Null()
+	} else {
+		m.ExpirationDate, diags = fwtypes.NewRFC3339Value(rule.SuppressionExpirationDate)
+		if diags.HasError() {
+			return diags
+		}
 	}
 
 	diags.Append(m.setRuleSelectionFilter(ctx, rule)...)
