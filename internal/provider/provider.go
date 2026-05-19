@@ -356,6 +356,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		rtrscript.NewRTRScriptDataSource,
 		rtrputfile.NewRtrPutFileDataSource,
 		itautomation.NewItAutomationTaskGroupsDataSource,
+		itautomation.NewItAutomationPoliciesDataSource,
 		itautomation.NewItAutomationTasksDataSource,
 	}
 }
