@@ -1230,6 +1230,7 @@ func (r *itAutomationTaskResource) ValidateConfig(
 	}
 
 	if !hasValue(config.OsQuery) &&
+		!config.OsQuery.IsUnknown() &&
 		!scriptProvided &&
 		!hasUnknownFileIds &&
 		config.Type.ValueString() != "" {
