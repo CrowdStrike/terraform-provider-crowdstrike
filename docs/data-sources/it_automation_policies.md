@@ -91,7 +91,7 @@ Read-Only:
 - `enabled` (Boolean) Whether the policy is enabled.
 - `execution_timeout` (Number) Maximum time a script can run before timing out.
 - `execution_timeout_unit` (String) Unit of time for execution timeout.
-- `host_groups` (List of String) Host group IDs associated with this policy.
+- `host_groups` (Set of String) Host group IDs associated with this policy.
 - `id` (String) Identifier for the policy.
 - `memory_allocation` (Number) Amount of memory allocated (Windows/Linux only).
 - `memory_allocation_unit` (String) Unit for memory allocation (Windows/Linux only).
