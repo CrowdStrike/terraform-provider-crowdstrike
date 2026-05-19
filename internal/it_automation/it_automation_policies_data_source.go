@@ -2,14 +2,18 @@ package itautomation
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/it_automation"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/go-openapi/runtime"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -59,7 +63,7 @@ type itAutomationPolicyDataModel struct {
 	PlatformName                    types.String `tfsdk:"platform_name"`
 	Enabled                         types.Bool   `tfsdk:"enabled"`
 	Precedence                      types.Int32  `tfsdk:"precedence"`
-	HostGroups                      types.List   `tfsdk:"host_groups"`
+	HostGroups                      types.Set    `tfsdk:"host_groups"`
 	ConcurrentHostFileTransferLimit types.Int32  `tfsdk:"concurrent_host_file_transfer_limit"`
 	ConcurrentHostLimit             types.Int32  `tfsdk:"concurrent_host_limit"`
 	ConcurrentTaskLimit             types.Int32  `tfsdk:"concurrent_task_limit"`
@@ -87,7 +91,7 @@ func (m itAutomationPolicyDataModel) AttributeTypes() map[string]attr.Type {
 		"platform_name":                       types.StringType,
 		"enabled":                             types.BoolType,
 		"precedence":                          types.Int32Type,
-		"host_groups":                         types.ListType{ElemType: types.StringType},
+		"host_groups":                         types.SetType{ElemType: types.StringType},
 		"concurrent_host_file_transfer_limit": types.Int32Type,
 		"concurrent_host_limit":               types.Int32Type,
 		"concurrent_task_limit":               types.Int32Type,
@@ -129,7 +133,9 @@ func (m *itAutomationPolicyDataModel) wrapPolicy(
 	m.ModifiedAt = types.StringPointerValue(policy.ModifiedAt)
 	m.ModifiedBy = types.StringPointerValue(policy.ModifiedBy)
 
-	m.HostGroups = utils.SliceToListTypeString(ctx, policy.HostGroups, &diags)
+	var hostGroupDiags diag.Diagnostics
+	m.HostGroups, hostGroupDiags = stringSliceToSet(ctx, policy.HostGroups)
+	diags.Append(hostGroupDiags...)
 
 	m.wrapConcurrency(policy.Config)
 	m.wrapExecution(policy.Config)
@@ -210,7 +216,8 @@ type itAutomationPoliciesDataSourceModel struct {
 func (m itAutomationPoliciesDataSourceModel) hasFilterAttributes() bool {
 	return utils.IsKnown(m.PlatformName) ||
 		utils.IsKnown(m.Name) ||
-		utils.IsKnown(m.Enabled)
+		utils.IsKnown(m.Enabled) ||
+		utils.IsKnown(m.Sort)
 }
 
 func (m *itAutomationPoliciesDataSourceModel) wrap(
@@ -309,7 +316,7 @@ func (d *itAutomationPoliciesDataSource) Schema(
 			},
 			"sort": schema.StringAttribute{
 				Optional:    true,
-				Description: "Sort expression for the results. Allowed sort fields: `precedence`, `created_timestamp`, `modified_timestamp`. Example: `precedence|asc`.",
+				Description: "Sort expression for the results. Allowed sort fields: `precedence`, `created_timestamp`, `modified_timestamp`. Example: `precedence|asc`. Sorting is applied per platform by the API; when `platform_name` is omitted, results are concatenated in `Windows`, `Linux`, `Mac` order and `sort` only orders within each platform group. Cannot be used together with `ids`.",
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
@@ -354,7 +361,7 @@ func (d *itAutomationPoliciesDataSource) Schema(
 							Computed:    true,
 							Description: "Priority level of the policy.",
 						},
-						"host_groups": schema.ListAttribute{
+						"host_groups": schema.SetAttribute{
 							Computed:    true,
 							ElementType: types.StringType,
 							Description: "Host group IDs associated with this policy.",
@@ -446,12 +453,12 @@ func (d *itAutomationPoliciesDataSource) ValidateConfig(
 		return
 	}
 
-	hasIDs := utils.IsKnown(data.IDs) && len(data.IDs.Elements()) > 0
+	hasIDs := utils.IsKnown(data.IDs)
 
 	if hasIDs && data.hasFilterAttributes() {
 		resp.Diagnostics.AddError(
 			"Invalid Attribute Combination",
-			"Cannot specify `ids` together with filter attributes (`platform_name`, `name`, `enabled`). Use either `ids` for direct lookups or filter attributes for a query.",
+			"Cannot specify `ids` together with filter attributes (`platform_name`, `name`, `enabled`, `sort`). Use either `ids` for direct lookups or filter attributes for a query.",
 		)
 	}
 }
@@ -470,7 +477,7 @@ func (d *itAutomationPoliciesDataSource) Read(
 
 	var policies []*models.ItautomationPolicy
 
-	if utils.IsKnown(data.IDs) && len(data.IDs.Elements()) > 0 {
+	if utils.IsKnown(data.IDs) {
 		requestedIDs := utils.ListTypeAs[string](ctx, data.IDs, &resp.Diagnostics)
 		if resp.Diagnostics.HasError() {
 			return
@@ -545,14 +552,20 @@ func (d *itAutomationPoliciesDataSource) queryPolicyIDs(
 
 		res, err := d.client.ItAutomation.ITAutomationQueryPolicies(params)
 		if err != nil {
-			diags.AddError(
-				"Error querying IT automation policies",
-				fmt.Sprintf("Could not query policies for platform %s: %s", platform, err.Error()),
-			)
+			diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, policiesDataSourceApiScopes))
 			return allIDs, diags
 		}
 
-		if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
+		if res == nil || res.Payload == nil {
+			break
+		}
+
+		if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Read, res.Payload.Errors); diag != nil {
+			diags.Append(diag)
+			return allIDs, diags
+		}
+
+		if len(res.Payload.Resources) == 0 {
 			break
 		}
 
@@ -588,7 +601,7 @@ func (d *itAutomationPoliciesDataSource) getPoliciesByIDs(
 		return all, diags
 	}
 
-	batchSize := 100
+	batchSize := paginationLimit
 	for start := 0; start < len(ids); start += batchSize {
 		end := min(start+batchSize, len(ids))
 		batch := ids[start:end]
@@ -600,15 +613,21 @@ func (d *itAutomationPoliciesDataSource) getPoliciesByIDs(
 			},
 		)
 		if err != nil {
-			diags.AddError(
-				"Error reading IT automation policies",
-				fmt.Sprintf("Could not read policies: %s", err.Error()),
-			)
+			if resources, ok := extractPoliciesFrom207(err); ok {
+				all = append(all, resources...)
+				continue
+			}
+			diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, policiesDataSourceApiScopes))
 			return all, diags
 		}
 
 		if res == nil || res.Payload == nil {
 			continue
+		}
+
+		if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Read, res.Payload.Errors); diag != nil {
+			diags.Append(diag)
+			return all, diags
 		}
 
 		all = append(all, res.Payload.Resources...)
@@ -647,4 +666,33 @@ func filterPoliciesClientSide(
 		filtered = append(filtered, policy)
 	}
 	return filtered
+}
+
+// extractPoliciesFrom207 returns the resources from a 207 Multi-Status response.
+// gofalcon does not have a typed 207 response for ITAutomationGetPolicies, so a
+// 207 surfaces as a generic runtime.APIError. The response body still contains
+// the policies the API was able to fetch alongside per-id errors for any that
+// were not. Returns ok=false for any other error.
+func extractPoliciesFrom207(err error) ([]*models.ItautomationPolicy, bool) {
+	apiErr, ok := err.(*runtime.APIError)
+	if !ok || apiErr.Code != 207 {
+		return nil, false
+	}
+
+	resp, ok := apiErr.Response.(runtime.ClientResponse)
+	if !ok || resp.Body() == nil {
+		return nil, false
+	}
+
+	body, readErr := io.ReadAll(resp.Body())
+	if readErr != nil || len(body) == 0 {
+		return nil, false
+	}
+
+	var payload models.ItautomationPoliciesAPIResponse
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, false
+	}
+
+	return payload.Resources, true
 }

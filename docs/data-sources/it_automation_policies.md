@@ -66,7 +66,7 @@ data "crowdstrike_it_automation_policies" "all" {
 - `ids` (List of String) List of policy IDs to retrieve. Cannot be used together with other filter attributes.
 - `name` (String) Filter policies by name. Supports wildcard matching with `*`. Matching is case insensitive. Applied client-side after fetching results. Cannot be used together with `ids`.
 - `platform_name` (String) Filter policies by platform. One of: `Windows`, `Linux`, `Mac`. When omitted and `ids` is not set, queries all platforms. Cannot be used together with `ids`.
-- `sort` (String) Sort expression for the results. Allowed sort fields: `precedence`, `created_timestamp`, `modified_timestamp`. Example: `precedence|asc`.
+- `sort` (String) Sort expression for the results. Allowed sort fields: `precedence`, `created_timestamp`, `modified_timestamp`. Example: `precedence|asc`. Sorting is applied per platform by the API; when `platform_name` is omitted, results are concatenated in `Windows`, `Linux`, `Mac` order and `sort` only orders within each platform group. Cannot be used together with `ids`.
 
 ### Read-Only
 
