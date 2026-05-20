@@ -67,6 +67,7 @@ output "tenant_registration" {
 ### Optional
 
 - `account_type` (String) The Azure Tenant account type. Value is 'commercial' for Commercial cloud accounts. For GovCloud environments, value can be either 'commercial' or 'gov' depending on the account type
+- `agentless_scanning_subscription_ids` (Set of String) Azure subscription IDs where agentless scanning is enabled. These are sent as `additional_features` to the CrowdStrike API.
 - `cs_infra_location` (String) Azure location where CrowdStrike infrastructure resources (such as Event Hubs) were deployed.
 - `cs_infra_subscription_id` (String) Azure subscription ID where CrowdStrike infrastructure resources (such as Event Hubs) were deployed.
 - `dspm` (Attributes) (see [below for nested schema](#nestedatt--dspm))

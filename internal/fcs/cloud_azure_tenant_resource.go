@@ -9,9 +9,11 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -82,20 +84,21 @@ func (r *cloudAzureTenantResource) Metadata(
 }
 
 type cloudAzureTenantModel struct {
-	AccountType                 types.String `tfsdk:"account_type"`
-	AppRegistrationId           types.String `tfsdk:"cs_azure_client_id"`
-	CsInfraRegion               types.String `tfsdk:"cs_infra_location"`
-	CsInfraSubscriptionId       types.String `tfsdk:"cs_infra_subscription_id"`
-	Environment                 types.String `tfsdk:"environment"`
-	SubscriptionIds             types.Set    `tfsdk:"subscription_ids"`
-	ManagementGroupIds          types.Set    `tfsdk:"management_group_ids"`
-	MicrosoftGraphPermissionIds types.Set    `tfsdk:"microsoft_graph_permission_ids"`
-	ResourceNamePrefix          types.String `tfsdk:"resource_name_prefix"`
-	ResourceNameSuffix          types.String `tfsdk:"resource_name_suffix"`
-	Tags                        types.Map    `tfsdk:"tags"`
-	TenantId                    types.String `tfsdk:"tenant_id"`
-	RealtimeVisibility          types.Object `tfsdk:"realtime_visibility"`
-	DSPM                        types.Object `tfsdk:"dspm"`
+	AccountType                      types.String `tfsdk:"account_type"`
+	AppRegistrationId                types.String `tfsdk:"cs_azure_client_id"`
+	CsInfraRegion                    types.String `tfsdk:"cs_infra_location"`
+	CsInfraSubscriptionId            types.String `tfsdk:"cs_infra_subscription_id"`
+	Environment                      types.String `tfsdk:"environment"`
+	SubscriptionIds                  types.Set    `tfsdk:"subscription_ids"`
+	ManagementGroupIds               types.Set    `tfsdk:"management_group_ids"`
+	MicrosoftGraphPermissionIds      types.Set    `tfsdk:"microsoft_graph_permission_ids"`
+	ResourceNamePrefix               types.String `tfsdk:"resource_name_prefix"`
+	ResourceNameSuffix               types.String `tfsdk:"resource_name_suffix"`
+	Tags                             types.Map    `tfsdk:"tags"`
+	TenantId                         types.String `tfsdk:"tenant_id"`
+	RealtimeVisibility               types.Object `tfsdk:"realtime_visibility"`
+	DSPM                             types.Object `tfsdk:"dspm"`
+	AgentlessScanningSubscriptionIds types.Set    `tfsdk:"agentless_scanning_subscription_ids"`
 }
 
 type realtimeVisibilityModel struct {
@@ -132,6 +135,46 @@ func (r *dspmModel) ToObject(ctx context.Context) (types.Object, diag.Diagnostic
 
 func (r *dspmModel) FromObject(ctx context.Context, obj types.Object) diag.Diagnostics {
 	return obj.As(ctx, r, basetypes.ObjectAsOptions{})
+}
+
+func buildAzureProductConfig(
+	ctx context.Context,
+	data *cloudAzureTenantModel,
+	diags *diag.Diagnostics,
+) (features []string, additionalFeatures []*models.AzureAdditionalFeature) {
+	features = []string{"iom"}
+	additionalFeatures = []*models.AzureAdditionalFeature{}
+
+	var rtv realtimeVisibilityModel
+	diags.Append(rtv.FromObject(ctx, data.RealtimeVisibility)...)
+	if diags.HasError() {
+		return features, additionalFeatures
+	}
+	if rtv.Enabled.ValueBool() {
+		features = append(features, "ioa")
+	}
+
+	var dspm dspmModel
+	diags.Append(dspm.FromObject(ctx, data.DSPM)...)
+	if diags.HasError() {
+		return features, additionalFeatures
+	}
+	if !dspm.Enabled.ValueBool() {
+		return features, additionalFeatures
+	}
+
+	subs := flex.ExpandSetAs[string](ctx, data.AgentlessScanningSubscriptionIds, diags)
+	if len(subs) == 0 {
+		features = append(features, "dspm")
+		return features, additionalFeatures
+	}
+
+	additionalFeatures = []*models.AzureAdditionalFeature{{
+		Feature:         utils.Addr("dspm"),
+		Product:         utils.Addr("cspm"),
+		SubscriptionIds: subs,
+	}}
+	return features, additionalFeatures
 }
 
 func (r *cloudAzureTenantResource) Schema(
@@ -257,6 +300,17 @@ func (r *cloudAzureTenantResource) Schema(
 				Optional:            true,
 				MarkdownDescription: "Tags applied to managed resources. This does not effect the registration of the tenant. It will be used if you generate new .tfvars from the UI.",
 			},
+			"agentless_scanning_subscription_ids": schema.SetAttribute{
+				ElementType:         types.StringType,
+				Optional:            true,
+				MarkdownDescription: "Azure subscription IDs where agentless scanning is enabled. These are sent as `additional_features` to the CrowdStrike API.",
+				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
+					setvalidator.ValueStringsAre(
+						validators.StringNotWhitespace(),
+					),
+				},
+			},
 		},
 	}
 }
@@ -294,8 +348,19 @@ func (m *cloudAzureTenantModel) wrap(
 	m.TenantId = types.StringValue(*registration.TenantID)
 	m.AppRegistrationId = types.StringValue(registration.AppRegistrationID)
 	m.AccountType = types.StringValue(registration.AccountType)
-	m.CsInfraRegion = types.StringPointerValue(registration.CsInfraRegion)
-	m.CsInfraSubscriptionId = types.StringPointerValue(registration.CsInfraSubscriptionID)
+
+	csInfraRegion := types.StringPointerValue(registration.CsInfraRegion)
+	if csInfraRegion.IsNull() && !m.CsInfraRegion.IsNull() {
+		csInfraRegion = types.StringValue("")
+	}
+	m.CsInfraRegion = csInfraRegion
+
+	csInfraSubscriptionId := types.StringPointerValue(registration.CsInfraSubscriptionID)
+	if csInfraSubscriptionId.IsNull() && !m.CsInfraSubscriptionId.IsNull() {
+		csInfraSubscriptionId = types.StringValue("")
+	}
+	m.CsInfraSubscriptionId = csInfraSubscriptionId
+
 	m.Environment = types.StringPointerValue(registration.Environment)
 	m.ResourceNamePrefix = types.StringPointerValue(registration.ResourceNamePrefix)
 	m.ResourceNameSuffix = types.StringPointerValue(registration.ResourceNameSuffix)
@@ -315,6 +380,20 @@ func (m *cloudAzureTenantModel) wrap(
 			}
 		}
 	}
+
+	var agentlessSubIds []string
+	for _, af := range registration.AdditionalFeatures {
+		if af != nil && af.Feature != nil && *af.Feature == "dspm" {
+			agentlessSubIds = af.SubscriptionIds
+			break
+		}
+	}
+	if len(agentlessSubIds) > 0 {
+		hasDSPM = true
+	}
+	agentlessSet, d := flex.FlattenStringValueSet(ctx, agentlessSubIds)
+	diags.Append(d...)
+	m.AgentlessScanningSubscriptionIds = agentlessSet
 
 	rtv := realtimeVisibilityModel{Enabled: types.BoolValue(hasIOA)}
 	rtvObj, d := rtv.ToObject(ctx)
@@ -484,14 +563,44 @@ func (r cloudAzureTenantResource) ModifyPlan(
 	req resource.ModifyPlanRequest,
 	resp *resource.ModifyPlanResponse,
 ) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+	if req.Plan.Raw.IsNull() {
 		return
 	}
 
-	var state, plan cloudAzureTenantModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	var plan cloudAzureTenantModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
+	// ModifyPlan runs twice: once during `terraform plan` and again during `terraform apply` after
+	// upstream resources have been applied. When a value is sourced from another resource's
+	// computed output (e.g. dspm or agentless_scanning_subscription_ids set from
+	// terraform_data.output), it is unknown on the first run and resolved on the second. The
+	// IsUnknown guards skip validation on the first run to avoid false positives; the second run
+	// sees the real values and validates them.
+	if utils.IsKnown(plan.AgentlessScanningSubscriptionIds) && utils.IsKnown(plan.DSPM) {
+		var dspm dspmModel
+		resp.Diagnostics.Append(dspm.FromObject(ctx, plan.DSPM)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if utils.IsKnown(dspm.Enabled) && !dspm.Enabled.ValueBool() {
+			resp.Diagnostics.Append(diag.NewAttributeErrorDiagnostic(
+				path.Root("agentless_scanning_subscription_ids"),
+				"Invalid configuration",
+				"agentless_scanning_subscription_ids requires dspm to be enabled.",
+			))
+			return
+		}
+	}
+
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var state cloudAzureTenantModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -564,29 +673,9 @@ func (r *cloudAzureTenantResource) createRegistration(
 ) (*models.AzureTenantRegistration, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	cspmProductFeatures := models.DomainProductFeatures{
-		Product:  utils.Addr("cspm"),
-		Features: []string{"iom"},
-	}
-
-	// RTV&D
-	var rtv realtimeVisibilityModel
-	diags.Append(rtv.FromObject(ctx, data.RealtimeVisibility)...)
+	features, additionalFeatures := buildAzureProductConfig(ctx, data, &diags)
 	if diags.HasError() {
 		return nil, diags
-	}
-	if rtv.Enabled.ValueBool() {
-		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "ioa")
-	}
-
-	// DSPM
-	var dspm dspmModel
-	diags.Append(dspm.FromObject(ctx, data.DSPM)...)
-	if diags.HasError() {
-		return nil, diags
-	}
-	if dspm.Enabled.ValueBool() {
-		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "dspm")
 	}
 
 	params := cloud_azure_registration.CloudRegistrationAzureCreateRegistrationParams{
@@ -606,9 +695,10 @@ func (r *cloudAzureTenantResource) createRegistration(
 				ManagementGroupIds:          flex.ExpandSetAs[string](ctx, data.ManagementGroupIds, &diags),
 				MicrosoftGraphPermissionIds: flex.ExpandSetAs[string](ctx, data.MicrosoftGraphPermissionIds, &diags),
 				Products: []*models.DomainProductFeatures{
-					&cspmProductFeatures,
+					{Product: utils.Addr("cspm"), Features: features},
 				},
-				Tags: utils.MapTypeAs[string](ctx, data.Tags, &diags),
+				AdditionalFeatures: additionalFeatures,
+				Tags:               utils.MapTypeAs[string](ctx, data.Tags, &diags),
 			},
 		},
 		Context: ctx,
@@ -643,29 +733,9 @@ func (r *cloudAzureTenantResource) updateRegistration(
 ) (*models.AzureTenantRegistration, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	cspmProductFeatures := models.DomainProductFeatures{
-		Product:  utils.Addr("cspm"),
-		Features: []string{"iom"},
-	}
-
-	// RTV&D
-	var rtv realtimeVisibilityModel
-	diags.Append(rtv.FromObject(ctx, data.RealtimeVisibility)...)
+	features, additionalFeatures := buildAzureProductConfig(ctx, data, &diags)
 	if diags.HasError() {
 		return nil, diags
-	}
-	if rtv.Enabled.ValueBool() {
-		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "ioa")
-	}
-
-	// DSPM
-	var dspm dspmModel
-	diags.Append(dspm.FromObject(ctx, data.DSPM)...)
-	if diags.HasError() {
-		return nil, diags
-	}
-	if dspm.Enabled.ValueBool() {
-		cspmProductFeatures.Features = append(cspmProductFeatures.Features, "dspm")
 	}
 
 	params := cloud_azure_registration.CloudRegistrationAzureUpdateRegistrationParams{
@@ -685,9 +755,10 @@ func (r *cloudAzureTenantResource) updateRegistration(
 				ManagementGroupIds:          flex.ExpandSetAs[string](ctx, data.ManagementGroupIds, &diags),
 				MicrosoftGraphPermissionIds: flex.ExpandSetAs[string](ctx, data.MicrosoftGraphPermissionIds, &diags),
 				Products: []*models.DomainProductFeatures{
-					&cspmProductFeatures,
+					{Product: utils.Addr("cspm"), Features: features},
 				},
-				Tags: utils.MapTypeAs[string](ctx, data.Tags, &diags),
+				AdditionalFeatures: additionalFeatures,
+				Tags:               utils.MapTypeAs[string](ctx, data.Tags, &diags),
 			},
 		},
 		Context: ctx,
