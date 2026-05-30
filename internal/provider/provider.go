@@ -68,6 +68,7 @@ type CrowdStrikeProviderModel struct {
 	ClientSecret types.String `tfsdk:"client_secret"`
 	ClientId     types.String `tfsdk:"client_id"`
 	MemberCID    types.String `tfsdk:"member_cid"`
+	HostOverride types.String `tfsdk:"host_override"`
 }
 
 func (p *CrowdStrikeProvider) Metadata(
@@ -101,6 +102,10 @@ func (p *CrowdStrikeProvider) Schema(
 				MarkdownDescription: "For MSSP Master CIDs, optionally lock the token to act on behalf of this member CID",
 				Optional:            true,
 				Sensitive:           false,
+			},
+			"host_override": schema.StringAttribute{
+				MarkdownDescription: "Override the host used when communicating with the CrowdStrike APIs. Will use HOST_OVERRIDE environment variable when left blank. This is primarily used for testing and should not be set in normal usage.",
+				Optional:            true,
 			},
 			"cloud": schema.StringAttribute{
 				MarkdownDescription: "Falcon Cloud to authenticate to. Valid values are autodiscover, us-1, us-2, eu-1, us-gov-1, us-gov-2. Will use FALCON_CLOUD environment variable when left blank.",
@@ -169,6 +174,7 @@ func (p *CrowdStrikeProvider) Configure(
 	cloud := os.Getenv("FALCON_CLOUD")
 	clientId := os.Getenv("FALCON_CLIENT_ID")
 	clientSecret := os.Getenv("FALCON_CLIENT_SECRET")
+	hostOverride := os.Getenv("HOST_OVERRIDE")
 
 	if !model.Cloud.IsNull() {
 		cloud = model.Cloud.ValueString()
@@ -184,6 +190,10 @@ func (p *CrowdStrikeProvider) Configure(
 
 	if !model.ClientSecret.IsNull() {
 		clientSecret = model.ClientSecret.ValueString()
+	}
+
+	if !model.HostOverride.IsNull() {
+		hostOverride = model.HostOverride.ValueString()
 	}
 
 	if clientId == "" {
@@ -243,7 +253,7 @@ func (p *CrowdStrikeProvider) Configure(
 			ClientSecret:      clientSecret,
 			UserAgentOverride: fmt.Sprintf("terraform-provider-crowdstrike/%s", p.version),
 			Context:           context.Background(),
-			HostOverride:      os.Getenv("HOST_OVERRIDE"),
+			HostOverride:      hostOverride,
 			TransportDecorator: falcon.TransportDecorator(func(r http.RoundTripper) http.RoundTripper {
 				return logging.NewLoggingHTTPTransport(r)
 			}),
