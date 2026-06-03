@@ -581,6 +581,7 @@ func (r *cloudGoogleRegistrationResource) Create(
 	createReq := &models.DtoCreateGCPRegistrationRequest{
 		DeploymentMethod:  &deploymentMethod,
 		EntityID:          entityIDs,
+		FalconClientKeyID: r.clientId,
 		InfraProjectID:    &infraProjectID,
 		RegistrationName:  &registrationName,
 		RegistrationScope: &registrationScope,
@@ -642,6 +643,10 @@ func (r *cloudGoogleRegistrationResource) Create(
 		&cspmProductFeatures,
 	}
 
+	if !plan.WifProjectNumber.IsNull() {
+		createReq.WifProjectNumber = plan.WifProjectNumber.ValueString()
+	}
+
 	params := &cloud_google_cloud_registration.CloudRegistrationGcpPutRegistrationParams{
 		Context: ctx,
 		Body: &models.DtoGCPRegistrationCreateRequestExtV1{
@@ -667,38 +672,6 @@ func (r *cloudGoogleRegistrationResource) Create(
 	registration := res.Payload.Resources[0]
 	plan.ID = types.StringValue(registration.RegistrationID)
 	resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)
-
-	if !plan.WifProjectNumber.IsNull() {
-		updateReq := &models.DtoUpdateGCPRegistrationRequest{
-			WifProjectNumber:  plan.WifProjectNumber.ValueString(),
-			FalconClientKeyID: r.clientId,
-		}
-
-		patchParams := &cloud_google_cloud_registration.CloudRegistrationGcpUpdateRegistrationParams{
-			Context: ctx,
-			Ids:     registration.RegistrationID,
-			Body: &models.DtoGCPRegistrationUpdateRequestExtV1{
-				Resources: []*models.DtoUpdateGCPRegistrationRequest{updateReq},
-			},
-		}
-
-		patchRes, err := r.client.CloudGoogleCloudRegistration.CloudRegistrationGcpUpdateRegistration(patchParams)
-		if err != nil {
-			if _, ok := err.(*cloud_google_cloud_registration.CloudRegistrationGcpUpdateRegistrationForbidden); ok {
-				resp.Diagnostics.Append(tferrors.NewForbiddenError(tferrors.Create, gcpRegistrationScopes))
-				return
-			}
-			resp.Diagnostics.Append(tferrors.NewOperationError(tferrors.Create, err))
-			return
-		}
-
-		if patchRes == nil || patchRes.Payload == nil || len(patchRes.Payload.Resources) == 0 || patchRes.Payload.Resources[0] == nil {
-			resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
-			return
-		}
-
-		registration = patchRes.Payload.Resources[0]
-	}
 
 	resp.Diagnostics.Append(plan.wrap(ctx, registration)...)
 	if resp.Diagnostics.HasError() {
