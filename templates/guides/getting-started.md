@@ -28,7 +28,6 @@ To follow along you need:
 
 - The [Terraform CLI](https://developer.hashicorp.com/terraform/install) (1.0 or
   later) installed locally. See [Install Terraform](#install-terraform) below.
-- A CrowdStrike Falcon subscription.
 - A CrowdStrike API client ID and client secret. See
   [Create an API client](#create-an-api-client) below.
 
