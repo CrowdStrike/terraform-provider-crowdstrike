@@ -829,5 +829,7 @@ From here you can:
   for each resource.
 - Learn the broader Terraform language and workflow in HashiCorp's
   [Terraform documentation](https://developer.hashicorp.com/terraform/docs).
+- Work through more [Terraform tutorials](https://developer.hashicorp.com/tutorials/library?product=terraform)
+  to deepen your skills.
 - Report issues or request new resources on the
   [project issue tracker](https://github.com/crowdstrike/terraform-provider-crowdstrike/issues).
