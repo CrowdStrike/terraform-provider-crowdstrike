@@ -1,2 +1,2 @@
 # container registry can be imported by specifying the registry id.
-terraform import crowdstrike_container_registry.example 7fb858a949034a0cbca175f660f1e769
+terraform import crowdstrike_container_registry.example f0bb103e-f9ae-4d88-8fb3-c61caf1f3b89

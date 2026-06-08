@@ -68,3 +68,33 @@ resource "crowdstrike_container_registry" "gar" {
     }
   }
 }
+
+# Azure ACR registry (certificate authentication)
+resource "crowdstrike_container_registry" "acr_cert" {
+  url                = "https://myregistry.azurecr.io/"
+  type               = "acr"
+  user_defined_alias = "Production ACR (cert)"
+
+  credential = {
+    auth_type = "cert"
+    tenant_id = "<your-azure-tenant-id>"
+    client    = "<your-azure-client-id>"
+    cert      = "<base64-encoded-pem-certificate>"
+  }
+}
+
+# GitHub Container Registry
+resource "crowdstrike_container_registry" "github" {
+  url                = "https://ghcr.io"
+  type               = "github"
+  user_defined_alias = "GitHub Packages"
+  url_uniqueness_key = "my-github-org"
+
+  credential = {
+    username        = "<your-github-username>"
+    password        = "<your-personal-access-token>"
+    domain_url      = "https://api.github.com"
+    credential_type = "PAT"
+  }
+}
+

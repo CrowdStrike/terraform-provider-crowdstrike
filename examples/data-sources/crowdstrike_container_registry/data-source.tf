@@ -10,10 +10,16 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
-data "crowdstrike_container_registry" "example" {
-  id = "7fb858a949034a0cbca175f660f1e769"
+# Look up a container registry by its UUID.
+data "crowdstrike_container_registry" "by_id" {
+  id = "f0bb103e-f9ae-4d88-8fb3-c61caf1f3b89"
+}
+
+# Or look it up by its user-defined alias (must match exactly one registry).
+data "crowdstrike_container_registry" "by_alias" {
+  user_defined_alias = "My Docker Hub"
 }
 
 output "container_registry" {
-  value = data.crowdstrike_container_registry.example
+  value = data.crowdstrike_container_registry.by_id
 }

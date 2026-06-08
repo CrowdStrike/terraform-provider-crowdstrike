@@ -332,7 +332,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		ioarulegroup.NewIOARuleGroupResource,
 		usergroup.NewUserGroupResource,
 		installtoken.NewInstallTokenResource,
-    customioc.NewCustomIOCResource,
+		customioc.NewCustomIOCResource,
 		containerregistry.NewContainerRegistryResource,
 	}
 }
@@ -360,7 +360,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		itautomation.NewItAutomationTaskGroupsDataSource,
 		itautomation.NewItAutomationPoliciesDataSource,
 		itautomation.NewItAutomationTasksDataSource,
-    containerregistry.NewContainerRegistryDataSource,
+		containerregistry.NewContainerRegistryDataSource,
 	}
 }
 
