@@ -183,7 +183,7 @@ func (r *cloudComplianceCustomFrameworkResource) Schema(
 										Computed:            true,
 										MarkdownDescription: "Identifier for the compliance framework control.",
 										PlanModifiers: []planmodifier.String{
-											stringplanmodifier.UseStateForUnknown(),
+											stringplanmodifier.UseNonNullStateForUnknown(),
 										},
 									},
 									"name": schema.StringAttribute{

@@ -823,6 +823,15 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 							customFrameworkResourceName,
 							plancheck.ResourceActionUpdate,
 						),
+						// Verify new control IDs are unknown (not null) in plan - reproduces SUPPORT-50542
+						plancheck.ExpectUnknownValue(
+							customFrameworkResourceName,
+							tfjsonpath.New("sections").AtMapKey("section-1").AtMapKey("controls").AtMapKey("control-1.1").AtMapKey("id"),
+						),
+						plancheck.ExpectUnknownValue(
+							customFrameworkResourceName,
+							tfjsonpath.New("sections").AtMapKey("section-1").AtMapKey("controls").AtMapKey("control-1.2").AtMapKey("id"),
+						),
 					},
 				},
 				Check: addSectionConfig.TestChecks(),
@@ -840,6 +849,19 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 							customFrameworkResourceName,
 							tfjsonpath.New("sections").AtMapKey("section-1").AtMapKey("controls").AtMapKey("control-1.2").AtMapKey("id"),
 							knownvalue.NotNull(),
+						),
+						// Verify new control IDs are unknown (not null) in plan
+						plancheck.ExpectUnknownValue(
+							customFrameworkResourceName,
+							tfjsonpath.New("sections").AtMapKey("section-1").AtMapKey("controls").AtMapKey("control-1.3").AtMapKey("id"),
+						),
+						plancheck.ExpectUnknownValue(
+							customFrameworkResourceName,
+							tfjsonpath.New("sections").AtMapKey("section-2").AtMapKey("controls").AtMapKey("control-2.1").AtMapKey("id"),
+						),
+						plancheck.ExpectUnknownValue(
+							customFrameworkResourceName,
+							tfjsonpath.New("sections").AtMapKey("section-2").AtMapKey("controls").AtMapKey("control-2.2").AtMapKey("id"),
 						),
 					},
 				},
