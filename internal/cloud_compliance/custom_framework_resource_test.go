@@ -1010,3 +1010,60 @@ func TestAccCloudComplianceCustomFrameworkResource_EmptySectionsValidation(t *te
 		},
 	})
 }
+
+// verifies that adding a new control to an existing framework plans the control's id as unknown (not null)
+// and does not cause "Provider produced inconsistent result after apply" error on apply.
+func TestAccCloudComplianceCustomFrameworkResource_NewControlIDUnknown(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+
+	initialConfig := completeFrameworkConfig{
+		Name:        rName,
+		Description: "Framework to test new control ID is unknown in plan",
+		Sections: map[string]sectionConfig{
+			"section-1": {
+				Name: "Section 1",
+				Controls: map[string]controlConfig{
+					"existing-control": {
+						Name:        "Existing Control",
+						Description: "Control that exists from the start",
+					},
+				},
+			},
+		},
+	}
+
+	addControlConfig := completeFrameworkConfig{
+		Name:        rName,
+		Description: "Framework to test new control ID is unknown in plan",
+		Sections: map[string]sectionConfig{
+			"section-1": {
+				Name: "Section 1",
+				Controls: map[string]controlConfig{
+					"existing-control": {
+						Name:        "Existing Control",
+						Description: "Control that exists from the start",
+					},
+					"new-control": {
+						Name:        "New Control",
+						Description: "Control added after initial creation",
+					},
+				},
+			},
+		},
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: acctest.ProviderConfig + initialConfig.String(),
+				Check:  initialConfig.TestChecks(),
+			},
+			{
+				Config: acctest.ProviderConfig + addControlConfig.String(),
+				Check:  addControlConfig.TestChecks(),
+			},
+		},
+	})
+}
