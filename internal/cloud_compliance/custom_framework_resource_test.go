@@ -823,6 +823,15 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 							customFrameworkResourceName,
 							plancheck.ResourceActionUpdate,
 						),
+						// Verify new control IDs are unknown (not null) in plan
+						plancheck.ExpectUnknownValue(
+							customFrameworkResourceName,
+							tfjsonpath.New("sections").AtMapKey("section-1").AtMapKey("controls").AtMapKey("control-1.1").AtMapKey("id"),
+						),
+						plancheck.ExpectUnknownValue(
+							customFrameworkResourceName,
+							tfjsonpath.New("sections").AtMapKey("section-1").AtMapKey("controls").AtMapKey("control-1.2").AtMapKey("id"),
+						),
 					},
 				},
 				Check: addSectionConfig.TestChecks(),
@@ -840,6 +849,19 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 							customFrameworkResourceName,
 							tfjsonpath.New("sections").AtMapKey("section-1").AtMapKey("controls").AtMapKey("control-1.2").AtMapKey("id"),
 							knownvalue.NotNull(),
+						),
+						// Verify new control IDs are unknown (not null) in plan
+						plancheck.ExpectUnknownValue(
+							customFrameworkResourceName,
+							tfjsonpath.New("sections").AtMapKey("section-1").AtMapKey("controls").AtMapKey("control-1.3").AtMapKey("id"),
+						),
+						plancheck.ExpectUnknownValue(
+							customFrameworkResourceName,
+							tfjsonpath.New("sections").AtMapKey("section-2").AtMapKey("controls").AtMapKey("control-2.1").AtMapKey("id"),
+						),
+						plancheck.ExpectUnknownValue(
+							customFrameworkResourceName,
+							tfjsonpath.New("sections").AtMapKey("section-2").AtMapKey("controls").AtMapKey("control-2.2").AtMapKey("id"),
 						),
 					},
 				},
@@ -984,6 +1006,63 @@ func TestAccCloudComplianceCustomFrameworkResource_EmptySectionsValidation(t *te
 			{
 				Config:      acctest.ProviderConfig + emptyConfig.String(),
 				ExpectError: regexp.MustCompile("Inappropriate value for attribute \"sections\"|attribute \"controls\" is required"),
+			},
+		},
+	})
+}
+
+// verifies that adding a new control to an existing framework plans the control's id as unknown (not null)
+// and does not cause "Provider produced inconsistent result after apply" error on apply.
+func TestAccCloudComplianceCustomFrameworkResource_NewControlIDUnknown(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+
+	initialConfig := completeFrameworkConfig{
+		Name:        rName,
+		Description: "Framework to test new control ID is unknown in plan",
+		Sections: map[string]sectionConfig{
+			"section-1": {
+				Name: "Section 1",
+				Controls: map[string]controlConfig{
+					"existing-control": {
+						Name:        "Existing Control",
+						Description: "Control that exists from the start",
+					},
+				},
+			},
+		},
+	}
+
+	addControlConfig := completeFrameworkConfig{
+		Name:        rName,
+		Description: "Framework to test new control ID is unknown in plan",
+		Sections: map[string]sectionConfig{
+			"section-1": {
+				Name: "Section 1",
+				Controls: map[string]controlConfig{
+					"existing-control": {
+						Name:        "Existing Control",
+						Description: "Control that exists from the start",
+					},
+					"new-control": {
+						Name:        "New Control",
+						Description: "Control added after initial creation",
+					},
+				},
+			},
+		},
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: acctest.ProviderConfig + initialConfig.String(),
+				Check:  initialConfig.TestChecks(),
+			},
+			{
+				Config: acctest.ProviderConfig + addControlConfig.String(),
+				Check:  addControlConfig.TestChecks(),
 			},
 		},
 	})
