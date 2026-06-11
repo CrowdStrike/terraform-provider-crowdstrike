@@ -823,7 +823,7 @@ func TestAccCloudComplianceCustomFrameworkResource_ComprehensiveCRUD(t *testing.
 							customFrameworkResourceName,
 							plancheck.ResourceActionUpdate,
 						),
-						// Verify new control IDs are unknown (not null) in plan - reproduces SUPPORT-50542
+						// Verify new control IDs are unknown (not null) in plan
 						plancheck.ExpectUnknownValue(
 							customFrameworkResourceName,
 							tfjsonpath.New("sections").AtMapKey("section-1").AtMapKey("controls").AtMapKey("control-1.1").AtMapKey("id"),
