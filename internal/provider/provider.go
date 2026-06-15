@@ -15,6 +15,7 @@ import (
 	cloudgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_group"
 	cloudsecurity "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_security"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	containerregistry "github.com/crowdstrike/terraform-provider-crowdstrike/internal/container_registry"
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
 	customioc "github.com/crowdstrike/terraform-provider-crowdstrike/internal/custom_ioc"
 	dataprotection "github.com/crowdstrike/terraform-provider-crowdstrike/internal/data_protection"
@@ -343,6 +344,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		usergroup.NewUserGroupResource,
 		installtoken.NewInstallTokenResource,
 		customioc.NewCustomIOCResource,
+		containerregistry.NewContainerRegistryResource,
 	}
 }
 
@@ -369,6 +371,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		itautomation.NewItAutomationTaskGroupsDataSource,
 		itautomation.NewItAutomationPoliciesDataSource,
 		itautomation.NewItAutomationTasksDataSource,
+		containerregistry.NewContainerRegistryDataSource,
 	}
 }
 
