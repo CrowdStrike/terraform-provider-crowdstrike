@@ -88,7 +88,7 @@ output "default_prevention_policy_linux" {
 ### Optional
 
 - `cloud_anti_malware` (Attributes) Use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware for your online hosts. (see [below for nested schema](#nestedatt--cloud_anti_malware))
-- `cloud_data_protection_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor and analyze data flows for protection against data breaches and leaks, and to improve data-related detections.
+- `cloud_data_protection_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor and analyze data flows for protection against data breaches and leaks, and to improve data-related detections. This setting requires an additional Data Protection subscription; refer to the official [CrowdStrike documentation](https://docs.crowdstrike.com/) for the required entitlements. If you do not have the required subscription, set this to `false` or omit the attribute to avoid a `Provider produced inconsistent result after apply` error.
 - `custom_blocking` (Boolean) Whether to enable the setting. Block processes matching hashes that you add to IOC Management with the action set to "Block" or "Block, hide detection".
 - `dbus_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor local D-Bus traffic for malicious patterns and improved detections.
 - `description` (String) Description of the prevention policy.
