@@ -86,6 +86,21 @@ var ruleTypeIDMap = map[string]map[string]string{
 
 var ruleTypeNameMap = invertNestedMap(ruleTypeIDMap)
 
+// ruleTypeReadAliasMap holds additional Falcon API rule-type IDs that should
+// fold into the same Terraform `type` enum value on read. The write path is
+// unaffected: rules created by the provider use the canonical IDs in
+// ruleTypeIDMap. Some Falcon-side rules (typically created outside the
+// provider or under earlier API versions) carry these alias IDs, and the
+// resource must accept them on read/import without erroring.
+var ruleTypeReadAliasMap = map[string]map[string]string{
+	"Windows": {
+		// Some Windows Process Creation rules return id "5" (the canonical
+		// write-side id is "1"); see CrowdStrike/terraform-provider-crowdstrike
+		// upstream issue for details.
+		"5": "Process Creation",
+	},
+}
+
 var dispositionMap = map[string]int32{
 	"Monitor":      10,
 	"Detect":       20,
@@ -637,7 +652,12 @@ func wrapRules(
 			if nameMap, ok := ruleTypeNameMap[platform]; ok {
 				if name, found := nameMap[*apiRule.RuletypeID]; found {
 					ruleTypeName = name
-				} else {
+				} else if aliasMap, ok := ruleTypeReadAliasMap[platform]; ok {
+					if name, found := aliasMap[*apiRule.RuletypeID]; found {
+						ruleTypeName = name
+					}
+				}
+				if ruleTypeName == "" {
 					diags.AddError(
 						"Unknown rule type ID",
 						fmt.Sprintf("Rule type ID %q for platform %q is not recognized by this provider version.", *apiRule.RuletypeID, platform),

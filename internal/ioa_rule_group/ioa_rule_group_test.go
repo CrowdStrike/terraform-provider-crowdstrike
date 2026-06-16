@@ -162,3 +162,73 @@ func TestConvertIOARuleGroupToList(t *testing.T) {
 		})
 	}
 }
+
+func TestWrapRulesRuleTypeIDLookup(t *testing.T) {
+	int32Ptr := func(v int32) *int32 { return &v }
+
+	tests := []struct {
+		name       string
+		platform   string
+		ruletypeID string
+		wantType   string
+		wantErr    bool
+	}{
+		{
+			name:       "windows canonical id 1 resolves to Process Creation",
+			platform:   "Windows",
+			ruletypeID: "1",
+			wantType:   "Process Creation",
+		},
+		{
+			name:       "windows alias id 5 resolves to Process Creation",
+			platform:   "Windows",
+			ruletypeID: "5",
+			wantType:   "Process Creation",
+		},
+		{
+			name:       "windows unknown id errors",
+			platform:   "Windows",
+			ruletypeID: "99",
+			wantErr:    true,
+		},
+		{
+			name:       "mac canonical id 5 resolves to Process Creation",
+			platform:   "Mac",
+			ruletypeID: "5",
+			wantType:   "Process Creation",
+		},
+		{
+			name:       "linux canonical id 12 resolves to Process Creation",
+			platform:   "Linux",
+			ruletypeID: "12",
+			wantType:   "Process Creation",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			apiRules := []*models.APIRuleV1{
+				{
+					RuletypeID:    strPtr(tt.ruletypeID),
+					DispositionID: int32Ptr(dispositionMap["Monitor"]),
+				},
+			}
+
+			result, diags := wrapRules(t.Context(), apiRules, tt.platform, nil)
+
+			if tt.wantErr {
+				assert.True(t, diags.HasError(), "expected error for %s/%s", tt.platform, tt.ruletypeID)
+				return
+			}
+
+			assert.False(t, diags.HasError(), "unexpected diags: %v", diags)
+			assert.Len(t, result.Elements(), 1)
+
+			obj, ok := result.Elements()[0].(types.Object)
+			assert.True(t, ok, "rule element should be types.Object")
+			typeAttr, ok := obj.Attributes()["type"].(types.String)
+			assert.True(t, ok, "type attribute should be types.String")
+			assert.Equal(t, tt.wantType, typeAttr.ValueString())
+		})
+	}
+}
