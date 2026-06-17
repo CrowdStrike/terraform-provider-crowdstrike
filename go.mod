@@ -3,7 +3,7 @@ module github.com/crowdstrike/terraform-provider-crowdstrike
 go 1.24.3
 
 require (
-	github.com/crowdstrike/gofalcon v0.20.1-0.20260504192251-d605fd0841a2
+	github.com/crowdstrike/gofalcon v0.21.0
 	github.com/go-openapi/runtime v0.27.1
 	github.com/go-openapi/strfmt v0.23.0
 	github.com/go-viper/mapstructure/v2 v2.4.0
@@ -39,6 +39,7 @@ require (
 	github.com/bgentry/speakeasy v0.1.0 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
+	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fatih/color v1.18.0 // indirect
