@@ -981,7 +981,7 @@ func (r *correlationRuleResource) buildCreateRequest(
 		Outcome:        utils.Addr(outcomeFromCreateCase(searchModel.CreateCase.ValueBool())),
 		TriggerMode:    utils.Addr(searchModel.TriggerMode.ValueString()),
 		ExecutionMode:  utils.Addr(searchModel.ExecutionMode.ValueString()),
-		UseIngestTime:  utils.Addr(searchModel.UseIngestTime.ValueBool()),
+		UseIngestTime:  searchModel.UseIngestTime.ValueBool(),
 		CaseTemplateID: searchModel.CaseTemplateID.ValueString(),
 	}
 
@@ -1445,7 +1445,7 @@ func (model *CorrelationRuleResourceModel) wrap(
 			CreateCase:     types.BoolValue(rule.Search.Outcome != nil && *rule.Search.Outcome == outcomeCase),
 			TriggerMode:    types.StringPointerValue(rule.Search.TriggerMode),
 			ExecutionMode:  types.StringPointerValue(rule.Search.ExecutionMode),
-			UseIngestTime:  types.BoolValue(rule.Search.UseIngestTime != nil && *rule.Search.UseIngestTime),
+			UseIngestTime:  types.BoolValue(rule.Search.UseIngestTime),
 			CaseTemplateID: flex.StringValueToFramework(rule.Search.CaseTemplateID),
 		}
 		searchObj, d := types.ObjectValueFrom(ctx, searchModel.AttributeTypes(), searchModel)

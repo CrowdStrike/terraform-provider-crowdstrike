@@ -645,7 +645,7 @@ func (r *cloudAzureTenantResource) getRegistration(
 
 	res, err := r.client.CloudAzureRegistration.CloudRegistrationAzureGetRegistration(
 		&cloud_azure_registration.CloudRegistrationAzureGetRegistrationParams{
-			TenantID: tenantID,
+			TenantID: &tenantID,
 			Context:  ctx,
 		},
 	)
