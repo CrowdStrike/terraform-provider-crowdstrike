@@ -21,6 +21,7 @@ import (
 	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
 	mlcertificateexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ml_certificate_exclusion"
 	mlfilepathexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ml_file_path_exclusion"
+	ngsiemdataconnection "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ngsiem_data_connection"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	rtrputfile "github.com/crowdstrike/terraform-provider-crowdstrike/internal/rtr_put_file"
 	rtrscript "github.com/crowdstrike/terraform-provider-crowdstrike/internal/rtr_script"
@@ -53,6 +54,7 @@ func registerSweepers() {
 	mlcertificateexclusion.RegisterSweepers()
 	cloudcompliance.RegisterSweepers()
 	cloudgroup.RegisterSweepers()
+	ngsiemdataconnection.RegisterSweepers()
 	cloudsecurity.RegisterSweepers()
 	containerregistry.RegisterSweepers()
 	itautomation.RegisterSweepers()

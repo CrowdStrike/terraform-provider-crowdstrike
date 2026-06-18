@@ -29,6 +29,7 @@ import (
 	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
 	mlcertificateexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ml_certificate_exclusion"
 	mlfilepathexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ml_file_path_exclusion"
+	ngsiemdataconnection "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ngsiem_data_connection"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	responsepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/response_policy"
 	rtrputfile "github.com/crowdstrike/terraform-provider-crowdstrike/internal/rtr_put_file"
@@ -347,6 +348,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		installtoken.NewInstallTokenResource,
 		customioc.NewCustomIOCResource,
 		containerregistry.NewContainerRegistryResource,
+		ngsiemdataconnection.NewNgsiemDataConnectionResource,
 	}
 }
 
@@ -375,6 +377,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		itautomation.NewItAutomationTasksDataSource,
 		containerregistry.NewContainerRegistryDataSource,
 		correlationrules.NewCorrelationRulesDataSource,
+		ngsiemdataconnection.NewNgsiemDataConnectorsDataSource,
 	}
 }
 
