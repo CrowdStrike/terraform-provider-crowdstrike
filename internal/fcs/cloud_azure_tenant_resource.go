@@ -189,21 +189,48 @@ func buildAzureProductConfig(
 		features = append(features, "vulnerability_scanning")
 	}
 
-	if !dspm.Enabled.ValueBool() {
+	if dspm.Enabled.ValueBool() {
+		features = append(features, "dspm")
+	}
+
+	if !dspm.Enabled.ValueBool() && !vulnScanning.Enabled.ValueBool() {
 		return features, additionalFeatures
 	}
 
 	subs := flex.ExpandSetAs[string](ctx, data.AgentlessScanningSubscriptionIds, diags)
 	if len(subs) == 0 {
-		features = append(features, "dspm")
 		return features, additionalFeatures
 	}
 
-	additionalFeatures = []*models.AzureAdditionalFeature{{
-		Feature:         utils.Addr("dspm"),
-		Product:         utils.Addr("cspm"),
-		SubscriptionIds: subs,
-	}}
+	// Send subscription IDs as additional features for whichever scanning features are enabled
+	if dspm.Enabled.ValueBool() {
+		additionalFeatures = append(additionalFeatures, &models.AzureAdditionalFeature{
+			Feature:         utils.Addr("dspm"),
+			Product:         utils.Addr("cspm"),
+			SubscriptionIds: subs,
+		})
+		// Remove "dspm" from top-level features since it's now in additionalFeatures
+		for i, f := range features {
+			if f == "dspm" {
+				features = append(features[:i], features[i+1:]...)
+				break
+			}
+		}
+	}
+	if vulnScanning.Enabled.ValueBool() {
+		additionalFeatures = append(additionalFeatures, &models.AzureAdditionalFeature{
+			Feature:         utils.Addr("vulnerability_scanning"),
+			Product:         utils.Addr("cspm"),
+			SubscriptionIds: subs,
+		})
+		// Remove "vulnerability_scanning" from top-level features since it's now in additionalFeatures
+		for i, f := range features {
+			if f == "vulnerability_scanning" {
+				features = append(features[:i], features[i+1:]...)
+				break
+			}
+		}
+	}
 	return features, additionalFeatures
 }
 
@@ -437,13 +464,18 @@ func (m *cloudAzureTenantModel) wrap(
 
 	var agentlessSubIds []string
 	for _, af := range registration.AdditionalFeatures {
-		if af != nil && af.Feature != nil && *af.Feature == "dspm" {
-			agentlessSubIds = af.SubscriptionIds
-			break
+		if af != nil && af.Feature != nil {
+			switch *af.Feature {
+			case "dspm":
+				agentlessSubIds = af.SubscriptionIds
+				hasDSPM = true
+			case "vulnerability_scanning":
+				if len(agentlessSubIds) == 0 {
+					agentlessSubIds = af.SubscriptionIds
+				}
+				hasVulnScanning = true
+			}
 		}
-	}
-	if len(agentlessSubIds) > 0 {
-		hasDSPM = true
 	}
 	agentlessSet, d := flex.FlattenStringValueSet(ctx, agentlessSubIds)
 	diags.Append(d...)
