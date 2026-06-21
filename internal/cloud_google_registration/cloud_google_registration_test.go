@@ -9,7 +9,10 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
 func generateGoogleCloudProjectID() string {
@@ -39,31 +42,31 @@ func TestAccCloudGoogleRegistrationResource_Complete(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCloudGoogleRegistrationConfig_complete(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", rName),
-					resource.TestCheckResourceAttr(resourceName, "registration_scope", "project"),
-					resource.TestCheckResourceAttr(resourceName, "projects.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "deployment_method", "terraform-native"),
-					resource.TestCheckResourceAttr(resourceName, "infra_project", infraProjectID),
-					resource.TestCheckResourceAttr(resourceName, "wif_project", wifProjectID),
-					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
-					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.0", "test-*"),
-					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.1", "*-sandbox"),
-					resource.TestCheckResourceAttr(resourceName, "resource_name_prefix", "cs-"),
-					resource.TestCheckResourceAttr(resourceName, "resource_name_suffix", "-prod"),
-					resource.TestCheckResourceAttr(resourceName, "labels.%", "2"),
-					resource.TestCheckResourceAttr(resourceName, "labels.environment", "production"),
-					resource.TestCheckResourceAttr(resourceName, "labels.managed-by", "terraform"),
-					resource.TestCheckResourceAttr(resourceName, "tags.%", "2"),
-					resource.TestCheckResourceAttr(resourceName, "tags.compliance", "required"),
-					resource.TestCheckResourceAttr(resourceName, "tags.owner", "security-team"),
-					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "status"),
-					resource.TestCheckResourceAttrSet(resourceName, "wif_pool_id"),
-					resource.TestCheckResourceAttrSet(resourceName, "wif_provider_id"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("registration_scope"), knownvalue.StringExact("project")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("projects"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("deployment_method"), knownvalue.StringExact("terraform-native")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("infra_project"), knownvalue.StringExact(infraProjectID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_project"), knownvalue.StringExact(wifProjectID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_project_number"), knownvalue.StringExact(wifProjectNumber)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("excluded_project_patterns"), knownvalue.ListSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("excluded_project_patterns").AtSliceIndex(0), knownvalue.StringExact("test-*")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("excluded_project_patterns").AtSliceIndex(1), knownvalue.StringExact("*-sandbox")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("resource_name_prefix"), knownvalue.StringExact("cs-")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("resource_name_suffix"), knownvalue.StringExact("-prod")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("labels"), knownvalue.MapSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("labels").AtMapKey("environment"), knownvalue.StringExact("production")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("labels").AtMapKey("managed-by"), knownvalue.StringExact("terraform")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags"), knownvalue.MapSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags").AtMapKey("compliance"), knownvalue.StringExact("required")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags").AtMapKey("owner"), knownvalue.StringExact("security-team")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("realtime_visibility").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("status"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_pool_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_provider_id"), knownvalue.NotNull()),
+				},
 			},
 			{
 				ResourceName:      resourceName,
@@ -72,29 +75,29 @@ func TestAccCloudGoogleRegistrationResource_Complete(t *testing.T) {
 			},
 			{
 				Config: testAccCloudGoogleRegistrationConfig_completeUpdated(rNameUpdated, projectID, infraProjectID, wifProjectID, wifProjectNumber),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", rNameUpdated),
-					resource.TestCheckResourceAttr(resourceName, "registration_scope", "project"),
-					resource.TestCheckResourceAttr(resourceName, "projects.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "deployment_method", "infrastructure-manager"),
-					resource.TestCheckResourceAttr(resourceName, "infrastructure_manager_region", "us-central1"),
-					resource.TestCheckResourceAttr(resourceName, "infra_project", infraProjectID),
-					resource.TestCheckResourceAttr(resourceName, "wif_project", wifProjectID),
-					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "excluded_project_patterns.0", "dev-*"),
-					resource.TestCheckResourceAttr(resourceName, "resource_name_prefix", "cs-"),
-					resource.TestCheckResourceAttr(resourceName, "resource_name_suffix", "-stg"),
-					resource.TestCheckResourceAttr(resourceName, "labels.%", "3"),
-					resource.TestCheckResourceAttr(resourceName, "labels.environment", "staging"),
-					resource.TestCheckResourceAttr(resourceName, "labels.managed-by", "terraform"),
-					resource.TestCheckResourceAttr(resourceName, "labels.team", "security"),
-					resource.TestCheckResourceAttr(resourceName, "tags.%", "1"),
-					resource.TestCheckResourceAttr(resourceName, "tags.compliance", "optional"),
-					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "status"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rNameUpdated)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("registration_scope"), knownvalue.StringExact("project")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("projects"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("deployment_method"), knownvalue.StringExact("infrastructure-manager")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("infrastructure_manager_region"), knownvalue.StringExact("us-central1")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("infra_project"), knownvalue.StringExact(infraProjectID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_project"), knownvalue.StringExact(wifProjectID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("excluded_project_patterns"), knownvalue.ListSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("excluded_project_patterns").AtSliceIndex(0), knownvalue.StringExact("dev-*")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("resource_name_prefix"), knownvalue.StringExact("cs-")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("resource_name_suffix"), knownvalue.StringExact("-stg")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("labels"), knownvalue.MapSizeExact(3)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("labels").AtMapKey("environment"), knownvalue.StringExact("staging")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("labels").AtMapKey("managed-by"), knownvalue.StringExact("terraform")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("labels").AtMapKey("team"), knownvalue.StringExact("security")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags"), knownvalue.MapSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags").AtMapKey("compliance"), knownvalue.StringExact("optional")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("realtime_visibility").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_project_number"), knownvalue.StringExact(wifProjectNumber)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("status"), knownvalue.NotNull()),
+				},
 			},
 		},
 	})
@@ -115,19 +118,19 @@ func TestAccCloudGoogleRegistrationResource_Project(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber, projectID),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", rName),
-					resource.TestCheckResourceAttr(resourceName, "registration_scope", "project"),
-					resource.TestCheckResourceAttr(resourceName, "projects.#", "1"),
-					resource.TestCheckResourceAttr(resourceName, "deployment_method", "terraform-native"),
-					resource.TestCheckResourceAttr(resourceName, "infra_project", infraProjectID),
-					resource.TestCheckResourceAttr(resourceName, "wif_project", wifProjectID),
-					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "status"),
-					resource.TestCheckResourceAttrSet(resourceName, "wif_pool_id"),
-					resource.TestCheckResourceAttrSet(resourceName, "wif_provider_id"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("registration_scope"), knownvalue.StringExact("project")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("projects"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("deployment_method"), knownvalue.StringExact("terraform-native")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("infra_project"), knownvalue.StringExact(infraProjectID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_project"), knownvalue.StringExact(wifProjectID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_project_number"), knownvalue.StringExact(wifProjectNumber)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("status"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_pool_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_provider_id"), knownvalue.NotNull()),
+				},
 			},
 			{
 				ResourceName:      resourceName,
@@ -136,19 +139,18 @@ func TestAccCloudGoogleRegistrationResource_Project(t *testing.T) {
 			},
 			{
 				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber, projectID, projectID2),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", rName),
-					resource.TestCheckResourceAttr(resourceName, "registration_scope", "project"),
-					resource.TestCheckResourceAttr(resourceName, "projects.#", "2"),
-					resource.TestCheckResourceAttr(resourceName, "deployment_method", "terraform-native"),
-					resource.TestCheckResourceAttr(resourceName, "infra_project", infraProjectID),
-					resource.TestCheckResourceAttr(resourceName, "wif_project", wifProjectID),
-					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "status"),
-					resource.TestCheckResourceAttrSet(resourceName, "wif_pool_id"),
-					resource.TestCheckResourceAttrSet(resourceName, "wif_provider_id"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("registration_scope"), knownvalue.StringExact("project")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("projects"), knownvalue.SetSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("infra_project"), knownvalue.StringExact(infraProjectID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_project"), knownvalue.StringExact(wifProjectID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_project_number"), knownvalue.StringExact(wifProjectNumber)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("status"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_pool_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_provider_id"), knownvalue.NotNull()),
+				},
 			},
 		},
 	})
@@ -169,16 +171,16 @@ func TestAccCloudGoogleRegistrationResource_Organization(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCloudGoogleRegistrationConfig_organization(rName, orgID, infraProjectID, wifProjectID, wifProjectNumber),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", rName),
-					resource.TestCheckResourceAttr(resourceName, "registration_scope", "organization"),
-					resource.TestCheckResourceAttr(resourceName, "organization", orgID),
-					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "status"),
-					resource.TestCheckResourceAttrSet(resourceName, "wif_pool_id"),
-					resource.TestCheckResourceAttrSet(resourceName, "wif_provider_id"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("registration_scope"), knownvalue.StringExact("organization")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("organization"), knownvalue.StringExact(orgID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_project_number"), knownvalue.StringExact(wifProjectNumber)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("status"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_pool_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_provider_id"), knownvalue.NotNull()),
+				},
 			},
 			{
 				ResourceName:      resourceName,
@@ -187,16 +189,16 @@ func TestAccCloudGoogleRegistrationResource_Organization(t *testing.T) {
 			},
 			{
 				Config: testAccCloudGoogleRegistrationConfig_organization(rName, orgIDUpdated, infraProjectID, wifProjectID, wifProjectNumber),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", rName),
-					resource.TestCheckResourceAttr(resourceName, "registration_scope", "organization"),
-					resource.TestCheckResourceAttr(resourceName, "organization", orgIDUpdated),
-					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "status"),
-					resource.TestCheckResourceAttrSet(resourceName, "wif_pool_id"),
-					resource.TestCheckResourceAttrSet(resourceName, "wif_provider_id"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("registration_scope"), knownvalue.StringExact("organization")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("organization"), knownvalue.StringExact(orgIDUpdated)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_project_number"), knownvalue.StringExact(wifProjectNumber)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("status"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_pool_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_provider_id"), knownvalue.NotNull()),
+				},
 			},
 		},
 	})
@@ -215,15 +217,15 @@ func TestAccCloudGoogleRegistrationResource_RealtimeVisibility(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCloudGoogleRegistrationConfig_realtimeVisibility(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, true),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", rName),
-					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "true"),
-					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "status"),
-					resource.TestCheckResourceAttrSet(resourceName, "wif_pool_id"),
-					resource.TestCheckResourceAttrSet(resourceName, "wif_provider_id"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("realtime_visibility").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_project_number"), knownvalue.StringExact(wifProjectNumber)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("status"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_pool_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_provider_id"), knownvalue.NotNull()),
+				},
 			},
 			{
 				ResourceName:      resourceName,
@@ -232,21 +234,23 @@ func TestAccCloudGoogleRegistrationResource_RealtimeVisibility(t *testing.T) {
 			},
 			{
 				Config: testAccCloudGoogleRegistrationConfig_realtimeVisibility(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, false),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", rName),
-					resource.TestCheckResourceAttr(resourceName, "realtime_visibility.enabled", "false"),
-					resource.TestCheckResourceAttr(resourceName, "wif_project_number", wifProjectNumber),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "status"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("realtime_visibility").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_project_number"), knownvalue.StringExact(wifProjectNumber)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("status"), knownvalue.NotNull()),
+				},
 			},
 			{
 				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber, projectID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("status"), knownvalue.NotNull()),
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckNoResourceAttr(resourceName, "realtime_visibility.enabled"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "status"),
 				),
 			},
 		},
@@ -272,19 +276,19 @@ func TestAccCloudGoogleRegistrationResource_RequiresReplace(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber, projectID),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", rName),
-					resource.TestCheckResourceAttr(resourceName, "registration_scope", "project"),
-					resource.TestCheckResourceAttr(resourceName, "projects.#", "1"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("registration_scope"), knownvalue.StringExact("project")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("projects"), knownvalue.SetSizeExact(1)),
+				},
 			},
 			{
 				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber, projectID, projectID2),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", rName),
-					resource.TestCheckResourceAttr(resourceName, "registration_scope", "project"),
-					resource.TestCheckResourceAttr(resourceName, "projects.#", "2"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("registration_scope"), knownvalue.StringExact("project")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("projects"), knownvalue.SetSizeExact(2)),
+				},
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
@@ -293,11 +297,11 @@ func TestAccCloudGoogleRegistrationResource_RequiresReplace(t *testing.T) {
 			},
 			{
 				Config: testAccCloudGoogleRegistrationConfig_folder(rName, folderID, infraProjectID, wifProjectID, wifProjectNumber),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", rName),
-					resource.TestCheckResourceAttr(resourceName, "registration_scope", "folder"),
-					resource.TestCheckResourceAttr(resourceName, "folders.#", "1"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("registration_scope"), knownvalue.StringExact("folder")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("folders"), knownvalue.SetSizeExact(1)),
+				},
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionDestroyBeforeCreate),
@@ -306,11 +310,11 @@ func TestAccCloudGoogleRegistrationResource_RequiresReplace(t *testing.T) {
 			},
 			{
 				Config: testAccCloudGoogleRegistrationConfig_folder(rName, folderID2, infraProjectID, wifProjectID, wifProjectNumber),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", rName),
-					resource.TestCheckResourceAttr(resourceName, "registration_scope", "folder"),
-					resource.TestCheckResourceAttr(resourceName, "folders.#", "1"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("registration_scope"), knownvalue.StringExact("folder")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("folders"), knownvalue.SetSizeExact(1)),
+				},
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
@@ -319,11 +323,11 @@ func TestAccCloudGoogleRegistrationResource_RequiresReplace(t *testing.T) {
 			},
 			{
 				Config: testAccCloudGoogleRegistrationConfig_organization(rName, orgID, infraProjectID, wifProjectID, wifProjectNumber),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", rName),
-					resource.TestCheckResourceAttr(resourceName, "registration_scope", "organization"),
-					resource.TestCheckResourceAttr(resourceName, "organization", orgID),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("registration_scope"), knownvalue.StringExact("organization")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("organization"), knownvalue.StringExact(orgID)),
+				},
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionDestroyBeforeCreate),
@@ -332,11 +336,11 @@ func TestAccCloudGoogleRegistrationResource_RequiresReplace(t *testing.T) {
 			},
 			{
 				Config: testAccCloudGoogleRegistrationConfig_organization(rName, orgID2, infraProjectID, wifProjectID, wifProjectNumber),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", rName),
-					resource.TestCheckResourceAttr(resourceName, "registration_scope", "organization"),
-					resource.TestCheckResourceAttr(resourceName, "organization", orgID2),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("registration_scope"), knownvalue.StringExact("organization")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("organization"), knownvalue.StringExact(orgID2)),
+				},
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
@@ -412,22 +416,24 @@ func TestAccCloudGoogleRegistrationResource_RemoveResourceNamePrefixAndSuffix(t 
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCloudGoogleRegistrationConfig_withResourceNamePrefixAndSuffix(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", rName),
-					resource.TestCheckResourceAttr(resourceName, "resource_name_prefix", "cs-"),
-					resource.TestCheckResourceAttr(resourceName, "resource_name_suffix", "-prod"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "status"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("resource_name_prefix"), knownvalue.StringExact("cs-")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("resource_name_suffix"), knownvalue.StringExact("-prod")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("status"), knownvalue.NotNull()),
+				},
 			},
 			{
 				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber, projectID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("status"), knownvalue.NotNull()),
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "name", rName),
 					resource.TestCheckNoResourceAttr(resourceName, "resource_name_prefix"),
 					resource.TestCheckNoResourceAttr(resourceName, "resource_name_suffix"),
-					resource.TestCheckResourceAttrSet(resourceName, "id"),
-					resource.TestCheckResourceAttrSet(resourceName, "status"),
 				),
 			},
 		},
@@ -683,4 +689,153 @@ resource "crowdstrike_cloud_google_registration" "test" {
   excluded_project_patterns = %[6]s
 }
 `, rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, patterns)
+}
+
+func TestAccCloudGoogleRegistrationResourceDSPM(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	projectID := generateGoogleCloudProjectID()
+	infraProjectID := generateGoogleCloudProjectID()
+	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
+	resourceName := "crowdstrike_cloud_google_registration.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudGoogleRegistrationConfig_dspm(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, true),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(true)),
+				},
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			{
+				Config: testAccCloudGoogleRegistrationConfig_dspm(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, false),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(false)),
+				},
+			},
+			{
+				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber, projectID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+				},
+			},
+		},
+	})
+}
+
+func TestAccCloudGoogleRegistrationResourceVulnerabilityScanning(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	projectID := generateGoogleCloudProjectID()
+	infraProjectID := generateGoogleCloudProjectID()
+	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
+	resourceName := "crowdstrike_cloud_google_registration.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudGoogleRegistrationConfig_vulnerabilityScanning(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, true),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("vulnerability_scanning").AtMapKey("enabled"), knownvalue.Bool(true)),
+				},
+			},
+			{
+				Config: testAccCloudGoogleRegistrationConfig_vulnerabilityScanning(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, false),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("vulnerability_scanning").AtMapKey("enabled"), knownvalue.Bool(false)),
+				},
+			},
+		},
+	})
+}
+
+func TestAccCloudGoogleRegistrationResourceBothDSPMAndVulnScanning(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	projectID := generateGoogleCloudProjectID()
+	infraProjectID := generateGoogleCloudProjectID()
+	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
+	resourceName := "crowdstrike_cloud_google_registration.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudGoogleRegistrationConfig_bothFeatures(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("vulnerability_scanning").AtMapKey("enabled"), knownvalue.Bool(true)),
+				},
+			},
+			{
+				Config: testAccCloudGoogleRegistrationConfig_dspm(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, true),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(true)),
+				},
+			},
+		},
+	})
+}
+
+func testAccCloudGoogleRegistrationConfig_dspm(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber string, enabled bool) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_cloud_google_registration" "test" {
+  name               = %[1]q
+  projects           = [%[2]q]
+  infra_project      = %[3]q
+  wif_project        = %[4]q
+  wif_project_number = %[5]q
+
+  dspm = {
+    enabled = %[6]t
+  }
+}
+`, rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, enabled)
+}
+
+func testAccCloudGoogleRegistrationConfig_vulnerabilityScanning(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber string, enabled bool) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_cloud_google_registration" "test" {
+  name               = %[1]q
+  projects           = [%[2]q]
+  infra_project      = %[3]q
+  wif_project        = %[4]q
+  wif_project_number = %[5]q
+
+  vulnerability_scanning = {
+    enabled = %[6]t
+  }
+}
+`, rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, enabled)
+}
+
+func testAccCloudGoogleRegistrationConfig_bothFeatures(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_cloud_google_registration" "test" {
+  name               = %[1]q
+  projects           = [%[2]q]
+  infra_project      = %[3]q
+  wif_project        = %[4]q
+  wif_project_number = %[5]q
+
+  dspm = {
+    enabled = true
+  }
+
+  vulnerability_scanning = {
+    enabled = true
+  }
+}
+`, rName, projectID, infraProjectID, wifProjectID, wifProjectNumber)
 }

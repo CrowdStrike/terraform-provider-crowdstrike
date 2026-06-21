@@ -33,6 +33,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
+const (
+	featureDSPM                  = "dspm"
+	featureVulnerabilityScanning = "vulnerability_scanning"
+)
+
 var (
 	_ resource.Resource                     = &cloudGoogleRegistrationResource{}
 	_ resource.ResourceWithConfigure        = &cloudGoogleRegistrationResource{}
@@ -79,6 +84,42 @@ func (r *realtimeVisibilityModel) FromObject(ctx context.Context, obj types.Obje
 	return obj.As(ctx, r, basetypes.ObjectAsOptions{})
 }
 
+type dspmModel struct {
+	Enabled types.Bool `tfsdk:"enabled"`
+}
+
+func (d *dspmModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled": types.BoolType,
+	}
+}
+
+func (d *dspmModel) ToObject(ctx context.Context) (types.Object, diag.Diagnostics) {
+	return types.ObjectValueFrom(ctx, d.AttributeTypes(), d)
+}
+
+func (d *dspmModel) FromObject(ctx context.Context, obj types.Object) diag.Diagnostics {
+	return obj.As(ctx, d, basetypes.ObjectAsOptions{})
+}
+
+type vulnerabilityScanningModel struct {
+	Enabled types.Bool `tfsdk:"enabled"`
+}
+
+func (v *vulnerabilityScanningModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled": types.BoolType,
+	}
+}
+
+func (v *vulnerabilityScanningModel) ToObject(ctx context.Context) (types.Object, diag.Diagnostics) {
+	return types.ObjectValueFrom(ctx, v.AttributeTypes(), v)
+}
+
+func (v *vulnerabilityScanningModel) FromObject(ctx context.Context, obj types.Object) diag.Diagnostics {
+	return obj.As(ctx, v, basetypes.ObjectAsOptions{})
+}
+
 type cloudGoogleRegistrationResourceModel struct {
 	ID                          types.String `tfsdk:"id"`
 	Name                        types.String `tfsdk:"name"`
@@ -96,6 +137,8 @@ type cloudGoogleRegistrationResourceModel struct {
 	Labels                      types.Map    `tfsdk:"labels"`
 	Tags                        types.Map    `tfsdk:"tags"`
 	RealtimeVisibility          types.Object `tfsdk:"realtime_visibility"`
+	DSPM                        types.Object `tfsdk:"dspm"`
+	VulnerabilityScanning       types.Object `tfsdk:"vulnerability_scanning"`
 	Status                      types.String `tfsdk:"status"`
 	WifPoolID                   types.String `tfsdk:"wif_pool_id"`
 	WifPoolName                 types.String `tfsdk:"wif_pool_name"`
@@ -224,12 +267,19 @@ func (m *cloudGoogleRegistrationResourceModel) wrap(
 	m.WifProviderName = flex.StringValueToFramework(wifProviderName)
 
 	hasIOA := false
+	hasDSPM := false
+	hasVulnScanning := false
 	for _, product := range registration.Products {
 		if product.Product != nil && *product.Product == "cspm" {
 			for _, feature := range product.Features {
 				if feature == "ioa" {
 					hasIOA = true
-					break
+				}
+				if feature == featureDSPM {
+					hasDSPM = true
+				}
+				if feature == featureVulnerabilityScanning {
+					hasVulnScanning = true
 				}
 			}
 			break
@@ -249,6 +299,36 @@ func (m *cloudGoogleRegistrationResourceModel) wrap(
 		m.RealtimeVisibility = rtvObj
 	default:
 		m.RealtimeVisibility = types.ObjectNull((&realtimeVisibilityModel{}).AttributeTypes())
+	}
+
+	switch {
+	case hasDSPM:
+		dspmObj := dspmModel{Enabled: types.BoolValue(true)}
+		obj, d := dspmObj.ToObject(ctx)
+		diags.Append(d...)
+		m.DSPM = obj
+	case !m.DSPM.IsNull():
+		dspmObj := dspmModel{Enabled: types.BoolValue(false)}
+		obj, d := dspmObj.ToObject(ctx)
+		diags.Append(d...)
+		m.DSPM = obj
+	default:
+		m.DSPM = types.ObjectNull((&dspmModel{}).AttributeTypes())
+	}
+
+	switch {
+	case hasVulnScanning:
+		vulnObj := vulnerabilityScanningModel{Enabled: types.BoolValue(true)}
+		obj, d := vulnObj.ToObject(ctx)
+		diags.Append(d...)
+		m.VulnerabilityScanning = obj
+	case !m.VulnerabilityScanning.IsNull():
+		vulnObj := vulnerabilityScanningModel{Enabled: types.BoolValue(false)}
+		obj, d := vulnObj.ToObject(ctx)
+		diags.Append(d...)
+		m.VulnerabilityScanning = obj
+	default:
+		m.VulnerabilityScanning = types.ObjectNull((&vulnerabilityScanningModel{}).AttributeTypes())
 	}
 
 	return diags
@@ -473,6 +553,26 @@ func (r *cloudGoogleRegistrationResource) Schema(
 					},
 				},
 			},
+			"dspm": schema.SingleNestedAttribute{
+				Optional:    true,
+				Description: "Enable DSPM agentless scanning",
+				Attributes: map[string]schema.Attribute{
+					"enabled": schema.BoolAttribute{
+						Required:    true,
+						Description: "Enable DSPM agentless scanning for this registration",
+					},
+				},
+			},
+			"vulnerability_scanning": schema.SingleNestedAttribute{
+				Optional:    true,
+				Description: "Enable vulnerability scanning",
+				Attributes: map[string]schema.Attribute{
+					"enabled": schema.BoolAttribute{
+						Required:    true,
+						Description: "Enable vulnerability scanning for this registration",
+					},
+				},
+			},
 			"status": schema.StringAttribute{
 				Computed:            true,
 				Description:         "The current status of the registration. Possible values: partial (registration is in setup incomplete status), complete (registration was setup successfully and validation succeeded), validation_failed (registration was setup successfully, but validation failed)",
@@ -639,6 +739,28 @@ func (r *cloudGoogleRegistrationResource) Create(
 		}
 	}
 
+	if !plan.DSPM.IsNull() {
+		var dspm dspmModel
+		resp.Diagnostics.Append(dspm.FromObject(ctx, plan.DSPM)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if dspm.Enabled.ValueBool() {
+			cspmProductFeatures.Features = append(cspmProductFeatures.Features, featureDSPM)
+		}
+	}
+
+	if !plan.VulnerabilityScanning.IsNull() {
+		var vulnScan vulnerabilityScanningModel
+		resp.Diagnostics.Append(vulnScan.FromObject(ctx, plan.VulnerabilityScanning)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if vulnScan.Enabled.ValueBool() {
+			cspmProductFeatures.Features = append(cspmProductFeatures.Features, featureVulnerabilityScanning)
+		}
+	}
+
 	createReq.Products = []*models.DomainProductFeatures{
 		&cspmProductFeatures,
 	}
@@ -800,6 +922,28 @@ func (r *cloudGoogleRegistrationResource) Update(
 		}
 		if rtv.Enabled.ValueBool() {
 			cspmProductFeatures.Features = append(cspmProductFeatures.Features, "ioa")
+		}
+	}
+
+	if !plan.DSPM.IsNull() {
+		var dspm dspmModel
+		resp.Diagnostics.Append(dspm.FromObject(ctx, plan.DSPM)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if dspm.Enabled.ValueBool() {
+			cspmProductFeatures.Features = append(cspmProductFeatures.Features, featureDSPM)
+		}
+	}
+
+	if !plan.VulnerabilityScanning.IsNull() {
+		var vulnScan vulnerabilityScanningModel
+		resp.Diagnostics.Append(vulnScan.FromObject(ctx, plan.VulnerabilityScanning)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if vulnScan.Enabled.ValueBool() {
+			cspmProductFeatures.Features = append(cspmProductFeatures.Features, featureVulnerabilityScanning)
 		}
 	}
 
