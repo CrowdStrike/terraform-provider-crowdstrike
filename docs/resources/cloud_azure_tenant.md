@@ -78,6 +78,7 @@ output "tenant_registration" {
 - `resource_name_suffix` (String) The suffix added to resources created during onboarding. It will be used if you generate new .tfvars from the UI.
 - `subscription_ids` (Set of String) A list of subscription IDs to register in addition to any subscriptions that are targeted by management_group_ids.
 - `tags` (Map of String) Tags applied to managed resources. This does not effect the registration of the tenant. It will be used if you generate new .tfvars from the UI.
+- `vulnerability_scanning` (Attributes) (see [below for nested schema](#nestedatt--vulnerability_scanning))
 
 ### Read-Only
 
@@ -97,6 +98,14 @@ Required:
 Required:
 
 - `enabled` (Boolean) Enable real-time visibility and detection
+
+
+<a id="nestedatt--vulnerability_scanning"></a>
+### Nested Schema for `vulnerability_scanning`
+
+Required:
+
+- `enabled` (Boolean) Enable Vulnerability Scanning
 
 ## Import
 

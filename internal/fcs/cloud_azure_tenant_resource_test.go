@@ -473,7 +473,7 @@ func TestAccCloudAzureTenant_agentlessScanningSubscriptionIdsTenantWide(t *testi
 	})
 }
 
-func TestAccCloudAzureTenant_agentlessSubIdsRequiresDSPM(t *testing.T) {
+func TestAccCloudAzureTenant_agentlessSubIdsRequiresDSPMOrVulnScanning(t *testing.T) {
 	tenantID := acctest.RandomUUID()
 	subID1 := acctest.RandomUUID()
 
@@ -483,7 +483,7 @@ func TestAccCloudAzureTenant_agentlessSubIdsRequiresDSPM(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccCloudAzureTenantConfig_agentlessSubIdsNoDSPM(tenantID, subID1),
-				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm to be enabled"),
+				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm or vulnerability_scanning to be enabled"),
 			},
 		},
 	})
@@ -509,11 +509,11 @@ func TestAccCloudAzureTenant_agentless_UnknownDSPMEnabled(t *testing.T) {
 			},
 			{
 				Config:      testAccCloudAzureTenantConfig_agentlessSubIdsUnknownDSPM(tenantID, subID1, false),
-				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm to be enabled"),
+				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm or vulnerability_scanning to be enabled"),
 			},
 			{
 				Config:      testAccCloudAzureTenantConfig_agentlessSubIdsNoDSPM(tenantID, subID1),
-				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm to be enabled"),
+				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm or vulnerability_scanning to be enabled"),
 			},
 		},
 	})
@@ -539,7 +539,7 @@ func TestAccCloudAzureTenant_agentless_UnknownSubIds(t *testing.T) {
 			},
 			{
 				Config:      testAccCloudAzureTenantConfig_unknownAgentlessSubIds(tenantID, subID1, false),
-				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm to be enabled"),
+				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm or vulnerability_scanning to be enabled"),
 			},
 		},
 	})
@@ -565,7 +565,7 @@ func TestAccCloudAzureTenant_agentless_UnknownDSPMObject(t *testing.T) {
 			},
 			{
 				Config:      testAccCloudAzureTenantConfig_unknownDSPMObject(tenantID, subID1, false),
-				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm to be enabled"),
+				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm or vulnerability_scanning to be enabled"),
 			},
 		},
 	})
@@ -845,4 +845,140 @@ resource "crowdstrike_cloud_azure_tenant" "test" {
   agentless_scanning_subscription_ids = [%[3]q]
   dspm                                = terraform_data.dspm_obj.output
 }`, tenantID, userReadAllPermissionID, subID, enabled)
+}
+
+func TestAccCloudAzureTenant_vulnerabilityScanning(t *testing.T) {
+	tenantID := acctest.RandomUUID()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAzureTenantConfig_basic(tenantID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("vulnerability_scanning").AtMapKey("enabled"), knownvalue.Bool(false)),
+				},
+			},
+			{
+				Config: testAccCloudAzureTenantConfig_vulnScanningEnabled(tenantID, true),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("vulnerability_scanning").AtMapKey("enabled"), knownvalue.Bool(true)),
+				},
+			},
+			{
+				Config: testAccCloudAzureTenantConfig_vulnScanningEnabled(tenantID, false),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("vulnerability_scanning").AtMapKey("enabled"), knownvalue.Bool(false)),
+				},
+			},
+		},
+	})
+}
+
+func TestAccCloudAzureTenant_vulnScanningWithSubscriptionIds(t *testing.T) {
+	tenantID := acctest.RandomUUID()
+	subID1 := acctest.RandomUUID()
+	subID2 := acctest.RandomUUID()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAzureTenantConfig_vulnScanningWithSubIds(tenantID, subID1, subID2),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("vulnerability_scanning").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("agentless_scanning_subscription_ids"), knownvalue.SetExact([]knownvalue.Check{
+						knownvalue.StringExact(subID1),
+						knownvalue.StringExact(subID2),
+					})),
+				},
+			},
+			{
+				ResourceName:                         cloudAzureTenantResourceName,
+				ImportState:                          true,
+				ImportStateId:                        tenantID,
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "tenant_id",
+			},
+		},
+	})
+}
+
+func TestAccCloudAzureTenant_vulnScanningAndDSPM(t *testing.T) {
+	tenantID := acctest.RandomUUID()
+	subID1 := acctest.RandomUUID()
+	subID2 := acctest.RandomUUID()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAzureTenantConfig_vulnScanningAndDSPM(tenantID, subID1, subID2),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("vulnerability_scanning").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("agentless_scanning_subscription_ids"), knownvalue.SetExact([]knownvalue.Check{
+						knownvalue.StringExact(subID1),
+						knownvalue.StringExact(subID2),
+					})),
+				},
+			},
+			{
+				ResourceName:                         cloudAzureTenantResourceName,
+				ImportState:                          true,
+				ImportStateId:                        tenantID,
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "tenant_id",
+			},
+			{
+				Config: testAccCloudAzureTenantConfig_vulnScanningEnabled(tenantID, true),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("vulnerability_scanning").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("dspm").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("agentless_scanning_subscription_ids"), knownvalue.Null()),
+				},
+			},
+		},
+	})
+}
+
+func testAccCloudAzureTenantConfig_vulnScanningEnabled(tenantID string, enabled bool) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                      = %[1]q
+  microsoft_graph_permission_ids = [%[2]q]
+  vulnerability_scanning = {
+    enabled = %[3]t
+  }
+}`, tenantID, userReadAllPermissionID, enabled)
+}
+
+func testAccCloudAzureTenantConfig_vulnScanningWithSubIds(tenantID, subID1, subID2 string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                           = %[1]q
+  microsoft_graph_permission_ids      = [%[2]q]
+  agentless_scanning_subscription_ids = [%[3]q, %[4]q]
+  vulnerability_scanning = {
+    enabled = true
+  }
+}`, tenantID, userReadAllPermissionID, subID1, subID2)
+}
+
+func testAccCloudAzureTenantConfig_vulnScanningAndDSPM(tenantID, subID1, subID2 string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                           = %[1]q
+  microsoft_graph_permission_ids      = [%[2]q]
+  agentless_scanning_subscription_ids = [%[3]q, %[4]q]
+  vulnerability_scanning = {
+    enabled = true
+  }
+  dspm = {
+    enabled = true
+  }
+}`, tenantID, userReadAllPermissionID, subID1, subID2)
 }
