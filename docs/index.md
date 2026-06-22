@@ -25,6 +25,6 @@ provider "crowdstrike" {
 
 - `client_id` (String, Sensitive) Falcon Client Id for authenticating to the CrowdStrike APIs. Will use FALCON_CLIENT_ID environment variable when left blank.
 - `client_secret` (String, Sensitive) Falcon Client Secret used for authenticating to the CrowdStrike APIs. Will use FALCON_CLIENT_SECRET environment variable when left blank.
-- `cloud` (String) Falcon Cloud to authenticate to. Valid values are autodiscover, us-1, us-2, eu-1, us-gov-1, us-gov-2. Will use FALCON_CLOUD environment variable when left blank.
+- `cloud` (String) Falcon Cloud to authenticate to. Valid values are autodiscover, us-1, us-2, us-3, eu-1, us-gov-1, us-gov-2. Will use FALCON_CLOUD environment variable when left blank.
 - `host_override` (String) Override the host used when communicating with the CrowdStrike APIs. Will use HOST_OVERRIDE environment variable when left blank. This is primarily used for testing and should not be set in normal usage.
 - `member_cid` (String) For MSSP Master CIDs, optionally lock the token to act on behalf of this member CID

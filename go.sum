@@ -35,8 +35,8 @@ github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1x
 github.com/cenkalti/backoff/v5 v5.0.3/go.mod h1:rkhZdG3JZukswDf7f0cwqPNk4K0sa+F97BxZthm/crw=
 github.com/cloudflare/circl v1.6.1 h1:zqIqSPIndyBh1bjLVVDHMPpVKqp8Su/V+6MeDzzQBQ0=
 github.com/cloudflare/circl v1.6.1/go.mod h1:uddAzsPgqdMAYatqJ0lsjX1oECcQLIlRpzZh3pJrofs=
-github.com/crowdstrike/gofalcon v0.21.0 h1:vMHpMtzidy07VxhQHMRH6uzHsOL3Efk6y829efDdOUQ=
-github.com/crowdstrike/gofalcon v0.21.0/go.mod h1:GYbhi35odSf8qFrcxAX6Sx7N/QIJyz8vKmUzuam7Xd8=
+github.com/crowdstrike/gofalcon v0.21.1-0.20260630210305-0f789201d49e h1:fxOLgAsQBnJCkuzE1WDvlFKCh2n5hJOItrbWvLkLBjE=
+github.com/crowdstrike/gofalcon v0.21.1-0.20260630210305-0f789201d49e/go.mod h1:GYbhi35odSf8qFrcxAX6Sx7N/QIJyz8vKmUzuam7Xd8=
 github.com/cyphar/filepath-securejoin v0.4.1 h1:JyxxyPEaktOD+GAnqIqTf9A8tHyAG22rowi7HkoSU1s=
 github.com/cyphar/filepath-securejoin v0.4.1/go.mod h1:Sdj7gXlvMcPZsbhwhQ33GguGLDGQL7h7bg04C/+u9jI=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

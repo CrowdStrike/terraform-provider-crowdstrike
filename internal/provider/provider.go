@@ -110,13 +110,14 @@ func (p *CrowdStrikeProvider) Schema(
 				Optional:            true,
 			},
 			"cloud": schema.StringAttribute{
-				MarkdownDescription: "Falcon Cloud to authenticate to. Valid values are autodiscover, us-1, us-2, eu-1, us-gov-1, us-gov-2. Will use FALCON_CLOUD environment variable when left blank.",
+				MarkdownDescription: "Falcon Cloud to authenticate to. Valid values are autodiscover, us-1, us-2, us-3, eu-1, us-gov-1, us-gov-2. Will use FALCON_CLOUD environment variable when left blank.",
 				Optional:            true,
 				Validators: []validator.String{
 					stringvalidator.OneOfCaseInsensitive(
 						"autodiscover",
 						"us-1",
 						"us-2",
+						"us-3",
 						"eu-1",
 						"us-gov-1",
 						"us-gov-2",
