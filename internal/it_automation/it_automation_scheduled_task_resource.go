@@ -40,6 +40,7 @@ var (
 	_ resource.Resource                   = &itAutomationScheduledTaskResource{}
 	_ resource.ResourceWithConfigure      = &itAutomationScheduledTaskResource{}
 	_ resource.ResourceWithImportState    = &itAutomationScheduledTaskResource{}
+	_ resource.ResourceWithModifyPlan     = &itAutomationScheduledTaskResource{}
 	_ resource.ResourceWithValidateConfig = &itAutomationScheduledTaskResource{}
 )
 
@@ -313,9 +314,11 @@ func (r *itAutomationScheduledTaskResource) Schema(
 					},
 					"start_time": schema.StringAttribute{
 						CustomType: fwtypes.RFC3339Type{},
-						Required:   true,
-						Description: "RFC3339 timestamp for when the schedule first runs. The timezone offset " +
-							"embedded in this value determines the local timezone for recurring runs.",
+						Optional:   true,
+						Description: "RFC3339 timestamp for when the schedule first runs. Required when creating " +
+							"or modifying a schedule. Existing imported schedules may omit this value when the API " +
+							"does not return it. The timezone offset embedded in this value determines the local " +
+							"timezone for recurring runs.",
 					},
 					"end_time": schema.StringAttribute{
 						CustomType:  fwtypes.RFC3339Type{},
@@ -527,6 +530,58 @@ func (r *itAutomationScheduledTaskResource) ValidateConfig(
 	}
 }
 
+func (r *itAutomationScheduledTaskResource) ModifyPlan(
+	ctx context.Context,
+	req resource.ModifyPlanRequest,
+	resp *resource.ModifyPlanResponse,
+) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan itAutomationScheduledTaskResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !utils.IsKnown(plan.Schedule) {
+		return
+	}
+
+	var planSchedule scheduleModel
+	resp.Diagnostics.Append(plan.Schedule.As(ctx, &planSchedule, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if req.State.Raw.IsNull() {
+		if planSchedule.StartTime.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("schedule").AtName("start_time"),
+				"Missing start_time",
+				"`schedule.start_time` is required when creating an IT Automation scheduled task.",
+			)
+		}
+		return
+	}
+
+	var state itAutomationScheduledTaskResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if !plan.Schedule.Equal(state.Schedule) && planSchedule.StartTime.IsNull() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("schedule").AtName("start_time"),
+			"Missing start_time",
+			"`schedule.start_time` is required when modifying schedule details. Existing imported "+
+				"schedules whose API response omits `start_time` may be managed as long as their "+
+				"schedule remains unchanged.",
+		)
+	}
+}
+
 func validateSchedule(sched *scheduleModel, diags *diag.Diagnostics) {
 	if !utils.IsKnown(sched.Frequency) {
 		return
@@ -727,6 +782,10 @@ func buildScheduleFromPlan(
 	frequency := sched.Frequency.ValueString()
 	apiSched := &models.FalconforitapiSchedule{
 		Frequency: &frequency,
+	}
+
+	if sched.StartTime.IsNull() {
+		return nil, diags
 	}
 
 	if startTimeT, parseDiags := sched.StartTime.ValueRFC3339Time(); !parseDiags.HasError() {
@@ -1074,6 +1133,14 @@ func (r *itAutomationScheduledTaskResource) Create(
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	if apiSched == nil {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("schedule").AtName("start_time"),
+			"Missing start_time",
+			"`schedule.start_time` is required when creating an IT Automation scheduled task.",
+		)
+		return
+	}
 
 	target := plan.Target.ValueString()
 	taskID := plan.TaskID.ValueString()
@@ -1200,12 +1267,25 @@ func (r *itAutomationScheduledTaskResource) Update(
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	var state itAutomationScheduledTaskResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	id := plan.ID.ValueString()
 
 	apiSched, schedDiags := buildScheduleFromPlan(ctx, plan.Schedule)
 	resp.Diagnostics.Append(schedDiags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if apiSched == nil && !plan.Schedule.Equal(state.Schedule) {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("schedule").AtName("start_time"),
+			"Missing start_time",
+			"`schedule.start_time` is required when modifying schedule details.",
+		)
 		return
 	}
 
@@ -1481,12 +1561,13 @@ func (p *createScheduledTaskParams) WriteToRequest(r runtime.ClientRequest, _ st
 	return nil
 }
 
-// updateScheduledTaskRequest is the PATCH body for an update. Every field is
-// declared without `omitempty` (unlike the generated
+// updateScheduledTaskRequest is the PATCH body for an update. Fields that can
+// be cleared are declared without `omitempty` (unlike the generated
 // models.ItautomationUpdateScheduledTaskRequest, which strips zero values) so
 // that clearing an optional field actually sends the cleared value to the
-// server instead of being silently dropped. The API treats an omitted/null
-// field as "keep current", so:
+// server instead of being silently dropped. Schedule keeps `omitempty` so an
+// unchanged imported schedule with no API start_time can be preserved. The API
+// treats an omitted/null field as "keep current", so:
 //   - bools are sent explicitly so a flip to false sticks.
 //   - execution_args sends an empty map to clear (null keeps).
 //   - guardrails sends an empty object to clear the run-time limit (null keeps).
@@ -1504,7 +1585,7 @@ type updateScheduledTaskRequest struct {
 	DiscoverNewHosts     bool                                   `json:"discover_new_hosts"`
 	DiscoverOfflineHosts bool                                   `json:"discover_offline_hosts"`
 	Distribute           bool                                   `json:"distribute"`
-	Schedule             *scheduleRequest                       `json:"schedule"`
+	Schedule             *scheduleRequest                       `json:"schedule,omitempty"`
 	ScheduleName         *string                                `json:"schedule_name"`
 	ExpirationInterval   *string                                `json:"expiration_interval"`
 	ExecutionArgs        map[string]string                      `json:"execution_args"`

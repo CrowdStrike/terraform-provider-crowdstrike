@@ -123,7 +123,6 @@ resource "crowdstrike_it_automation_scheduled_task" "weekly_example" {
 Required:
 
 - `frequency` (String) Frequency of runs. One of: `One-Time`, `Minutes`, `Hourly`, `Daily`, `Weekly`, `Monthly`.
-- `start_time` (String) RFC3339 timestamp for when the schedule first runs. The timezone offset embedded in this value determines the local timezone for recurring runs.
 
 Optional:
 
@@ -131,6 +130,7 @@ Optional:
 - `day_of_week` (String) Day of week for `Weekly` frequency. One of `Monday`, `Tuesday`, `Wednesday`, `Thursday`, `Friday`, `Saturday`, `Sunday`. Required when `frequency = "Weekly"`. Not allowed for other frequencies.
 - `end_time` (String) RFC3339 timestamp when the schedule stops running.
 - `interval` (Number) Run interval. Required when `frequency = "Minutes"` (range 60-10080, in minutes) or `frequency = "Hourly"` (range 1-168, in hours). Not allowed for other frequencies. Meaning depends on `frequency`.
+- `start_time` (String) RFC3339 timestamp for when the schedule first runs. Required when creating or modifying a schedule. Existing imported schedules may omit this value when the API does not return it. The timezone offset embedded in this value determines the local timezone for recurring runs.
 
 
 <a id="nestedatt--trigger_condition"></a>
