@@ -365,35 +365,35 @@ func (m *cloudGoogleRegistrationSettingsModel) wrap(
 // Both dspm_settings and vulnerability_scanning_settings share the same infra — we read from whichever is set.
 func (m *cloudGoogleRegistrationSettingsModel) wrapAgentlessScanningSettings(
 	ctx context.Context,
-	dspmSettings *models.GcpAgentlessScanningSettings,
+	agentlessScanningSettings *models.GcpAgentlessScanningSettings,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	if dspmSettings == nil {
+	if agentlessScanningSettings == nil {
 		m.AgentlessScanningSettings = types.ObjectNull((&agentlessScanningSettingsModel{}).AttributeTypes())
 		return diags
 	}
 
 	settings := agentlessScanningSettingsModel{
-		WIFPrincipal:             flex.StringValueToFramework(dspmSettings.WifPrincipal),
-		DeploymentVersion:        flex.StringValueToFramework(dspmSettings.DeploymentVersion),
+		WIFPrincipal:             flex.StringValueToFramework(agentlessScanningSettings.WifPrincipal),
+		DeploymentVersion:        flex.StringValueToFramework(agentlessScanningSettings.DeploymentVersion),
 		NetworkConfigurationType: flex.StringValueToFramework("managed"),
 	}
 
-	if dspmSettings.UserInputs != nil {
-		regionsSet, d := flex.FlattenStringValueSet(ctx, dspmSettings.UserInputs.Regions)
+	if agentlessScanningSettings.UserInputs != nil {
+		regionsSet, d := flex.FlattenStringValueSet(ctx, agentlessScanningSettings.UserInputs.Regions)
 		diags.Append(d...)
 		settings.Regions = regionsSet
 
-		settings.HostProjectID = flex.StringValueToFramework(dspmSettings.UserInputs.HostProjectID)
-		settings.OrgID = flex.StringValueToFramework(dspmSettings.UserInputs.OrgID)
-		settings.NetworkConfigurationType = flex.StringPointerToFramework(dspmSettings.UserInputs.NetworkConfigurationType)
+		settings.HostProjectID = flex.StringValueToFramework(agentlessScanningSettings.UserInputs.HostProjectID)
+		settings.OrgID = flex.StringValueToFramework(agentlessScanningSettings.UserInputs.OrgID)
+		settings.NetworkConfigurationType = flex.StringPointerToFramework(agentlessScanningSettings.UserInputs.NetworkConfigurationType)
 
-		if dspmSettings.UserInputs.CustomNetwork != nil {
-			subnetsMap, d := types.MapValueFrom(ctx, types.StringType, dspmSettings.UserInputs.CustomNetwork.Subnets)
+		if agentlessScanningSettings.UserInputs.CustomNetwork != nil {
+			subnetsMap, d := types.MapValueFrom(ctx, types.StringType, agentlessScanningSettings.UserInputs.CustomNetwork.Subnets)
 			diags.Append(d...)
 			cnModel := networkConfigModel{
-				VpcName: flex.StringPointerToFramework(dspmSettings.UserInputs.CustomNetwork.VpcName),
+				VpcName: flex.StringPointerToFramework(agentlessScanningSettings.UserInputs.CustomNetwork.VpcName),
 				Subnets: subnetsMap,
 			}
 			cnObj, d := cnModel.ToObject(ctx)
@@ -411,7 +411,7 @@ func (m *cloudGoogleRegistrationSettingsModel) wrapAgentlessScanningSettings(
 
 	// Build infra map
 	infraMap := make(map[string]attr.Value)
-	for projectID, infraEntry := range dspmSettings.Infra {
+	for projectID, infraEntry := range agentlessScanningSettings.Infra {
 		var networkObj types.Object
 		if infraEntry.Network != nil {
 			subnetsMap, d := types.MapValueFrom(ctx, types.StringType, infraEntry.Network.Subnets)
