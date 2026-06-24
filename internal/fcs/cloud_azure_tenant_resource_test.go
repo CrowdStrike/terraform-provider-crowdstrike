@@ -571,6 +571,32 @@ func TestAccCloudAzureTenant_agentless_UnknownDSPMObject(t *testing.T) {
 	})
 }
 
+func TestAccCloudAzureTenant_agentless_UnknownVulnerabilityScanningEnabled(t *testing.T) {
+	tenantID := acctest.RandomUUID()
+	subID1 := acctest.RandomUUID()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAzureTenantConfig_agentlessSubIdsUnknownVulnScanning(tenantID, subID1, true),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("tenant_id"), knownvalue.StringExact(tenantID)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("vulnerability_scanning").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(cloudAzureTenantResourceName, tfjsonpath.New("agentless_scanning_subscription_ids"), knownvalue.SetExact([]knownvalue.Check{
+						knownvalue.StringExact(subID1),
+					})),
+				},
+			},
+			{
+				Config:      testAccCloudAzureTenantConfig_agentlessSubIdsUnknownVulnScanning(tenantID, subID1, false),
+				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm or vulnerability_scanning to be enabled"),
+			},
+		},
+	})
+}
+
 func TestAccCloudAzureTenant_agentlessSubIdsShapeTransitions(t *testing.T) {
 	tenantID := acctest.RandomUUID()
 	subID1 := acctest.RandomUUID()
@@ -844,6 +870,22 @@ resource "crowdstrike_cloud_azure_tenant" "test" {
   microsoft_graph_permission_ids      = [%[2]q]
   agentless_scanning_subscription_ids = [%[3]q]
   dspm                                = terraform_data.dspm_obj.output
+}`, tenantID, userReadAllPermissionID, subID, enabled)
+}
+
+func testAccCloudAzureTenantConfig_agentlessSubIdsUnknownVulnScanning(tenantID, subID string, enabled bool) string {
+	return fmt.Sprintf(`
+resource "terraform_data" "vuln_scanning_flag" {
+  input = %[4]t
+}
+
+resource "crowdstrike_cloud_azure_tenant" "test" {
+  tenant_id                           = %[1]q
+  microsoft_graph_permission_ids      = [%[2]q]
+  agentless_scanning_subscription_ids = [%[3]q]
+  vulnerability_scanning = {
+    enabled = tobool(terraform_data.vuln_scanning_flag.output)
+  }
 }`, tenantID, userReadAllPermissionID, subID, enabled)
 }
 
