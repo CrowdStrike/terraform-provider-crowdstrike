@@ -488,6 +488,33 @@ func TestAccITAutomationScheduledTaskResource_boolOmitemptyRegression(t *testing
 	})
 }
 
+func TestAccITAutomationScheduledTaskResource_startTimeUnknown(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: scheduledTaskFixtureConfig(rName) + `
+resource "crowdstrike_it_automation_scheduled_task" "test" {
+  task_id = crowdstrike_it_automation_task.action.id
+  enabled = true
+  target  = "platform_name:'Linux'"
+
+  schedule = {
+    frequency  = "Daily"
+    start_time = crowdstrike_it_automation_task.action.last_updated
+  }
+}
+`,
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
 // TestAccITAutomationScheduledTaskResource_startTimeOffset verifies the
 // custom RFC3339 type's semantic equality is preserved when the user writes
 // a non-UTC offset. No spurious diff should appear after apply.
@@ -884,6 +911,12 @@ func TestAccITAutomationScheduledTaskResource_validateConfigNegative(t *testing.
 		schedule    string
 		expectError *regexp.Regexp
 	}{
+		{
+			name: "missing_start_time",
+			schedule: `
+    frequency = "Daily"`,
+			expectError: regexp.MustCompile(`(?i)start_time|required.*creating`),
+		},
 		{
 			name: "day_of_week_with_daily",
 			schedule: `
