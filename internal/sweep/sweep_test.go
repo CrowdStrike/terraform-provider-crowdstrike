@@ -24,6 +24,7 @@ import (
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	rtrputfile "github.com/crowdstrike/terraform-provider-crowdstrike/internal/rtr_put_file"
 	rtrscript "github.com/crowdstrike/terraform-provider-crowdstrike/internal/rtr_script"
+	selfserviceioaexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/self_service_ioa_exclusion"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
 	usergroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/user_group"
@@ -45,6 +46,7 @@ func registerSweepers() {
 	fcs.RegisterSweepers()
 	cloudgoogleregistration.RegisterSweepers()
 	ioaexclusion.RegisterSweepers()
+	selfserviceioaexclusion.RegisterSweepers()
 	ioarulegroup.RegisterSweepers()
 	fim.RegisterSweepers()
 	sensorvisibilityexclusion.RegisterSweepers()

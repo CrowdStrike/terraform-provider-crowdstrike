@@ -1,0 +1,1 @@
+terraform import crowdstrike_self_service_ioa_exclusion.example 12345678-1234-1234-1234-123456789012
