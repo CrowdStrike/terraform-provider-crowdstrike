@@ -13,6 +13,8 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -232,11 +234,18 @@ func (r *cloudGoogleRegistrationSettingsResource) Schema(
 					"deployment_version": schema.StringAttribute{
 						Required:    true,
 						Description: "The TF module deployment version for tracking.",
+						Validators: []validator.String{
+							validators.StringNotWhitespace(),
+						},
 					},
 					"regions": schema.SetAttribute{
 						Required:    true,
 						ElementType: types.StringType,
 						Description: "The GCP regions where agentless scanning infrastructure is deployed.",
+						Validators: []validator.Set{
+							setvalidator.SizeAtLeast(1),
+							setvalidator.ValueStringsAre(validators.StringNotWhitespace()),
+						},
 					},
 					"host_project_id": schema.StringAttribute{
 						Optional:    true,
@@ -274,12 +283,20 @@ func (r *cloudGoogleRegistrationSettingsResource) Schema(
 								Required:    true,
 								ElementType: types.StringType,
 								Description: "Map of region to subnet name within the custom VPC.",
+								Validators: []validator.Map{
+									mapvalidator.SizeAtLeast(1),
+									mapvalidator.KeysAre(validators.StringNotWhitespace()),
+									mapvalidator.ValueStringsAre(validators.StringNotWhitespace()),
+								},
 							},
 						},
 					},
 					"infra": schema.MapNestedAttribute{
 						Required:    true,
 						Description: "Per-project scanning infrastructure details, keyed by GCP project ID. In cross-project mode this contains a single entry for the host project.",
+						Validators: []validator.Map{
+							mapvalidator.SizeAtLeast(1),
+						},
 						NestedObject: schema.NestedAttributeObject{
 							Attributes: map[string]schema.Attribute{
 								"scanner_sa_email": schema.StringAttribute{
@@ -311,6 +328,11 @@ func (r *cloudGoogleRegistrationSettingsResource) Schema(
 											Required:    true,
 											ElementType: types.StringType,
 											Description: "Map of region to subnet name for scanner VMs.",
+											Validators: []validator.Map{
+												mapvalidator.SizeAtLeast(1),
+												mapvalidator.KeysAre(validators.StringNotWhitespace()),
+												mapvalidator.ValueStringsAre(validators.StringNotWhitespace()),
+											},
 										},
 									},
 								},
@@ -683,6 +705,32 @@ func (r *cloudGoogleRegistrationSettingsResource) ValidateConfig(
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	if !config.AgentlessScanningSettings.IsNull() && !config.AgentlessScanningSettings.IsUnknown() {
+		var settings agentlessScanningSettingsModel
+		resp.Diagnostics.Append(config.AgentlessScanningSettings.As(ctx, &settings, basetypes.ObjectAsOptions{})...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		if utils.IsKnown(settings.NetworkConfigurationType) {
+			isCustom := settings.NetworkConfigurationType.ValueString() == "custom"
+			if isCustom && settings.CustomNetwork.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("agentless_scanning_settings").AtName("custom_network"),
+					"Missing Required Attribute",
+					"custom_network is required when network_configuration_type is 'custom'.",
+				)
+			}
+			if !isCustom && !settings.CustomNetwork.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("agentless_scanning_settings").AtName("custom_network"),
+					"Invalid Attribute Combination",
+					"custom_network can only be set when network_configuration_type is 'custom'.",
+				)
+			}
+		}
 	}
 }
 

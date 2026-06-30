@@ -521,3 +521,85 @@ resource "crowdstrike_cloud_google_registration_settings" "test" {
 }
 `, projectID)
 }
+
+func TestAccCloudGoogleRegistrationSettingsResourceAgentlessScanningCustomNetworkValidation(t *testing.T) {
+	projectID := generateGoogleCloudProjectID()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccCloudGoogleRegistrationSettingsConfig_customNetworkMissing(projectID),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`custom_network is required when network_configuration_type is 'custom'`),
+			},
+			{
+				Config:      testAccCloudGoogleRegistrationSettingsConfig_customNetworkNotAllowed(projectID),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`custom_network can only be set when network_configuration_type is 'custom'`),
+			},
+		},
+	})
+}
+
+func testAccCloudGoogleRegistrationSettingsConfig_customNetworkMissing(projectID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_google_registration_settings" "test" {
+  registration_id   = "fake-reg-id"
+  wif_pool_name     = "test-pool"
+  wif_provider_name = "test-provider"
+
+  agentless_scanning_settings = {
+    wif_principal              = "principal://test-wif-principal"
+    deployment_version         = "1.0.0"
+    regions                    = ["us-east1"]
+    network_configuration_type = "custom"
+
+    infra = {
+      %[1]q = {
+        scanner_sa_email               = "scanner@test.iam.gserviceaccount.com"
+        client_credentials_secret_name = "csscanning-falcon-credentials"
+        network = {
+          vpc_name = "scanner-vpc"
+          subnets  = { "us-east1" = "scanner-subnet" }
+        }
+      }
+    }
+  }
+}
+`, projectID)
+}
+
+func testAccCloudGoogleRegistrationSettingsConfig_customNetworkNotAllowed(projectID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_google_registration_settings" "test" {
+  registration_id   = "fake-reg-id"
+  wif_pool_name     = "test-pool"
+  wif_provider_name = "test-provider"
+
+  agentless_scanning_settings = {
+    wif_principal              = "principal://test-wif-principal"
+    deployment_version         = "1.0.0"
+    regions                    = ["us-east1"]
+    network_configuration_type = "managed"
+
+    custom_network = {
+      vpc_name = "customer-vpc"
+      subnets  = { "us-east1" = "customer-subnet" }
+    }
+
+    infra = {
+      %[1]q = {
+        scanner_sa_email               = "scanner@test.iam.gserviceaccount.com"
+        client_credentials_secret_name = "csscanning-falcon-credentials"
+        network = {
+          vpc_name = "scanner-vpc"
+          subnets  = { "us-east1" = "scanner-subnet" }
+        }
+      }
+    }
+  }
+}
+`, projectID)
+}
