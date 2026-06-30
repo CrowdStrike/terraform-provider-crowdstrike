@@ -122,6 +122,7 @@ resource "crowdstrike_cloud_google_registration" "example_infrastructure_manager
 ### Optional
 
 - `deployment_method` (String) The deployment method for the registration. Can be either terraform-native or infrastructure-manager. Defaults to terraform-native
+- `dspm` (Attributes) Enable DSPM agentless scanning (see [below for nested schema](#nestedatt--dspm))
 - `excluded_project_patterns` (List of String) Wildcard patterns to exclude specific projects from registration. Each pattern must contain only lowercase letters, hyphens, numbers, and wildcard (*). A pattern containing only a wildcard is not valid
 - `folders` (Set of String) Google Cloud folder IDs to register. Each must be numeric. Mutually exclusive with `organization` and `projects`
 - `infrastructure_manager_region` (String) The Google Cloud region for Infrastructure Manager. Required when deployment_method is infrastructure-manager
@@ -132,6 +133,7 @@ resource "crowdstrike_cloud_google_registration" "example_infrastructure_manager
 - `resource_name_prefix` (String) Prefix to add to created Google Cloud resource names. The combined length of prefix and suffix must not exceed 13 characters
 - `resource_name_suffix` (String) Suffix to add to created Google Cloud resource names. The combined length of prefix and suffix must not exceed 13 characters
 - `tags` (Map of String) Google Cloud tags to apply to created resources
+- `vulnerability_scanning` (Attributes) Enable vulnerability scanning (see [below for nested schema](#nestedatt--vulnerability_scanning))
 
 ### Read-Only
 
@@ -143,12 +145,28 @@ resource "crowdstrike_cloud_google_registration" "example_infrastructure_manager
 - `wif_provider_id` (String) Workload Identity Federation provider ID
 - `wif_provider_name` (String) Workload Identity Federation provider name
 
+<a id="nestedatt--dspm"></a>
+### Nested Schema for `dspm`
+
+Required:
+
+- `enabled` (Boolean) Enable DSPM agentless scanning for this registration
+
+
 <a id="nestedatt--realtime_visibility"></a>
 ### Nested Schema for `realtime_visibility`
 
 Required:
 
 - `enabled` (Boolean) Enable real-time visibility and detection
+
+
+<a id="nestedatt--vulnerability_scanning"></a>
+### Nested Schema for `vulnerability_scanning`
+
+Required:
+
+- `enabled` (Boolean) Enable vulnerability scanning for this registration
 
 ## Import
 

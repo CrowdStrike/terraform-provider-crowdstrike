@@ -71,11 +71,56 @@ output "log_ingestion_settings" {
 
 ### Optional
 
+- `agentless_scanning_settings` (Attributes) Agentless scanning settings. Only configurable after the agentless scanning infrastructure has been created via Terraform. (see [below for nested schema](#nestedatt--agentless_scanning_settings))
 - `log_ingestion_sink_name` (String) The name of the log sink for ingestion.
 - `log_ingestion_subscription_name` (String) The Pub/Sub subscription name for log ingestion.
 - `log_ingestion_topic_id` (String) The Pub/Sub topic ID for log ingestion.
 - `wif_pool_name` (String) The Workload Identity Federation (WIF) pool name.
 - `wif_provider_name` (String) The Workload Identity Federation (WIF) provider name.
+
+<a id="nestedatt--agentless_scanning_settings"></a>
+### Nested Schema for `agentless_scanning_settings`
+
+Required:
+
+- `deployment_version` (String) The TF module deployment version for tracking.
+- `infra` (Attributes Map) Per-project scanning infrastructure details, keyed by GCP project ID. In cross-project mode this contains a single entry for the host project. (see [below for nested schema](#nestedatt--agentless_scanning_settings--infra))
+- `network_configuration_type` (String) Network configuration type for scanner VMs: managed (with NAT), managed_no_nat, or custom (BYO VPC).
+- `regions` (Set of String) The GCP regions where agentless scanning infrastructure is deployed.
+- `wif_principal` (String) The Workload Identity Federation principal for the agentless scanning.
+
+Optional:
+
+- `custom_network` (Attributes) Custom (BYO) network configuration. Required when network_configuration_type is 'custom'. (see [below for nested schema](#nestedatt--agentless_scanning_settings--custom_network))
+- `host_project_id` (String) The GCP project hosting shared scanning infrastructure. When set, indicates cross-project mode.
+- `org_id` (String) The GCP organization ID. Required only for folder-scoped registrations.
+
+<a id="nestedatt--agentless_scanning_settings--infra"></a>
+### Nested Schema for `agentless_scanning_settings.infra`
+
+Required:
+
+- `client_credentials_secret_name` (String) The Secret Manager secret name containing Falcon client credentials for scanner authentication.
+- `network` (Attributes) Network configuration for scanner VMs in this project. (see [below for nested schema](#nestedatt--agentless_scanning_settings--infra--network))
+- `scanner_sa_email` (String) The service account email used by the scanner in this project.
+
+<a id="nestedatt--agentless_scanning_settings--infra--network"></a>
+### Nested Schema for `agentless_scanning_settings.infra.network`
+
+Required:
+
+- `subnets` (Map of String) Map of region to subnet name for scanner VMs.
+- `vpc_name` (String) The VPC network name used by scanner VMs.
+
+
+
+<a id="nestedatt--agentless_scanning_settings--custom_network"></a>
+### Nested Schema for `agentless_scanning_settings.custom_network`
+
+Required:
+
+- `subnets` (Map of String) Map of region to subnet name within the custom VPC.
+- `vpc_name` (String) The name of the customer-provided VPC network.
 
 ## Import
 
