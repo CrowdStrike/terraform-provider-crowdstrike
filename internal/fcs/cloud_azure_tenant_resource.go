@@ -98,6 +98,7 @@ type cloudAzureTenantModel struct {
 	TenantId                         types.String `tfsdk:"tenant_id"`
 	RealtimeVisibility               types.Object `tfsdk:"realtime_visibility"`
 	DSPM                             types.Object `tfsdk:"dspm"`
+	VulnerabilityScanning            types.Object `tfsdk:"vulnerability_scanning"`
 	AgentlessScanningSubscriptionIds types.Set    `tfsdk:"agentless_scanning_subscription_ids"`
 }
 
@@ -137,6 +138,24 @@ func (r *dspmModel) FromObject(ctx context.Context, obj types.Object) diag.Diagn
 	return obj.As(ctx, r, basetypes.ObjectAsOptions{})
 }
 
+type vulnerabilityScanningModel struct {
+	Enabled types.Bool `tfsdk:"enabled"`
+}
+
+func (r *vulnerabilityScanningModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled": types.BoolType,
+	}
+}
+
+func (r *vulnerabilityScanningModel) ToObject(ctx context.Context) (types.Object, diag.Diagnostics) {
+	return types.ObjectValueFrom(ctx, r.AttributeTypes(), r)
+}
+
+func (r *vulnerabilityScanningModel) FromObject(ctx context.Context, obj types.Object) diag.Diagnostics {
+	return obj.As(ctx, r, basetypes.ObjectAsOptions{})
+}
+
 func buildAzureProductConfig(
 	ctx context.Context,
 	data *cloudAzureTenantModel,
@@ -159,21 +178,39 @@ func buildAzureProductConfig(
 	if diags.HasError() {
 		return features, additionalFeatures
 	}
-	if !dspm.Enabled.ValueBool() {
+
+	var vulnScanning vulnerabilityScanningModel
+	diags.Append(vulnScanning.FromObject(ctx, data.VulnerabilityScanning)...)
+	if diags.HasError() {
 		return features, additionalFeatures
 	}
 
-	subs := flex.ExpandSetAs[string](ctx, data.AgentlessScanningSubscriptionIds, diags)
-	if len(subs) == 0 {
-		features = append(features, "dspm")
-		return features, additionalFeatures
+	agentlessSubscriptionIDs := flex.ExpandSetAs[string](ctx, data.AgentlessScanningSubscriptionIds, diags)
+
+	if dspm.Enabled.ValueBool() {
+		if len(agentlessSubscriptionIDs) == 0 {
+			features = append(features, "dspm")
+		} else {
+			additionalFeatures = append(additionalFeatures, &models.AzureAdditionalFeature{
+				Feature:         utils.Addr("dspm"),
+				Product:         utils.Addr("cspm"),
+				SubscriptionIds: agentlessSubscriptionIDs,
+			})
+		}
 	}
 
-	additionalFeatures = []*models.AzureAdditionalFeature{{
-		Feature:         utils.Addr("dspm"),
-		Product:         utils.Addr("cspm"),
-		SubscriptionIds: subs,
-	}}
+	if vulnScanning.Enabled.ValueBool() {
+		if len(agentlessSubscriptionIDs) == 0 {
+			features = append(features, "vulnerability_scanning")
+		} else {
+			additionalFeatures = append(additionalFeatures, &models.AzureAdditionalFeature{
+				Feature:         utils.Addr("vulnerability_scanning"),
+				Product:         utils.Addr("cspm"),
+				SubscriptionIds: agentlessSubscriptionIDs,
+			})
+		}
+	}
+
 	return features, additionalFeatures
 }
 
@@ -263,6 +300,27 @@ func (r *cloudAzureTenantResource) Schema(
 					"enabled": schema.BoolAttribute{
 						Required:    true,
 						Description: "Enable data security posture management (DSPM)",
+					},
+				},
+				Default: objectdefault.StaticValue(
+					types.ObjectValueMust(
+						map[string]attr.Type{
+							"enabled": types.BoolType,
+						},
+						map[string]attr.Value{
+							"enabled": types.BoolValue(false),
+						},
+					),
+				),
+			},
+			"vulnerability_scanning": schema.SingleNestedAttribute{
+				Required: false,
+				Optional: true,
+				Computed: true,
+				Attributes: map[string]schema.Attribute{
+					"enabled": schema.BoolAttribute{
+						Required:    true,
+						Description: "Enable Vulnerability Scanning",
 					},
 				},
 				Default: objectdefault.StaticValue(
@@ -368,6 +426,7 @@ func (m *cloudAzureTenantModel) wrap(
 
 	hasIOA := false
 	hasDSPM := false
+	hasVulnScanning := false
 	for _, product := range registration.Products {
 		if *product.Product == "cspm" {
 			for _, feature := range product.Features {
@@ -376,6 +435,8 @@ func (m *cloudAzureTenantModel) wrap(
 					hasIOA = true
 				case "dspm":
 					hasDSPM = true
+				case "vulnerability_scanning":
+					hasVulnScanning = true
 				}
 			}
 		}
@@ -383,17 +444,20 @@ func (m *cloudAzureTenantModel) wrap(
 
 	var agentlessSubIds []string
 	for _, af := range registration.AdditionalFeatures {
-		if af != nil && af.Feature != nil && *af.Feature == "dspm" {
-			agentlessSubIds = af.SubscriptionIds
-			break
+		if af != nil && af.Feature != nil {
+			switch *af.Feature {
+			case "dspm":
+				agentlessSubIds = af.SubscriptionIds
+				hasDSPM = true
+			case "vulnerability_scanning":
+				agentlessSubIds = af.SubscriptionIds
+				hasVulnScanning = true
+			}
 		}
 	}
-	if len(agentlessSubIds) > 0 {
-		hasDSPM = true
-	}
-	agentlessSet, d := flex.FlattenStringValueSet(ctx, agentlessSubIds)
+	agentlessSubscriptionsSet, d := flex.FlattenStringValueSet(ctx, agentlessSubIds)
 	diags.Append(d...)
-	m.AgentlessScanningSubscriptionIds = agentlessSet
+	m.AgentlessScanningSubscriptionIds = agentlessSubscriptionsSet
 
 	rtv := realtimeVisibilityModel{Enabled: types.BoolValue(hasIOA)}
 	rtvObj, d := rtv.ToObject(ctx)
@@ -404,6 +468,11 @@ func (m *cloudAzureTenantModel) wrap(
 	dspmObj, d := dspm.ToObject(ctx)
 	diags.Append(d...)
 	m.DSPM = dspmObj
+
+	vulnScanning := vulnerabilityScanningModel{Enabled: types.BoolValue(hasVulnScanning)}
+	vulnScanningObj, d := vulnScanning.ToObject(ctx)
+	diags.Append(d...)
+	m.VulnerabilityScanning = vulnScanningObj
 
 	return diags
 }
@@ -579,17 +648,22 @@ func (r cloudAzureTenantResource) ModifyPlan(
 	// terraform_data.output), it is unknown on the first run and resolved on the second. The
 	// IsUnknown guards skip validation on the first run to avoid false positives; the second run
 	// sees the real values and validates them.
-	if utils.IsKnown(plan.AgentlessScanningSubscriptionIds) && utils.IsKnown(plan.DSPM) {
+	if utils.IsKnown(plan.AgentlessScanningSubscriptionIds) && utils.IsKnown(plan.DSPM) && utils.IsKnown(plan.VulnerabilityScanning) {
 		var dspm dspmModel
 		resp.Diagnostics.Append(dspm.FromObject(ctx, plan.DSPM)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		if utils.IsKnown(dspm.Enabled) && !dspm.Enabled.ValueBool() {
+		var vulnScanning vulnerabilityScanningModel
+		resp.Diagnostics.Append(vulnScanning.FromObject(ctx, plan.VulnerabilityScanning)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if utils.IsKnown(dspm.Enabled) && utils.IsKnown(vulnScanning.Enabled) && !dspm.Enabled.ValueBool() && !vulnScanning.Enabled.ValueBool() {
 			resp.Diagnostics.Append(diag.NewAttributeErrorDiagnostic(
 				path.Root("agentless_scanning_subscription_ids"),
 				"Invalid configuration",
-				"agentless_scanning_subscription_ids requires dspm to be enabled.",
+				"agentless_scanning_subscription_ids requires dspm or vulnerability_scanning to be enabled.",
 			))
 			return
 		}
