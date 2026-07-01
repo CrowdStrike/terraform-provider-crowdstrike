@@ -483,7 +483,7 @@ func TestAccCloudAzureTenant_agentlessSubIdsRequiresDSPMOrVulnScanning(t *testin
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccCloudAzureTenantConfig_agentlessSubIdsNoDSPM(tenantID, subID1),
-				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm or vulnerability_scanning to be enabled"),
+				ExpectError: regexp.MustCompile(`agentless_scanning_subscription_ids requires dspm or vulnerability_scanning\s+to be enabled`),
 			},
 		},
 	})
@@ -509,11 +509,11 @@ func TestAccCloudAzureTenant_agentless_UnknownDSPMEnabled(t *testing.T) {
 			},
 			{
 				Config:      testAccCloudAzureTenantConfig_agentlessSubIdsUnknownDSPM(tenantID, subID1, false),
-				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm or vulnerability_scanning to be enabled"),
+				ExpectError: regexp.MustCompile(`agentless_scanning_subscription_ids requires dspm or vulnerability_scanning\s+to be enabled`),
 			},
 			{
 				Config:      testAccCloudAzureTenantConfig_agentlessSubIdsNoDSPM(tenantID, subID1),
-				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm or vulnerability_scanning to be enabled"),
+				ExpectError: regexp.MustCompile(`agentless_scanning_subscription_ids requires dspm or vulnerability_scanning\s+to be enabled`),
 			},
 		},
 	})
@@ -539,7 +539,7 @@ func TestAccCloudAzureTenant_agentless_UnknownSubIds(t *testing.T) {
 			},
 			{
 				Config:      testAccCloudAzureTenantConfig_unknownAgentlessSubIds(tenantID, subID1, false),
-				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm or vulnerability_scanning to be enabled"),
+				ExpectError: regexp.MustCompile(`agentless_scanning_subscription_ids requires dspm or vulnerability_scanning\s+to be enabled`),
 			},
 		},
 	})
@@ -565,7 +565,7 @@ func TestAccCloudAzureTenant_agentless_UnknownDSPMObject(t *testing.T) {
 			},
 			{
 				Config:      testAccCloudAzureTenantConfig_unknownDSPMObject(tenantID, subID1, false),
-				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm or vulnerability_scanning to be enabled"),
+				ExpectError: regexp.MustCompile(`agentless_scanning_subscription_ids requires dspm or vulnerability_scanning\s+to be enabled`),
 			},
 		},
 	})
@@ -591,7 +591,7 @@ func TestAccCloudAzureTenant_agentless_UnknownVulnerabilityScanningEnabled(t *te
 			},
 			{
 				Config:      testAccCloudAzureTenantConfig_agentlessSubIdsUnknownVulnScanning(tenantID, subID1, false),
-				ExpectError: regexp.MustCompile("agentless_scanning_subscription_ids requires dspm or vulnerability_scanning to be enabled"),
+				ExpectError: regexp.MustCompile(`agentless_scanning_subscription_ids requires dspm or vulnerability_scanning\s+to be enabled`),
 			},
 		},
 	})
