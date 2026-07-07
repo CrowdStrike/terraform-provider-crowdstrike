@@ -124,6 +124,16 @@ func TestAccIOAExclusionResource_update(t *testing.T) {
 				},
 			},
 			{
+				Config: testAccIOAExclusionConfig_processTreeChanged(fmt.Sprintf("%s-updated", rName), patternID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("parent_cl_regex"), knownvalue.StringExact(`.*--tf-parent-changed.*`)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("parent_ifn_regex"), knownvalue.StringExact(`.*tf-parent-changed\.exe`)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("grandparent_cl_regex"), knownvalue.StringExact(`.*--tf-grandparent-changed.*`)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("grandparent_ifn_regex"), knownvalue.StringExact(`.*tf-grandparent-changed\.exe`)),
+				},
+			},
+			{
 				ResourceName:            resourceName,
 				ImportState:             true,
 				ImportStateVerify:       true,
@@ -251,14 +261,22 @@ func TestAccIOAExclusionResource_v1Compatibility(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config:            testAccIOAExclusionConfig_v1Compatibility(rName, patternID, false),
-				ResourceName:      resourceName,
-				ImportState:       true,
-				ImportStateVerify: true,
+				Config:             testAccIOAExclusionConfig_v1Compatibility(rName, patternID, false),
+				ResourceName:       resourceName,
+				ImportState:        true,
+				ImportStatePersist: true,
 				ImportStateIdFunc: func(*terraform.State) (string, error) {
 					return exclusionID, nil
 				},
-				ImportStateVerifyIgnore: []string{"last_updated"},
+				ImportStateCheck: func(states []*terraform.InstanceState) error {
+					if len(states) != 1 {
+						return fmt.Errorf("expected one imported IOA exclusion, got %d", len(states))
+					}
+					if states[0].ID != exclusionID {
+						return fmt.Errorf("expected imported IOA exclusion ID %q, got %q", exclusionID, states[0].ID)
+					}
+					return nil
+				},
 			},
 			{
 				Config:             testAccIOAExclusionConfig_v1Compatibility(rName, patternID, false),
@@ -386,6 +404,32 @@ resource "crowdstrike_ioa_exclusion" "test" {
   parent_ifn_regex      = ".*tf-parent-updated\\.exe"
   grandparent_cl_regex  = ".*--tf-grandparent-updated.*"
   grandparent_ifn_regex = ".*tf-grandparent-updated\\.exe"
+
+  host_groups = [crowdstrike_host_group.test.id]
+  comment     = "Updated during acceptance testing"
+}`, name, patternID)
+}
+
+func testAccIOAExclusionConfig_processTreeChanged(name, patternID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_host_group" "test" {
+  name        = "%[1]s-hg"
+  description = "%[1]s-hg"
+  type        = "staticByID"
+  host_ids    = []
+}
+
+resource "crowdstrike_ioa_exclusion" "test" {
+  name        = %[1]q
+  description = "Updated IOA exclusion"
+  pattern_id  = %[2]q
+  cl_regex    = ".*--tf-test-updated.*"
+  ifn_regex   = ".*tf-test-updated\\.exe"
+
+  parent_cl_regex       = ".*--tf-parent-changed.*"
+  parent_ifn_regex      = ".*tf-parent-changed\\.exe"
+  grandparent_cl_regex  = ".*--tf-grandparent-changed.*"
+  grandparent_ifn_regex = ".*tf-grandparent-changed\\.exe"
 
   host_groups = [crowdstrike_host_group.test.id]
   comment     = "Updated during acceptance testing"

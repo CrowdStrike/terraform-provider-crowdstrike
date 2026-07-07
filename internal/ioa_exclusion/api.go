@@ -26,6 +26,10 @@ func getIOAExclusion(
 		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, ioaExclusionRequiredScopes))
 		return nil, diags
 	}
+	if resp == nil {
+		diags.Append(tferrors.NewEmptyResponseError(tferrors.Read))
+		return nil, diags
+	}
 
 	exclusion, payloadDiags := extractIOAExclusionFromPayload(tferrors.Read, resp.GetPayload(), id)
 	diags.Append(payloadDiags...)

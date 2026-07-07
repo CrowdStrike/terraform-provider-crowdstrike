@@ -13,6 +13,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/go-openapi/runtime"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -337,6 +338,10 @@ func (r *ioaExclusionResource) Create(
 		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Create, err, ioaExclusionRequiredScopes))
 		return
 	}
+	if createResp == nil {
+		resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
+		return
+	}
 
 	exclusion, payloadDiags := extractIOAExclusionFromPayload(tferrors.Create, createResp.GetPayload(), "")
 	resp.Diagnostics.Append(payloadDiags...)
@@ -407,13 +412,23 @@ func (r *ioaExclusionResource) Update(
 	}
 
 	params := ioa_exclusions.NewSsIoaExclusionsUpdateV2ParamsWithContext(ctx)
-	params.SetBody(&models.DomainSsIoaExclusionsUpdateReqV2{
-		Exclusions: []*models.DomainSsIoaExclusionUpdateReqV2{updateRequest},
-	})
 
-	updateResp, err := r.client.IoaExclusions.SsIoaExclusionsUpdateV2(params)
+	updateResp, err := r.client.IoaExclusions.SsIoaExclusionsUpdateV2(
+		params,
+		func(op *runtime.ClientOperation) {
+			op.Params = &ioaExclusionsUpdateParams{
+				Body: &ioaExclusionsUpdateRequest{
+					Exclusions: []*ioaExclusionUpdateRequest{updateRequest},
+				},
+			}
+		},
+	)
 	if err != nil {
 		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, ioaExclusionRequiredScopes))
+		return
+	}
+	if updateResp == nil {
+		resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Update))
 		return
 	}
 
@@ -503,27 +518,29 @@ func expandCreateRequest(
 func expandUpdateRequest(
 	ctx context.Context,
 	plan IOAExclusionResourceModel,
-) (*models.DomainSsIoaExclusionUpdateReqV2, diag.Diagnostics) {
+) (*ioaExclusionUpdateRequest, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	groups := flex.ExpandSetAs[string](ctx, plan.Groups, &diags)
 	if diags.HasError() {
 		return nil, diags
 	}
 
-	return &models.DomainSsIoaExclusionUpdateReqV2{
-		ID:                  flex.FrameworkToStringPointer(plan.ID),
-		Name:                frameworkStringValue(plan.Name),
-		Description:         frameworkStringValue(plan.Description),
-		PatternID:           frameworkStringValue(plan.PatternID),
-		PatternName:         frameworkStringValue(plan.PatternName),
-		ClRegex:             frameworkStringValue(plan.ClRegex),
-		IfnRegex:            frameworkStringValue(plan.IfnRegex),
-		ParentClRegex:       frameworkStringValue(plan.ParentClRegex),
-		ParentIfnRegex:      frameworkStringValue(plan.ParentIfnRegex),
-		GrandparentClRegex:  frameworkStringValue(plan.GrandparentClRegex),
-		GrandparentIfnRegex: frameworkStringValue(plan.GrandparentIfnRegex),
-		HostGroups:          groups,
-		Comment:             frameworkStringValue(plan.Comment),
+	return &ioaExclusionUpdateRequest{
+		DomainSsIoaExclusionUpdateReqV2: models.DomainSsIoaExclusionUpdateReqV2{
+			ID:          flex.FrameworkToStringPointer(plan.ID),
+			Name:        frameworkStringValue(plan.Name),
+			PatternID:   frameworkStringValue(plan.PatternID),
+			PatternName: frameworkStringValue(plan.PatternName),
+			ClRegex:     frameworkStringValue(plan.ClRegex),
+			IfnRegex:    frameworkStringValue(plan.IfnRegex),
+			HostGroups:  groups,
+		},
+		Description:         flex.FrameworkToStringPointer(plan.Description),
+		ParentClRegex:       flex.FrameworkToStringPointer(plan.ParentClRegex),
+		ParentIfnRegex:      flex.FrameworkToStringPointer(plan.ParentIfnRegex),
+		GrandparentClRegex:  flex.FrameworkToStringPointer(plan.GrandparentClRegex),
+		GrandparentIfnRegex: flex.FrameworkToStringPointer(plan.GrandparentIfnRegex),
+		Comment:             flex.FrameworkToStringPointer(plan.Comment),
 	}, diags
 }
 

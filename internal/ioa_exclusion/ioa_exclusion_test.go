@@ -1,6 +1,7 @@
 package ioaexclusion
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/crowdstrike/gofalcon/falcon/models"
@@ -172,10 +173,12 @@ func TestExpandUpdateRequestUsesProcessTreeFields(t *testing.T) {
 	if req.ID == nil || *req.ID != "exclusion-id" {
 		t.Fatalf("expected id to be set, got %#v", req.ID)
 	}
-	if req.ParentClRegex != ".*--parent.*" || req.ParentIfnRegex != ".*parent\\.exe" {
+	if req.ParentClRegex == nil || *req.ParentClRegex != ".*--parent.*" ||
+		req.ParentIfnRegex == nil || *req.ParentIfnRegex != ".*parent\\.exe" {
 		t.Fatalf("expected parent fields to be set, got %#v", req)
 	}
-	if req.GrandparentClRegex != ".*--grandparent.*" || req.GrandparentIfnRegex != ".*grandparent\\.exe" {
+	if req.GrandparentClRegex == nil || *req.GrandparentClRegex != ".*--grandparent.*" ||
+		req.GrandparentIfnRegex == nil || *req.GrandparentIfnRegex != ".*grandparent\\.exe" {
 		t.Fatalf("expected grandparent fields to be set, got %#v", req)
 	}
 	if len(req.HostGroups) != 1 || req.HostGroups[0] != "all" {
@@ -210,13 +213,46 @@ func TestExpandUpdateRequestClearsOptionalFields(t *testing.T) {
 		t.Fatalf("unexpected diagnostics: %v", reqDiags)
 	}
 
-	if req.Description != "" || req.Comment != "" ||
-		req.ParentClRegex != "" || req.ParentIfnRegex != "" ||
-		req.GrandparentClRegex != "" || req.GrandparentIfnRegex != "" {
+	if req.Description == nil || *req.Description != "" ||
+		req.Comment == nil || *req.Comment != "" ||
+		req.ParentClRegex == nil || *req.ParentClRegex != "" ||
+		req.ParentIfnRegex == nil || *req.ParentIfnRegex != "" ||
+		req.GrandparentClRegex == nil || *req.GrandparentClRegex != "" ||
+		req.GrandparentIfnRegex == nil || *req.GrandparentIfnRegex != "" {
 		t.Fatalf("expected removed optional fields to expand to empty values, got %#v", req)
 	}
 	if len(req.HostGroups) != 1 || req.HostGroups[0] != "host-group-id" {
 		t.Fatalf("expected host_groups to contain host-group-id, got %#v", req.HostGroups)
+	}
+
+	body, err := json.Marshal(&ioaExclusionsUpdateRequest{
+		Exclusions: []*ioaExclusionUpdateRequest{req},
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal update request: %v", err)
+	}
+
+	var payload struct {
+		Exclusions []map[string]any `json:"exclusions"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("failed to unmarshal update request: %v", err)
+	}
+	if len(payload.Exclusions) != 1 {
+		t.Fatalf("expected one serialized exclusion, got %s", body)
+	}
+	for _, field := range []string{
+		"description",
+		"comment",
+		"parent_cl_regex",
+		"parent_ifn_regex",
+		"grandparent_cl_regex",
+		"grandparent_ifn_regex",
+	} {
+		value, ok := payload.Exclusions[0][field]
+		if !ok || value != "" {
+			t.Fatalf("expected %s to serialize as an explicit empty string, got %s", field, body)
+		}
 	}
 }
 
