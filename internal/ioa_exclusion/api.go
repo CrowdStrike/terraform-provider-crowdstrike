@@ -15,13 +15,13 @@ func getIOAExclusion(
 	ctx context.Context,
 	client *client.CrowdStrikeAPISpecification,
 	id string,
-) (*models.IoaExclusionsIoaExclusionRespV1, diag.Diagnostics) {
+) (*models.DomainSsIoaExclusionsV2, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	params := ioa_exclusions.NewGetIOAExclusionsV1ParamsWithContext(ctx)
+	params := ioa_exclusions.NewSsIoaExclusionsGetV2ParamsWithContext(ctx)
 	params.SetIds([]string{id})
 
-	resp, err := client.IoaExclusions.GetIOAExclusionsV1(params)
+	resp, err := client.IoaExclusions.SsIoaExclusionsGetV2(params)
 	if err != nil {
 		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, ioaExclusionRequiredScopes))
 		return nil, diags
@@ -38,9 +38,9 @@ func getIOAExclusion(
 
 func extractIOAExclusionFromPayload(
 	operation tferrors.Operation,
-	payload *models.IoaExclusionsIoaExclusionsRespV1,
+	payload *models.DomainSsIoaExclusionsRespV2,
 	id string,
-) (*models.IoaExclusionsIoaExclusionRespV1, diag.Diagnostics) {
+) (*models.DomainSsIoaExclusionsV2, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	if payload == nil {
@@ -68,9 +68,9 @@ func extractIOAExclusionFromPayload(
 }
 
 func findIOAExclusion(
-	resources []*models.IoaExclusionsIoaExclusionRespV1,
+	resources []*models.DomainSsIoaExclusionsV2,
 	id string,
-) *models.IoaExclusionsIoaExclusionRespV1 {
+) *models.DomainSsIoaExclusionsV2 {
 	for _, resource := range resources {
 		if resource == nil || resource.ID == nil {
 			continue
@@ -101,7 +101,7 @@ func diagnosticFromIOAPayload(
 
 func diagnosticFromQueryPayload(
 	operation tferrors.Operation,
-	payload *models.MsaQueryResponse,
+	payload *models.MsaspecQueryResponse,
 ) diag.Diagnostic {
 	if payload == nil {
 		return tferrors.NewEmptyResponseError(operation)

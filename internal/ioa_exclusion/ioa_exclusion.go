@@ -46,47 +46,56 @@ type ioaExclusionResource struct {
 }
 
 type IOAExclusionResourceModel struct {
-	ID              types.String      `tfsdk:"id"`
-	LastUpdated     types.String      `tfsdk:"last_updated"`
-	Name            types.String      `tfsdk:"name"`
-	Description     types.String      `tfsdk:"description"`
-	PatternID       types.String      `tfsdk:"pattern_id"`
-	PatternName     types.String      `tfsdk:"pattern_name"`
-	ClRegex         types.String      `tfsdk:"cl_regex"`
-	IfnRegex        types.String      `tfsdk:"ifn_regex"`
-	Groups          types.Set         `tfsdk:"host_groups"`
-	Comment         types.String      `tfsdk:"comment"`
-	AppliedGlobally types.Bool        `tfsdk:"applied_globally"`
-	CreatedBy       types.String      `tfsdk:"created_by"`
-	CreatedOn       timetypes.RFC3339 `tfsdk:"created_on"`
-	ModifiedBy      types.String      `tfsdk:"modified_by"`
-	LastModified    timetypes.RFC3339 `tfsdk:"last_modified"`
+	ID                  types.String      `tfsdk:"id"`
+	LastUpdated         types.String      `tfsdk:"last_updated"`
+	Name                types.String      `tfsdk:"name"`
+	Description         types.String      `tfsdk:"description"`
+	PatternID           types.String      `tfsdk:"pattern_id"`
+	PatternName         types.String      `tfsdk:"pattern_name"`
+	ClRegex             types.String      `tfsdk:"cl_regex"`
+	IfnRegex            types.String      `tfsdk:"ifn_regex"`
+	ParentClRegex       types.String      `tfsdk:"parent_cl_regex"`
+	ParentIfnRegex      types.String      `tfsdk:"parent_ifn_regex"`
+	GrandparentClRegex  types.String      `tfsdk:"grandparent_cl_regex"`
+	GrandparentIfnRegex types.String      `tfsdk:"grandparent_ifn_regex"`
+	Groups              types.Set         `tfsdk:"host_groups"`
+	Comment             types.String      `tfsdk:"comment"`
+	AppliedGlobally     types.Bool        `tfsdk:"applied_globally"`
+	CreatedBy           types.String      `tfsdk:"created_by"`
+	CreatedOn           timetypes.RFC3339 `tfsdk:"created_on"`
+	ModifiedBy          types.String      `tfsdk:"modified_by"`
+	LastModified        timetypes.RFC3339 `tfsdk:"last_modified"`
 }
 
 func (m *IOAExclusionResourceModel) wrap(
 	ctx context.Context,
-	exclusion *models.IoaExclusionsIoaExclusionRespV1,
+	exclusion *models.DomainSsIoaExclusionsV2,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	m.ID = types.StringPointerValue(exclusion.ID)
-	m.Name = types.StringPointerValue(exclusion.Name)
-	m.Description = flex.StringPointerToFramework(exclusion.Description)
-	m.PatternID = types.StringPointerValue(exclusion.PatternID)
-	m.PatternName = types.StringPointerValue(exclusion.PatternName)
-	m.ClRegex = types.StringPointerValue(exclusion.ClRegex)
-	m.IfnRegex = types.StringPointerValue(exclusion.IfnRegex)
-	m.AppliedGlobally = types.BoolPointerValue(exclusion.AppliedGlobally)
-	m.CreatedBy = types.StringPointerValue(exclusion.CreatedBy)
-	m.CreatedOn = flex.DateTimePointerToFramework(exclusion.CreatedOn)
-	m.ModifiedBy = types.StringPointerValue(exclusion.ModifiedBy)
-	m.LastModified = flex.DateTimePointerToFramework(exclusion.LastModified)
+	m.Name = flex.StringValueToFramework(exclusion.Name)
+	m.Description = flex.StringValueToFramework(exclusion.Description)
+	m.PatternID = flex.StringValueToFramework(exclusion.PatternID)
+	m.PatternName = flex.StringValueToFramework(exclusion.PatternName)
+	m.ClRegex = flex.StringValueToFramework(exclusion.ClRegex)
+	m.IfnRegex = flex.StringValueToFramework(exclusion.IfnRegex)
+	m.ParentClRegex = flex.StringValueToFramework(exclusion.ParentClRegex)
+	m.ParentIfnRegex = flex.StringValueToFramework(exclusion.ParentIfnRegex)
+	m.GrandparentClRegex = flex.StringValueToFramework(exclusion.GrandparentClRegex)
+	m.GrandparentIfnRegex = flex.StringValueToFramework(exclusion.GrandparentIfnRegex)
+	m.Comment = flex.StringValueToFramework(exclusion.Comment)
+	m.AppliedGlobally = types.BoolValue(exclusion.AppliedGlobally)
+	m.CreatedBy = flex.StringValueToFramework(exclusion.CreatedBy)
+	m.CreatedOn = flex.DateTimeValueToFramework(exclusion.CreatedOn)
+	m.ModifiedBy = flex.StringValueToFramework(exclusion.ModifiedBy)
+	m.LastModified = flex.DateTimeValueToFramework(exclusion.LastModified)
 
 	var groupDiags diag.Diagnostics
-	if exclusion.AppliedGlobally != nil && *exclusion.AppliedGlobally {
+	if exclusion.AppliedGlobally {
 		m.Groups, groupDiags = types.SetValueFrom(ctx, types.StringType, []string{"all"})
 	} else {
-		m.Groups, groupDiags = flex.FlattenHostGroupsToSet(ctx, exclusion.Groups)
+		m.Groups, groupDiags = flex.FlattenStringValueSet(ctx, exclusion.HostGroups)
 	}
 	diags.Append(groupDiags...)
 
@@ -130,7 +139,7 @@ func (r *ioaExclusionResource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
 			"Endpoint Security",
-			"An IOA exclusion prevents a specific IOA detection pattern from triggering for matching command line and image filename regex values.",
+			"An IOA exclusion prevents a specific IOA detection pattern from triggering for matching child, parent, and grandparent command-line and image-filename regex values.",
 			ioaExclusionRequiredScopes,
 		),
 		Attributes: map[string]schema.Attribute{
@@ -190,6 +199,38 @@ func (r *ioaExclusionResource) Schema(
 					stringvalidator.LengthAtMost(256),
 				},
 			},
+			"parent_cl_regex": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "Parent process command-line regex pattern for exclusion matching. Maximum length is 256 characters.",
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
+					stringvalidator.LengthAtMost(256),
+				},
+			},
+			"parent_ifn_regex": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "Parent process image filename regex pattern for exclusion matching. Maximum length is 256 characters.",
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
+					stringvalidator.LengthAtMost(256),
+				},
+			},
+			"grandparent_cl_regex": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "Grandparent process command-line regex pattern for exclusion matching. Maximum length is 256 characters.",
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
+					stringvalidator.LengthAtMost(256),
+				},
+			},
+			"grandparent_ifn_regex": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "Grandparent process image filename regex pattern for exclusion matching. Maximum length is 256 characters.",
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
+					stringvalidator.LengthAtMost(256),
+				},
+			},
 			"host_groups": schema.SetAttribute{
 				Required:            true,
 				ElementType:         types.StringType,
@@ -199,12 +240,9 @@ func (r *ioaExclusionResource) Schema(
 					setvalidator.ValueStringsAre(fwvalidators.StringNotWhitespace()),
 				},
 			},
-			// The API accepts comment on create/update but never returns it
-			// in responses (the key is absent, not empty). wrap() intentionally
-			// does not touch this field so the plan/state value is preserved.
 			"comment": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "Additional context stored when creating or updating the exclusion. Falcon does not return this field on reads, so imported resources cannot populate it automatically.",
+				MarkdownDescription: "Additional context stored when creating or updating the exclusion.",
 				Validators: []validator.String{
 					fwvalidators.StringNotWhitespace(),
 				},
@@ -289,10 +327,12 @@ func (r *ioaExclusionResource) Create(
 		return
 	}
 
-	params := ioa_exclusions.NewCreateIOAExclusionsV1ParamsWithContext(ctx)
-	params.SetBody(createRequest)
+	params := ioa_exclusions.NewSsIoaExclusionsCreateV2ParamsWithContext(ctx)
+	params.SetBody(&models.DomainSsIoaExclusionsCreateReqV2{
+		Exclusions: []*models.DomainSsIoaExclusionCreateReqV2{createRequest},
+	})
 
-	createResp, err := r.client.IoaExclusions.CreateIOAExclusionsV1(params)
+	createResp, err := r.client.IoaExclusions.SsIoaExclusionsCreateV2(params)
 	if err != nil {
 		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Create, err, ioaExclusionRequiredScopes))
 		return
@@ -366,10 +406,12 @@ func (r *ioaExclusionResource) Update(
 		return
 	}
 
-	params := ioa_exclusions.NewUpdateIOAExclusionsV1ParamsWithContext(ctx)
-	params.SetBody(updateRequest)
+	params := ioa_exclusions.NewSsIoaExclusionsUpdateV2ParamsWithContext(ctx)
+	params.SetBody(&models.DomainSsIoaExclusionsUpdateReqV2{
+		Exclusions: []*models.DomainSsIoaExclusionUpdateReqV2{updateRequest},
+	})
 
-	updateResp, err := r.client.IoaExclusions.UpdateIOAExclusionsV1(params)
+	updateResp, err := r.client.IoaExclusions.SsIoaExclusionsUpdateV2(params)
 	if err != nil {
 		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, ioaExclusionRequiredScopes))
 		return
@@ -401,10 +443,10 @@ func (r *ioaExclusionResource) Delete(
 		return
 	}
 
-	params := ioa_exclusions.NewDeleteIOAExclusionsV1ParamsWithContext(ctx)
+	params := ioa_exclusions.NewSsIoaExclusionsDeleteV2ParamsWithContext(ctx)
 	params.SetIds([]string{state.ID.ValueString()})
 
-	deleteResp, err := r.client.IoaExclusions.DeleteIOAExclusionsV1(params)
+	deleteResp, err := r.client.IoaExclusions.SsIoaExclusionsDeleteV2(params)
 	if err != nil {
 		diagErr := tferrors.NewDiagnosticFromAPIError(tferrors.Delete, err, ioaExclusionRequiredScopes)
 		if diagErr != nil && diagErr.Summary() == tferrors.NotFoundErrorSummary {
@@ -414,8 +456,8 @@ func (r *ioaExclusionResource) Delete(
 		return
 	}
 
-	if deleteResp != nil {
-		if diagErr := diagnosticFromQueryPayload(tferrors.Delete, deleteResp.GetPayload()); diagErr != nil {
+	if deleteResp != nil && deleteResp.GetPayload() != nil {
+		if diagErr := diagnosticFromIOAPayload(tferrors.Delete, deleteResp.GetPayload().Errors); diagErr != nil {
 			if diagErr.Summary() == tferrors.NotFoundErrorSummary {
 				return
 			}
@@ -435,46 +477,62 @@ func (r *ioaExclusionResource) ImportState(
 func expandCreateRequest(
 	ctx context.Context,
 	plan IOAExclusionResourceModel,
-) (*models.IoaExclusionsIoaExclusionCreateReqV1, diag.Diagnostics) {
+) (*models.DomainSsIoaExclusionCreateReqV2, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	groups := flex.ExpandSetAs[string](ctx, plan.Groups, &diags)
 	if diags.HasError() {
 		return nil, diags
 	}
 
-	return &models.IoaExclusionsIoaExclusionCreateReqV1{
-		Name:        flex.FrameworkToStringPointer(plan.Name),
-		Description: flex.FrameworkToStringPointer(plan.Description),
-		PatternID:   flex.FrameworkToStringPointer(plan.PatternID),
-		PatternName: flex.FrameworkToStringPointer(plan.PatternName),
-		ClRegex:     flex.FrameworkToStringPointer(plan.ClRegex),
-		IfnRegex:    flex.FrameworkToStringPointer(plan.IfnRegex),
-		Groups:      groups,
-		Comment:     plan.Comment.ValueString(),
+	return &models.DomainSsIoaExclusionCreateReqV2{
+		Name:                flex.FrameworkToStringPointer(plan.Name),
+		Description:         frameworkStringValue(plan.Description),
+		PatternID:           flex.FrameworkToStringPointer(plan.PatternID),
+		PatternName:         frameworkStringValue(plan.PatternName),
+		ClRegex:             flex.FrameworkToStringPointer(plan.ClRegex),
+		IfnRegex:            flex.FrameworkToStringPointer(plan.IfnRegex),
+		ParentClRegex:       frameworkStringValue(plan.ParentClRegex),
+		ParentIfnRegex:      frameworkStringValue(plan.ParentIfnRegex),
+		GrandparentClRegex:  frameworkStringValue(plan.GrandparentClRegex),
+		GrandparentIfnRegex: frameworkStringValue(plan.GrandparentIfnRegex),
+		HostGroups:          groups,
+		Comment:             frameworkStringValue(plan.Comment),
 	}, diags
 }
 
 func expandUpdateRequest(
 	ctx context.Context,
 	plan IOAExclusionResourceModel,
-) (*models.IoaExclusionsIoaExclusionUpdateReqV1, diag.Diagnostics) {
+) (*models.DomainSsIoaExclusionUpdateReqV2, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	groups := flex.ExpandSetAs[string](ctx, plan.Groups, &diags)
 	if diags.HasError() {
 		return nil, diags
 	}
 
-	return &models.IoaExclusionsIoaExclusionUpdateReqV1{
-		ID:          flex.FrameworkToStringPointer(plan.ID),
-		Name:        flex.FrameworkToStringPointer(plan.Name),
-		Description: flex.FrameworkToStringPointer(plan.Description),
-		PatternID:   flex.FrameworkToStringPointer(plan.PatternID),
-		PatternName: flex.FrameworkToStringPointer(plan.PatternName),
-		ClRegex:     flex.FrameworkToStringPointer(plan.ClRegex),
-		IfnRegex:    flex.FrameworkToStringPointer(plan.IfnRegex),
-		Groups:      groups,
-		Comment:     plan.Comment.ValueString(),
+	return &models.DomainSsIoaExclusionUpdateReqV2{
+		ID:                  flex.FrameworkToStringPointer(plan.ID),
+		Name:                frameworkStringValue(plan.Name),
+		Description:         frameworkStringValue(plan.Description),
+		PatternID:           frameworkStringValue(plan.PatternID),
+		PatternName:         frameworkStringValue(plan.PatternName),
+		ClRegex:             frameworkStringValue(plan.ClRegex),
+		IfnRegex:            frameworkStringValue(plan.IfnRegex),
+		ParentClRegex:       frameworkStringValue(plan.ParentClRegex),
+		ParentIfnRegex:      frameworkStringValue(plan.ParentIfnRegex),
+		GrandparentClRegex:  frameworkStringValue(plan.GrandparentClRegex),
+		GrandparentIfnRegex: frameworkStringValue(plan.GrandparentIfnRegex),
+		HostGroups:          groups,
+		Comment:             frameworkStringValue(plan.Comment),
 	}, diags
+}
+
+func frameworkStringValue(value types.String) string {
+	if value.IsNull() || value.IsUnknown() {
+		return ""
+	}
+
+	return value.ValueString()
 }
 
 func validateGroups(groups []string) error {

@@ -282,7 +282,7 @@ func handle207PayloadErrors(operation Operation, err error, cfg *errorConfig) di
 	}
 
 	payloadVal := reflect.ValueOf(payload)
-	if payloadVal.Kind() == reflect.Pointer {
+	if payloadVal.Kind() == reflect.Ptr {
 		payloadVal = payloadVal.Elem()
 	}
 
