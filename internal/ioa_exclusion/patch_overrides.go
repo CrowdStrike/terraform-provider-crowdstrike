@@ -1,6 +1,9 @@
 package ioaexclusion
 
 import (
+	"io"
+
+	"github.com/crowdstrike/gofalcon/falcon/client/ioa_exclusions"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
@@ -37,4 +40,29 @@ func (p *ioaExclusionsUpdateParams) WriteToRequest(r runtime.ClientRequest, _ st
 	}
 
 	return r.SetBodyParam(p.Body)
+}
+
+// ioaExclusionsCreateReader overrides the generated SsIoaExclusionsCreateV2
+// reader. The live API returns HTTP 201 on a successful create, but the
+// generated reader only registers a 200 success case and treats 201 as an
+// unexpected APIError. This reader maps 201 onto the generated 200 success
+// struct and delegates every other status code to the original reader.
+type ioaExclusionsCreateReader struct {
+	original *ioa_exclusions.SsIoaExclusionsCreateV2Reader
+}
+
+func (r *ioaExclusionsCreateReader) ReadResponse(
+	response runtime.ClientResponse,
+	consumer runtime.Consumer,
+) (any, error) {
+	if response.Code() == 201 {
+		result := ioa_exclusions.NewSsIoaExclusionsCreateV2OK()
+		result.Payload = new(models.DomainSsIoaExclusionsRespV2)
+		if err := consumer.Consume(response.Body(), result.Payload); err != nil && err != io.EOF {
+			return nil, err
+		}
+		return result, nil
+	}
+
+	return r.original.ReadResponse(response, consumer)
 }

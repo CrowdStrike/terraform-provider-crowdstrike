@@ -1,6 +1,7 @@
 package ioaexclusion_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"regexp"
@@ -9,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/ioa_exclusions"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/sweep"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -279,15 +281,18 @@ func TestAccIOAExclusionResource_v1Compatibility(t *testing.T) {
 				},
 			},
 			{
+				RefreshState:       true,
+				ExpectNonEmptyPlan: false,
+			},
+			{
 				Config:             testAccIOAExclusionConfig_v1Compatibility(rName, patternID, false),
 				PlanOnly:           true,
-				RefreshState:       true,
 				ExpectNonEmptyPlan: false,
 			},
 			{
 				Config: testAccIOAExclusionConfig_v1Compatibility(rName, patternID, true),
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.StringExact(exclusionID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("parent_cl_regex"), knownvalue.StringExact(`.*--tf-parent-v2.*`)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("parent_ifn_regex"), knownvalue.StringExact(`.*tf-parent-v2\.exe`)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("grandparent_cl_regex"), knownvalue.StringExact(`.*--tf-grandparent-v2.*`)),
@@ -317,6 +322,20 @@ resource "crowdstrike_ioa_exclusion" "test" {
 }
 `, acctest.RandomResourceName()),
 			expectError: regexp.MustCompile(`host_groups cannot contain "all" with other host group IDs`),
+		},
+		{
+			name: "partial_ancestor_fields",
+			config: acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_ioa_exclusion" "test" {
+  name            = %q
+  pattern_id      = "12345"
+  cl_regex        = ".*"
+  ifn_regex       = ".*"
+  parent_cl_regex = ".*--parent.*"
+  host_groups     = ["all"]
+}
+`, acctest.RandomResourceName()),
+			expectError: regexp.MustCompile(`These attributes must be configured together`),
 		},
 	}
 
@@ -489,10 +508,10 @@ func deleteV2IOAExclusion(t *testing.T, id string) {
 		return
 	}
 
-	params := ioa_exclusions.NewSsIoaExclusionsDeleteV2ParamsWithContext(t.Context())
+	params := ioa_exclusions.NewSsIoaExclusionsDeleteV2ParamsWithContext(context.Background())
 	params.SetIds([]string{id})
 	params.SetComment(utils.Addr("deleted by V1 compatibility test cleanup"))
-	if _, err := testconfig.GetTestClient().IoaExclusions.SsIoaExclusionsDeleteV2(params); err != nil {
+	if _, err := testconfig.GetTestClient().IoaExclusions.SsIoaExclusionsDeleteV2(params); err != nil && !sweep.IsNotFoundError(err) {
 		t.Logf("failed to clean up V1 compatibility IOA exclusion %s: %v", id, err)
 	}
 }

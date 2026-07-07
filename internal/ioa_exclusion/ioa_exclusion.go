@@ -15,6 +15,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/go-openapi/runtime"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
+	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -28,10 +29,11 @@ import (
 )
 
 var (
-	_ resource.Resource                   = &ioaExclusionResource{}
-	_ resource.ResourceWithConfigure      = &ioaExclusionResource{}
-	_ resource.ResourceWithImportState    = &ioaExclusionResource{}
-	_ resource.ResourceWithValidateConfig = &ioaExclusionResource{}
+	_ resource.Resource                     = &ioaExclusionResource{}
+	_ resource.ResourceWithConfigure        = &ioaExclusionResource{}
+	_ resource.ResourceWithImportState      = &ioaExclusionResource{}
+	_ resource.ResourceWithValidateConfig   = &ioaExclusionResource{}
+	_ resource.ResourceWithConfigValidators = &ioaExclusionResource{}
 )
 
 var ioaExclusionRequiredScopes = []scopes.Scope{
@@ -280,6 +282,17 @@ func (r *ioaExclusionResource) Schema(
 	}
 }
 
+func (r *ioaExclusionResource) ConfigValidators(_ context.Context) []resource.ConfigValidator {
+	return []resource.ConfigValidator{
+		resourcevalidator.RequiredTogether(
+			path.MatchRoot("parent_cl_regex"),
+			path.MatchRoot("parent_ifn_regex"),
+			path.MatchRoot("grandparent_cl_regex"),
+			path.MatchRoot("grandparent_ifn_regex"),
+		),
+	}
+}
+
 func (r *ioaExclusionResource) ValidateConfig(
 	ctx context.Context,
 	req resource.ValidateConfigRequest,
@@ -333,7 +346,14 @@ func (r *ioaExclusionResource) Create(
 		Exclusions: []*models.DomainSsIoaExclusionCreateReqV2{createRequest},
 	})
 
-	createResp, err := r.client.IoaExclusions.SsIoaExclusionsCreateV2(params)
+	createResp, err := r.client.IoaExclusions.SsIoaExclusionsCreateV2(
+		params,
+		func(op *runtime.ClientOperation) {
+			if original, ok := op.Reader.(*ioa_exclusions.SsIoaExclusionsCreateV2Reader); ok {
+				op.Reader = &ioaExclusionsCreateReader{original: original}
+			}
+		},
+	)
 	if err != nil {
 		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Create, err, ioaExclusionRequiredScopes))
 		return
