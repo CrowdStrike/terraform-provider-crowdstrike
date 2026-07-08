@@ -68,6 +68,11 @@ type preventionPolicyLinuxResourceModel struct {
 	EnhancePHPVisibility                 types.Bool   `tfsdk:"enhance_php_visibility"`
 	EnhanceEnvironmentVariableVisibility types.Bool   `tfsdk:"enhance_environment_variable_visibility"`
 	SuspiciousFileAnalysis               types.Bool   `tfsdk:"suspicious_file_analysis"`
+	CloudDataProtectionVisibility        types.Bool   `tfsdk:"cloud_data_protection_visibility"`
+	SSHVisibility                        types.Bool   `tfsdk:"ssh_visibility"`
+	EnhanceSystemdVisibility             types.Bool   `tfsdk:"enhance_systemd_visibility"`
+	PHPScriptOptimization                types.Bool   `tfsdk:"php_script_optimization"`
+	RetrospectiveDetections              types.Bool   `tfsdk:"retrospective_detections"`
 }
 
 // Configure adds the provider configured client to the resource.
@@ -513,6 +518,13 @@ func (r *preventionPolicyLinuxResource) assignPreventionSettings(
 		toggleSettings["EnhanceEnvironmentVariableVisibility"],
 	)
 	state.SuspiciousFileAnalysis = defaultBoolFalse(toggleSettings["SuspiciousFileAnalysis"])
+	state.CloudDataProtectionVisibility = defaultBoolFalse(
+		toggleSettings["CloudDataProtectionVisibility"],
+	)
+	state.SSHVisibility = defaultBoolFalse(toggleSettings["SSHVisibility"])
+	state.EnhanceSystemdVisibility = defaultBoolFalse(toggleSettings["EnhanceSystemdVisibility"])
+	state.PHPScriptOptimization = defaultBoolFalse(toggleSettings["PHPScriptOptimization"])
+	state.RetrospectiveDetections = defaultBoolFalse(toggleSettings["RetrospectiveDetections"])
 
 	// mlslider settings
 	if slider, ok := mlSliderSettings["CloudAntiMalware"]; ok {
@@ -566,6 +578,11 @@ func (r *preventionPolicyLinuxResource) generatePreventionSettings(
 		"EnhancePHPVisibility":                 config.EnhancePHPVisibility,
 		"EnhanceEnvironmentVariableVisibility": config.EnhanceEnvironmentVariableVisibility,
 		"SuspiciousFileAnalysis":               config.SuspiciousFileAnalysis,
+		"CloudDataProtectionVisibility":        config.CloudDataProtectionVisibility,
+		"SSHVisibility":                        config.SSHVisibility,
+		"EnhanceSystemdVisibility":             config.EnhanceSystemdVisibility,
+		"PHPScriptOptimization":                config.PHPScriptOptimization,
+		"RetrospectiveDetections":              config.RetrospectiveDetections,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}

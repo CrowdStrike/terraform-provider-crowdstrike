@@ -22,10 +22,10 @@ func sweepIOAExclusions(
 ) ([]sweep.Sweepable, error) {
 	var sweepables []sweep.Sweepable
 
-	params := ioa_exclusions.NewQueryIOAExclusionsV1ParamsWithContext(ctx)
+	params := ioa_exclusions.NewSsIoaExclusionsSearchV2ParamsWithContext(ctx)
 	params.Filter = utils.Addr(fmt.Sprintf("name:~'%s'", sweep.ResourcePrefix))
 
-	resp, err := client.IoaExclusions.QueryIOAExclusionsV1(params)
+	resp, err := client.IoaExclusions.SsIoaExclusionsSearchV2(params)
 	if sweep.SkipSweepError(err) {
 		sweep.Warn("Skipping IOA Exclusion sweep: %s", err)
 		return nil, nil
@@ -40,10 +40,10 @@ func sweepIOAExclusions(
 		return nil, fmt.Errorf("error listing IOA exclusions: %s", diagErr.Detail())
 	}
 
-	getParams := ioa_exclusions.NewGetIOAExclusionsV1ParamsWithContext(ctx)
+	getParams := ioa_exclusions.NewSsIoaExclusionsGetV2ParamsWithContext(ctx)
 	getParams.SetIds(resp.Payload.Resources)
 
-	getResp, err := client.IoaExclusions.GetIOAExclusionsV1(getParams)
+	getResp, err := client.IoaExclusions.SsIoaExclusionsGetV2(getParams)
 	if sweep.SkipSweepError(err) {
 		sweep.Warn("Skipping IOA Exclusion sweep: %s", err)
 		return nil, nil
@@ -59,18 +59,18 @@ func sweepIOAExclusions(
 	}
 
 	for _, exclusion := range getResp.Payload.Resources {
-		if exclusion == nil || exclusion.ID == nil || exclusion.Name == nil {
+		if exclusion == nil || exclusion.ID == nil {
 			continue
 		}
 
-		if !strings.HasPrefix(*exclusion.Name, sweep.ResourcePrefix) {
-			sweep.Trace("Skipping IOA Exclusion %s (not a test resource)", *exclusion.Name)
+		if !strings.HasPrefix(exclusion.Name, sweep.ResourcePrefix) {
+			sweep.Trace("Skipping IOA Exclusion %s (not a test resource)", exclusion.Name)
 			continue
 		}
 
 		sweepables = append(sweepables, sweep.NewSweepResource(
 			*exclusion.ID,
-			*exclusion.Name,
+			exclusion.Name,
 			deleteIOAExclusion,
 		))
 	}
@@ -83,10 +83,11 @@ func deleteIOAExclusion(
 	client *client.CrowdStrikeAPISpecification,
 	id string,
 ) error {
-	params := ioa_exclusions.NewDeleteIOAExclusionsV1ParamsWithContext(ctx)
+	params := ioa_exclusions.NewSsIoaExclusionsDeleteV2ParamsWithContext(ctx)
 	params.SetIds([]string{id})
+	params.SetComment(utils.Addr("deleted by Terraform acceptance test sweeper"))
 
-	resp, err := client.IoaExclusions.DeleteIOAExclusionsV1(params)
+	resp, err := client.IoaExclusions.SsIoaExclusionsDeleteV2(params)
 	if err != nil {
 		if sweep.ShouldIgnoreError(err) {
 			sweep.Debug("Ignoring error for IOA exclusion %s: %s", id, err)
@@ -95,8 +96,8 @@ func deleteIOAExclusion(
 		return err
 	}
 
-	if resp != nil {
-		if diagErr := diagnosticFromQueryPayload(tferrors.Delete, resp.Payload); diagErr != nil && diagErr.Summary() != tferrors.NotFoundErrorSummary {
+	if resp != nil && resp.Payload != nil {
+		if diagErr := diagnosticFromIOAPayload(tferrors.Delete, resp.Payload.Errors); diagErr != nil && diagErr.Summary() != tferrors.NotFoundErrorSummary {
 			return fmt.Errorf("%s", diagErr.Detail())
 		}
 	}

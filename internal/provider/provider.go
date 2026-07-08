@@ -8,13 +8,17 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/cid"
 	cidgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cid_group"
 	cloudcompliance "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_compliance"
 	cloudgoogleregistration "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_google_registration"
 	cloudgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_group"
 	cloudsecurity "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_security"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	containerregistry "github.com/crowdstrike/terraform-provider-crowdstrike/internal/container_registry"
 	contentupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/content_update_policy"
+	correlationrules "github.com/crowdstrike/terraform-provider-crowdstrike/internal/correlation_rules"
+	customioc "github.com/crowdstrike/terraform-provider-crowdstrike/internal/custom_ioc"
 	dataprotection "github.com/crowdstrike/terraform-provider-crowdstrike/internal/data_protection"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
@@ -24,10 +28,12 @@ import (
 	ioaexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_exclusion"
 	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
 	itautomation "github.com/crowdstrike/terraform-provider-crowdstrike/internal/it_automation"
+	mlcertificateexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ml_certificate_exclusion"
 	mlfilepathexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ml_file_path_exclusion"
 	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	responsepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/response_policy"
 	rtrputfile "github.com/crowdstrike/terraform-provider-crowdstrike/internal/rtr_put_file"
+	rtrscript "github.com/crowdstrike/terraform-provider-crowdstrike/internal/rtr_script"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
@@ -65,6 +71,7 @@ type CrowdStrikeProviderModel struct {
 	ClientSecret types.String `tfsdk:"client_secret"`
 	ClientId     types.String `tfsdk:"client_id"`
 	MemberCID    types.String `tfsdk:"member_cid"`
+	HostOverride types.String `tfsdk:"host_override"`
 }
 
 func (p *CrowdStrikeProvider) Metadata(
@@ -99,14 +106,19 @@ func (p *CrowdStrikeProvider) Schema(
 				Optional:            true,
 				Sensitive:           false,
 			},
+			"host_override": schema.StringAttribute{
+				MarkdownDescription: "Override the host used when communicating with the CrowdStrike APIs. Will use HOST_OVERRIDE environment variable when left blank. This is primarily used for testing and should not be set in normal usage.",
+				Optional:            true,
+			},
 			"cloud": schema.StringAttribute{
-				MarkdownDescription: "Falcon Cloud to authenticate to. Valid values are autodiscover, us-1, us-2, eu-1, us-gov-1, us-gov-2. Will use FALCON_CLOUD environment variable when left blank.",
+				MarkdownDescription: "Falcon Cloud to authenticate to. Valid values are autodiscover, us-1, us-2, us-3, eu-1, us-gov-1, us-gov-2. Will use FALCON_CLOUD environment variable when left blank.",
 				Optional:            true,
 				Validators: []validator.String{
 					stringvalidator.OneOfCaseInsensitive(
 						"autodiscover",
 						"us-1",
 						"us-2",
+						"us-3",
 						"eu-1",
 						"us-gov-1",
 						"us-gov-2",
@@ -166,6 +178,7 @@ func (p *CrowdStrikeProvider) Configure(
 	cloud := os.Getenv("FALCON_CLOUD")
 	clientId := os.Getenv("FALCON_CLIENT_ID")
 	clientSecret := os.Getenv("FALCON_CLIENT_SECRET")
+	hostOverride := os.Getenv("HOST_OVERRIDE")
 
 	if !model.Cloud.IsNull() {
 		cloud = model.Cloud.ValueString()
@@ -181,6 +194,10 @@ func (p *CrowdStrikeProvider) Configure(
 
 	if !model.ClientSecret.IsNull() {
 		clientSecret = model.ClientSecret.ValueString()
+	}
+
+	if !model.HostOverride.IsNull() {
+		hostOverride = model.HostOverride.ValueString()
 	}
 
 	if clientId == "" {
@@ -240,7 +257,7 @@ func (p *CrowdStrikeProvider) Configure(
 			ClientSecret:      clientSecret,
 			UserAgentOverride: fmt.Sprintf("terraform-provider-crowdstrike/%s", p.version),
 			Context:           context.Background(),
-			HostOverride:      os.Getenv("HOST_OVERRIDE"),
+			HostOverride:      hostOverride,
 			TransportDecorator: falcon.TransportDecorator(func(r http.RoundTripper) http.RoundTripper {
 				return logging.NewLoggingHTTPTransport(r)
 			}),
@@ -275,6 +292,7 @@ func (p *CrowdStrikeProvider) Configure(
 func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		cidgroup.NewCIDGroupResource,
+		correlationrules.NewCorrelationRuleResource,
 		sensorupdatepolicy.NewSensorUpdatePolicyResource,
 		sensorupdatepolicy.NewDefaultSensorUpdatePolicyResource,
 		sensorupdatepolicy.NewSensorUpdatePolicyHostGroupAttachmentResource,
@@ -301,6 +319,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		contentupdatepolicy.NewDefaultContentUpdatePolicyResource,
 		contentupdatepolicy.NewContentUpdatePolicyPrecedenceResource,
 		contentupdatepolicy.NewContentUpdatePolicyAttachmentResource,
+		mlcertificateexclusion.NewMLCertificateExclusionResource,
 		sensorvisibilityexclusion.NewSensorVisibilityExclusionResource,
 		sensorvisibilityexclusion.NewSensorVisibilityExclusionAttachmentResource,
 		mlfilepathexclusion.NewMLFilePathExclusionResource,
@@ -309,6 +328,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		itautomation.NewItAutomationPolicyResource,
 		itautomation.NewItAutomationDefaultPolicyResource,
 		itautomation.NewItAutomationPolicyPrecedenceResource,
+		itautomation.NewItAutomationScheduledTaskResource,
 		cloudsecurity.NewCloudSecurityCustomRuleResource,
 		cloudsecurity.NewCloudSecurityIomCustomRuleResource,
 		cloudsecurity.NewCloudSecurityKacPolicyResource,
@@ -321,6 +341,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		dataprotection.NewDataProtectionSensitivityLabelResource,
 		responsepolicy.NewResponsePolicyResource,
 		responsepolicy.NewResponsePolicyPrecedenceResource,
+		rtrscript.NewRTRScriptResource,
 		rtrputfile.NewRtrPutFileResource,
 		ioaexclusion.NewIOAExclusionResource,
 		ioarulegroup.NewIOARuleGroupResource,
@@ -329,6 +350,8 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		firewall.NewFirewallRuleGroupResource,
 		firewall.NewFirewallPolicyResource,
 		firewall.NewFirewallPolicyPrecedenceResource,
+		customioc.NewCustomIOCResource,
+		containerregistry.NewContainerRegistryResource,
 	}
 }
 
@@ -350,6 +373,15 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		firewall.NewFirewallPoliciesDataSource,
 		firewall.NewFirewallRuleGroupsDataSource,
 		hostgroups.NewHostGroupDataSource,
+		cidgroup.NewCIDGroupDataSource,
+		cid.NewCIDDataSource,
+		rtrscript.NewRTRScriptDataSource,
+		rtrputfile.NewRtrPutFileDataSource,
+		itautomation.NewItAutomationTaskGroupsDataSource,
+		itautomation.NewItAutomationPoliciesDataSource,
+		itautomation.NewItAutomationTasksDataSource,
+		containerregistry.NewContainerRegistryDataSource,
+		correlationrules.NewCorrelationRulesDataSource,
 	}
 }
 

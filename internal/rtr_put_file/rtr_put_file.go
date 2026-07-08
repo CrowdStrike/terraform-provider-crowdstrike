@@ -328,33 +328,18 @@ func (r *rtrPutFileResource) Read(
 		return
 	}
 
-	params := real_time_response_admin.NewRTRGetPutFilesV2ParamsWithContext(ctx).
-		WithIds([]string{state.ID.ValueString()})
-
-	res, err := r.client.RealTimeResponseAdmin.RTRGetPutFilesV2(params)
-	if err != nil {
-		diag := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, requiredScopes)
-		if diag.Summary() == tferrors.NotFoundErrorSummary {
-			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
-			resp.State.RemoveResource(ctx)
-			return
-		}
-		resp.Diagnostics.Append(diag)
-		return
-	}
-
-	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
+	file, readDiags := getRTRPutFile(ctx, r.client, state.ID.ValueString(), requiredScopes)
+	if tferrors.HasNotFoundError(readDiags) {
 		resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 		resp.State.RemoveResource(ctx)
 		return
 	}
-
-	if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Read, res.Payload.Errors); diag != nil {
-		resp.Diagnostics.Append(diag)
+	resp.Diagnostics.Append(readDiags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(state.wrap(ctx, *res.Payload.Resources[0])...)
+	resp.Diagnostics.Append(state.wrap(ctx, *file)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

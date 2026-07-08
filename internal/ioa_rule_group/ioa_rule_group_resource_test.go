@@ -38,10 +38,9 @@ func TestAccIOARuleGroupResource_Basic(t *testing.T) {
 				},
 			},
 			{
-				ResourceName:            resourceName,
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"comment"},
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 		},
 	})
@@ -196,10 +195,9 @@ func TestAccIOARuleGroupResource_Update(t *testing.T) {
 				},
 			},
 			{
-				ResourceName:            resourceName,
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"comment"},
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 		},
 	})
@@ -261,10 +259,9 @@ func TestAccIOARuleGroupResource_ProcessCreation(t *testing.T) {
 				},
 			},
 			{
-				ResourceName:            resourceName,
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"comment"},
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 			{
 				Config: testAccIOARuleGroupConfigBasic(rName, "Windows"),
@@ -327,10 +324,9 @@ func TestAccIOARuleGroupResource_FileCreation(t *testing.T) {
 				},
 			},
 			{
-				ResourceName:            resourceName,
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"comment"},
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 			{
 				Config: testAccIOARuleGroupConfigBasic(rName, "Windows"),
@@ -388,6 +384,7 @@ func TestAccIOARuleGroupResource_NetworkConnection(t *testing.T) {
 									"exclude": knownvalue.Null(),
 								}),
 								"connection_type": knownvalue.SetExact([]knownvalue.Check{
+									knownvalue.StringExact("ICMP"),
 									knownvalue.StringExact("TCP"),
 									knownvalue.StringExact("UDP"),
 								}),
@@ -397,10 +394,9 @@ func TestAccIOARuleGroupResource_NetworkConnection(t *testing.T) {
 				},
 			},
 			{
-				ResourceName:            resourceName,
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"comment"},
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 			{
 				Config: testAccIOARuleGroupConfigBasic(rName, "Linux"),
@@ -459,10 +455,9 @@ func TestAccIOARuleGroupResource_DomainName(t *testing.T) {
 				},
 			},
 			{
-				ResourceName:            resourceName,
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"comment"},
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 			{
 				Config: testAccIOARuleGroupConfigBasic(rName, "Mac"),
@@ -569,10 +564,9 @@ func TestAccIOARuleGroupResource_AllActions(t *testing.T) {
 				},
 			},
 			{
-				ResourceName:            resourceName,
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"comment"},
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 		},
 	})
@@ -908,7 +902,7 @@ resource "crowdstrike_ioa_rule_group" "test" {
         include = ".*"
       }
 
-      connection_type = ["TCP", "UDP"]
+      connection_type = ["ICMP", "TCP", "UDP"]
     }
   ]
 }
@@ -1395,4 +1389,187 @@ resource "crowdstrike_ioa_rule_group" "test" {
   ]
 }
 `
+}
+
+func TestAccIOARuleGroupResource_Comment(t *testing.T) {
+	rName := acctest.RandomResourceName()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccIOARuleGroupConfigGroupComment(rName, ""),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("comment"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
+				},
+			},
+			{
+				Config: testAccIOARuleGroupConfigGroupComment(rName, "GROUP_COMMENT"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("comment"), knownvalue.StringExact("GROUP_COMMENT")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
+				},
+			},
+			{
+				Config: testAccIOARuleGroupConfigGroupComment(rName, ""),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("comment"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
+				},
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func testAccIOARuleGroupConfigGroupComment(rName, comment string) string {
+	commentLine := ""
+	if comment != "" {
+		commentLine = fmt.Sprintf("  comment = %q", comment)
+	}
+	return fmt.Sprintf(`
+resource "crowdstrike_ioa_rule_group" "test" {
+  name     = %[1]q
+  platform = "Linux"
+%[2]s
+}
+`, rName, commentLine)
+}
+
+func TestAccIOARuleGroupResource_RuleComment(t *testing.T) {
+	rName := acctest.RandomResourceName()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccIOARuleGroupConfigRuleComments(rName, "", ""),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						resourceName,
+						tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("comment"),
+						knownvalue.Null(),
+					),
+					statecheck.ExpectKnownValue(
+						resourceName,
+						tfjsonpath.New("rules").AtSliceIndex(1).AtMapKey("comment"),
+						knownvalue.Null(),
+					),
+				},
+			},
+			{
+				Config: testAccIOARuleGroupConfigRuleComments(rName, "A1", "B1"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						resourceName,
+						tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("comment"),
+						knownvalue.StringExact("A1"),
+					),
+					statecheck.ExpectKnownValue(
+						resourceName,
+						tfjsonpath.New("rules").AtSliceIndex(1).AtMapKey("comment"),
+						knownvalue.StringExact("B1"),
+					),
+				},
+			},
+			{
+				Config: testAccIOARuleGroupConfigRuleComments(rName, "A2", "B1"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						resourceName,
+						tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("comment"),
+						knownvalue.StringExact("A2"),
+					),
+					statecheck.ExpectKnownValue(
+						resourceName,
+						tfjsonpath.New("rules").AtSliceIndex(1).AtMapKey("comment"),
+						knownvalue.StringExact("B1"),
+					),
+				},
+			},
+			{
+				Config: testAccIOARuleGroupConfigRuleComments(rName, "", ""),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						resourceName,
+						tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("comment"),
+						knownvalue.Null(),
+					),
+					statecheck.ExpectKnownValue(
+						resourceName,
+						tfjsonpath.New("rules").AtSliceIndex(1).AtMapKey("comment"),
+						knownvalue.Null(),
+					),
+				},
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func testAccIOARuleGroupConfigRuleComments(rName, ruleAComment, ruleBComment string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_ioa_rule_group" "test" {
+  name     = %[1]q
+  platform = "Linux"
+
+  rules = [
+    {
+      name             = "ruleA"
+      description      = "rule A description"
+%[2]s
+      pattern_severity = "low"
+      type             = "Process Creation"
+      action           = "Monitor"
+      enabled          = true
+
+      image_filename = {
+        include = ".*/usr/bin/.*"
+      }
+
+      command_line = {
+        include = ".*"
+      }
+    },
+    {
+      name             = "ruleB"
+      description      = "rule B description"
+%[3]s
+      pattern_severity = "low"
+      type             = "Process Creation"
+      action           = "Monitor"
+      enabled          = true
+
+      image_filename = {
+        include = ".*/usr/sbin/.*"
+      }
+
+      command_line = {
+        include = ".*"
+      }
+    }
+  ]
+}
+`, rName, ruleCommentLine(ruleAComment), ruleCommentLine(ruleBComment))
+}
+
+func ruleCommentLine(comment string) string {
+	if comment == "" {
+		return ""
+	}
+	return fmt.Sprintf("      comment          = %q", comment)
 }

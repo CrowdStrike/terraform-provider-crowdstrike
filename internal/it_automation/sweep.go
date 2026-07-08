@@ -12,11 +12,76 @@ import (
 )
 
 func RegisterSweepers() {
-	sweep.Register("crowdstrike_it_automation_task_group", sweepTaskGroups)
+	sweep.Register("crowdstrike_it_automation_scheduled_task", sweepScheduledTasks)
+	sweep.Register("crowdstrike_it_automation_task_group", sweepTaskGroups,
+		"crowdstrike_it_automation_scheduled_task",
+	)
 	sweep.Register("crowdstrike_it_automation_task", sweepTasks,
 		"crowdstrike_it_automation_task_group",
+		"crowdstrike_it_automation_scheduled_task",
 	)
 	sweep.Register("crowdstrike_it_automation_policy", sweepPolicies)
+}
+
+func sweepScheduledTasks(ctx context.Context, client *client.CrowdStrikeAPISpecification) ([]sweep.Sweepable, error) {
+	var sweepables []sweep.Sweepable
+
+	params := it_automation.NewITAutomationCombinedScheduledTasksParams()
+	params.WithContext(ctx)
+
+	resp, err := client.ItAutomation.ITAutomationCombinedScheduledTasks(params)
+	if sweep.SkipSweepError(err) {
+		sweep.Warn("Skipping IT Automation Scheduled Task sweep: %s", err)
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error listing IT automation scheduled tasks: %w", err)
+	}
+
+	if resp == nil || resp.Payload == nil || resp.Payload.Resources == nil {
+		return sweepables, nil
+	}
+
+	for _, st := range resp.Payload.Resources {
+		if st == nil || st.ID == nil {
+			continue
+		}
+
+		name := st.ScheduleName
+		if name == "" && st.TaskName != nil {
+			name = *st.TaskName
+		}
+
+		if !strings.HasPrefix(name, sweep.ResourcePrefix) {
+			sweep.Trace("Skipping IT Automation Scheduled Task %s (not a test resource)", name)
+			continue
+		}
+
+		sweepables = append(sweepables, sweep.NewSweepResource(
+			*st.ID,
+			name,
+			deleteScheduledTask,
+		))
+	}
+
+	return sweepables, nil
+}
+
+func deleteScheduledTask(ctx context.Context, client *client.CrowdStrikeAPISpecification, id string) error {
+	params := it_automation.NewITAutomationDeleteScheduledTasksParams()
+	params.WithContext(ctx)
+	params.Ids = []string{id}
+
+	_, err := client.ItAutomation.ITAutomationDeleteScheduledTasks(params)
+	if err != nil {
+		if sweep.ShouldIgnoreError(err) {
+			sweep.Debug("Ignoring error for IT automation scheduled task %s: %s", id, err)
+			return nil
+		}
+		return err
+	}
+
+	return nil
 }
 
 func sweepTasks(ctx context.Context, client *client.CrowdStrikeAPISpecification) ([]sweep.Sweepable, error) {

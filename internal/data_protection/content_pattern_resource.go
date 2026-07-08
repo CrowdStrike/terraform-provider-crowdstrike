@@ -262,10 +262,10 @@ func (r *dataProtectionContentPatternResource) Update(
 	}
 
 	updateRequest := &models.APIContentPatternUpdateRequestV1{
-		ID:                utils.Addr(plan.ID.ValueString()),
-		Name:              plan.Name.ValueStringPointer(),
-		Description:       flex.FrameworkToStringPointer(plan.Description),
-		MinMatchThreshold: plan.MinMatchThreshold.ValueInt32Pointer(),
+		ID:                plan.ID.ValueString(),
+		Name:              plan.Name.ValueString(),
+		Description:       plan.Description.ValueString(),
+		MinMatchThreshold: plan.MinMatchThreshold.ValueInt32(),
 		Regexes:           []string{plan.Regex.ValueString()},
 	}
 

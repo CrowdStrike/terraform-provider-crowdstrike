@@ -419,6 +419,9 @@ func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 			"suspicious_file_analysis": toggleAttribute(
 				"Upload suspicious files for advanced threat analysis with QuickScan Pro.",
 			),
+			"retrospective_detections": toggleAttribute(
+				"Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.",
+			),
 		},
 	}
 
@@ -542,6 +545,12 @@ func generateMacSchema(defaultPolicy bool) schema.Schema {
 			),
 			"enhanced_network_visibility": toggleAttribute(
 				"Provides enhanced visibility into network activities and detections.",
+			),
+			"suspicious_file_analysis": toggleAttribute(
+				"Upload suspicious files for advanced threat analysis with QuickScan Pro.",
+			),
+			"retrospective_detections": toggleAttribute(
+				"Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.",
 			),
 		},
 	}
@@ -674,6 +683,21 @@ func generateLinuxSchema(defaultPolicy bool) schema.Schema {
 			),
 			"suspicious_file_analysis": toggleAttribute(
 				"Upload suspicious files for advanced threat analysis with QuickScan Pro.",
+			),
+			"cloud_data_protection_visibility": toggleAttribute(
+				"Allows the sensor to monitor and analyze data flows for protection against data breaches and leaks, and to improve data-related detections. This setting requires an additional Data Protection subscription; refer to the official [CrowdStrike documentation](https://docs.crowdstrike.com/) for the required entitlements. If you do not have the required subscription, set this to `false` or omit the attribute to avoid a `Provider produced inconsistent result after apply` error.",
+			),
+			"ssh_visibility": toggleAttribute(
+				"Enable monitoring of activities performed by SSH servers.",
+			),
+			"enhance_systemd_visibility": toggleAttribute(
+				"This enhancement enables visibility into modifications to systemd services and timers.",
+			),
+			"php_script_optimization": toggleAttribute(
+				"Mitigates high volume PHP script execution to only the first time it's seen by the server.",
+			),
+			"retrospective_detections": toggleAttribute(
+				"Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.",
 			),
 		},
 	}

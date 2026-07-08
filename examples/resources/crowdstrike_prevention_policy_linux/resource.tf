@@ -46,6 +46,10 @@ resource "crowdstrike_prevention_policy_linux" "example" {
   enhance_php_visibility                       = true
   enhance_environment_variable_visibility      = true
   suspicious_file_analysis                     = true
+  cloud_data_protection_visibility             = true
+  ssh_visibility                               = true
+  enhance_systemd_visibility                   = true
+  php_script_optimization                      = true
 }
 
 output "prevention_policy_linux" {

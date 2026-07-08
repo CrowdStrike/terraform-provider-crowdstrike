@@ -13,6 +13,10 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -21,6 +25,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
@@ -80,6 +85,82 @@ type cloudGoogleRegistrationSettingsModel struct {
 	LogIngestionSubscriptionName types.String `tfsdk:"log_ingestion_subscription_name"`
 	WifPoolName                  types.String `tfsdk:"wif_pool_name"`
 	WifProviderName              types.String `tfsdk:"wif_provider_name"`
+	AgentlessScanningSettings    types.Object `tfsdk:"agentless_scanning_settings"`
+}
+
+// TF schema ↔ provider mapping layer for agentless_scanning_settings.
+type agentlessScanningSettingsModel struct {
+	WIFPrincipal             types.String `tfsdk:"wif_principal"`
+	DeploymentVersion        types.String `tfsdk:"deployment_version"`
+	Regions                  types.Set    `tfsdk:"regions"`
+	HostProjectID            types.String `tfsdk:"host_project_id"`
+	OrgID                    types.String `tfsdk:"org_id"`
+	NetworkConfigurationType types.String `tfsdk:"network_configuration_type"`
+	CustomNetwork            types.Object `tfsdk:"custom_network"`
+	Infra                    types.Map    `tfsdk:"infra"`
+}
+
+func (d *agentlessScanningSettingsModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"wif_principal":              types.StringType,
+		"deployment_version":         types.StringType,
+		"regions":                    types.SetType{ElemType: types.StringType},
+		"host_project_id":            types.StringType,
+		"org_id":                     types.StringType,
+		"network_configuration_type": types.StringType,
+		"custom_network":             types.ObjectType{AttrTypes: (&networkConfigModel{}).AttributeTypes()},
+		"infra":                      types.MapType{ElemType: types.ObjectType{AttrTypes: (&infraProjectModel{}).AttributeTypes()}},
+	}
+}
+
+func (d *agentlessScanningSettingsModel) ToObject(ctx context.Context) (types.Object, diag.Diagnostics) {
+	return types.ObjectValueFrom(ctx, d.AttributeTypes(), d)
+}
+
+func (d *agentlessScanningSettingsModel) FromObject(ctx context.Context, obj types.Object) diag.Diagnostics {
+	return obj.As(ctx, d, basetypes.ObjectAsOptions{})
+}
+
+type infraProjectModel struct {
+	ScannerSAEmail              types.String `tfsdk:"scanner_sa_email"`
+	ClientCredentialsSecretName types.String `tfsdk:"client_credentials_secret_name"`
+	Network                     types.Object `tfsdk:"network"`
+}
+
+func (i *infraProjectModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"scanner_sa_email":               types.StringType,
+		"client_credentials_secret_name": types.StringType,
+		"network":                        types.ObjectType{AttrTypes: (&networkConfigModel{}).AttributeTypes()},
+	}
+}
+
+func (i *infraProjectModel) ToObject(ctx context.Context) (types.Object, diag.Diagnostics) {
+	return types.ObjectValueFrom(ctx, i.AttributeTypes(), i)
+}
+
+func (i *infraProjectModel) FromObject(ctx context.Context, obj types.Object) diag.Diagnostics {
+	return obj.As(ctx, i, basetypes.ObjectAsOptions{})
+}
+
+type networkConfigModel struct {
+	VpcName types.String `tfsdk:"vpc_name"`
+	Subnets types.Map    `tfsdk:"subnets"`
+}
+
+func (n *networkConfigModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"vpc_name": types.StringType,
+		"subnets":  types.MapType{ElemType: types.StringType},
+	}
+}
+
+func (n *networkConfigModel) ToObject(ctx context.Context) (types.Object, diag.Diagnostics) {
+	return types.ObjectValueFrom(ctx, n.AttributeTypes(), n)
+}
+
+func (n *networkConfigModel) FromObject(ctx context.Context, obj types.Object) diag.Diagnostics {
+	return obj.As(ctx, n, basetypes.ObjectAsOptions{})
 }
 
 func (r *cloudGoogleRegistrationSettingsResource) Schema(
@@ -139,13 +220,138 @@ func (r *cloudGoogleRegistrationSettingsResource) Schema(
 					validators.StringNotWhitespace(),
 				},
 			},
+			"agentless_scanning_settings": schema.SingleNestedAttribute{
+				Optional:    true,
+				Description: "Agentless scanning settings. Only configurable after the agentless scanning infrastructure has been created via Terraform.",
+				Attributes: map[string]schema.Attribute{
+					"wif_principal": schema.StringAttribute{
+						Required:    true,
+						Description: "The Workload Identity Federation principal for the agentless scanning.",
+						Validators: []validator.String{
+							validators.StringNotWhitespace(),
+						},
+					},
+					"deployment_version": schema.StringAttribute{
+						Required:    true,
+						Description: "The TF module deployment version for tracking.",
+						Validators: []validator.String{
+							validators.StringNotWhitespace(),
+						},
+					},
+					"regions": schema.SetAttribute{
+						Required:    true,
+						ElementType: types.StringType,
+						Description: "The GCP regions where agentless scanning infrastructure is deployed.",
+						Validators: []validator.Set{
+							setvalidator.SizeAtLeast(1),
+							setvalidator.ValueStringsAre(validators.StringNotWhitespace()),
+						},
+					},
+					"host_project_id": schema.StringAttribute{
+						Optional:    true,
+						Description: "The GCP project hosting shared scanning infrastructure. When set, indicates cross-project mode.",
+						Validators: []validator.String{
+							validators.StringNotWhitespace(),
+						},
+					},
+					"org_id": schema.StringAttribute{
+						Optional:    true,
+						Description: "The GCP organization ID. Required only for folder-scoped registrations.",
+						Validators: []validator.String{
+							validators.StringNotWhitespace(),
+						},
+					},
+					"network_configuration_type": schema.StringAttribute{
+						Required:    true,
+						Description: "Network configuration type for scanner VMs: managed (with NAT), managed_no_nat, or custom (BYO VPC).",
+						Validators: []validator.String{
+							stringvalidator.OneOf("managed", "managed_no_nat", "custom"),
+						},
+					},
+					"custom_network": schema.SingleNestedAttribute{
+						Optional:    true,
+						Description: "Custom (BYO) network configuration. Required when network_configuration_type is 'custom'.",
+						Attributes: map[string]schema.Attribute{
+							"vpc_name": schema.StringAttribute{
+								Required:    true,
+								Description: "The name of the customer-provided VPC network.",
+								Validators: []validator.String{
+									validators.StringNotWhitespace(),
+								},
+							},
+							"subnets": schema.MapAttribute{
+								Required:    true,
+								ElementType: types.StringType,
+								Description: "Map of region to subnet name within the custom VPC.",
+								Validators: []validator.Map{
+									mapvalidator.SizeAtLeast(1),
+									mapvalidator.KeysAre(validators.StringNotWhitespace()),
+									mapvalidator.ValueStringsAre(validators.StringNotWhitespace()),
+								},
+							},
+						},
+					},
+					"infra": schema.MapNestedAttribute{
+						Required:    true,
+						Description: "Per-project scanning infrastructure details, keyed by GCP project ID. In cross-project mode this contains a single entry for the host project.",
+						Validators: []validator.Map{
+							mapvalidator.SizeAtLeast(1),
+						},
+						NestedObject: schema.NestedAttributeObject{
+							Attributes: map[string]schema.Attribute{
+								"scanner_sa_email": schema.StringAttribute{
+									Required:    true,
+									Description: "The service account email used by the scanner in this project.",
+									Validators: []validator.String{
+										validators.StringNotWhitespace(),
+									},
+								},
+								"client_credentials_secret_name": schema.StringAttribute{
+									Required:    true,
+									Description: "The Secret Manager secret name containing Falcon client credentials for scanner authentication.",
+									Validators: []validator.String{
+										validators.StringNotWhitespace(),
+									},
+								},
+								"network": schema.SingleNestedAttribute{
+									Required:    true,
+									Description: "Network configuration for scanner VMs in this project.",
+									Attributes: map[string]schema.Attribute{
+										"vpc_name": schema.StringAttribute{
+											Required:    true,
+											Description: "The VPC network name used by scanner VMs.",
+											Validators: []validator.String{
+												validators.StringNotWhitespace(),
+											},
+										},
+										"subnets": schema.MapAttribute{
+											Required:    true,
+											ElementType: types.StringType,
+											Description: "Map of region to subnet name for scanner VMs.",
+											Validators: []validator.Map{
+												mapvalidator.SizeAtLeast(1),
+												mapvalidator.KeysAre(validators.StringNotWhitespace()),
+												mapvalidator.ValueStringsAre(validators.StringNotWhitespace()),
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 }
 
+// wrap maps the BE response to TF state.
 func (m *cloudGoogleRegistrationSettingsModel) wrap(
+	ctx context.Context,
 	registration *models.DtoGCPRegistration,
-) {
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
 	m.RegistrationID = types.StringValue(registration.RegistrationID)
 
 	var sinkName, topicID, subscriptionID string
@@ -165,6 +371,110 @@ func (m *cloudGoogleRegistrationSettingsModel) wrap(
 	}
 	m.WifPoolName = flex.StringValueToFramework(wifPoolName)
 	m.WifProviderName = flex.StringValueToFramework(wifProviderName)
+
+	// Both features share the same infra — read from whichever is set
+	agentlessSettings := registration.DspmSettings
+	if agentlessSettings == nil {
+		agentlessSettings = registration.VulnerabilityScanningSettings
+	}
+	d := m.wrapAgentlessScanningSettings(ctx, agentlessSettings)
+	diags.Append(d...)
+
+	return diags
+}
+
+// Maps BE agentless settings to TF state.
+// Both dspm_settings and vulnerability_scanning_settings share the same infra — we read from whichever is set.
+func (m *cloudGoogleRegistrationSettingsModel) wrapAgentlessScanningSettings(
+	ctx context.Context,
+	agentlessScanningSettings *models.GcpAgentlessScanningSettings,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if agentlessScanningSettings == nil {
+		m.AgentlessScanningSettings = types.ObjectNull((&agentlessScanningSettingsModel{}).AttributeTypes())
+		return diags
+	}
+
+	settings := agentlessScanningSettingsModel{
+		WIFPrincipal:             flex.StringValueToFramework(agentlessScanningSettings.WifPrincipal),
+		DeploymentVersion:        flex.StringValueToFramework(agentlessScanningSettings.DeploymentVersion),
+		NetworkConfigurationType: flex.StringValueToFramework("managed"),
+	}
+
+	if agentlessScanningSettings.UserInputs != nil {
+		regionsSet, d := flex.FlattenStringValueSet(ctx, agentlessScanningSettings.UserInputs.Regions)
+		diags.Append(d...)
+		settings.Regions = regionsSet
+
+		settings.HostProjectID = flex.StringValueToFramework(agentlessScanningSettings.UserInputs.HostProjectID)
+		settings.OrgID = flex.StringValueToFramework(agentlessScanningSettings.UserInputs.OrgID)
+		settings.NetworkConfigurationType = flex.StringPointerToFramework(agentlessScanningSettings.UserInputs.NetworkConfigurationType)
+
+		if agentlessScanningSettings.UserInputs.CustomNetwork != nil {
+			subnetsMap, d := types.MapValueFrom(ctx, types.StringType, agentlessScanningSettings.UserInputs.CustomNetwork.Subnets)
+			diags.Append(d...)
+			cnModel := networkConfigModel{
+				VpcName: flex.StringPointerToFramework(agentlessScanningSettings.UserInputs.CustomNetwork.VpcName),
+				Subnets: subnetsMap,
+			}
+			cnObj, d := cnModel.ToObject(ctx)
+			diags.Append(d...)
+			settings.CustomNetwork = cnObj
+		} else {
+			settings.CustomNetwork = types.ObjectNull((&networkConfigModel{}).AttributeTypes())
+		}
+	} else {
+		settings.Regions = types.SetNull(types.StringType)
+		settings.HostProjectID = types.StringNull()
+		settings.OrgID = types.StringNull()
+		settings.CustomNetwork = types.ObjectNull((&networkConfigModel{}).AttributeTypes())
+	}
+
+	// Build infra map
+	infraMap := make(map[string]attr.Value)
+	for projectID, infraEntry := range agentlessScanningSettings.Infra {
+		var networkObj types.Object
+		if infraEntry.Network != nil {
+			subnetsMap, d := types.MapValueFrom(ctx, types.StringType, infraEntry.Network.Subnets)
+			diags.Append(d...)
+			netModel := networkConfigModel{
+				VpcName: flex.StringPointerToFramework(infraEntry.Network.VpcName),
+				Subnets: subnetsMap,
+			}
+			obj, d := netModel.ToObject(ctx)
+			diags.Append(d...)
+			networkObj = obj
+		} else {
+			networkObj = types.ObjectNull((&networkConfigModel{}).AttributeTypes())
+		}
+
+		projModel := infraProjectModel{
+			ScannerSAEmail:              flex.StringPointerToFramework(infraEntry.ScannerSaEmail),
+			ClientCredentialsSecretName: flex.StringPointerToFramework(infraEntry.ClientCredentialsSecretName),
+			Network:                     networkObj,
+		}
+		obj, d := projModel.ToObject(ctx)
+		diags.Append(d...)
+		infraMap[projectID] = obj
+	}
+
+	if len(infraMap) > 0 {
+		infraMapValue, d := types.MapValue(
+			types.ObjectType{AttrTypes: (&infraProjectModel{}).AttributeTypes()},
+			infraMap,
+		)
+		diags.Append(d...)
+		settings.Infra = infraMapValue
+	} else {
+		settings.Infra = types.MapNull(types.ObjectType{AttrTypes: (&infraProjectModel{}).AttributeTypes()})
+	}
+
+	settingsObj, d := settings.ToObject(ctx)
+	diags.Append(d...)
+	m.AgentlessScanningSettings = settingsObj
+
+	return diags
 }
 
 func (r *cloudGoogleRegistrationSettingsResource) Create(
@@ -200,10 +510,22 @@ func (r *cloudGoogleRegistrationSettingsResource) Create(
 		return
 	}
 
+	if !data.AgentlessScanningSettings.IsNull() && !isFeatureEnabled(registration, featureDSPM) && !isFeatureEnabled(registration, featureVulnerabilityScanning) {
+		resp.Diagnostics.AddError(
+			"Agentless Scanning Not Enabled",
+			fmt.Sprintf(
+				"Agentless scanning settings cannot be configured because neither DSPM nor vulnerability scanning is enabled for registration %s. Enable dspm or vulnerability_scanning in the cloud_google_registration resource first.",
+				data.RegistrationID.ValueString(),
+			),
+		)
+		return
+	}
+
 	diags = r.triggerHealthCheck(ctx, data.RegistrationID.ValueString())
 	resp.Diagnostics.Append(diags...)
 
-	data.wrap(registration)
+	d := data.wrap(ctx, registration)
+	resp.Diagnostics.Append(d...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -236,7 +558,8 @@ func (r *cloudGoogleRegistrationSettingsResource) Read(
 		return
 	}
 
-	data.wrap(registration)
+	d := data.wrap(ctx, registration)
+	resp.Diagnostics.Append(d...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -272,10 +595,22 @@ func (r *cloudGoogleRegistrationSettingsResource) Update(
 		return
 	}
 
+	if !data.AgentlessScanningSettings.IsNull() && !isFeatureEnabled(registration, featureDSPM) && !isFeatureEnabled(registration, featureVulnerabilityScanning) {
+		resp.Diagnostics.AddError(
+			"Agentless Scanning Not Enabled",
+			fmt.Sprintf(
+				"Agentless scanning settings cannot be configured because neither DSPM nor vulnerability scanning is enabled for registration %s. Enable dspm or vulnerability_scanning in the cloud_google_registration resource first.",
+				data.RegistrationID.ValueString(),
+			),
+		)
+		return
+	}
+
 	diags = r.triggerHealthCheck(ctx, data.RegistrationID.ValueString())
 	resp.Diagnostics.Append(diags...)
 
-	data.wrap(registration)
+	d := data.wrap(ctx, registration)
+	resp.Diagnostics.Append(d...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -295,6 +630,7 @@ func (r *cloudGoogleRegistrationSettingsResource) Delete(
 	data.LogIngestionSubscriptionName = types.StringValue("")
 	data.WifPoolName = types.StringValue("")
 	data.WifProviderName = types.StringValue("")
+	data.AgentlessScanningSettings = types.ObjectNull((&agentlessScanningSettingsModel{}).AttributeTypes())
 
 	registration, err := r.updateRegistration(ctx, &data)
 	resp.Diagnostics.Append(err...)
@@ -307,7 +643,8 @@ func (r *cloudGoogleRegistrationSettingsResource) Delete(
 		return
 	}
 
-	data.wrap(registration)
+	d := data.wrap(ctx, registration)
+	resp.Diagnostics.Append(d...)
 
 	if registration.LogIngestionProperties != nil {
 		if registration.LogIngestionProperties.SinkName != "" {
@@ -369,6 +706,32 @@ func (r *cloudGoogleRegistrationSettingsResource) ValidateConfig(
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	if !config.AgentlessScanningSettings.IsNull() && !config.AgentlessScanningSettings.IsUnknown() {
+		var settings agentlessScanningSettingsModel
+		resp.Diagnostics.Append(config.AgentlessScanningSettings.As(ctx, &settings, basetypes.ObjectAsOptions{})...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		if utils.IsKnown(settings.NetworkConfigurationType) {
+			isCustom := settings.NetworkConfigurationType.ValueString() == "custom"
+			if isCustom && settings.CustomNetwork.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("agentless_scanning_settings").AtName("custom_network"),
+					"Missing Required Attribute",
+					"custom_network is required when network_configuration_type is 'custom'.",
+				)
+			}
+			if !isCustom && !settings.CustomNetwork.IsNull() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("agentless_scanning_settings").AtName("custom_network"),
+					"Invalid Attribute Combination",
+					"custom_network can only be set when network_configuration_type is 'custom'.",
+				)
+			}
+		}
+	}
 }
 
 func (r *cloudGoogleRegistrationSettingsResource) isIOAEnabled(
@@ -382,6 +745,24 @@ func (r *cloudGoogleRegistrationSettingsResource) isIOAEnabled(
 		if product.Product != nil && *product.Product == "cspm" {
 			for _, feature := range product.Features {
 				if feature == "ioa" {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+func isFeatureEnabled(registration *models.DtoGCPRegistration, feature string) bool {
+	if registration == nil {
+		return false
+	}
+
+	for _, product := range registration.Products {
+		if product.Product != nil && *product.Product == "cspm" {
+			for _, f := range product.Features {
+				if f == feature {
 					return true
 				}
 			}
@@ -428,6 +809,7 @@ func (r *cloudGoogleRegistrationSettingsResource) getRegistration(
 	return res.Payload.Resources[0], diags
 }
 
+// updateRegistration sends settings (WIF, log ingestion, agentless scanning) to the BE.
 func (r *cloudGoogleRegistrationSettingsResource) updateRegistration(
 	ctx context.Context,
 	data *cloudGoogleRegistrationSettingsModel,
@@ -440,6 +822,12 @@ func (r *cloudGoogleRegistrationSettingsResource) updateRegistration(
 		LogIngestionSubscriptionName: flex.FrameworkToStringPointer(data.LogIngestionSubscriptionName),
 		WifPoolName:                  flex.FrameworkToStringPointer(data.WifPoolName),
 		WifProviderName:              flex.FrameworkToStringPointer(data.WifProviderName),
+	}
+
+	d := marshalAgentlessScanningSettings(ctx, data.AgentlessScanningSettings, updateReq)
+	diags.Append(d...)
+	if diags.HasError() {
+		return nil, diags
 	}
 
 	params := &cloud_google_cloud_registration.CloudRegistrationGcpUpdateRegistrationParams{
@@ -478,6 +866,104 @@ func (r *cloudGoogleRegistrationSettingsResource) updateRegistration(
 	}
 
 	return res.Payload.Resources[0], diags
+}
+
+// marshalAgentlessScanningSettings maps TF state (agentlessScanningSettingsModel) → gofalcon update request.
+// Sends to both dspm_settings and vulnerability_scanning_settings — BE handles routing based on enabled features.
+func marshalAgentlessScanningSettings(
+	ctx context.Context,
+	settingsObj types.Object,
+	updateReq *models.DtoUpdateGCPRegistrationRequest,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	if settingsObj.IsNull() || settingsObj.IsUnknown() {
+		return diags
+	}
+
+	var settings agentlessScanningSettingsModel
+	diags.Append(settings.FromObject(ctx, settingsObj)...)
+	if diags.HasError() {
+		return diags
+	}
+
+	regions := flex.ExpandSetAs[string](ctx, settings.Regions, &diags)
+	if diags.HasError() {
+		return diags
+	}
+
+	userInputs := &models.GcpAgentlessScanningUserInputs{
+		Regions:                  regions,
+		HostProjectID:            settings.HostProjectID.ValueString(),
+		OrgID:                    settings.OrgID.ValueString(),
+		NetworkConfigurationType: settings.NetworkConfigurationType.ValueStringPointer(),
+	}
+
+	if !settings.CustomNetwork.IsNull() {
+		var cn networkConfigModel
+		diags.Append(cn.FromObject(ctx, settings.CustomNetwork)...)
+		if diags.HasError() {
+			return diags
+		}
+
+		subnets := make(map[string]string)
+		if !cn.Subnets.IsNull() {
+			diags.Append(cn.Subnets.ElementsAs(ctx, &subnets, false)...)
+		}
+
+		userInputs.CustomNetwork = &models.GcpNetworkConfig{
+			VpcName: cn.VpcName.ValueStringPointer(),
+			Subnets: subnets,
+		}
+	}
+
+	infraMap := make(map[string]models.GcpAgentlessScanningInfra)
+	if !settings.Infra.IsNull() {
+		var infraEntries map[string]infraProjectModel
+		diags.Append(settings.Infra.ElementsAs(ctx, &infraEntries, false)...)
+		if diags.HasError() {
+			return diags
+		}
+
+		for projectID, entry := range infraEntries {
+			infra := models.GcpAgentlessScanningInfra{
+				ScannerSaEmail:              entry.ScannerSAEmail.ValueStringPointer(),
+				ClientCredentialsSecretName: entry.ClientCredentialsSecretName.ValueStringPointer(),
+			}
+
+			if !entry.Network.IsNull() {
+				var net networkConfigModel
+				diags.Append(net.FromObject(ctx, entry.Network)...)
+				if diags.HasError() {
+					return diags
+				}
+
+				subnets := make(map[string]string)
+				if !net.Subnets.IsNull() {
+					diags.Append(net.Subnets.ElementsAs(ctx, &subnets, false)...)
+				}
+
+				infra.Network = &models.GcpNetworkConfig{
+					VpcName: net.VpcName.ValueStringPointer(),
+					Subnets: subnets,
+				}
+			}
+
+			infraMap[projectID] = infra
+		}
+	}
+
+	agentlessSettings := &models.GcpAgentlessScanningSettings{
+		WifPrincipal:      settings.WIFPrincipal.ValueString(),
+		DeploymentVersion: settings.DeploymentVersion.ValueString(),
+		UserInputs:        userInputs,
+		Infra:             infraMap,
+	}
+
+	updateReq.DspmSettings = agentlessSettings
+	updateReq.VulnerabilityScanningSettings = agentlessSettings
+
+	return diags
 }
 
 func (r *cloudGoogleRegistrationSettingsResource) triggerHealthCheck(

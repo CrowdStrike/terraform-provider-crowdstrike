@@ -30,6 +30,18 @@ const (
 	crowdstrikeAWSAccountResourceType = "crowdstrike_cloud_aws_account"
 )
 
+// Updated configuration with changed OUs.
+func testAccCloudAwsAccountConfig_updateOUs(account, organization_id string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id                         = "%s"
+  organization_id                    = "%s"
+  target_ous                         = ["ou-abcd-defghijk", "ou-wxyz-12345678", "r-abcd"]
+  account_type                       = "commercial"
+}
+`, account, organization_id)
+}
+
 // Basic configuration.
 func testAccCloudAwsAccountConfig_basic(account, organization_id string) string {
 	return fmt.Sprintf(`
@@ -260,6 +272,7 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 	orgID := fmt.Sprintf("o-tfacctest%s", strings.ToLower(sdkacctest.RandStringFromCharSet(3, sdkacctest.CharSetAlphaNum)))
+	t.Logf("Using account_id=%s, organization_id=%s", accountID, orgID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -360,9 +373,56 @@ func TestAccCloudAwsAccountResource(t *testing.T) {
 	})
 }
 
+func TestAccCloudAwsAccountResource_UpdateTargetOUs(t *testing.T) {
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	orgID := fmt.Sprintf("o-tfacctest%s", strings.ToLower(sdkacctest.RandStringFromCharSet(3, sdkacctest.CharSetAlphaNum)))
+	t.Logf("Using account_id=%s, organization_id=%s", accountID, orgID)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			// Create with initial OUs
+			{
+				Config: testAccCloudAwsAccountConfig_basic(accountID, orgID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(fullResourceName, "organization_id", orgID),
+					resource.TestCheckResourceAttr(fullResourceName, "target_ous.#", "2"),
+					resource.TestCheckResourceAttr(fullResourceName, "target_ous.0", "ou-abcd-defghijk"),
+					resource.TestCheckResourceAttr(fullResourceName, "target_ous.1", "r-abcd"),
+				),
+			},
+			// Update OUs (add a new OU)
+			{
+				Config: testAccCloudAwsAccountConfig_updateOUs(accountID, orgID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(fullResourceName, "organization_id", orgID),
+					resource.TestCheckResourceAttr(fullResourceName, "target_ous.#", "3"),
+					resource.TestCheckResourceAttr(fullResourceName, "target_ous.0", "ou-abcd-defghijk"),
+					resource.TestCheckResourceAttr(fullResourceName, "target_ous.1", "ou-wxyz-12345678"),
+					resource.TestCheckResourceAttr(fullResourceName, "target_ous.2", "r-abcd"),
+				),
+			},
+			// Revert back to original OUs
+			{
+				Config: testAccCloudAwsAccountConfig_basic(accountID, orgID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "account_id", accountID),
+					resource.TestCheckResourceAttr(fullResourceName, "organization_id", orgID),
+					resource.TestCheckResourceAttr(fullResourceName, "target_ous.#", "2"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccCloudAwsAccountResourceMinimal(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -401,6 +461,7 @@ func TestAccCloudAwsAccountResourceMinimal(t *testing.T) {
 func TestAccCloudAwsAccountResourceVulnerabilityScanning(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -424,6 +485,7 @@ func TestAccCloudAwsAccountResourceVulnerabilityScanning(t *testing.T) {
 func TestAccCloudAwsAccountResourceVulnerabilityScanningNoRoleName(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -446,6 +508,7 @@ func TestAccCloudAwsAccountResourceVulnerabilityScanningNoRoleName(t *testing.T)
 func TestAccCloudAwsAccountResourceBothDSPMAndVulnScanning(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -468,6 +531,7 @@ func TestAccCloudAwsAccountResourceBothDSPMAndVulnScanning(t *testing.T) {
 
 func TestAccCloudAwsAccountResourceRoleMismatchValidation(t *testing.T) {
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -484,6 +548,7 @@ func TestAccCloudAwsAccountResourceRoleMismatchValidation(t *testing.T) {
 func TestAccCloudAwsAccountResourceAgentlessRoleUpdates(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -548,6 +613,7 @@ func TestAccCloudAwsAccountResourceAgentlessRoleUpdates(t *testing.T) {
 func TestAccCloudAwsAccountResourceBothEnabledDefaultRoles(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -569,6 +635,7 @@ func TestAccCloudAwsAccountResourceBothEnabledDefaultRoles(t *testing.T) {
 
 func TestAccCloudAwsAccountResourceMixedRoleConfiguration(t *testing.T) {
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -586,6 +653,7 @@ func TestAccCloudAwsAccountResourceMixedRoleConfiguration(t *testing.T) {
 func TestAccCloudAWSAccount_RealtimeVisibility(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -708,6 +776,7 @@ resource "crowdstrike_cloud_aws_account" "test" {
 func TestAccCloudAWSAccount_CloudTrailBucketNameUpdatesOnRegionChange(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	bucketNameChanges := statecheck.CompareValue(compare.ValuesDiffer())
 
@@ -775,6 +844,7 @@ func TestAccCloudAWSAccount_CloudTrailBucketNameUpdatesOnRegionChange(t *testing
 func TestAccCloudAWSAccount_UseExistingCloudTrailDefaultsTrue(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -807,6 +877,7 @@ func TestAccCloudAWSAccount_UseExistingCloudTrailDefaultsTrue(t *testing.T) {
 func TestAccCloudAWSAccount_UseExistingCloudTrailToggle(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1001,6 +1072,7 @@ resource "crowdstrike_cloud_aws_account" "test" {
 func TestAccCloudAWSAccount_S3LogIngestion(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1042,6 +1114,7 @@ func TestAccCloudAWSAccount_S3LogIngestion(t *testing.T) {
 // TestAccCloudAWSAccount_S3LogIngestionValidation tests validation for S3 log ingestion.
 func TestAccCloudAWSAccount_S3LogIngestionValidation(t *testing.T) {
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1075,6 +1148,7 @@ func TestAccCloudAWSAccount_S3LogIngestionValidation(t *testing.T) {
 func TestAccCloudAWSAccount_S3LogIngestionBasic(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1098,6 +1172,7 @@ func TestAccCloudAWSAccount_S3LogIngestionBasic(t *testing.T) {
 func TestAccCloudAWSAccount_S3LogIngestionCreateWithOptional(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1123,6 +1198,7 @@ func TestAccCloudAWSAccount_S3LogIngestionCreateWithOptional(t *testing.T) {
 func TestAccCloudAWSAccount_EventBridgeLogIngestion(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1148,6 +1224,7 @@ func TestAccCloudAWSAccount_EventBridgeLogIngestion(t *testing.T) {
 func TestAccCloudAWSAccount_LogIngestionMethodSwitching(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1192,6 +1269,7 @@ func TestAccCloudAWSAccount_LogIngestionMethodSwitching(t *testing.T) {
 func TestAccCloudAWSAccount_S3LogIngestionExpansion(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1232,6 +1310,7 @@ func TestAccCloudAWSAccount_S3LogIngestionExpansion(t *testing.T) {
 func TestAccCloudAWSAccount_S3LogIngestionDisableRTVD(t *testing.T) {
 	resourceName := "crowdstrike_cloud_aws_account.test"
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1287,6 +1366,7 @@ func TestAccCloudAWSAccount_S3LogIngestionDisableRTVD(t *testing.T) {
 
 func TestAccCloudAwsAccountResourceRegionsValidation(t *testing.T) {
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1313,6 +1393,7 @@ func TestAccCloudAwsAccountResourceRegionsValidation(t *testing.T) {
 func TestAccCloudAwsAccountResourceRegions(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1438,6 +1519,7 @@ resource "crowdstrike_cloud_aws_account" "test" {
 func TestAccCloudAwsAccountResource_RegressionDisableDSPMThenVulnScanning(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
@@ -1570,6 +1652,80 @@ func TestBuildProductsFromModel(t *testing.T) {
 				assert.Equal(t, *expectedProduct.Product, *result[i].Product)
 				assert.ElementsMatch(t, expectedProduct.Features, result[i].Features)
 			}
+		})
+	}
+}
+
+func TestBuildPatchAccount_TargetOUs(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name           string
+		model          fcs.CloudAWSAccountModel
+		expectedOUs    []string
+		expectedNilOUs bool
+	}{
+		{
+			name: "org account with target OUs populates patch",
+			model: fcs.CloudAWSAccountModel{
+				AccountID:      types.StringValue("123456789012"),
+				OrganizationID: types.StringValue("o-testorg123"),
+				TargetOUs: func() types.List {
+					l, _ := types.ListValueFrom(context.Background(), types.StringType, []string{"ou-abcd-12345678", "r-abcd"})
+					return l
+				}(),
+			},
+			expectedOUs: []string{"ou-abcd-12345678", "r-abcd"},
+		},
+		{
+			name: "org account with empty OUs sends empty slice",
+			model: fcs.CloudAWSAccountModel{
+				AccountID:      types.StringValue("123456789012"),
+				OrganizationID: types.StringValue("o-testorg123"),
+				TargetOUs: func() types.List {
+					l, _ := types.ListValueFrom(context.Background(), types.StringType, []string{})
+					return l
+				}(),
+			},
+			expectedOUs: []string{},
+		},
+		{
+			name: "org account with updated OUs reflects new values",
+			model: fcs.CloudAWSAccountModel{
+				AccountID:      types.StringValue("123456789012"),
+				OrganizationID: types.StringValue("o-testorg123"),
+				TargetOUs: func() types.List {
+					l, _ := types.ListValueFrom(context.Background(), types.StringType, []string{"ou-wxyz-99999999"})
+					return l
+				}(),
+			},
+			expectedOUs: []string{"ou-wxyz-99999999"},
+		},
+		{
+			name: "standalone account without org ID does not populate OUs",
+			model: fcs.CloudAWSAccountModel{
+				AccountID:      types.StringValue("123456789012"),
+				OrganizationID: types.StringValue(""),
+				TargetOUs:      types.ListNull(types.StringType),
+			},
+			expectedNilOUs: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			patch, diags := fcs.BuildPatchAccount(ctx, tt.model)
+			require.False(t, diags.HasError(), "unexpected diagnostics: %v", diags)
+			require.NotNil(t, patch)
+
+			if tt.expectedNilOUs {
+				assert.Nil(t, patch.TargetOus)
+			} else {
+				assert.Equal(t, tt.expectedOUs, patch.TargetOus)
+			}
+
+			// Always verify account_id is set
+			assert.Equal(t, "123456789012", *patch.AccountID)
 		})
 	}
 }

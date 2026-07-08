@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/it_automation"
@@ -15,57 +14,14 @@ import (
 )
 
 const (
-	timeFormat          = time.RFC850
 	paginationLimit     = 100
 	AccessTypePublic    = "Public"
 	AccessTypeShared    = "Shared"
+	AccessTypePrivate   = "Private"
 	TaskTypeQuery       = "query"
 	TaskTypeAction      = "action"
 	TaskTypeRemediation = "remediation"
 )
-
-// stringSliceToSet converts a Go string slice to a Terraform Framework Set.
-func stringSliceToSet(ctx context.Context, stringSlice []string) (types.Set, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	if len(stringSlice) == 0 {
-		return types.SetNull(types.StringType), diags
-	}
-
-	values := make([]types.String, 0, len(stringSlice))
-	for _, str := range stringSlice {
-		values = append(values, types.StringValue(str))
-	}
-
-	set, setDiags := types.SetValueFrom(ctx, types.StringType, values)
-	diags.Append(setDiags...)
-
-	return set, diags
-}
-
-// setToStringSlice converts a Terraform Framework Set to a Go string slice.
-func setToStringSlice(ctx context.Context, set types.Set) ([]string, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	if set.IsNull() || set.IsUnknown() {
-		return []string{}, diags
-	}
-
-	var tfList []types.String
-	diags.Append(set.ElementsAs(ctx, &tfList, false)...)
-	if diags.HasError() {
-		return []string{}, diags
-	}
-
-	result := make([]string, 0, len(tfList))
-	for _, item := range tfList {
-		if !item.IsNull() && !item.IsUnknown() {
-			result = append(result, item.ValueString())
-		}
-	}
-
-	return result, diags
-}
 
 // idsDiff performs the diff on a list of planned and current IDs and returns two string slices of IDs to remove and add.
 func idsDiff(

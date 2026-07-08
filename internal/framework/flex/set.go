@@ -24,6 +24,33 @@ func ExpandSetAs[T any](
 	return elements
 }
 
+// ExpandKnownSet expands a types.Set to []T only when the set is fully known.
+// Returns (nil, false) when the set is null, unknown, or contains any unknown
+// element. Intended for ValidateConfig where plan-time unknowns should defer
+// validation rather than error.
+func ExpandKnownSet[T any](
+	ctx context.Context,
+	set types.Set,
+	diags *diag.Diagnostics,
+) ([]T, bool) {
+	if set.IsNull() || set.IsUnknown() {
+		return nil, false
+	}
+
+	for _, elem := range set.Elements() {
+		if elem.IsUnknown() {
+			return nil, false
+		}
+	}
+
+	out := ExpandSetAs[T](ctx, set, diags)
+	if diags.HasError() {
+		return nil, false
+	}
+
+	return out, true
+}
+
 // ExpandSetWithConverter converts a Terraform Framework types.Set into a Go slice
 // using a converter function to transform each element from the Terraform model type
 // to the desired output type.

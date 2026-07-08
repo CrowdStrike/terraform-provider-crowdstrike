@@ -46,6 +46,7 @@ resource "crowdstrike_default_prevention_policy_mac" "default" {
   hash_collector                               = true
   empyre_backdoor                              = true
   chopper_webshell                             = true
+  suspicious_file_analysis                     = true
 }
 
 output "default_prevention_policy_mac" {

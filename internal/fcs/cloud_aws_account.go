@@ -247,16 +247,20 @@ func (r *cloudAWSAccountResource) Schema(
 					stringvalidator.OneOf("commercial", "gov"),
 				},
 			},
+			// TODO: deprecate deployment_method. The API does not allow changing this
+			// value after creation, which forces awkward import/drift handling for
+			// callers. Future direction: remove this attribute or replace it with a
+			// read-only computed field.
 			"deployment_method": schema.StringAttribute{
 				Optional:    true,
 				Default:     stringdefault.StaticString("terraform-native"),
 				Computed:    true,
-				Description: "How the account was deployed. Valid values are 'terraform-native' and 'terraform-cft'",
+				Description: "How the account was deployed. Valid values are 'terraform-native', 'terraform-cft', and 'cft'. This value cannot be changed after the account is created.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf("terraform-native", "terraform-cft"),
+					stringvalidator.OneOf("terraform-native", "terraform-cft", "cft"),
 				},
 			},
 			"asset_inventory": schema.SingleNestedAttribute{
@@ -1236,10 +1240,11 @@ func buildUpdateProducts(model cloudAWSAccountModel) ([]*models.RestAccountProdu
 	return enabledProducts, disabledProducts
 }
 
-func (r *cloudAWSAccountResource) updateCloudAccount(
+// buildPatchAccount constructs the patch request body from the model state.
+func buildPatchAccount(
 	ctx context.Context,
 	model cloudAWSAccountModel,
-) (*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
+) (*models.RestAWSAccountPatchExtV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var targetOUs []string
 	if model.OrganizationID.ValueString() != "" {
@@ -1253,6 +1258,7 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 		AccountID:          model.AccountID.ValueStringPointer(),
 		ResourceNamePrefix: model.ResourceNamePrefix.ValueString(),
 		ResourceNameSuffix: model.ResourceNameSuffix.ValueString(),
+		TargetOus:          targetOUs,
 	}
 
 	if model.DSPM != nil {
@@ -1295,12 +1301,27 @@ func (r *cloudAWSAccountResource) updateCloudAccount(
 		patchAccount.CspEvents = true
 	}
 
+	return &patchAccount, diags
+}
+
+func (r *cloudAWSAccountResource) updateCloudAccount(
+	ctx context.Context,
+	model cloudAWSAccountModel,
+) (*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	patchAccount, patchDiags := buildPatchAccount(ctx, model)
+	diags.Append(patchDiags...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
 	res, status, err := r.client.CloudAwsRegistration.CloudRegistrationAwsUpdateAccount(
 		&cloud_aws_registration.CloudRegistrationAwsUpdateAccountParams{
 			Context: ctx,
 			Body: &models.RestAWSAccountPatchRequestExtV1{
 				Resources: []*models.RestAWSAccountPatchExtV1{
-					&patchAccount,
+					patchAccount,
 				},
 			},
 		},

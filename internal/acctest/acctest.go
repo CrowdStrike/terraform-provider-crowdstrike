@@ -2,6 +2,9 @@ package acctest
 
 import (
 	"context"
+	"crypto/md5"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strings"
@@ -61,6 +64,22 @@ func RandomUUID() string {
 		sdkacctest.RandStringFromCharSet(4, CharSetNum),
 		sdkacctest.RandStringFromCharSet(12, CharSetNum),
 	)
+}
+
+// SHA256 returns the lowercase hex-encoded SHA-256 hash of the given seed.
+// Use this to generate deterministic, per-test hash values for resources that
+// require a SHA-256 formatted string (e.g. IOC indicators of type "sha256").
+func SHA256(seed string) string {
+	sum := sha256.Sum256([]byte(seed))
+	return hex.EncodeToString(sum[:])
+}
+
+// MD5 returns the lowercase hex-encoded MD5 hash of the given seed.
+// Use this to generate deterministic, per-test hash values for resources that
+// require an MD5 formatted string (e.g. IOC indicators of type "md5").
+func MD5(seed string) string {
+	sum := md5.Sum([]byte(seed))
+	return hex.EncodeToString(sum[:])
 }
 
 // ProtoV6ProviderFactories are used to instantiate a provider during

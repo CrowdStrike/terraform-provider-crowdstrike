@@ -501,7 +501,7 @@ func (r *hostGroupResource) Delete(
 		if strings.Contains(deleteErr.Error(), "status 409") {
 			resp.Diagnostics.Append(tferrors.NewConflictError(
 				tferrors.Delete,
-				fmt.Sprintf("Host group could not be deleted because assigned policies (firewall, prevention, sensor update, or response) could not be removed, likely due to insufficient API scopes. Please ensure your API credentials have the necessary scopes to remove these assigned policies, or remove them manually, then try again. %s", deleteErr.Error()),
+				fmt.Sprintf("Host group could not be deleted because assigned policies (firewall, prevention, sensor update, response) or IOCs could not be removed, likely due to insufficient API scopes. Please ensure your API credentials have the necessary scopes to remove these assigned resources, or remove them manually, then try again. %s", deleteErr.Error()),
 			))
 			return
 		}
