@@ -2,7 +2,7 @@
 page_title: "crowdstrike_ioa_exclusion Resource - crowdstrike"
 subcategory: "Endpoint Security"
 description: |-
-  An IOA exclusion prevents a specific IOA detection pattern from triggering for matching command line and image filename regex values.
+  An IOA exclusion prevents a specific IOA detection pattern from triggering for matching child, parent, and grandparent command-line and image-filename regex values.
   API Scopes
   The following API scopes are required:
   IOA Exclusions | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_ioa_exclusion (Resource)
 
-An IOA exclusion prevents a specific IOA detection pattern from triggering for matching command line and image filename regex values.
+An IOA exclusion prevents a specific IOA detection pattern from triggering for matching child, parent, and grandparent command-line and image-filename regex values.
 
 ## API Scopes
 
@@ -39,8 +39,14 @@ resource "crowdstrike_ioa_exclusion" "example" {
   description = "Exclude an approved administrative workflow"
   pattern_id  = "12345"
 
-  cl_regex    = ".*--approved-operation.*"
-  ifn_regex   = ".*approved-tool\\.exe"
+  cl_regex  = ".*--approved-operation.*"
+  ifn_regex = ".*approved-tool\\.exe"
+
+  parent_cl_regex       = ".*--run-approved-tool.*"
+  parent_ifn_regex      = ".*workflow-runner\\.exe"
+  grandparent_cl_regex  = ".*--start-approved-workflow.*"
+  grandparent_ifn_regex = ".*workflow-service\\.exe"
+
   host_groups = ["all"]
 }
 ```
@@ -58,8 +64,12 @@ resource "crowdstrike_ioa_exclusion" "example" {
 
 ### Optional
 
-- `comment` (String) Additional context stored when creating or updating the exclusion. Falcon does not return this field on reads, so imported resources cannot populate it automatically.
+- `comment` (String) Additional context stored when creating or updating the exclusion.
 - `description` (String) Description of the IOA exclusion.
+- `grandparent_cl_regex` (String) Grandparent process command-line regex pattern for exclusion matching. Maximum length is 256 characters.
+- `grandparent_ifn_regex` (String) Grandparent process image filename regex pattern for exclusion matching. Maximum length is 256 characters.
+- `parent_cl_regex` (String) Parent process command-line regex pattern for exclusion matching. Maximum length is 256 characters.
+- `parent_ifn_regex` (String) Parent process image filename regex pattern for exclusion matching. Maximum length is 256 characters.
 
 ### Read-Only
 
