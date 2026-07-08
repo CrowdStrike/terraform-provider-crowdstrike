@@ -14,6 +14,7 @@ import (
 	dataprotection "github.com/crowdstrike/terraform-provider-crowdstrike/internal/data_protection"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/firewall"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	installtoken "github.com/crowdstrike/terraform-provider-crowdstrike/internal/install_token"
 	ioaexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_exclusion"
@@ -36,28 +37,29 @@ func TestMain(m *testing.M) {
 }
 
 func registerSweepers() {
-	hostgroups.RegisterSweepers()
-	installtoken.RegisterSweepers()
-	preventionpolicy.RegisterSweepers()
-	sensorupdatepolicy.RegisterSweepers()
-	contentupdatepolicy.RegisterSweepers()
-	correlation_rules.RegisterSweepers()
-	fcs.RegisterSweepers()
-	cloudgoogleregistration.RegisterSweepers()
-	ioaexclusion.RegisterSweepers()
-	ioarulegroup.RegisterSweepers()
-	fim.RegisterSweepers()
-	sensorvisibilityexclusion.RegisterSweepers()
-	mlfilepathexclusion.RegisterSweepers()
-	dataprotection.RegisterSweepers()
-	mlcertificateexclusion.RegisterSweepers()
 	cloudcompliance.RegisterSweepers()
+	cloudgoogleregistration.RegisterSweepers()
 	cloudgroup.RegisterSweepers()
 	cloudsecurity.RegisterSweepers()
 	containerregistry.RegisterSweepers()
-	itautomation.RegisterSweepers()
-	rtrputfile.RegisterSweepers()
-	usergroup.RegisterSweepers()
-	rtrscript.RegisterSweepers()
+	contentupdatepolicy.RegisterSweepers()
+	correlation_rules.RegisterSweepers()
 	customioc.RegisterSweepers()
+	dataprotection.RegisterSweepers()
+	fcs.RegisterSweepers()
+	fim.RegisterSweepers()
+	firewall.RegisterSweepers()
+	hostgroups.RegisterSweepers()
+	installtoken.RegisterSweepers()
+	ioaexclusion.RegisterSweepers()
+	ioarulegroup.RegisterSweepers()
+	itautomation.RegisterSweepers()
+	mlcertificateexclusion.RegisterSweepers()
+	mlfilepathexclusion.RegisterSweepers()
+	preventionpolicy.RegisterSweepers()
+	rtrputfile.RegisterSweepers()
+	rtrscript.RegisterSweepers()
+	sensorupdatepolicy.RegisterSweepers()
+	sensorvisibilityexclusion.RegisterSweepers()
+	usergroup.RegisterSweepers()
 }

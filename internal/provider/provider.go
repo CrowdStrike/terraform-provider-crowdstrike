@@ -22,6 +22,7 @@ import (
 	dataprotection "github.com/crowdstrike/terraform-provider-crowdstrike/internal/data_protection"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/firewall"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	installtoken "github.com/crowdstrike/terraform-provider-crowdstrike/internal/install_token"
 	ioaexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_exclusion"
@@ -346,6 +347,9 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		ioarulegroup.NewIOARuleGroupResource,
 		usergroup.NewUserGroupResource,
 		installtoken.NewInstallTokenResource,
+		firewall.NewFirewallRuleGroupResource,
+		firewall.NewFirewallPolicyResource,
+		firewall.NewFirewallPolicyPrecedenceResource,
 		customioc.NewCustomIOCResource,
 		containerregistry.NewContainerRegistryResource,
 	}
@@ -366,6 +370,8 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		cloudcompliance.NewCloudComplianceFrameworkControlDataSource,
 		preventionpolicy.NewPreventionPoliciesDataSource,
 		fim.NewFilevantagePoliciesDataSource,
+		firewall.NewFirewallPoliciesDataSource,
+		firewall.NewFirewallRuleGroupsDataSource,
 		hostgroups.NewHostGroupDataSource,
 		cidgroup.NewCIDGroupDataSource,
 		cid.NewCIDDataSource,

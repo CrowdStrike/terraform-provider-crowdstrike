@@ -6,6 +6,11 @@ terraform.tfplan
 terraform.tfstate
 bin/
 dist/
+
+# Environment files with secrets
+.env
+.envrc
+*.env
 modules-dev/
 /pkg/
 website/.vagrant
