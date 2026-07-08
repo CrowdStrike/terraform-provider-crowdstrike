@@ -3,7 +3,6 @@ package firewall
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/firewall_management"
@@ -14,10 +13,12 @@ import (
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/go-openapi/runtime"
+	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -33,9 +34,10 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &firewallPolicyResource{}
-	_ resource.ResourceWithConfigure   = &firewallPolicyResource{}
-	_ resource.ResourceWithImportState = &firewallPolicyResource{}
+	_ resource.Resource                   = &firewallPolicyResource{}
+	_ resource.ResourceWithConfigure      = &firewallPolicyResource{}
+	_ resource.ResourceWithImportState    = &firewallPolicyResource{}
+	_ resource.ResourceWithValidateConfig = &firewallPolicyResource{}
 )
 
 // NewFirewallPolicyResource is a helper function to simplify the provider implementation.
@@ -58,18 +60,17 @@ type firewallPolicyResourceModel struct {
 	DefaultInbound  types.String `tfsdk:"default_inbound"`
 	DefaultOutbound types.String `tfsdk:"default_outbound"`
 	Enforce         types.Bool   `tfsdk:"enforce"`
-	TestMode        types.Bool   `tfsdk:"test_mode"`
+	MonitorMode     types.Bool   `tfsdk:"monitor_mode"`
 	LocalLogging    types.Bool   `tfsdk:"local_logging"`
 	HostGroups      types.Set    `tfsdk:"host_groups"`
 	RuleGroupIDs    types.List   `tfsdk:"rule_group_ids"`
-	LastUpdated     types.String `tfsdk:"last_updated"`
 }
 
 // platformNameToID converts platform name to platform ID for the API.
 var platformNameToID = map[string]string{
 	"Windows": "0",
 	"Mac":     "1",
-	"Linux":   "2",
+	"Linux":   "3",
 }
 
 // Configure adds the provider configured client to the resource.
@@ -126,13 +127,12 @@ func (r *firewallPolicyResource) Schema(
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"last_updated": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Timestamp of the last Terraform update of the resource.",
-			},
 			"name": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "Name of the firewall policy.",
+				Validators: []validator.String{
+					fwvalidators.StringNotWhitespace(),
+				},
 			},
 			"description": schema.StringAttribute{
 				Optional:            true,
@@ -160,7 +160,7 @@ func (r *firewallPolicyResource) Schema(
 			"default_inbound": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "Default action for inbound traffic. One of: `ALLOW`, `DENY`.",
+				MarkdownDescription: "Default action for inbound traffic. One of: `ALLOW` (shown as \"Allow all\" in the console), `DENY` (\"Block all\"). Defaults to `DENY`.",
 				Default:             stringdefault.StaticString("DENY"),
 				Validators: []validator.String{
 					stringvalidator.OneOf("ALLOW", "DENY"),
@@ -169,7 +169,7 @@ func (r *firewallPolicyResource) Schema(
 			"default_outbound": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "Default action for outbound traffic. One of: `ALLOW`, `DENY`.",
+				MarkdownDescription: "Default action for outbound traffic. One of: `ALLOW` (shown as \"Allow all\" in the console), `DENY` (\"Block all\"). Defaults to `ALLOW`.",
 				Default:             stringdefault.StaticString("ALLOW"),
 				Validators: []validator.String{
 					stringvalidator.OneOf("ALLOW", "DENY"),
@@ -178,19 +178,19 @@ func (r *firewallPolicyResource) Schema(
 			"enforce": schema.BoolAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "Whether to enforce the firewall policy. When false, the policy is in monitoring mode.",
+				MarkdownDescription: "Enforce this policy's rules and override the firewall settings on each assigned host. Disables native firewall rules. When false, the policy's rules are not applied.",
 				Default:             booldefault.StaticBool(false),
 			},
-			"test_mode": schema.BoolAttribute{
+			"monitor_mode": schema.BoolAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "Whether the policy is in test mode.",
+				MarkdownDescription: "Enable monitor mode (labeled \"Monitor mode\" in the Falcon console). Overrides all block rules in the policy and turns on monitoring, allowing all traffic while showing block events as \"would be blocked.\" Requires `enforce` to be true.",
 				Default:             booldefault.StaticBool(false),
 			},
 			"local_logging": schema.BoolAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "Enable local logging for the policy.",
+				MarkdownDescription: "Save a record of all firewall rule events on the host's local drive to allow for easier troubleshooting.",
 				Default:             booldefault.StaticBool(false),
 			},
 			"host_groups": schema.SetAttribute{
@@ -206,9 +206,33 @@ func (r *firewallPolicyResource) Schema(
 				Optional:            true,
 				ElementType:         types.StringType,
 				MarkdownDescription: "Firewall rule group IDs to attach to the policy. Order determines precedence (first has highest priority).",
+				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
+					listvalidator.ValueStringsAre(fwvalidators.StringNotWhitespace()),
+				},
 			},
 		},
 	}
+}
+
+// ValidateConfig validates the resource configuration.
+func (r *firewallPolicyResource) ValidateConfig(
+	ctx context.Context,
+	req resource.ValidateConfigRequest,
+	resp *resource.ValidateConfigResponse,
+) {
+	var config firewallPolicyResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(fwvalidators.BoolRequiresBool(
+		config.MonitorMode,
+		config.Enforce,
+		"monitor_mode",
+		"enforce",
+	)...)
 }
 
 // wrapPolicy transforms API response values to their terraform model values.
@@ -234,7 +258,7 @@ func (m *firewallPolicyResourceModel) wrapPolicy(
 
 // wrapPolicyContainer transforms policy container API response values to terraform model values.
 func (m *firewallPolicyResourceModel) wrapPolicyContainer(
-	_ context.Context,
+	ctx context.Context,
 	container *models.FwmgrFirewallPolicyContainerV1,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
@@ -242,23 +266,15 @@ func (m *firewallPolicyResourceModel) wrapPolicyContainer(
 	m.DefaultInbound = flex.StringPointerToFramework(container.DefaultInbound)
 	m.DefaultOutbound = flex.StringPointerToFramework(container.DefaultOutbound)
 	m.Enforce = types.BoolPointerValue(container.Enforce)
-	m.TestMode = types.BoolPointerValue(container.TestMode)
+	m.MonitorMode = types.BoolPointerValue(container.TestMode)
 	m.LocalLogging = types.BoolPointerValue(container.LocalLogging)
 
-	// Convert rule group IDs to List - only set if there are rule groups
-	// If empty, keep as null to avoid drift when user doesn't specify rule_group_ids
-	if len(container.RuleGroupIds) > 0 {
-		ruleGroupIDs := make([]attr.Value, 0, len(container.RuleGroupIds))
-		for _, id := range container.RuleGroupIds {
-			ruleGroupIDs = append(ruleGroupIDs, types.StringValue(id))
-		}
-		ruleGroupList, d := types.ListValue(types.StringType, ruleGroupIDs)
-		diags.Append(d...)
-		if diags.HasError() {
-			return diags
-		}
-		m.RuleGroupIDs = ruleGroupList
+	ruleGroupList, d := flex.FlattenStringValueList(ctx, container.RuleGroupIds)
+	diags.Append(d...)
+	if diags.HasError() {
+		return diags
 	}
+	m.RuleGroupIDs = ruleGroupList
 
 	return diags
 }
@@ -290,10 +306,11 @@ func (r *firewallPolicyResource) Create(
 
 	createRes, createErr := r.client.FirewallPolicies.CreateFirewallPolicies(&createParams)
 	if createErr != nil {
-		resp.Diagnostics.AddError(
-			"Failed to create firewall policy",
-			fmt.Sprintf("Failed to create firewall policy: %s", extractPolicyAPIError(createErr)),
-		)
+		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(
+			tferrors.Create,
+			createErr,
+			apiScopesReadWrite,
+		))
 		return
 	}
 
@@ -307,8 +324,7 @@ func (r *firewallPolicyResource) Create(
 		"policy_id": *policy.ID,
 	})
 
-	plan.ID = types.StringPointerValue(policy.ID)
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+	plan.ID = flex.StringPointerToFramework(policy.ID)
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)...)
 	if resp.Diagnostics.HasError() {
@@ -361,7 +377,19 @@ func (r *firewallPolicyResource) Create(
 		return
 	}
 
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+	// Read container settings back to populate computed values consistently.
+	container, containerReadDiag := r.getPolicyContainer(ctx, plan.ID.ValueString())
+	if containerReadDiag != nil {
+		resp.Diagnostics.Append(containerReadDiag)
+		return
+	}
+	if container != nil {
+		resp.Diagnostics.Append(plan.wrapPolicyContainer(ctx, container)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -379,13 +407,13 @@ func (r *firewallPolicyResource) Read(
 		return
 	}
 
-	policy, readDiag := r.getFirewallPolicy(ctx, state.ID.ValueString())
+	policy, removed, readDiag := r.getFirewallPolicy(ctx, state.ID.ValueString(), tferrors.Read)
 	if readDiag != nil {
 		resp.Diagnostics.Append(readDiag)
 		return
 	}
-
-	if policy == nil {
+	if removed {
+		resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 		resp.State.RemoveResource(ctx)
 		return
 	}
@@ -432,26 +460,38 @@ func (r *firewallPolicyResource) Update(
 		return
 	}
 
+	updateReq := &firewallUpdateFirewallPolicyReqV1{
+		ID:          plan.ID.ValueStringPointer(),
+		Name:        plan.Name.ValueString(),
+		Description: flex.FrameworkToStringPointer(plan.Description),
+	}
+
 	updateParams := firewall_policies.UpdateFirewallPoliciesParams{
 		Context: ctx,
-		Body: &models.FirewallUpdateFirewallPoliciesReqV1{
-			Resources: []*models.FirewallUpdateFirewallPolicyReqV1{
-				{
-					ID:          plan.ID.ValueStringPointer(),
-					Name:        plan.Name.ValueString(),
-					Description: plan.Description.ValueString(),
-				},
-			},
-		},
+		Body:    &models.FirewallUpdateFirewallPoliciesReqV1{},
 	}
 
 	tflog.Debug(ctx, "Calling CrowdStrike API to update firewall policy")
-	updateRes, updateErr := r.client.FirewallPolicies.UpdateFirewallPolicies(&updateParams)
+	updateRes, updateErr := r.client.FirewallPolicies.UpdateFirewallPolicies(
+		&updateParams,
+		func(operation *runtime.ClientOperation) {
+			// The generated FirewallUpdateFirewallPolicyReqV1.Description has
+			// omitempty, so an empty description is dropped from the request and
+			// can never be cleared. Override the body with a model that sends
+			// description unconditionally.
+			operation.Params = &firewallUpdateFirewallPoliciesParams{
+				Body: &firewallUpdateFirewallPoliciesReqV1{
+					Resources: []*firewallUpdateFirewallPolicyReqV1{updateReq},
+				},
+			}
+		},
+	)
 	if updateErr != nil {
-		resp.Diagnostics.AddError(
-			"Failed to update firewall policy",
-			fmt.Sprintf("Failed to update firewall policy: %s", extractPolicyAPIError(updateErr)),
-		)
+		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(
+			tferrors.Update,
+			updateErr,
+			apiScopesReadWrite,
+		))
 		return
 	}
 
@@ -513,7 +553,19 @@ func (r *firewallPolicyResource) Update(
 		return
 	}
 
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
+	// Read container settings back to populate computed values consistently.
+	container, containerReadDiag := r.getPolicyContainer(ctx, plan.ID.ValueString())
+	if containerReadDiag != nil {
+		resp.Diagnostics.Append(containerReadDiag)
+		return
+	}
+	if container != nil {
+		resp.Diagnostics.Append(plan.wrapPolicyContainer(ctx, container)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -547,10 +599,15 @@ func (r *firewallPolicyResource) Delete(
 	tflog.Debug(ctx, "Calling CrowdStrike API to delete firewall policy")
 	_, deleteErr := r.client.FirewallPolicies.DeleteFirewallPolicies(&deleteParams)
 	if deleteErr != nil {
-		resp.Diagnostics.AddError(
-			"Failed to delete firewall policy",
-			fmt.Sprintf("Failed to delete firewall policy: %s", extractPolicyAPIError(deleteErr)),
+		diagErr := tferrors.NewDiagnosticFromAPIError(
+			tferrors.Delete,
+			deleteErr,
+			apiScopesReadWrite,
 		)
+		if diagErr.Summary() == tferrors.NotFoundErrorSummary {
+			return
+		}
+		resp.Diagnostics.Append(diagErr)
 		return
 	}
 
@@ -569,10 +626,12 @@ func (r *firewallPolicyResource) ImportState(
 }
 
 // getFirewallPolicy retrieves a firewall policy by ID.
+// The boolean return value indicates whether the resource has been removed externally.
 func (r *firewallPolicyResource) getFirewallPolicy(
 	ctx context.Context,
 	policyID string,
-) (*models.FirewallPolicyV1, diag.Diagnostic) {
+	op tferrors.Operation,
+) (*models.FirewallPolicyV1, bool, diag.Diagnostic) {
 	getParams := firewall_policies.GetFirewallPoliciesParams{
 		Context: ctx,
 		Ids:     []string{policyID},
@@ -580,17 +639,18 @@ func (r *firewallPolicyResource) getFirewallPolicy(
 
 	getRes, getErr := r.client.FirewallPolicies.GetFirewallPolicies(&getParams)
 	if getErr != nil {
-		return nil, diag.NewErrorDiagnostic(
-			"Failed to get firewall policy",
-			fmt.Sprintf("Failed to get firewall policy %s: %s", policyID, extractPolicyAPIError(getErr)),
-		)
+		diagErr := tferrors.NewDiagnosticFromAPIError(op, getErr, apiScopesRead)
+		if diagErr.Summary() == tferrors.NotFoundErrorSummary {
+			return nil, true, nil
+		}
+		return nil, false, diagErr
 	}
 
 	if getRes == nil || getRes.Payload == nil || len(getRes.Payload.Resources) == 0 {
-		return nil, nil
+		return nil, true, nil
 	}
 
-	return getRes.Payload.Resources[0], nil
+	return getRes.Payload.Resources[0], false, nil
 }
 
 // getPolicyContainer retrieves the policy container settings (rule groups, enforce, test_mode, etc.).
@@ -604,10 +664,7 @@ func (r *firewallPolicyResource) getPolicyContainer(
 
 	res, err := r.client.FirewallManagement.GetPolicyContainers(params)
 	if err != nil {
-		return nil, diag.NewErrorDiagnostic(
-			"Failed to get policy container",
-			fmt.Sprintf("Failed to get policy container for %s: %s", policyID, err.Error()),
-		)
+		return nil, tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopesRead)
 	}
 
 	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
@@ -633,10 +690,7 @@ func (r *firewallPolicyResource) setFirewallPolicyEnabled(
 
 	actionRes, actionErr := r.client.FirewallPolicies.PerformFirewallPoliciesAction(&actionParams)
 	if actionErr != nil {
-		return nil, diag.NewErrorDiagnostic(
-			"Failed to set firewall policy enabled state",
-			fmt.Sprintf("Failed to %s firewall policy %s: %s", action, policyID, extractPolicyAPIError(actionErr)),
-		)
+		return nil, tferrors.NewDiagnosticFromAPIError(tferrors.Update, actionErr, apiScopesReadWrite)
 	}
 
 	if actionRes == nil || actionRes.Payload == nil || len(actionRes.Payload.Resources) == 0 {
@@ -675,10 +729,7 @@ func (r *firewallPolicyResource) syncHostGroups(
 
 		addRes, addErr := r.client.FirewallPolicies.PerformFirewallPoliciesAction(&addParams)
 		if addErr != nil {
-			return nil, diag.NewErrorDiagnostic(
-				"Failed to add host group to firewall policy",
-				fmt.Sprintf("Failed to add host group %s to policy %s: %s", groupID, policyID, extractPolicyAPIError(addErr)),
-			)
+			return nil, tferrors.NewDiagnosticFromAPIError(tferrors.Update, addErr, apiScopesReadWrite)
 		}
 		if addRes != nil && addRes.Payload != nil && len(addRes.Payload.Resources) > 0 {
 			policy = addRes.Payload.Resources[0]
@@ -702,10 +753,7 @@ func (r *firewallPolicyResource) syncHostGroups(
 
 		removeRes, removeErr := r.client.FirewallPolicies.PerformFirewallPoliciesAction(&removeParams)
 		if removeErr != nil {
-			return nil, diag.NewErrorDiagnostic(
-				"Failed to remove host group from firewall policy",
-				fmt.Sprintf("Failed to remove host group %s from policy %s: %s", groupID, policyID, extractPolicyAPIError(removeErr)),
-			)
+			return nil, tferrors.NewDiagnosticFromAPIError(tferrors.Update, removeErr, apiScopesReadWrite)
 		}
 		if removeRes != nil && removeRes.Payload != nil && len(removeRes.Payload.Resources) > 0 {
 			policy = removeRes.Payload.Resources[0]
@@ -739,7 +787,13 @@ func (r *firewallPolicyResource) updatePolicyContainer(
 	ruleGroupIDs []string,
 	plan *firewallPolicyResourceModel,
 ) diag.Diagnostic {
-	platformID := platformNameToID[platformName]
+	platformID, ok := platformNameToID[platformName]
+	if !ok {
+		return diag.NewErrorDiagnostic(
+			"Unsupported firewall platform",
+			fmt.Sprintf("No platform_id mapping is registered for platform_name %q", platformName),
+		)
+	}
 
 	containerParams := firewall_management.UpdatePolicyContainerParams{
 		Context: ctx,
@@ -750,7 +804,7 @@ func (r *firewallPolicyResource) updatePolicyContainer(
 			DefaultInbound:  swag.String(plan.DefaultInbound.ValueString()),
 			DefaultOutbound: swag.String(plan.DefaultOutbound.ValueString()),
 			Enforce:         swag.Bool(plan.Enforce.ValueBool()),
-			TestMode:        swag.Bool(plan.TestMode.ValueBool()),
+			TestMode:        swag.Bool(plan.MonitorMode.ValueBool()),
 			LocalLogging:    swag.Bool(plan.LocalLogging.ValueBool()),
 		},
 	}
@@ -758,11 +812,31 @@ func (r *firewallPolicyResource) updatePolicyContainer(
 	tflog.Debug(ctx, "Calling CrowdStrike API to update policy container settings")
 	_, _, containerErr := r.client.FirewallManagement.UpdatePolicyContainer(&containerParams)
 	if containerErr != nil {
-		return diag.NewErrorDiagnostic(
-			"Failed to update policy container settings",
-			fmt.Sprintf("Failed to update policy container for %s: %s", policyID, extractContainerAPIError(containerErr)),
-		)
+		return tferrors.NewDiagnosticFromAPIError(tferrors.Update, containerErr, apiScopesReadWrite)
 	}
 
+	return nil
+}
+
+// firewallUpdateFirewallPolicyReqV1 mirrors models.FirewallUpdateFirewallPolicyReqV1
+// but drops omitempty from description so an empty value clears the field.
+type firewallUpdateFirewallPolicyReqV1 struct {
+	ID          *string `json:"id"`
+	Name        string  `json:"name,omitempty"`
+	Description *string `json:"description"`
+}
+
+type firewallUpdateFirewallPoliciesReqV1 struct {
+	Resources []*firewallUpdateFirewallPolicyReqV1 `json:"resources"`
+}
+
+type firewallUpdateFirewallPoliciesParams struct {
+	Body *firewallUpdateFirewallPoliciesReqV1
+}
+
+func (p *firewallUpdateFirewallPoliciesParams) WriteToRequest(r runtime.ClientRequest, _ strfmt.Registry) error {
+	if p.Body != nil {
+		return r.SetBodyParam(p.Body)
+	}
 	return nil
 }

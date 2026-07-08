@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/firewall_management"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
+	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/go-openapi/swag"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
@@ -19,7 +21,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -51,71 +52,7 @@ var protocolMapping = map[string]string{
 }
 
 // linuxUnsupportedProtocols lists protocols not available on Linux platform.
-var linuxUnsupportedProtocols = []string{"IGMP", "IP-IN-IP", "IPV6 ENCAPSULATION", "GRE"}
-
-// extractAPIError extracts error messages from API error responses.
-func extractAPIError(err error) string {
-	if err == nil {
-		return "unknown error"
-	}
-
-	if badReq, ok := err.(*firewall_management.CreateRuleGroupBadRequest); ok {
-		if badReq.Payload != nil && len(badReq.Payload.Errors) > 0 {
-			var msgs []string
-			for _, e := range badReq.Payload.Errors {
-				if e.Message != nil {
-					msgs = append(msgs, *e.Message)
-				}
-			}
-			if len(msgs) > 0 {
-				return fmt.Sprintf("%s (API errors: %v)", err.Error(), msgs)
-			}
-		}
-	}
-
-	return err.Error()
-}
-
-// extractUpdateAPIError extracts error messages from update API error responses.
-func extractUpdateAPIError(err error) string {
-	if err == nil {
-		return "unknown error"
-	}
-
-	if badReq, ok := err.(*firewall_management.UpdateRuleGroupBadRequest); ok {
-		if badReq.Payload != nil && len(badReq.Payload.Errors) > 0 {
-			var msgs []string
-			for _, e := range badReq.Payload.Errors {
-				if e.Message != nil {
-					msgs = append(msgs, *e.Message)
-				}
-			}
-			if len(msgs) > 0 {
-				return fmt.Sprintf("%s (API errors: %v)", err.Error(), msgs)
-			}
-		}
-	}
-
-	return err.Error()
-}
-
-// extractPolicyAPIError extracts error messages from firewall policy API error responses.
-func extractPolicyAPIError(err error) string {
-	if err == nil {
-		return "unknown error"
-	}
-	// The firewall policy errors use a common error structure
-	// Just return the error string as the SDK handles formatting
-	return err.Error()
-}
-
-// extractContainerAPIError extracts error messages from policy container API error responses.
-func extractContainerAPIError(err error) string {
-	if err == nil {
-		return "unknown error"
-	}
-	return err.Error()
-}
+var linuxUnsupportedProtocols = []string{"IGMP", "IP-IN-IP", "IPV6 ENCAPSULATION", "GRE", "ESP"}
 
 // NewFirewallRuleGroupResource is a helper function to simplify the provider implementation.
 func NewFirewallRuleGroupResource() resource.Resource {
@@ -135,7 +72,6 @@ type firewallRuleGroupResourceModel struct {
 	Platform    types.String `tfsdk:"platform"`
 	Enabled     types.Bool   `tfsdk:"enabled"`
 	Rules       types.List   `tfsdk:"rules"`
-	LastUpdated types.String `tfsdk:"last_updated"`
 }
 
 // firewallRuleModel maps a single firewall rule.
@@ -159,7 +95,6 @@ type firewallRuleModel struct {
 	IcmpType        types.String `tfsdk:"icmp_type"`
 	IcmpCode        types.String `tfsdk:"icmp_code"`
 	WatchMode       types.Bool   `tfsdk:"watch_mode"`
-	Log             types.Bool   `tfsdk:"log"`
 }
 
 // addressRangeModel maps an IP address with netmask.
@@ -195,7 +130,6 @@ func (f firewallRuleModel) attrTypes() map[string]attr.Type {
 		"icmp_type":        types.StringType,
 		"icmp_code":        types.StringType,
 		"watch_mode":       types.BoolType,
-		"log":              types.BoolType,
 	}
 }
 
@@ -267,10 +201,6 @@ func (r *firewallRuleGroupResource) Schema(
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"last_updated": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Timestamp of the last Terraform update of the resource.",
-			},
 			"name": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "Name of the firewall rule group.",
@@ -280,11 +210,10 @@ func (r *firewallRuleGroupResource) Schema(
 			},
 			"description": schema.StringAttribute{
 				Optional:            true,
-				Computed:            true,
 				MarkdownDescription: "Description of the firewall rule group.",
-				Default:             stringdefault.StaticString(""),
 				Validators: []validator.String{
 					stringvalidator.LengthAtMost(500),
+					fwvalidators.StringNotWhitespace(),
 				},
 			},
 			"platform": schema.StringAttribute{
@@ -298,10 +227,8 @@ func (r *firewallRuleGroupResource) Schema(
 				},
 			},
 			"enabled": schema.BoolAttribute{
-				Optional:            true,
-				Computed:            true,
+				Required:            true,
 				MarkdownDescription: "Whether the rule group is enabled.",
-				Default:             booldefault.StaticBool(true),
 			},
 			"rules": schema.ListNestedAttribute{
 				Optional:            true,
@@ -330,9 +257,10 @@ func ruleSchemaAttributes() map[string]schema.Attribute {
 		},
 		"description": schema.StringAttribute{
 			Optional:            true,
-			Computed:            true,
 			MarkdownDescription: "Description of the firewall rule.",
-			Default:             stringdefault.StaticString(""),
+			Validators: []validator.String{
+				fwvalidators.StringNotWhitespace(),
+			},
 		},
 		"enabled": schema.BoolAttribute{
 			Optional:            true,
@@ -356,7 +284,7 @@ func ruleSchemaAttributes() map[string]schema.Attribute {
 		},
 		"protocol": schema.StringAttribute{
 			Required:            true,
-			MarkdownDescription: "Protocol for the rule. Common protocols: `TCP`, `UDP`, `ICMPV4`, `ICMPV6`, `ANY`. Advanced protocols (API-only, not available in console UI): `GRE`, `ESP`, `IGMP`, `IP-IN-IP`, `IPV6 ENCAPSULATION`. Note: Some protocols have platform restrictions (see platform documentation).",
+			MarkdownDescription: "Protocol for the rule. Named protocols: `TCP`, `UDP`, `ICMPV4`, `ICMPV6`, `IPV6 ENCAPSULATION`, `ANY`. Additional protocols reachable via the console's Advanced (numeric protocol) option: `GRE`, `ESP`, `IGMP`, `IP-IN-IP`. Note: Some protocols have platform restrictions (see platform documentation).",
 			Validators: []validator.String{
 				stringvalidator.OneOf("TCP", "UDP", "ICMPV4", "ICMPV6", "IGMP", "IP-IN-IP", "IPV6 ENCAPSULATION", "GRE", "ESP", "ANY"),
 			},
@@ -364,10 +292,10 @@ func ruleSchemaAttributes() map[string]schema.Attribute {
 		"address_family": schema.StringAttribute{
 			Optional:            true,
 			Computed:            true,
-			MarkdownDescription: "Address family for the rule. One of: `IP4`, `IP6`.",
+			MarkdownDescription: "Address family for the rule. One of: `IP4`, `IP6`, `ANY` (`ANY` matches any address family and clears any configured addresses).",
 			Default:             stringdefault.StaticString("IP4"),
 			Validators: []validator.String{
-				stringvalidator.OneOf("IP4", "IP6"),
+				stringvalidator.OneOf("IP4", "IP6", "ANY"),
 			},
 		},
 		"local_address": schema.ListNestedAttribute{
@@ -400,62 +328,35 @@ func ruleSchemaAttributes() map[string]schema.Attribute {
 		},
 		"fqdn": schema.StringAttribute{
 			Optional:            true,
-			MarkdownDescription: "Fully qualified domain name for the rule. Only valid for outbound rules. Multiple FQDNs can be separated by semicolons.",
-			PlanModifiers: []planmodifier.String{
-				stringplanmodifier.UseStateForUnknown(),
-			},
+			MarkdownDescription: "Fully qualified domain name for the rule. Only valid for outbound rules. Multiple FQDNs can be separated by semicolons. Wildcard (`*.example.com`) and glob syntax are supported.",
 		},
 		"network_location": schema.StringAttribute{
 			Optional:            true,
 			Computed:            true,
-			MarkdownDescription: "Network location restriction. One of: `ANY`, or a specific network location ID.",
+			MarkdownDescription: "Network location restriction. One of the built-in values `ANY`, `DOMAIN`, `PRIVATE`, `PUBLIC`, or a custom network location ID. Not supported on Linux (only `ANY` is valid there).",
 			Default:             stringdefault.StaticString("ANY"),
 		},
 		"executable_path": schema.StringAttribute{
 			Optional:            true,
 			MarkdownDescription: "Path to executable that this rule applies to.",
-			PlanModifiers: []planmodifier.String{
-				stringplanmodifier.UseStateForUnknown(),
-			},
 		},
 		"service_name": schema.StringAttribute{
 			Optional:            true,
 			MarkdownDescription: "Windows service name that this rule applies to. Only valid for Windows platform.",
-			PlanModifiers: []planmodifier.String{
-				stringplanmodifier.UseStateForUnknown(),
-			},
 		},
 		"icmp_type": schema.StringAttribute{
 			Optional:            true,
 			MarkdownDescription: "ICMP type for ICMP protocol rules. Use `*` for any.",
-			PlanModifiers: []planmodifier.String{
-				stringplanmodifier.UseStateForUnknown(),
-			},
 		},
 		"icmp_code": schema.StringAttribute{
 			Optional:            true,
 			MarkdownDescription: "ICMP code for ICMP protocol rules. Use `*` for any.",
-			PlanModifiers: []planmodifier.String{
-				stringplanmodifier.UseStateForUnknown(),
-			},
 		},
 		"watch_mode": schema.BoolAttribute{
 			Optional:            true,
 			Computed:            true,
 			MarkdownDescription: "Enable watch mode (monitoring) for this rule instead of enforcing.",
 			Default:             booldefault.StaticBool(false),
-			PlanModifiers: []planmodifier.Bool{
-				boolplanmodifier.UseStateForUnknown(),
-			},
-		},
-		"log": schema.BoolAttribute{
-			Optional:            true,
-			Computed:            true,
-			MarkdownDescription: "Enable logging for this rule.",
-			Default:             booldefault.StaticBool(false),
-			PlanModifiers: []planmodifier.Bool{
-				boolplanmodifier.UseStateForUnknown(),
-			},
 		},
 	}
 }
@@ -465,12 +366,12 @@ func addressRangeSchemaAttributes() map[string]schema.Attribute {
 	return map[string]schema.Attribute{
 		"address": schema.StringAttribute{
 			Required:            true,
-			MarkdownDescription: "IP address or `*` for any.",
+			MarkdownDescription: "IP address for the rule, or `*` to match any address.",
 		},
 		"netmask": schema.Int64Attribute{
 			Optional:            true,
 			Computed:            true,
-			MarkdownDescription: "CIDR netmask (0-32 for IPv4, 0-128 for IPv6). Use 0 for single IP or any.",
+			MarkdownDescription: "CIDR netmask. Use 0 for a single IP or any.",
 			Validators: []validator.Int64{
 				int64validator.Between(0, 128),
 			},
@@ -527,7 +428,7 @@ func (r *firewallRuleGroupResource) Create(
 
 	createReq := &models.FwmgrAPIRuleGroupCreateRequestV1{
 		Name:        swag.String(plan.Name.ValueString()),
-		Description: swag.String(plan.Description.ValueString()),
+		Description: flex.FrameworkToStringPointer(plan.Description),
 		Platform:    swag.String(platform),
 		Enabled:     swag.Bool(plan.Enabled.ValueBool()),
 		Rules:       rules,
@@ -539,32 +440,29 @@ func (r *firewallRuleGroupResource) Create(
 
 	result, err := r.client.FirewallManagement.CreateRuleGroup(params)
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to create firewall rule group",
-			fmt.Sprintf("Could not create firewall rule group '%s': %s", plan.Name.ValueString(), extractAPIError(err)),
-		)
+		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(
+			tferrors.Create,
+			err,
+			apiScopesReadWrite,
+		))
 		return
 	}
 
-	if result.Payload == nil || len(result.Payload.Resources) == 0 {
-		resp.Diagnostics.AddError(
-			"Failed to create firewall rule group",
-			"API returned empty response when creating firewall rule group.",
-		)
+	if result == nil || result.Payload == nil || len(result.Payload.Resources) == 0 {
+		resp.Diagnostics.Append(tferrors.NewEmptyResponseError(tferrors.Create))
 		return
 	}
 
 	ruleGroupID := result.Payload.Resources[0]
-	plan.ID = types.StringValue(ruleGroupID)
+	plan.ID = flex.StringValueToFramework(ruleGroupID)
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), plan.ID)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
-
-	resp.Diagnostics.Append(r.readRuleGroupState(ctx, &plan, plan.Rules)...)
+	_, diags = r.readRuleGroupState(ctx, &plan, plan.Rules)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -597,7 +495,13 @@ func (r *firewallRuleGroupResource) Read(
 	})
 
 	// For Read, use state.Rules as the plan since we want to preserve existing order
-	resp.Diagnostics.Append(r.readRuleGroupState(ctx, &state, state.Rules)...)
+	removed, diags := r.readRuleGroupState(ctx, &state, state.Rules)
+	if removed {
+		resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
+		resp.State.RemoveResource(ctx)
+		return
+	}
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -628,9 +532,16 @@ func (r *firewallRuleGroupResource) Update(
 		"name": plan.Name.ValueString(),
 	})
 
-	ruleGroup, diags := r.getRuleGroup(ctx, plan.ID.ValueString())
+	ruleGroup, removed, diags := r.getRuleGroup(ctx, plan.ID.ValueString(), tferrors.Update)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if removed {
+		resp.Diagnostics.AddError(
+			"Firewall rule group not found",
+			fmt.Sprintf("Firewall rule group '%s' was not found. It may have been deleted outside of Terraform.", plan.ID.ValueString()),
+		)
 		return
 	}
 
@@ -656,17 +567,17 @@ func (r *firewallRuleGroupResource) Update(
 
 		_, err := r.client.FirewallManagement.UpdateRuleGroup(params)
 		if err != nil {
-			resp.Diagnostics.AddError(
-				"Failed to update firewall rule group",
-				fmt.Sprintf("Could not update firewall rule group '%s': %s", plan.ID.ValueString(), extractUpdateAPIError(err)),
-			)
+			resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(
+				tferrors.Update,
+				err,
+				apiScopesReadWrite,
+			))
 			return
 		}
 	}
 
-	plan.LastUpdated = types.StringValue(time.Now().Format(time.RFC850))
-
-	resp.Diagnostics.Append(r.readRuleGroupState(ctx, &plan, plan.Rules)...)
+	_, diags = r.readRuleGroupState(ctx, &plan, plan.Rules)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -709,7 +620,13 @@ func (r *firewallRuleGroupResource) Delete(
 			"id": id,
 		})
 
-		ruleGroup, diags := r.getRuleGroup(ctx, id)
+		ruleGroup, removed, diags := r.getRuleGroup(ctx, id, tferrors.Delete)
+		if removed {
+			tflog.Info(ctx, "Firewall rule group already deleted", map[string]interface{}{
+				"id": id,
+			})
+			return
+		}
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -736,10 +653,15 @@ func (r *firewallRuleGroupResource) Delete(
 
 		_, err := r.client.FirewallManagement.UpdateRuleGroup(disableParams)
 		if err != nil {
-			resp.Diagnostics.AddError(
-				"Failed to disable firewall rule group before deletion",
-				fmt.Sprintf("Could not disable firewall rule group '%s': %s", id, err.Error()),
+			diagErr := tferrors.NewDiagnosticFromAPIError(
+				tferrors.Delete,
+				err,
+				apiScopesReadWrite,
 			)
+			if diagErr.Summary() == tferrors.NotFoundErrorSummary {
+				return
+			}
+			resp.Diagnostics.Append(diagErr)
 			return
 		}
 	}
@@ -750,10 +672,15 @@ func (r *firewallRuleGroupResource) Delete(
 
 	_, err := r.client.FirewallManagement.DeleteRuleGroups(params)
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to delete firewall rule group",
-			fmt.Sprintf("Could not delete firewall rule group '%s': %s", id, err.Error()),
+		diagErr := tferrors.NewDiagnosticFromAPIError(
+			tferrors.Delete,
+			err,
+			apiScopesReadWrite,
 		)
+		if diagErr.Summary() == tferrors.NotFoundErrorSummary {
+			return
+		}
+		resp.Diagnostics.Append(diagErr)
 		return
 	}
 
@@ -902,6 +829,23 @@ func (r *firewallRuleGroupResource) ValidateConfig(
 					rulePath.AtName("remote_port"),
 					"Invalid port configuration",
 					"remote_port is only valid for TCP or UDP protocols.",
+				)
+			}
+		}
+
+		if rule.AddressFamily.ValueString() == "ANY" {
+			if !rule.LocalAddress.IsNull() && len(rule.LocalAddress.Elements()) > 0 {
+				resp.Diagnostics.AddAttributeError(
+					rulePath.AtName("local_address"),
+					"Invalid address_family configuration",
+					"local_address cannot be set when address_family is 'ANY'. Remove the addresses or choose 'IP4' or 'IP6'.",
+				)
+			}
+			if !rule.RemoteAddress.IsNull() && len(rule.RemoteAddress.Elements()) > 0 {
+				resp.Diagnostics.AddAttributeError(
+					rulePath.AtName("remote_address"),
+					"Invalid address_family configuration",
+					"remote_address cannot be set when address_family is 'ANY'. Remove the addresses or choose 'IP4' or 'IP6'.",
 				)
 			}
 		}

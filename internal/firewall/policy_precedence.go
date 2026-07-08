@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/firewall_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -25,9 +26,8 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                   = &firewallPolicyPrecedenceResource{}
-	_ resource.ResourceWithConfigure      = &firewallPolicyPrecedenceResource{}
-	_ resource.ResourceWithValidateConfig = &firewallPolicyPrecedenceResource{}
+	_ resource.Resource              = &firewallPolicyPrecedenceResource{}
+	_ resource.ResourceWithConfigure = &firewallPolicyPrecedenceResource{}
 )
 
 const dynamicEnforcement = "dynamic"
@@ -47,7 +47,6 @@ type firewallPolicyPrecedenceResourceModel struct {
 	IDs          types.List   `tfsdk:"ids"`
 	Enforcement  types.String `tfsdk:"enforcement"`
 	PlatformName types.String `tfsdk:"platform_name"`
-	LastUpdated  types.String `tfsdk:"last_updated"`
 }
 
 // wrap transforms API response values to their terraform model values.
@@ -138,10 +137,6 @@ func (r *firewallPolicyPrecedenceResource) Schema(
 					stringvalidator.OneOfCaseInsensitive("Windows", "Linux", "Mac"),
 				},
 			},
-			"last_updated": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "Timestamp of the last Terraform update of the resource.",
-			},
 		},
 	}
 }
@@ -184,22 +179,18 @@ func (r *firewallPolicyPrecedenceResource) Create(
 		return
 	}
 
-	// For dynamic enforcement, preserve the plan's IDs in state since we only manage
-	// those specific policies' relative order. Reading back from API could show different
-	// IDs if other policies were added/removed concurrently.
-	var policies []string
-	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) {
-		resp.Diagnostics.Append(plan.IDs.ElementsAs(ctx, &policies, false)...)
-	} else {
-		var d diag.Diagnostics
-		policies, d = r.getFirewallPoliciesByPrecedence(ctx, plan.PlatformName.ValueString())
-		resp.Diagnostics.Append(d...)
-	}
+	policies, diags := r.getFirewallPoliciesByPrecedence(ctx, plan.PlatformName.ValueString())
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	plan.LastUpdated = utils.GenerateUpdateTimestamp()
+	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) {
+		if len(policies) > len(plan.IDs.Elements()) {
+			policies = policies[:len(plan.IDs.Elements())]
+		}
+	}
+
 	resp.Diagnostics.Append(plan.wrap(ctx, policies)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -216,41 +207,16 @@ func (r *firewallPolicyPrecedenceResource) Read(
 		return
 	}
 
-	// For dynamic enforcement, preserve the state's IDs since we only manage
-	// those specific policies' relative order. Reading back from API could show different
-	// IDs if other policies were added/removed concurrently.
-	// For strict enforcement, read back from API to verify all policies are present.
-	if strings.EqualFold(state.Enforcement.ValueString(), dynamicEnforcement) {
-		// Just verify the policies still exist
-		allPolicies, diags := r.getFirewallPoliciesByPrecedence(ctx, state.PlatformName.ValueString())
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		var stateIDs []string
-		resp.Diagnostics.Append(state.IDs.ElementsAs(ctx, &stateIDs, false)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		// Check if any managed policies were deleted
-		for _, id := range stateIDs {
-			if !slices.Contains(allPolicies, id) {
-				// Policy was deleted externally, remove from state
-				resp.State.RemoveResource(ctx)
-				return
-			}
-		}
-		// Keep existing state IDs - don't update from API
-		return
-	}
-
-	// For strict enforcement, read back all policies
 	policies, diags := r.getFirewallPoliciesByPrecedence(ctx, state.PlatformName.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	if strings.EqualFold(state.Enforcement.ValueString(), dynamicEnforcement) {
+		if len(policies) > len(state.IDs.Elements()) {
+			policies = policies[:len(state.IDs.Elements())]
+		}
 	}
 
 	resp.Diagnostics.Append(state.wrap(ctx, policies)...)
@@ -295,22 +261,18 @@ func (r *firewallPolicyPrecedenceResource) Update(
 		return
 	}
 
-	// For dynamic enforcement, preserve the plan's IDs in state since we only manage
-	// those specific policies' relative order. Reading back from API could show different
-	// IDs if other policies were added/removed concurrently.
-	var policies []string
-	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) {
-		resp.Diagnostics.Append(plan.IDs.ElementsAs(ctx, &policies, false)...)
-	} else {
-		var d diag.Diagnostics
-		policies, d = r.getFirewallPoliciesByPrecedence(ctx, plan.PlatformName.ValueString())
-		resp.Diagnostics.Append(d...)
-	}
+	policies, diags := r.getFirewallPoliciesByPrecedence(ctx, plan.PlatformName.ValueString())
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	plan.LastUpdated = utils.GenerateUpdateTimestamp()
+	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) {
+		if len(policies) > len(plan.IDs.Elements()) {
+			policies = policies[:len(plan.IDs.Elements())]
+		}
+	}
+
 	resp.Diagnostics.Append(plan.wrap(ctx, policies)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -322,16 +284,6 @@ func (r *firewallPolicyPrecedenceResource) Delete(
 	resp *resource.DeleteResponse,
 ) {
 	// Precedence resources don't have a delete operation - removing from state only
-}
-
-// ValidateConfig validates the resource configuration.
-func (r *firewallPolicyPrecedenceResource) ValidateConfig(
-	ctx context.Context,
-	req resource.ValidateConfigRequest,
-	resp *resource.ValidateConfigResponse,
-) {
-	var config firewallPolicyPrecedenceResourceModel
-	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 }
 
 // getFirewallPoliciesByPrecedence returns firewall policy IDs ordered by precedence excluding the default policy.
@@ -354,13 +306,7 @@ func (r *firewallPolicyPrecedenceResource) getFirewallPoliciesByPrecedence(
 		},
 	)
 	if err != nil {
-		diags.AddError(
-			"Error reading CrowdStrike firewall policies",
-			fmt.Sprintf(
-				"Could not read CrowdStrike firewall policies: %s",
-				err.Error(),
-			),
-		)
+		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopesRead))
 		return policies, diags
 	}
 
@@ -442,13 +388,7 @@ func (r *firewallPolicyPrecedenceResource) setFirewallPolicyPrecedence(
 
 			return diags
 		}
-		diags.AddError(
-			"Error setting CrowdStrike firewall policies precedence",
-			fmt.Sprintf(
-				"Could not set CrowdStrike firewall policies precedence: %s",
-				err.Error(),
-			),
-		)
+		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Update, err, apiScopesReadWrite))
 		return diags
 	}
 

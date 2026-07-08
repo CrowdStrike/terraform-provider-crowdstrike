@@ -36,7 +36,7 @@ func sweepFirewallRuleGroups(ctx context.Context, client *client.CrowdStrikeAPIS
 		return nil, fmt.Errorf("error listing firewall rule groups: %w", err)
 	}
 
-	if resp.Payload == nil || len(resp.Payload.Resources) == 0 {
+	if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 {
 		return sweepables, nil
 	}
 
@@ -49,7 +49,7 @@ func sweepFirewallRuleGroups(ctx context.Context, client *client.CrowdStrikeAPIS
 		return nil, fmt.Errorf("error getting firewall rule groups: %w", err)
 	}
 
-	if getResp.Payload == nil {
+	if getResp == nil || getResp.Payload == nil {
 		return sweepables, nil
 	}
 
@@ -95,7 +95,7 @@ func deleteFirewallRuleGroup(ctx context.Context, client *client.CrowdStrikeAPIS
 	}
 
 	// Disable before deleting if enabled
-	if getResp.Payload != nil && len(getResp.Payload.Resources) > 0 {
+	if getResp != nil && getResp.Payload != nil && len(getResp.Payload.Resources) > 0 {
 		rg := getResp.Payload.Resources[0]
 		if rg.Enabled != nil && *rg.Enabled {
 			disableReq := &models.FwmgrAPIRuleGroupModifyRequestV1{
@@ -153,7 +153,7 @@ func sweepFirewallPolicies(ctx context.Context, client *client.CrowdStrikeAPISpe
 		return nil, fmt.Errorf("error listing firewall policies: %w", err)
 	}
 
-	if resp.Payload == nil || len(resp.Payload.Resources) == 0 {
+	if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 {
 		return sweepables, nil
 	}
 

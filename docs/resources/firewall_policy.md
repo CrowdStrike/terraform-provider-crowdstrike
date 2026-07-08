@@ -43,7 +43,7 @@ resource "crowdstrike_firewall_policy" "windows_basic" {
   default_inbound  = "DENY"
   default_outbound = "ALLOW"
   enforce          = false
-  test_mode        = false
+  monitor_mode     = false
   local_logging    = false
 }
 
@@ -141,20 +141,19 @@ output "linux_policy_id" {
 
 ### Optional
 
-- `default_inbound` (String) Default action for inbound traffic. One of: `ALLOW`, `DENY`.
-- `default_outbound` (String) Default action for outbound traffic. One of: `ALLOW`, `DENY`.
+- `default_inbound` (String) Default action for inbound traffic. One of: `ALLOW` (shown as "Allow all" in the console), `DENY` ("Block all"). Defaults to `DENY`.
+- `default_outbound` (String) Default action for outbound traffic. One of: `ALLOW` (shown as "Allow all" in the console), `DENY` ("Block all"). Defaults to `ALLOW`.
 - `description` (String) Description of the firewall policy.
 - `enabled` (Boolean) Enable the firewall policy.
-- `enforce` (Boolean) Whether to enforce the firewall policy. When false, the policy is in monitoring mode.
+- `enforce` (Boolean) Enforce this policy's rules and override the firewall settings on each assigned host. Disables native firewall rules. When false, the policy's rules are not applied.
 - `host_groups` (Set of String) Host group IDs to attach to the policy.
-- `local_logging` (Boolean) Enable local logging for the policy.
+- `local_logging` (Boolean) Save a record of all firewall rule events on the host's local drive to allow for easier troubleshooting.
+- `monitor_mode` (Boolean) Enable monitor mode (labeled "Monitor mode" in the Falcon console). Overrides all block rules in the policy and turns on monitoring, allowing all traffic while showing block events as "would be blocked." Requires `enforce` to be true.
 - `rule_group_ids` (List of String) Firewall rule group IDs to attach to the policy. Order determines precedence (first has highest priority).
-- `test_mode` (Boolean) Whether the policy is in test mode.
 
 ### Read-Only
 
 - `id` (String) Identifier for the firewall policy.
-- `last_updated` (String) Timestamp of the last Terraform update of the resource.
 
 ## Import
 

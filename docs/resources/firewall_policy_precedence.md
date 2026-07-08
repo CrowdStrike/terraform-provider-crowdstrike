@@ -60,10 +60,6 @@ output "firewall_policy_precedence" {
 - `ids` (List of String) The policy IDs in order. The first ID specified will have the highest precedence and the last ID specified will have the lowest.
 - `platform_name` (String) The platform of the firewall policies. (Windows, Mac, Linux)
 
-### Read-Only
-
-- `last_updated` (String) Timestamp of the last Terraform update of the resource.
-
 ## Import
 
 Import is supported using the following syntax:

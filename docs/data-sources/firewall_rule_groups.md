@@ -99,3 +99,64 @@ Read-Only:
 - `name` (String) The firewall rule group name
 - `platform` (String) The platform (Windows, Linux, Mac)
 - `rule_count` (Number) Number of rules in the rule group
+- `rules` (Attributes List) The list of firewall rules in this rule group, in precedence order (see [below for nested schema](#nestedatt--rule_groups--rules))
+
+<a id="nestedatt--rule_groups--rules"></a>
+### Nested Schema for `rule_groups.rules`
+
+Read-Only:
+
+- `action` (String) Action to take when the rule matches
+- `address_family` (String) Address family for the rule
+- `description` (String) Description of the firewall rule
+- `direction` (String) Traffic direction for the rule
+- `enabled` (Boolean) Whether the rule is enabled
+- `executable_path` (String) Path to executable that this rule applies to
+- `fqdn` (String) Fully qualified domain name for the rule
+- `icmp_code` (String) ICMP code for ICMP protocol rules
+- `icmp_type` (String) ICMP type for ICMP protocol rules
+- `id` (String) Identifier for the firewall rule
+- `local_address` (Attributes List) Local IP addresses for the rule (see [below for nested schema](#nestedatt--rule_groups--rules--local_address))
+- `local_port` (Attributes List) Local ports for the rule (see [below for nested schema](#nestedatt--rule_groups--rules--local_port))
+- `name` (String) Name of the firewall rule
+- `network_location` (String) Network location restriction
+- `protocol` (String) Protocol for the rule
+- `remote_address` (Attributes List) Remote IP addresses for the rule (see [below for nested schema](#nestedatt--rule_groups--rules--remote_address))
+- `remote_port` (Attributes List) Remote ports for the rule (see [below for nested schema](#nestedatt--rule_groups--rules--remote_port))
+- `service_name` (String) Windows service name that this rule applies to
+- `watch_mode` (Boolean) Whether watch mode (monitoring) is enabled for this rule
+
+<a id="nestedatt--rule_groups--rules--local_address"></a>
+### Nested Schema for `rule_groups.rules.local_address`
+
+Read-Only:
+
+- `address` (String) IP address or `*` for any
+- `netmask` (Number) CIDR netmask
+
+
+<a id="nestedatt--rule_groups--rules--local_port"></a>
+### Nested Schema for `rule_groups.rules.local_port`
+
+Read-Only:
+
+- `end` (Number) End port for range, 0 for single port
+- `start` (Number) Start port
+
+
+<a id="nestedatt--rule_groups--rules--remote_address"></a>
+### Nested Schema for `rule_groups.rules.remote_address`
+
+Read-Only:
+
+- `address` (String) IP address or `*` for any
+- `netmask` (Number) CIDR netmask
+
+
+<a id="nestedatt--rule_groups--rules--remote_port"></a>
+### Nested Schema for `rule_groups.rules.remote_port`
+
+Read-Only:
+
+- `end` (Number) End port for range, 0 for single port
+- `start` (Number) Start port

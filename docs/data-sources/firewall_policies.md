@@ -91,10 +91,17 @@ Read-Only:
 
 - `created_by` (String) User who created the policy
 - `created_timestamp` (String) Timestamp when the policy was created
+- `default_inbound` (String) The default action for inbound traffic. `ALLOW` is shown as "Allow all" in the console; `DENY` as "Block all".
+- `default_outbound` (String) The default action for outbound traffic. `ALLOW` is shown as "Allow all" in the console; `DENY` as "Block all".
 - `description` (String) The firewall policy description
 - `enabled` (Boolean) Whether the firewall policy is enabled
+- `enforce` (Boolean) Whether the policy's rules override the firewall settings on each assigned host and disable native firewall rules. When false, the policy's rules are not applied.
+- `host_groups` (List of String) Host group IDs attached to the policy
 - `id` (String) The firewall policy ID
+- `local_logging` (Boolean) Whether a record of all firewall rule events is saved on the host's local drive to allow for easier troubleshooting.
 - `modified_by` (String) User who last modified the policy
 - `modified_timestamp` (String) Timestamp when the policy was last modified
+- `monitor_mode` (Boolean) Whether monitor mode (labeled "Monitor mode" in the Falcon console) is enabled. Overrides all block rules in the policy and turns on monitoring, allowing all traffic while showing block events as "would be blocked."
 - `name` (String) The firewall policy name
 - `platform_name` (String) The platform name (Windows, Linux, Mac)
+- `rule_group_ids` (List of String) Firewall rule group IDs attached to the policy, in precedence order

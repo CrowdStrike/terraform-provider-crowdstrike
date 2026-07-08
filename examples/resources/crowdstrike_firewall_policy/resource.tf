@@ -19,7 +19,7 @@ resource "crowdstrike_firewall_policy" "windows_basic" {
   default_inbound  = "DENY"
   default_outbound = "ALLOW"
   enforce          = false
-  test_mode        = false
+  monitor_mode     = false
   local_logging    = false
 }
 

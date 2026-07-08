@@ -7,16 +7,53 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client/firewall_management"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/go-openapi/swag"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// getRuleGroup retrieves a rule group by ID.
+var platformTitleCase = map[string]string{
+	"windows": "Windows",
+	"mac":     "Mac",
+	"linux":   "Linux",
+}
+
+// normalizePlatform converts the API's lowercase platform value to the
+// title-case form used in schema validation.
+func normalizePlatform(platform string) string {
+	if titleCase, ok := platformTitleCase[strings.ToLower(platform)]; ok {
+		return titleCase
+	}
+	return platform
+}
+
+// addressFamilyToAPI maps the Terraform address_family value to the API value.
+// The console's "Any" option is sent to the API as "NONE".
+func addressFamilyToAPI(family string) string {
+	if family == "ANY" {
+		return "NONE"
+	}
+	return family
+}
+
+// addressFamilyFromAPI maps the API address_family value to the Terraform value.
+func addressFamilyFromAPI(family string) string {
+	if family == "NONE" {
+		return "ANY"
+	}
+	return family
+}
+
+// getRuleGroup retrieves a rule group by ID. The returned boolean indicates
+// the resource was not found (i.e., the API returned 404 or empty payload).
 func (r *firewallRuleGroupResource) getRuleGroup(
 	ctx context.Context,
 	id string,
-) (*models.FwmgrAPIRuleGroupV1, diag.Diagnostics) {
+	op tferrors.Operation,
+) (*models.FwmgrAPIRuleGroupV1, bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	params := firewall_management.NewGetRuleGroupsParams().
@@ -25,55 +62,41 @@ func (r *firewallRuleGroupResource) getRuleGroup(
 
 	result, err := r.client.FirewallManagement.GetRuleGroups(params)
 	if err != nil {
-		diags.AddError(
-			"Failed to read firewall rule group",
-			fmt.Sprintf("Could not read firewall rule group '%s': %s", id, err.Error()),
-		)
-		return nil, diags
+		d := tferrors.NewDiagnosticFromAPIError(op, err, apiScopesRead)
+		if d.Summary() == tferrors.NotFoundErrorSummary {
+			return nil, true, diags
+		}
+		diags.Append(d)
+		return nil, false, diags
 	}
 
-	if result.Payload == nil || len(result.Payload.Resources) == 0 {
-		diags.AddError(
-			"Firewall rule group not found",
-			fmt.Sprintf("Firewall rule group '%s' was not found.", id),
-		)
-		return nil, diags
+	if result == nil || result.Payload == nil || len(result.Payload.Resources) == 0 || result.Payload.Resources[0] == nil {
+		return nil, true, diags
 	}
 
-	return result.Payload.Resources[0], diags
+	return result.Payload.Resources[0], false, diags
 }
 
 // readRuleGroupState refreshes the state from the API.
 // If planRules is provided, rules are ordered to match the plan.
+// The returned boolean indicates the rule group no longer exists.
 func (r *firewallRuleGroupResource) readRuleGroupState(
 	ctx context.Context,
 	state *firewallRuleGroupResourceModel,
 	planRules types.List,
-) diag.Diagnostics {
+) (bool, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	ruleGroup, d := r.getRuleGroup(ctx, state.ID.ValueString())
+	ruleGroup, removed, d := r.getRuleGroup(ctx, state.ID.ValueString(), tferrors.Read)
 	diags.Append(d...)
-	if diags.HasError() {
-		return diags
+	if diags.HasError() || removed {
+		return removed, diags
 	}
 
-	state.Name = types.StringPointerValue(ruleGroup.Name)
-	state.Description = types.StringPointerValue(ruleGroup.Description)
-	// Preserve user's platform case (API returns lowercase, but user may have specified title case)
+	state.Name = flex.StringPointerToFramework(ruleGroup.Name)
+	state.Description = flex.StringPointerToFramework(ruleGroup.Description)
 	if ruleGroup.Platform != nil {
-		// Convert API response back to title case to match schema validation
-		// Map lowercase API values to title case for consistency
-		platformMap := map[string]string{
-			"windows": "Windows",
-			"mac":     "Mac",
-			"linux":   "Linux",
-		}
-		platform := *ruleGroup.Platform
-		if titleCase, ok := platformMap[strings.ToLower(platform)]; ok {
-			platform = titleCase
-		}
-		state.Platform = types.StringValue(platform)
+		state.Platform = flex.StringValueToFramework(normalizePlatform(*ruleGroup.Platform))
 	}
 	state.Enabled = types.BoolPointerValue(ruleGroup.Enabled)
 
@@ -84,22 +107,27 @@ func (r *firewallRuleGroupResource) readRuleGroupState(
 
 		rulesResult, err := r.client.FirewallManagement.GetRules(rulesParams)
 		if err != nil {
-			diags.AddError(
-				"Failed to read firewall rules",
-				fmt.Sprintf("Could not read rules for rule group '%s': %s", state.ID.ValueString(), err.Error()),
-			)
-			return diags
+			diags.Append(tferrors.NewDiagnosticFromAPIError(
+				tferrors.Read,
+				err,
+				apiScopesRead,
+			))
+			return false, diags
 		}
 
-		if rulesResult.Payload != nil && len(rulesResult.Payload.Resources) > 0 {
+		if rulesResult != nil && rulesResult.Payload != nil && len(rulesResult.Payload.Resources) > 0 {
 			// Order rules to match the plan order by name
 			// The API returns rules in reverse order from how we send them
-			orderedRules := r.orderRulesByPlanNames(ctx, rulesResult.Payload.Resources, planRules)
-
-			rulesList, d := r.wrapRules(ctx, orderedRules, planRules)
+			orderedRules, d := orderRulesByPlanNames(ctx, rulesResult.Payload.Resources, planRules)
 			diags.Append(d...)
 			if diags.HasError() {
-				return diags
+				return false, diags
+			}
+
+			rulesList, d := wrapRules(ctx, orderedRules, planRules)
+			diags.Append(d...)
+			if diags.HasError() {
+				return false, diags
 			}
 			state.Rules = rulesList
 		}
@@ -107,38 +135,40 @@ func (r *firewallRuleGroupResource) readRuleGroupState(
 		state.Rules = types.ListNull(types.ObjectType{AttrTypes: firewallRuleModel{}.attrTypes()})
 	}
 
-	return diags
+	return false, diags
 }
 
 // orderRulesByPlanNames orders API rules to match plan order.
 // The API returns rules in reverse order from submission.
-func (r *firewallRuleGroupResource) orderRulesByPlanNames(
+func orderRulesByPlanNames(
 	ctx context.Context,
 	apiRules []*models.FwmgrFirewallRuleV1,
 	planRules types.List,
-) []*models.FwmgrFirewallRuleV1 {
+) ([]*models.FwmgrFirewallRuleV1, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
 	if len(apiRules) == 0 {
-		return apiRules
+		return apiRules, diags
 	}
 
 	// If no plan rules provided, return as-is
-	if planRules.IsNull() || planRules.IsUnknown() {
-		return apiRules
+	if !utils.IsKnown(planRules) {
+		return apiRules, diags
 	}
 
 	// Build a map of rule name to API rule
 	rulesByName := make(map[string]*models.FwmgrFirewallRuleV1)
 	for _, rule := range apiRules {
-		if rule.Name != nil {
+		if rule != nil && rule.Name != nil {
 			rulesByName[*rule.Name] = rule
 		}
 	}
 
 	// Get plan rule names in order
 	var planRuleModels []firewallRuleModel
-	diags := planRules.ElementsAs(ctx, &planRuleModels, false)
+	diags.Append(planRules.ElementsAs(ctx, &planRuleModels, false)...)
 	if diags.HasError() {
-		return apiRules
+		return apiRules, diags
 	}
 
 	// Build ordered slice matching plan order
@@ -153,19 +183,19 @@ func (r *firewallRuleGroupResource) orderRulesByPlanNames(
 
 	// Append any remaining rules not in plan (shouldn't happen normally)
 	for _, rule := range apiRules {
-		if rule.Name != nil {
+		if rule != nil && rule.Name != nil {
 			if _, stillExists := rulesByName[*rule.Name]; stillExists {
 				ordered = append(ordered, rule)
 			}
 		}
 	}
 
-	return ordered
+	return ordered, diags
 }
 
 // wrapRules converts API rules to Terraform list type.
-// planRules is used to preserve the log field value since the API doesn't return it.
-func (r *firewallRuleGroupResource) wrapRules(
+// planRules is used to preserve values the API doesn't return (e.g. port end values).
+func wrapRules(
 	ctx context.Context,
 	apiRules []*models.FwmgrFirewallRuleV1,
 	planRules types.List,
@@ -178,7 +208,7 @@ func (r *firewallRuleGroupResource) wrapRules(
 
 	// Build a map of plan rules by name to preserve values the API doesn't return
 	planRulesByName := make(map[string]firewallRuleModel)
-	if !planRules.IsNull() && !planRules.IsUnknown() {
+	if utils.IsKnown(planRules) {
 		var planRuleModels []firewallRuleModel
 		diags.Append(planRules.ElementsAs(ctx, &planRuleModels, false)...)
 		if !diags.HasError() {
@@ -190,45 +220,49 @@ func (r *firewallRuleGroupResource) wrapRules(
 
 	rules := make([]firewallRuleModel, 0, len(apiRules))
 	for _, apiRule := range apiRules {
-		// Preserve log value from plan if available, otherwise default to false
-		logValue := types.BoolValue(false)
-		if apiRule.Name != nil {
-			if planRule, ok := planRulesByName[*apiRule.Name]; ok && !planRule.Log.IsNull() && !planRule.Log.IsUnknown() {
-				logValue = planRule.Log
-			}
+		if apiRule == nil {
+			continue
+		}
+		rule := firewallRuleModel{
+			ID:          flex.StringPointerToFramework(apiRule.ID),
+			Name:        flex.StringPointerToFramework(apiRule.Name),
+			Description: flex.StringPointerToFramework(apiRule.Description),
+			Enabled:     types.BoolPointerValue(apiRule.Enabled),
+			Action:      types.StringPointerValue(apiRule.Action),
+			Direction:   types.StringPointerValue(apiRule.Direction),
 		}
 
-		rule := firewallRuleModel{
-			ID:            types.StringPointerValue(apiRule.ID),
-			Name:          types.StringPointerValue(apiRule.Name),
-			Description:   types.StringPointerValue(apiRule.Description),
-			Enabled:       types.BoolPointerValue(apiRule.Enabled),
-			Action:        types.StringPointerValue(apiRule.Action),
-			Direction:     types.StringPointerValue(apiRule.Direction),
-			AddressFamily: types.StringPointerValue(apiRule.AddressFamily),
-			Log:           logValue,
+		if apiRule.AddressFamily != nil {
+			rule.AddressFamily = types.StringValue(addressFamilyFromAPI(*apiRule.AddressFamily))
 		}
 
 		if apiRule.Protocol != nil {
-			rule.Protocol = types.StringValue(r.reverseProtocolMapping(*apiRule.Protocol))
+			rule.Protocol = types.StringValue(reverseProtocolMapping(*apiRule.Protocol))
 		}
 
 		if apiRule.Fqdn != nil && *apiRule.Fqdn != "" {
 			rule.Fqdn = types.StringPointerValue(apiRule.Fqdn)
 		}
 
-		rule.LocalAddress = r.wrapFirewallAddressRanges(ctx, apiRule.LocalAddress, &diags)
-		rule.RemoteAddress = r.wrapFirewallAddressRanges(ctx, apiRule.RemoteAddress, &diags)
-
-		// Get plan rule for preserving port values
+		// Get plan rule for preserving values the API rewrites (address "*"
+		// sentinel and single-port end values).
 		var planRule *firewallRuleModel
 		if apiRule.Name != nil {
 			if pr, ok := planRulesByName[*apiRule.Name]; ok {
 				planRule = &pr
 			}
 		}
-		rule.LocalPort = r.wrapFirewallPortRanges(ctx, apiRule.LocalPort, planRule, true, &diags)
-		rule.RemotePort = r.wrapFirewallPortRanges(ctx, apiRule.RemotePort, planRule, false, &diags)
+
+		var planLocalAddress, planRemoteAddress types.List
+		if planRule != nil {
+			planLocalAddress = planRule.LocalAddress
+			planRemoteAddress = planRule.RemoteAddress
+		}
+		rule.LocalAddress = wrapFirewallAddressRanges(ctx, apiRule.LocalAddress, planLocalAddress, &diags)
+		rule.RemoteAddress = wrapFirewallAddressRanges(ctx, apiRule.RemoteAddress, planRemoteAddress, &diags)
+
+		rule.LocalPort = wrapFirewallPortRanges(ctx, apiRule.LocalPort, planRule, true, &diags)
+		rule.RemotePort = wrapFirewallPortRanges(ctx, apiRule.RemotePort, planRule, false, &diags)
 
 		rule.NetworkLocation = types.StringValue("ANY")
 		rule.ExecutablePath = types.StringNull()
@@ -257,15 +291,17 @@ func (r *firewallRuleGroupResource) wrapRules(
 		}
 
 		if apiRule.Icmp != nil {
-			// API returns "*" for "any" which is the default - treat as null (not user-specified)
-			if apiRule.Icmp.IcmpType != nil && *apiRule.Icmp.IcmpType != "*" {
+			if apiRule.Icmp.IcmpType != nil {
 				rule.IcmpType = types.StringPointerValue(apiRule.Icmp.IcmpType)
 			}
-			if apiRule.Icmp.IcmpCode != nil && *apiRule.Icmp.IcmpCode != "*" {
+			if apiRule.Icmp.IcmpCode != nil {
 				rule.IcmpCode = types.StringPointerValue(apiRule.Icmp.IcmpCode)
 			}
 		}
 
+		// The API does not return a dedicated watch_mode flag. Instead, the
+		// presence of the Monitor object on the rule indicates watch mode is
+		// enabled (set when WatchMode is true in buildRulesPayload).
 		rule.WatchMode = types.BoolValue(apiRule.Monitor != nil)
 
 		rules = append(rules, rule)
@@ -278,7 +314,7 @@ func (r *firewallRuleGroupResource) wrapRules(
 }
 
 // reverseProtocolMapping converts IANA numbers to protocol names.
-func (r *firewallRuleGroupResource) reverseProtocolMapping(protocol string) string {
+func reverseProtocolMapping(protocol string) string {
 	for name, num := range protocolMapping {
 		if num == protocol {
 			return name
@@ -288,23 +324,37 @@ func (r *firewallRuleGroupResource) reverseProtocolMapping(protocol string) stri
 }
 
 // wrapFirewallAddressRanges converts API address ranges to Terraform list.
-func (r *firewallRuleGroupResource) wrapFirewallAddressRanges(
+// planAddresses is the configured list for this rule. When the user omits the
+// address list, the provider sends a single "*" entry to mean "any" and the API
+// echoes it back; in that case the API "*" sentinel is collapsed to null so the
+// omitted-list config round-trips. When the user explicitly configures addresses
+// (including "*"), the API values are written back verbatim.
+func wrapFirewallAddressRanges(
 	ctx context.Context,
 	apiAddresses []*models.FwmgrFirewallAddressRange,
+	planAddresses types.List,
 	diags *diag.Diagnostics,
 ) types.List {
 	if len(apiAddresses) == 0 {
 		return types.ListNull(types.ObjectType{AttrTypes: addressRangeAttrTypes()})
 	}
 
+	// When the config omitted the address list, collapse the provider's synthetic
+	// "*" (any) sentinel back to null so it round-trips.
+	planOmitted := !utils.IsKnown(planAddresses) || len(planAddresses.Elements()) == 0
+
 	addresses := make([]addressRangeModel, 0, len(apiAddresses))
 	for _, addr := range apiAddresses {
-		if addr.Address != nil && *addr.Address != "*" {
-			addresses = append(addresses, addressRangeModel{
-				Address: types.StringPointerValue(addr.Address),
-				Netmask: types.Int64Value(addr.Netmask),
-			})
+		if addr.Address == nil {
+			continue
 		}
+		if planOmitted && *addr.Address == "*" {
+			continue
+		}
+		addresses = append(addresses, addressRangeModel{
+			Address: types.StringPointerValue(addr.Address),
+			Netmask: types.Int64Value(addr.Netmask),
+		})
 	}
 
 	if len(addresses) == 0 {
@@ -319,7 +369,7 @@ func (r *firewallRuleGroupResource) wrapFirewallAddressRanges(
 // wrapFirewallPortRanges converts API port ranges to Terraform list.
 // planRule is used to preserve port end values when API returns end=0 but plan has end=start.
 // isLocalPort indicates whether this is for local_port (true) or remote_port (false).
-func (r *firewallRuleGroupResource) wrapFirewallPortRanges(
+func wrapFirewallPortRanges(
 	ctx context.Context,
 	apiPorts []*models.FwmgrFirewallPortRange,
 	planRule *firewallRuleModel,
@@ -339,7 +389,7 @@ func (r *firewallRuleGroupResource) wrapFirewallPortRanges(
 		} else {
 			portList = planRule.RemotePort
 		}
-		if !portList.IsNull() && !portList.IsUnknown() {
+		if utils.IsKnown(portList) {
 			_ = portList.ElementsAs(ctx, &planPorts, false)
 		}
 	}
@@ -381,7 +431,7 @@ func (r *firewallRuleGroupResource) buildRulesPayload(
 ) ([]*models.FwmgrAPIRuleCreateRequestV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	if rulesList.IsNull() || rulesList.IsUnknown() {
+	if !utils.IsKnown(rulesList) {
 		return []*models.FwmgrAPIRuleCreateRequestV1{}, diags
 	}
 
@@ -393,7 +443,7 @@ func (r *firewallRuleGroupResource) buildRulesPayload(
 
 	apiRules := make([]*models.FwmgrAPIRuleCreateRequestV1, 0, len(rules))
 	for i, rule := range rules {
-		tempID := fmt.Sprintf("temp_%d", i)
+		tempID := fmt.Sprintf("temp_id:%d", i)
 
 		protocol := protocolMapping[rule.Protocol.ValueString()]
 		if protocol == "" {
@@ -406,16 +456,19 @@ func (r *firewallRuleGroupResource) buildRulesPayload(
 		apiRule := &models.FwmgrAPIRuleCreateRequestV1{
 			TempID:        swag.String(tempID),
 			Name:          swag.String(rule.Name.ValueString()),
-			Description:   swag.String(rule.Description.ValueString()),
+			Description:   flex.FrameworkToStringPointer(rule.Description),
 			Enabled:       swag.Bool(rule.Enabled.ValueBool()),
 			Action:        swag.String(rule.Action.ValueString()),
 			Direction:     swag.String(rule.Direction.ValueString()),
 			Protocol:      swag.String(protocol),
-			AddressFamily: swag.String(rule.AddressFamily.ValueString()),
+			AddressFamily: swag.String(addressFamilyToAPI(rule.AddressFamily.ValueString())),
 			Fqdn:          swag.String(fqdnValue),
 			FqdnEnabled:   swag.Bool(fqdnEnabled),
-			Log:           swag.Bool(rule.Log.ValueBool()),
-			Fields:        r.buildFieldsPayload(rule, platform),
+			// The API marks "log" as required but never returns it on read and the
+			// console exposes no control for it, so it is not part of the schema.
+			// Send a constant false to satisfy the required field.
+			Log:    swag.Bool(false),
+			Fields: r.buildFieldsPayload(rule, platform),
 		}
 
 		apiRule.LocalAddress = r.buildAddressPayload(ctx, rule.LocalAddress, &diags)
@@ -498,7 +551,7 @@ func (r *firewallRuleGroupResource) buildAddressPayload(
 	addressList types.List,
 	diags *diag.Diagnostics,
 ) []*models.FwmgrDomainAddressRange {
-	if addressList.IsNull() || addressList.IsUnknown() || len(addressList.Elements()) == 0 {
+	if !utils.IsKnown(addressList) || len(addressList.Elements()) == 0 {
 		return []*models.FwmgrDomainAddressRange{
 			{Address: swag.String("*"), Netmask: 0},
 		}
@@ -527,7 +580,7 @@ func (r *firewallRuleGroupResource) buildPortPayload(
 	portList types.List,
 	diags *diag.Diagnostics,
 ) []*models.FwmgrDomainPortRange {
-	if portList.IsNull() || portList.IsUnknown() || len(portList.Elements()) == 0 {
+	if !utils.IsKnown(portList) || len(portList.Elements()) == 0 {
 		return []*models.FwmgrDomainPortRange{}
 	}
 
@@ -595,7 +648,7 @@ func (r *firewallRuleGroupResource) buildDiffOperations(
 
 	// Get planned rules
 	var planRules []firewallRuleModel
-	if !plan.Rules.IsNull() && !plan.Rules.IsUnknown() {
+	if utils.IsKnown(plan.Rules) {
 		diags.Append(plan.Rules.ElementsAs(ctx, &planRules, false)...)
 		if diags.HasError() {
 			return nil, nil, nil, diags
@@ -604,7 +657,7 @@ func (r *firewallRuleGroupResource) buildDiffOperations(
 
 	// Get state rules
 	var stateRules []firewallRuleModel
-	if !state.Rules.IsNull() && !state.Rules.IsUnknown() {
+	if utils.IsKnown(state.Rules) {
 		diags.Append(state.Rules.ElementsAs(ctx, &stateRules, false)...)
 		if diags.HasError() {
 			return nil, nil, nil, diags
@@ -615,7 +668,7 @@ func (r *firewallRuleGroupResource) buildDiffOperations(
 	stateRulesByName := make(map[string]string)
 	stateRuleModelsByName := make(map[string]firewallRuleModel)
 	for i, rule := range stateRules {
-		if !rule.ID.IsNull() && !rule.ID.IsUnknown() && i < len(ruleGroup.RuleIds) {
+		if utils.IsKnown(rule.ID) && i < len(ruleGroup.RuleIds) {
 			stateRulesByName[rule.Name.ValueString()] = ruleGroup.RuleIds[i]
 			stateRuleModelsByName[rule.Name.ValueString()] = rule
 		}
@@ -719,27 +772,29 @@ func (r *firewallRuleGroupResource) buildRulePayloadForDiff(
 		"action":         rule.Action.ValueString(),
 		"direction":      rule.Direction.ValueString(),
 		"protocol":       protocol,
-		"address_family": rule.AddressFamily.ValueString(),
-		"log":            rule.Log.ValueBool(),
+		"address_family": addressFamilyToAPI(rule.AddressFamily.ValueString()),
+		// The API requires "log" but never returns it and the console has no
+		// control for it, so it is not part of the schema. Send a constant false.
+		"log": false,
 	}
 
 	// Add local_address if specified
-	if !rule.LocalAddress.IsNull() && !rule.LocalAddress.IsUnknown() {
+	if utils.IsKnown(rule.LocalAddress) {
 		payload["local_address"] = r.buildAddressListForDiff(rule.LocalAddress)
 	}
 
 	// Add remote_address if specified
-	if !rule.RemoteAddress.IsNull() && !rule.RemoteAddress.IsUnknown() {
+	if utils.IsKnown(rule.RemoteAddress) {
 		payload["remote_address"] = r.buildAddressListForDiff(rule.RemoteAddress)
 	}
 
 	// Add local_port if specified
-	if !rule.LocalPort.IsNull() && !rule.LocalPort.IsUnknown() {
+	if utils.IsKnown(rule.LocalPort) {
 		payload["local_port"] = r.buildPortListForDiff(rule.LocalPort)
 	}
 
 	// Add remote_port if specified
-	if !rule.RemotePort.IsNull() && !rule.RemotePort.IsUnknown() {
+	if utils.IsKnown(rule.RemotePort) {
 		payload["remote_port"] = r.buildPortListForDiff(rule.RemotePort)
 	}
 
@@ -767,7 +822,7 @@ func (r *firewallRuleGroupResource) buildRulePayloadForDiff(
 	if !rule.ServiceName.IsNull() && rule.ServiceName.ValueString() != "" {
 		fields = append(fields, map[string]interface{}{
 			"name":  "service_name",
-			"type":  "windows_service_name",
+			"type":  "string",
 			"value": rule.ServiceName.ValueString(),
 		})
 	}
@@ -777,9 +832,8 @@ func (r *firewallRuleGroupResource) buildRulePayloadForDiff(
 	// Add monitor mode if watch_mode is enabled
 	if rule.WatchMode.ValueBool() {
 		payload["monitor"] = map[string]interface{}{
-			"count":          "1",
-			"period_ms":      "60000",
-			"count_operator": ">=",
+			"count":     "1",
+			"period_ms": "3600000",
 		}
 	}
 
@@ -788,7 +842,7 @@ func (r *firewallRuleGroupResource) buildRulePayloadForDiff(
 
 // buildAddressListForDiff converts address ranges to a list for JSON Patch.
 func (r *firewallRuleGroupResource) buildAddressListForDiff(addressList types.List) []map[string]interface{} {
-	if addressList.IsNull() || addressList.IsUnknown() {
+	if !utils.IsKnown(addressList) {
 		return nil
 	}
 
@@ -813,7 +867,7 @@ func (r *firewallRuleGroupResource) buildAddressListForDiff(addressList types.Li
 
 // buildPortListForDiff converts port ranges to a list for JSON Patch.
 func (r *firewallRuleGroupResource) buildPortListForDiff(portList types.List) []map[string]interface{} {
-	if portList.IsNull() || portList.IsUnknown() {
+	if !utils.IsKnown(portList) {
 		return nil
 	}
 
@@ -864,9 +918,6 @@ func (r *firewallRuleGroupResource) ruleHasChanged(plan, state firewallRuleModel
 	if !plan.AddressFamily.Equal(state.AddressFamily) {
 		return true
 	}
-	if !plan.Log.Equal(state.Log) {
-		return true
-	}
 	if !plan.NetworkLocation.Equal(state.NetworkLocation) {
 		return true
 	}
@@ -888,8 +939,18 @@ func (r *firewallRuleGroupResource) ruleHasChanged(plan, state firewallRuleModel
 	if !plan.WatchMode.Equal(state.WatchMode) {
 		return true
 	}
-	// Note: We don't compare port/address lists deeply here for simplicity
-	// A full implementation would compare those as well
+	if !plan.LocalAddress.Equal(state.LocalAddress) {
+		return true
+	}
+	if !plan.RemoteAddress.Equal(state.RemoteAddress) {
+		return true
+	}
+	if !plan.LocalPort.Equal(state.LocalPort) {
+		return true
+	}
+	if !plan.RemotePort.Equal(state.RemotePort) {
+		return true
+	}
 	return false
 }
 
@@ -901,7 +962,7 @@ func (r *firewallRuleGroupResource) hasRuleOrderChanged(
 	state firewallRuleGroupResourceModel,
 ) bool {
 	// If either is null/unknown, can't compare
-	if plan.Rules.IsNull() || plan.Rules.IsUnknown() || state.Rules.IsNull() || state.Rules.IsUnknown() {
+	if !utils.IsKnown(plan.Rules) || !utils.IsKnown(state.Rules) {
 		return false
 	}
 

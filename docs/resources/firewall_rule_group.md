@@ -199,19 +199,18 @@ output "firewall_rule_group" {
 
 ### Required
 
+- `enabled` (Boolean) Whether the rule group is enabled.
 - `name` (String) Name of the firewall rule group.
 - `platform` (String) Platform for the rule group. One of: `Windows`, `Mac`, `Linux`.
 
 ### Optional
 
 - `description` (String) Description of the firewall rule group.
-- `enabled` (Boolean) Whether the rule group is enabled.
 - `rules` (Attributes List) List of firewall rules in this rule group. Rule precedence is determined by the order in the list. (see [below for nested schema](#nestedatt--rules))
 
 ### Read-Only
 
 - `id` (String) Identifier for the firewall rule group.
-- `last_updated` (String) Timestamp of the last Terraform update of the resource.
 
 <a id="nestedatt--rules"></a>
 ### Nested Schema for `rules`
@@ -221,21 +220,20 @@ Required:
 - `action` (String) Action to take when the rule matches. One of: `ALLOW`, `DENY`.
 - `direction` (String) Traffic direction for the rule. One of: `IN`, `OUT`, `BOTH`.
 - `name` (String) Name of the firewall rule.
-- `protocol` (String) Protocol for the rule. Common protocols: `TCP`, `UDP`, `ICMPV4`, `ICMPV6`, `ANY`. Advanced protocols (API-only, not available in console UI): `GRE`, `ESP`, `IGMP`, `IP-IN-IP`, `IPV6 ENCAPSULATION`. Note: Some protocols have platform restrictions (see platform documentation).
+- `protocol` (String) Protocol for the rule. Named protocols: `TCP`, `UDP`, `ICMPV4`, `ICMPV6`, `IPV6 ENCAPSULATION`, `ANY`. Additional protocols reachable via the console's Advanced (numeric protocol) option: `GRE`, `ESP`, `IGMP`, `IP-IN-IP`. Note: Some protocols have platform restrictions (see platform documentation).
 
 Optional:
 
-- `address_family` (String) Address family for the rule. One of: `IP4`, `IP6`.
+- `address_family` (String) Address family for the rule. One of: `IP4`, `IP6`, `ANY` (`ANY` matches any address family and clears any configured addresses).
 - `description` (String) Description of the firewall rule.
 - `enabled` (Boolean) Whether the rule is enabled.
 - `executable_path` (String) Path to executable that this rule applies to.
-- `fqdn` (String) Fully qualified domain name for the rule. Only valid for outbound rules. Multiple FQDNs can be separated by semicolons.
+- `fqdn` (String) Fully qualified domain name for the rule. Only valid for outbound rules. Multiple FQDNs can be separated by semicolons. Wildcard (`*.example.com`) and glob syntax are supported.
 - `icmp_code` (String) ICMP code for ICMP protocol rules. Use `*` for any.
 - `icmp_type` (String) ICMP type for ICMP protocol rules. Use `*` for any.
 - `local_address` (Attributes List) Local IP addresses for the rule. If empty, matches any local address. (see [below for nested schema](#nestedatt--rules--local_address))
 - `local_port` (Attributes List) Local ports for the rule. Only applicable for TCP/UDP protocols. If empty, matches any port. (see [below for nested schema](#nestedatt--rules--local_port))
-- `log` (Boolean) Enable logging for this rule.
-- `network_location` (String) Network location restriction. One of: `ANY`, or a specific network location ID.
+- `network_location` (String) Network location restriction. One of the built-in values `ANY`, `DOMAIN`, `PRIVATE`, `PUBLIC`, or a custom network location ID. Not supported on Linux (only `ANY` is valid there).
 - `remote_address` (Attributes List) Remote IP addresses for the rule. If empty, matches any remote address. (see [below for nested schema](#nestedatt--rules--remote_address))
 - `remote_port` (Attributes List) Remote ports for the rule. Only applicable for TCP/UDP protocols. If empty, matches any port. (see [below for nested schema](#nestedatt--rules--remote_port))
 - `service_name` (String) Windows service name that this rule applies to. Only valid for Windows platform.
@@ -250,11 +248,11 @@ Read-Only:
 
 Required:
 
-- `address` (String) IP address or `*` for any.
+- `address` (String) IP address for the rule, or `*` to match any address.
 
 Optional:
 
-- `netmask` (Number) CIDR netmask (0-32 for IPv4, 0-128 for IPv6). Use 0 for single IP or any.
+- `netmask` (Number) CIDR netmask. Use 0 for a single IP or any.
 
 
 <a id="nestedatt--rules--local_port"></a>
@@ -274,11 +272,11 @@ Optional:
 
 Required:
 
-- `address` (String) IP address or `*` for any.
+- `address` (String) IP address for the rule, or `*` to match any address.
 
 Optional:
 
-- `netmask` (Number) CIDR netmask (0-32 for IPv4, 0-128 for IPv6). Use 0 for single IP or any.
+- `netmask` (Number) CIDR netmask. Use 0 for a single IP or any.
 
 
 <a id="nestedatt--rules--remote_port"></a>

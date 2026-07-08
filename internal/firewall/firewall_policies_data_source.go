@@ -6,9 +6,12 @@ import (
 	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
+	"github.com/crowdstrike/gofalcon/falcon/client/firewall_management"
 	"github.com/crowdstrike/gofalcon/falcon/client/firewall_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -44,6 +47,13 @@ type firewallPolicyDataModel struct {
 	Description       types.String `tfsdk:"description"`
 	PlatformName      types.String `tfsdk:"platform_name"`
 	Enabled           types.Bool   `tfsdk:"enabled"`
+	HostGroups        types.List   `tfsdk:"host_groups"`
+	RuleGroupIDs      types.List   `tfsdk:"rule_group_ids"`
+	DefaultInbound    types.String `tfsdk:"default_inbound"`
+	DefaultOutbound   types.String `tfsdk:"default_outbound"`
+	Enforce           types.Bool   `tfsdk:"enforce"`
+	MonitorMode       types.Bool   `tfsdk:"monitor_mode"`
+	LocalLogging      types.Bool   `tfsdk:"local_logging"`
 	CreatedBy         types.String `tfsdk:"created_by"`
 	CreatedTimestamp  types.String `tfsdk:"created_timestamp"`
 	ModifiedBy        types.String `tfsdk:"modified_by"`
@@ -57,6 +67,13 @@ func (m firewallPolicyDataModel) AttributeTypes() map[string]attr.Type {
 		"description":        types.StringType,
 		"platform_name":      types.StringType,
 		"enabled":            types.BoolType,
+		"host_groups":        types.ListType{ElemType: types.StringType},
+		"rule_group_ids":     types.ListType{ElemType: types.StringType},
+		"default_inbound":    types.StringType,
+		"default_outbound":   types.StringType,
+		"enforce":            types.BoolType,
+		"monitor_mode":       types.BoolType,
+		"local_logging":      types.BoolType,
 		"created_by":         types.StringType,
 		"created_timestamp":  types.StringType,
 		"modified_by":        types.StringType,
@@ -73,7 +90,11 @@ type firewallPoliciesDataSourceModel struct {
 	Policies     types.List   `tfsdk:"policies"`
 }
 
-func (m *firewallPoliciesDataSourceModel) wrap(ctx context.Context, policies []*models.FirewallPolicyV1) diag.Diagnostics {
+func (m *firewallPoliciesDataSourceModel) wrap(
+	ctx context.Context,
+	policies []*models.FirewallPolicyV1,
+	containers map[string]*models.FwmgrFirewallPolicyContainerV1,
+) diag.Diagnostics {
 	var diags diag.Diagnostics
 	policyModels := make([]firewallPolicyDataModel, 0, len(policies))
 	for _, policy := range policies {
@@ -94,6 +115,25 @@ func (m *firewallPoliciesDataSourceModel) wrap(ctx context.Context, policies []*
 		policyModel.ModifiedBy = types.StringPointerValue(policy.ModifiedBy)
 		if policy.ModifiedTimestamp != nil {
 			policyModel.ModifiedTimestamp = types.StringValue(policy.ModifiedTimestamp.String())
+		}
+
+		hostGroups, d := flex.FlattenHostGroupsToList(ctx, policy.Groups)
+		diags.Append(d...)
+		policyModel.HostGroups = hostGroups
+
+		policyModel.RuleGroupIDs = types.ListNull(types.StringType)
+		if policy.ID != nil {
+			if container, ok := containers[*policy.ID]; ok && container != nil {
+				policyModel.DefaultInbound = flex.StringPointerToFramework(container.DefaultInbound)
+				policyModel.DefaultOutbound = flex.StringPointerToFramework(container.DefaultOutbound)
+				policyModel.Enforce = types.BoolPointerValue(container.Enforce)
+				policyModel.MonitorMode = types.BoolPointerValue(container.TestMode)
+				policyModel.LocalLogging = types.BoolPointerValue(container.LocalLogging)
+
+				ruleGroupList, d := flex.FlattenStringValueList(ctx, container.RuleGroupIds)
+				diags.Append(d...)
+				policyModel.RuleGroupIDs = ruleGroupList
+			}
 		}
 
 		policyModels = append(policyModels, policyModel)
@@ -157,16 +197,16 @@ func (d *firewallPoliciesDataSource) Schema(
 		),
 		Attributes: map[string]schema.Attribute{
 			"filter": schema.StringAttribute{
-				Optional:    true,
-				Description: "FQL filter to apply to the firewall policies query. Cannot be used together with 'ids' or other filter attributes.",
+				Optional:            true,
+				MarkdownDescription: "FQL filter to apply to the firewall policies query. Cannot be used together with 'ids' or other filter attributes.",
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
 			},
 			"ids": schema.ListAttribute{
-				Optional:    true,
-				ElementType: types.StringType,
-				Description: "List of firewall policy IDs to retrieve. Cannot be used together with 'filter' or other filter attributes.",
+				Optional:            true,
+				ElementType:         types.StringType,
+				MarkdownDescription: "List of firewall policy IDs to retrieve. Cannot be used together with 'filter' or other filter attributes.",
 				Validators: []validator.List{
 					listvalidator.ValueStringsAre(
 						stringvalidator.LengthBetween(32, 32),
@@ -176,63 +216,93 @@ func (d *firewallPoliciesDataSource) Schema(
 				},
 			},
 			"name": schema.StringAttribute{
-				Optional:    true,
-				Description: "Filter policies by name. Supports wildcard matching with '*'. Cannot be used together with 'filter' or 'ids'.",
+				Optional:            true,
+				MarkdownDescription: "Filter policies by name. Supports wildcard matching with '*'. Cannot be used together with 'filter' or 'ids'.",
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
 			},
 			"platform_name": schema.StringAttribute{
-				Optional:    true,
-				Description: "Filter policies by platform (Windows, Linux, Mac). Cannot be used together with 'filter' or 'ids'.",
+				Optional:            true,
+				MarkdownDescription: "Filter policies by platform (Windows, Linux, Mac). Cannot be used together with 'filter' or 'ids'.",
 				Validators: []validator.String{
 					stringvalidator.OneOf("Windows", "Linux", "Mac"),
 				},
 			},
 			"enabled": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Filter policies by enabled status. Cannot be used together with 'filter' or 'ids'.",
+				Optional:            true,
+				MarkdownDescription: "Filter policies by enabled status. Cannot be used together with 'filter' or 'ids'.",
 			},
 			"policies": schema.ListNestedAttribute{
-				Computed:    true,
-				Description: "The list of firewall policies",
+				Computed:            true,
+				MarkdownDescription: "The list of firewall policies",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"id": schema.StringAttribute{
-							Computed:    true,
-							Description: "The firewall policy ID",
+							Computed:            true,
+							MarkdownDescription: "The firewall policy ID",
 						},
 						"name": schema.StringAttribute{
-							Computed:    true,
-							Description: "The firewall policy name",
+							Computed:            true,
+							MarkdownDescription: "The firewall policy name",
 						},
 						"description": schema.StringAttribute{
-							Computed:    true,
-							Description: "The firewall policy description",
+							Computed:            true,
+							MarkdownDescription: "The firewall policy description",
 						},
 						"platform_name": schema.StringAttribute{
-							Computed:    true,
-							Description: "The platform name (Windows, Linux, Mac)",
+							Computed:            true,
+							MarkdownDescription: "The platform name (Windows, Linux, Mac)",
 						},
 						"enabled": schema.BoolAttribute{
-							Computed:    true,
-							Description: "Whether the firewall policy is enabled",
+							Computed:            true,
+							MarkdownDescription: "Whether the firewall policy is enabled",
+						},
+						"host_groups": schema.ListAttribute{
+							Computed:            true,
+							ElementType:         types.StringType,
+							MarkdownDescription: "Host group IDs attached to the policy",
+						},
+						"rule_group_ids": schema.ListAttribute{
+							Computed:            true,
+							ElementType:         types.StringType,
+							MarkdownDescription: "Firewall rule group IDs attached to the policy, in precedence order",
+						},
+						"default_inbound": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "The default action for inbound traffic. `ALLOW` is shown as \"Allow all\" in the console; `DENY` as \"Block all\".",
+						},
+						"default_outbound": schema.StringAttribute{
+							Computed:            true,
+							MarkdownDescription: "The default action for outbound traffic. `ALLOW` is shown as \"Allow all\" in the console; `DENY` as \"Block all\".",
+						},
+						"enforce": schema.BoolAttribute{
+							Computed:            true,
+							MarkdownDescription: "Whether the policy's rules override the firewall settings on each assigned host and disable native firewall rules. When false, the policy's rules are not applied.",
+						},
+						"monitor_mode": schema.BoolAttribute{
+							Computed:            true,
+							MarkdownDescription: "Whether monitor mode (labeled \"Monitor mode\" in the Falcon console) is enabled. Overrides all block rules in the policy and turns on monitoring, allowing all traffic while showing block events as \"would be blocked.\"",
+						},
+						"local_logging": schema.BoolAttribute{
+							Computed:            true,
+							MarkdownDescription: "Whether a record of all firewall rule events is saved on the host's local drive to allow for easier troubleshooting.",
 						},
 						"created_by": schema.StringAttribute{
-							Computed:    true,
-							Description: "User who created the policy",
+							Computed:            true,
+							MarkdownDescription: "User who created the policy",
 						},
 						"created_timestamp": schema.StringAttribute{
-							Computed:    true,
-							Description: "Timestamp when the policy was created",
+							Computed:            true,
+							MarkdownDescription: "Timestamp when the policy was created",
 						},
 						"modified_by": schema.StringAttribute{
-							Computed:    true,
-							Description: "User who last modified the policy",
+							Computed:            true,
+							MarkdownDescription: "User who last modified the policy",
 						},
 						"modified_timestamp": schema.StringAttribute{
-							Computed:    true,
-							Description: "Timestamp when the policy was last modified",
+							Computed:            true,
+							MarkdownDescription: "Timestamp when the policy was last modified",
 						},
 					},
 				},
@@ -305,12 +375,62 @@ func (d *firewallPoliciesDataSource) Read(
 		policies = filterFirewallPoliciesByAttributes(policies, &data)
 	}
 
-	resp.Diagnostics.Append(data.wrap(ctx, policies)...)
+	policyIDs := make([]string, 0, len(policies))
+	for _, policy := range policies {
+		if policy != nil && policy.ID != nil {
+			policyIDs = append(policyIDs, *policy.ID)
+		}
+	}
+
+	containers, diags := d.getPolicyContainers(ctx, policyIDs)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(data.wrap(ctx, policies, containers)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
+// getPolicyContainers fetches policy container settings for the given policy IDs,
+// keyed by policy ID. IDs are fetched in batches to stay within request limits.
+func (d *firewallPoliciesDataSource) getPolicyContainers(
+	ctx context.Context,
+	ids []string,
+) (map[string]*models.FwmgrFirewallPolicyContainerV1, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	containers := make(map[string]*models.FwmgrFirewallPolicyContainerV1, len(ids))
+
+	const batchSize = 100
+	for start := 0; start < len(ids); start += batchSize {
+		end := min(start+batchSize, len(ids))
+
+		params := firewall_management.NewGetPolicyContainersParams().
+			WithContext(ctx).
+			WithIds(ids[start:end])
+
+		res, err := d.client.FirewallManagement.GetPolicyContainers(params)
+		if err != nil {
+			diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopesRead))
+			return containers, diags
+		}
+
+		if res == nil || res.Payload == nil {
+			continue
+		}
+
+		for _, container := range res.Payload.Resources {
+			if container != nil && container.PolicyID != nil {
+				containers[*container.PolicyID] = container
+			}
+		}
+	}
+
+	return containers, diags
 }
 
 func (d *firewallPoliciesDataSource) getFirewallPolicies(
@@ -338,10 +458,7 @@ func (d *firewallPoliciesDataSource) getFirewallPolicies(
 
 		res, err := d.client.FirewallPolicies.QueryCombinedFirewallPolicies(params)
 		if err != nil {
-			diags.AddError(
-				"Failed to query firewall policies",
-				fmt.Sprintf("Failed to query firewall policies: %s", err.Error()),
-			)
+			diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopesRead))
 			return allPolicies, diags
 		}
 
