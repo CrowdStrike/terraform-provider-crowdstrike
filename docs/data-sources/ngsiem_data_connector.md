@@ -1,5 +1,5 @@
 ---
-page_title: "crowdstrike_ngsiem_connector Data Source - crowdstrike"
+page_title: "crowdstrike_ngsiem_data_connector Data Source - crowdstrike"
 subcategory: "Next-Gen SIEM"
 description: |-
   Reads a single NG-SIEM connector from the catalog by its exact name, returning its catalog ID, supported parsers, type, and vendor metadata.
@@ -8,7 +8,7 @@ description: |-
   NGSIEM Data Connections API | Read
 ---
 
-# crowdstrike_ngsiem_connector (Data Source)
+# crowdstrike_ngsiem_data_connector (Data Source)
 
 Reads a single NG-SIEM connector from the catalog by its exact name, returning its catalog ID, supported parsers, type, and vendor metadata.
 
@@ -32,16 +32,16 @@ terraform {
 
 provider "crowdstrike" {}
 
-data "crowdstrike_ngsiem_connector" "s3_access_logs" {
+data "crowdstrike_ngsiem_data_connector" "s3_access_logs" {
   name = "Amazon S3 Access Log Data Connector"
 }
 
 output "connector_id" {
-  value = data.crowdstrike_ngsiem_connector.s3_access_logs.id
+  value = data.crowdstrike_ngsiem_data_connector.s3_access_logs.id
 }
 
 output "parsers" {
-  value = data.crowdstrike_ngsiem_connector.s3_access_logs.parsers
+  value = data.crowdstrike_ngsiem_data_connector.s3_access_logs.parsers
 }
 ```
 

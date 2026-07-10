@@ -383,7 +383,8 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		itautomation.NewItAutomationTasksDataSource,
 		containerregistry.NewContainerRegistryDataSource,
 		correlationrules.NewCorrelationRulesDataSource,
-		ngsiem.NewConnectorDataSource,
+		ngsiem.NewDataConnectorDataSource,
+		ngsiem.NewDataConnectorsDataSource,
 	}
 }
 
