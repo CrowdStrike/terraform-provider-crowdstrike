@@ -21,29 +21,29 @@ import (
 )
 
 var (
-	_ datasource.DataSource              = &connectorDataSource{}
-	_ datasource.DataSourceWithConfigure = &connectorDataSource{}
+	_ datasource.DataSource              = &dataConnectorDataSource{}
+	_ datasource.DataSourceWithConfigure = &dataConnectorDataSource{}
 )
 
 const (
-	connectorDataSourceDocumentationSection = "Next-Gen SIEM"
-	connectorDataSourceMarkdownDescription  = "Reads a single NG-SIEM connector from the catalog by its exact name, returning its catalog ID, supported parsers, type, and vendor metadata."
+	dataConnectorDataSourceDocumentationSection = "Next-Gen SIEM"
+	dataConnectorDataSourceMarkdownDescription  = "Reads a single NG-SIEM connector from the catalog by its exact name, returning its catalog ID, supported parsers, type, and vendor metadata."
 )
 
-var connectorDataSourceApiScopes = []scopes.Scope{
+var dataConnectorDataSourceApiScopes = []scopes.Scope{
 	{Name: "NGSIEM Data Connections API", Read: true, Write: false},
 }
 
-// NewConnectorDataSource creates a new NG-SIEM connector data source.
-func NewConnectorDataSource() datasource.DataSource {
-	return &connectorDataSource{}
+// NewDataConnectorDataSource creates a new NG-SIEM connector data source.
+func NewDataConnectorDataSource() datasource.DataSource {
+	return &dataConnectorDataSource{}
 }
 
-type connectorDataSource struct {
+type dataConnectorDataSource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-type connectorDataSourceModel struct {
+type dataConnectorDataSourceModel struct {
 	Name              types.String `tfsdk:"name"`
 	ID                types.String `tfsdk:"id"`
 	Parsers           types.List   `tfsdk:"parsers"`
@@ -55,7 +55,7 @@ type connectorDataSourceModel struct {
 	Subscription      types.String `tfsdk:"subscription"`
 }
 
-func (m *connectorDataSourceModel) wrap(
+func (m *dataConnectorDataSourceModel) wrap(
 	ctx context.Context,
 	connector models.DataconnectionmanagementDataConnector,
 ) diag.Diagnostics {
@@ -80,7 +80,7 @@ func (m *connectorDataSourceModel) wrap(
 	return diags
 }
 
-func (d *connectorDataSource) Configure(
+func (d *dataConnectorDataSource) Configure(
 	_ context.Context,
 	req datasource.ConfigureRequest,
 	resp *datasource.ConfigureResponse,
@@ -104,24 +104,24 @@ func (d *connectorDataSource) Configure(
 	d.client = providerConfig.Client
 }
 
-func (d *connectorDataSource) Metadata(
+func (d *dataConnectorDataSource) Metadata(
 	_ context.Context,
 	req datasource.MetadataRequest,
 	resp *datasource.MetadataResponse,
 ) {
-	resp.TypeName = req.ProviderTypeName + "_ngsiem_connector"
+	resp.TypeName = req.ProviderTypeName + "_ngsiem_data_connector"
 }
 
-func (d *connectorDataSource) Schema(
+func (d *dataConnectorDataSource) Schema(
 	_ context.Context,
 	_ datasource.SchemaRequest,
 	resp *datasource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
-			connectorDataSourceDocumentationSection,
-			connectorDataSourceMarkdownDescription,
-			connectorDataSourceApiScopes,
+			dataConnectorDataSourceDocumentationSection,
+			dataConnectorDataSourceMarkdownDescription,
+			dataConnectorDataSourceApiScopes,
 		),
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
@@ -169,12 +169,12 @@ func (d *connectorDataSource) Schema(
 	}
 }
 
-func (d *connectorDataSource) Read(
+func (d *dataConnectorDataSource) Read(
 	ctx context.Context,
 	req datasource.ReadRequest,
 	resp *datasource.ReadResponse,
 ) {
-	var state connectorDataSourceModel
+	var state dataConnectorDataSourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -188,7 +188,7 @@ func (d *connectorDataSource) Read(
 	res, err := d.client.Ngsiem.ExternalListDataConnectors(params)
 	if err != nil {
 		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(
-			tferrors.Read, err, connectorDataSourceApiScopes,
+			tferrors.Read, err, dataConnectorDataSourceApiScopes,
 		))
 		return
 	}
