@@ -190,10 +190,8 @@ func (r *preventionPolicyPrecedenceResource) Create(
 		return
 	}
 
-	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) {
-		if len(policies) > len(plan.IDs.Elements()) {
-			policies = policies[:len(plan.IDs.Elements())]
-		}
+	if len(policies) > len(plan.IDs.Elements()) {
+		policies = policies[:len(plan.IDs.Elements())]
 	}
 
 	plan.LastUpdated = utils.GenerateUpdateTimestamp()
@@ -218,10 +216,8 @@ func (r *preventionPolicyPrecedenceResource) Read(
 		return
 	}
 
-	if strings.EqualFold(state.Enforcement.ValueString(), dynamicEnforcement) {
-		if len(policies) > len(state.IDs.Elements()) {
-			policies = policies[:len(state.IDs.Elements())]
-		}
+	if len(policies) > len(state.IDs.Elements()) {
+		policies = policies[:len(state.IDs.Elements())]
 	}
 
 	resp.Diagnostics.Append(state.wrap(ctx, policies)...)
@@ -271,10 +267,8 @@ func (r *preventionPolicyPrecedenceResource) Update(
 		return
 	}
 
-	if strings.EqualFold(plan.Enforcement.ValueString(), dynamicEnforcement) {
-		if len(policies) > len(plan.IDs.Elements()) {
-			policies = policies[:len(plan.IDs.Elements())]
-		}
+	if len(policies) > len(plan.IDs.Elements()) {
+		policies = policies[:len(plan.IDs.Elements())]
 	}
 
 	plan.LastUpdated = utils.GenerateUpdateTimestamp()
