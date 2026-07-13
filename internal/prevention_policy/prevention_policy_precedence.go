@@ -20,6 +20,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -310,30 +311,59 @@ func (r *preventionPolicyPrecedenceResource) getPreventionPoliciesByPrecedence(
 
 	filter := fmt.Sprintf("platform_name:'%s'", caser.String(platformName))
 	sort := "precedence.asc"
-	res, err := r.client.PreventionPolicies.QueryCombinedPreventionPolicies(
-		&prevention_policies.QueryCombinedPreventionPoliciesParams{
-			Context: ctx,
-			Filter:  &filter,
-			Sort:    &sort,
-		},
-	)
-	if err != nil {
-		diags.AddError(
-			"Error reading CrowdStrike prevention policies",
-			fmt.Sprintf(
-				"Could not read CrowdStrike prevention policies\n\n %s",
-				err.Error(),
-			),
-		)
-		return policies, diags
-	}
+	limit := int64(5000)
+	offset := int64(0)
 
-	if res != nil && res.Payload != nil {
-		for i, policy := range res.Payload.Resources {
-			if i != len(res.Payload.Resources)-1 {
+	for {
+		res, err := r.client.PreventionPolicies.QueryCombinedPreventionPolicies(
+			&prevention_policies.QueryCombinedPreventionPoliciesParams{
+				Context: ctx,
+				Filter:  &filter,
+				Sort:    &sort,
+				Limit:   &limit,
+				Offset:  &offset,
+			},
+		)
+		if err != nil {
+			diags.AddError(
+				"Error reading CrowdStrike prevention policies",
+				fmt.Sprintf(
+					"Could not read CrowdStrike prevention policies\n\n %s",
+					err.Error(),
+				),
+			)
+			return policies, diags
+		}
+
+		if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
+			break
+		}
+
+		for _, policy := range res.Payload.Resources {
+			if policy != nil && policy.ID != nil {
 				policies = append(policies, *policy.ID)
 			}
 		}
+
+		if res.Payload.Meta == nil || res.Payload.Meta.Pagination == nil ||
+			res.Payload.Meta.Pagination.Offset == nil || res.Payload.Meta.Pagination.Total == nil {
+
+			tflog.Warn(ctx, "Missing pagination metadata in API response, using offset+limit for next page",
+				map[string]interface{}{
+					"meta": res.Payload.Meta,
+				})
+			offset += limit
+			continue
+		}
+
+		offset = int64(*res.Payload.Meta.Pagination.Offset)
+		if offset >= *res.Payload.Meta.Pagination.Total {
+			break
+		}
+	}
+
+	if len(policies) > 0 {
+		policies = policies[:len(policies)-1]
 	}
 
 	return policies, diags
