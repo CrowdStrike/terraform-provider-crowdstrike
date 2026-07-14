@@ -137,6 +137,27 @@ resource "crowdstrike_it_automation_task" "osquery_example" {
   ]
 }
 
+resource "crowdstrike_it_automation_task" "osquery_with_params_exmaple" {
+  name        = "OSQuery Params Example"
+  access_type = "Public"
+  description = "Example task using OSQuery with parameters"
+  type        = "query"
+
+  os_query = "SELECT * FROM file WHERE directory = '{{.dir}}';"
+
+  task_parameters = [
+    {
+      input_type      = "text"
+      validation_type = "filepath"
+      key             = "dir"
+      label           = "Directory to Query"
+      purpose         = "Get all files from a directory"
+      default_value   = "C:\\Windows\\Temp"
+      format_hint     = "Example: C:\\Windows\\Temp"
+    },
+  ]
+}
+
 output "script_content_task" {
   value = crowdstrike_it_automation_task.script_content_example
 }
@@ -155,4 +176,8 @@ output "windows_script_task" {
 
 output "osquery_task" {
   value = crowdstrike_it_automation_task.osquery_example
+}
+
+output "osquery_with_params_example" {
+  value = crowdstrike_it_automation_task.osquery_with_params_exmaple
 }
