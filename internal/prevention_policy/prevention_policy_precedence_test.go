@@ -3,6 +3,7 @@ package preventionpolicy_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/crowdstrike/gofalcon/falcon/client/prevention_policies"
@@ -15,6 +16,9 @@ import (
 )
 
 func TestAccPreventionPolicyPrecedenceResource_strict(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("Acceptance tests skipped unless env 'TF_ACC' set")
+	}
 	acctest.PreCheck(t)
 
 	platformName := "Linux"
