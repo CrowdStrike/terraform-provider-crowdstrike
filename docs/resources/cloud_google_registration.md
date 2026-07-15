@@ -140,6 +140,7 @@ resource "crowdstrike_cloud_google_registration" "example_infrastructure_manager
 - `id` (String) The registration ID
 - `registration_scope` (String) The scope of the registration. One of: `organization`, `folder`, `project`
 - `status` (String) The current status of the registration. Possible values: `partial` (registration is in setup incomplete status), `complete` (registration was setup successfully and validation succeeded), `validation_failed` (registration was setup successfully, but validation failed)
+- `wif_identity_source` (String) Workload Identity Federation identity source
 - `wif_pool_id` (String) Workload Identity Federation pool ID
 - `wif_pool_name` (String) Workload Identity Federation pool name
 - `wif_provider_id` (String) Workload Identity Federation provider ID
