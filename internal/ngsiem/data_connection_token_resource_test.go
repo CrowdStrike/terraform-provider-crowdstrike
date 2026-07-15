@@ -30,7 +30,7 @@ func TestAccNGSIEMDataConnectionTokenResource_basic(t *testing.T) {
 			{
 				Config: testAccNGSIEMDataConnectionTokenConfig(connectorID, rName, "v1"),
 				ConfigStateChecks: []statecheck.StateCheck{
-					stateCheckDataConnectionExists(dataConnectionResourceName),
+					stateCheckDataConnectionExists(),
 					statecheck.ExpectKnownValue(dataConnectionTokenResourceName, tfjsonpath.New("token"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(dataConnectionTokenResourceName, tfjsonpath.New("ingest_url"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(dataConnectionTokenResourceName, tfjsonpath.New("created_at"), knownvalue.NotNull()),
@@ -55,7 +55,7 @@ func TestAccNGSIEMDataConnectionTokenResource_rotate(t *testing.T) {
 			{
 				Config: testAccNGSIEMDataConnectionTokenConfig(connectorID, rName, "v1"),
 				ConfigStateChecks: []statecheck.StateCheck{
-					stateCheckDataConnectionExists(dataConnectionResourceName),
+					stateCheckDataConnectionExists(),
 					statecheck.ExpectKnownValue(dataConnectionTokenResourceName, tfjsonpath.New("token"), knownvalue.NotNull()),
 				},
 			},
@@ -67,7 +67,7 @@ func TestAccNGSIEMDataConnectionTokenResource_rotate(t *testing.T) {
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					stateCheckDataConnectionExists(dataConnectionResourceName),
+					stateCheckDataConnectionExists(),
 					statecheck.ExpectKnownValue(dataConnectionTokenResourceName, tfjsonpath.New("token"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(dataConnectionTokenResourceName, tfjsonpath.New("triggers").AtMapKey("version"), knownvalue.StringExact("v2")),
 				},
@@ -91,7 +91,7 @@ func TestAccNGSIEMDataConnectionTokenResource_disappears(t *testing.T) {
 			{
 				Config: testAccNGSIEMDataConnectionTokenConfig(connectorID, rName, "v1"),
 				ConfigStateChecks: []statecheck.StateCheck{
-					stateCheckDataConnectionExists(dataConnectionResourceName),
+					stateCheckDataConnectionExists(),
 					stateCheckDataConnectionDisappears(dataConnectionResourceName),
 				},
 				ExpectNonEmptyPlan: true,
