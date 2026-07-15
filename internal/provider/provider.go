@@ -353,6 +353,8 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		firewall.NewFirewallPolicyPrecedenceResource,
 		customioc.NewCustomIOCResource,
 		containerregistry.NewContainerRegistryResource,
+		ngsiem.NewDataConnectorConfigResource,
+		ngsiem.NewDataConnectionResource,
 	}
 }
 
