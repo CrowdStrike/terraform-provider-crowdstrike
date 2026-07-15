@@ -355,6 +355,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		containerregistry.NewContainerRegistryResource,
 		ngsiem.NewDataConnectorConfigResource,
 		ngsiem.NewDataConnectionResource,
+		ngsiem.NewDataConnectionTokenResource,
 	}
 }
 
