@@ -9,7 +9,9 @@ import (
 )
 
 // FlattenHostGroupsToSet converts []*models.HostGroupsHostGroupV1 to a Terraform set of host group IDs.
-// Returns null if there are no groups or all groups are nil/have nil IDs.
+// Groups with a nil or empty ID are skipped; in Flight Control setups the API can return
+// placeholder groups with an empty ID for host groups assigned in a child CID.
+// Returns null if there are no groups or all groups are nil/have nil or empty IDs.
 func FlattenHostGroupsToSet(
 	ctx context.Context,
 	groups []*models.HostGroupsHostGroupV1,
@@ -20,7 +22,7 @@ func FlattenHostGroupsToSet(
 
 	groupIDs := make([]string, 0, len(groups))
 	for _, group := range groups {
-		if group != nil && group.ID != nil {
+		if group != nil && group.ID != nil && *group.ID != "" {
 			groupIDs = append(groupIDs, *group.ID)
 		}
 	}
@@ -29,7 +31,9 @@ func FlattenHostGroupsToSet(
 }
 
 // FlattenHostGroupsToList converts []*models.HostGroupsHostGroupV1 to a Terraform list of host group IDs.
-// Returns null if there are no groups or all groups are nil/have nil IDs.
+// Groups with a nil or empty ID are skipped; in Flight Control setups the API can return
+// placeholder groups with an empty ID for host groups assigned in a child CID.
+// Returns null if there are no groups or all groups are nil/have nil or empty IDs.
 func FlattenHostGroupsToList(
 	ctx context.Context,
 	groups []*models.HostGroupsHostGroupV1,
@@ -40,7 +44,7 @@ func FlattenHostGroupsToList(
 
 	groupIDs := make([]string, 0, len(groups))
 	for _, group := range groups {
-		if group != nil && group.ID != nil {
+		if group != nil && group.ID != nil && *group.ID != "" {
 			groupIDs = append(groupIDs, *group.ID)
 		}
 	}

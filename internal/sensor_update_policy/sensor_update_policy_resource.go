@@ -100,6 +100,9 @@ func (d *sensorUpdatePolicyResourceModel) wrap(
 
 		if len(policy.Groups) > 0 {
 			for _, hostGroup := range policy.Groups {
+				if hostGroup == nil || hostGroup.ID == nil || *hostGroup.ID == "" {
+					continue
+				}
 				policyGroups = append(policyGroups, *hostGroup.ID)
 			}
 		}

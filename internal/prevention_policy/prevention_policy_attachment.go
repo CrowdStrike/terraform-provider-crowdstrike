@@ -90,14 +90,14 @@ func (m *preventionPolicyAttachmentResourceModel) wrap(
 	} else {
 		existingHostGroups := make(map[string]bool)
 		for _, hg := range policy.Groups {
-			if hg != nil && hg.ID != nil {
+			if hg != nil && hg.ID != nil && *hg.ID != "" {
 				existingHostGroups[*hg.ID] = true
 			}
 		}
 
 		existingRuleGroups := make(map[string]bool)
 		for _, rg := range policy.IoaRuleGroups {
-			if rg != nil && rg.ID != nil {
+			if rg != nil && rg.ID != nil && *rg.ID != "" {
 				existingRuleGroups[*rg.ID] = true
 			}
 		}

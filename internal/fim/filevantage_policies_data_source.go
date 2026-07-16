@@ -144,7 +144,7 @@ func (m *filevantagePoliciesDataSourceModel) wrap(ctx context.Context, policies 
 		// Convert host groups
 		var hostGroupIDs []string
 		for _, hostGroup := range policy.HostGroups {
-			if hostGroup.ID != nil {
+			if hostGroup != nil && hostGroup.ID != nil && *hostGroup.ID != "" {
 				hostGroupIDs = append(hostGroupIDs, *hostGroup.ID)
 			}
 		}
@@ -158,7 +158,7 @@ func (m *filevantagePoliciesDataSourceModel) wrap(ctx context.Context, policies 
 		// Convert rule groups
 		var ruleGroupIDs []string
 		for _, ruleGroup := range policy.RuleGroups {
-			if ruleGroup != nil && ruleGroup.ID != nil {
+			if ruleGroup != nil && ruleGroup.ID != nil && *ruleGroup.ID != "" {
 				ruleGroupIDs = append(ruleGroupIDs, *ruleGroup.ID)
 			}
 		}

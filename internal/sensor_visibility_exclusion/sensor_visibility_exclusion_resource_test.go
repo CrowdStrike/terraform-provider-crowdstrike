@@ -6,8 +6,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/go-openapi/strfmt"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
@@ -562,4 +566,41 @@ func TestAccSensorVisibilityExclusionResource_AllPermutations(t *testing.T) {
 			return steps
 		}(),
 	})
+}
+
+// TestWrapDropsFlightControlPlaceholderGroups verifies that empty-ID host group
+// placeholders returned by the API in Flight Control setups do not trigger a
+// spurious "Host group mismatch" error and are dropped from state.
+func TestWrapDropsFlightControlPlaceholderGroups(t *testing.T) {
+	now := strfmt.DateTime{}
+
+	exclusion := &models.SvExclusionsSVExclusionV1{
+		ID:              utils.Addr("exclusion-1"),
+		Value:           utils.Addr("/tmp/example"),
+		AppliedGlobally: utils.Addr(false),
+		LastModified:    &now,
+		CreatedOn:       &now,
+		ModifiedBy:      utils.Addr("tester"),
+		CreatedBy:       utils.Addr("tester"),
+		Groups: []*models.HostGroupsHostGroupV1{
+			{ID: utils.Addr("real-group")},
+			{ID: utils.Addr("")}, // flight control placeholder assigned in a child CID
+		},
+	}
+
+	hostGroups, _ := types.SetValueFrom(t.Context(), types.StringType, []string{"real-group"})
+	model := sensorvisibilityexclusion.SensorVisibilityExclusionResourceModel{
+		HostGroups: hostGroups,
+	}
+
+	diags := sensorvisibilityexclusion.WrapExclusion(&model, t.Context(), exclusion, true)
+	if diags.HasError() {
+		t.Fatalf("expected no diagnostics, got: %v", diags.Errors())
+	}
+
+	var got []string
+	model.HostGroups.ElementsAs(t.Context(), &got, false)
+	if len(got) != 1 || got[0] != "real-group" {
+		t.Fatalf("expected host_groups=[real-group], got %v", got)
+	}
 }

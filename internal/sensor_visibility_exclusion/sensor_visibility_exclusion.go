@@ -107,6 +107,9 @@ func (m *SensorVisibilityExclusionResourceModel) wrap(
 
 		if len(exclusion.Groups) > 0 {
 			for _, hostGroup := range exclusion.Groups {
+				if hostGroup == nil || hostGroup.ID == nil || *hostGroup.ID == "" {
+					continue
+				}
 				exclusionGroups = append(exclusionGroups, *hostGroup.ID)
 			}
 		}

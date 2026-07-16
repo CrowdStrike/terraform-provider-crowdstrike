@@ -55,6 +55,23 @@ func TestFlattenHostGroupsToSet(t *testing.T) {
 			},
 			expected: acctest.StringSetOrNull("group1", "group2"),
 		},
+		{
+			name: "groups with empty IDs returns null",
+			groups: []*models.HostGroupsHostGroupV1{
+				{ID: utils.Addr("")},
+				{ID: utils.Addr("")},
+			},
+			expected: acctest.StringSetOrNull(),
+		},
+		{
+			name: "mixed empty-ID placeholders and valid IDs returns set with valid IDs",
+			groups: []*models.HostGroupsHostGroupV1{
+				{ID: utils.Addr("group1")},
+				{ID: utils.Addr("")},
+				{ID: utils.Addr("group2")},
+			},
+			expected: acctest.StringSetOrNull("group1", "group2"),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -107,6 +124,23 @@ func TestFlattenHostGroupsToList(t *testing.T) {
 			groups: []*models.HostGroupsHostGroupV1{
 				{ID: utils.Addr("group1")},
 				{ID: nil},
+				{ID: utils.Addr("group2")},
+			},
+			expected: acctest.StringListOrNull("group1", "group2"),
+		},
+		{
+			name: "groups with empty IDs returns null",
+			groups: []*models.HostGroupsHostGroupV1{
+				{ID: utils.Addr("")},
+				{ID: utils.Addr("")},
+			},
+			expected: acctest.StringListOrNull(),
+		},
+		{
+			name: "mixed empty-ID placeholders and valid IDs returns list with valid IDs",
+			groups: []*models.HostGroupsHostGroupV1{
+				{ID: utils.Addr("group1")},
+				{ID: utils.Addr("")},
 				{ID: utils.Addr("group2")},
 			},
 			expected: acctest.StringListOrNull("group1", "group2"),

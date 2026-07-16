@@ -1,4 +1,7 @@
 package sensorvisibilityexclusion
 
 // Export for testing.
-var FilterExclusionsByAttributes = filterExclusionsByAttributes
+var (
+	FilterExclusionsByAttributes = filterExclusionsByAttributes
+	WrapExclusion                = (*SensorVisibilityExclusionResourceModel).wrap
+)

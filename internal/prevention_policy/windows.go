@@ -10,6 +10,8 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
+	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
+	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -700,12 +702,7 @@ func (r *preventionPolicyWindowsResource) assignRuleGroups(
 	config *preventionPolicyWindowsResourceModel,
 	groups []*models.IoaRuleGroupsRuleGroupV1,
 ) diag.Diagnostics {
-	ruleGroups := make([]types.String, 0, len(groups))
-	for _, ruleGroup := range groups {
-		ruleGroups = append(ruleGroups, types.StringValue(*ruleGroup.ID))
-	}
-
-	ruleGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, ruleGroups)
+	ruleGroupIDs, diags := ioarulegroup.ConvertIOARuleGroupToSet(ctx, groups)
 	config.RuleGroups = ruleGroupIDs
 
 	return diags
@@ -717,12 +714,7 @@ func (r *preventionPolicyWindowsResource) assignHostGroups(
 	config *preventionPolicyWindowsResourceModel,
 	groups []*models.HostGroupsHostGroupV1,
 ) diag.Diagnostics {
-	hostGroups := make([]types.String, 0, len(groups))
-	for _, hostGroup := range groups {
-		hostGroups = append(hostGroups, types.StringValue(*hostGroup.ID))
-	}
-
-	hostGroupIDs, diags := types.SetValueFrom(ctx, types.StringType, hostGroups)
+	hostGroupIDs, diags := hostgroups.ConvertHostGroupsToSet(ctx, groups)
 	config.HostGroups = hostGroupIDs
 
 	return diags

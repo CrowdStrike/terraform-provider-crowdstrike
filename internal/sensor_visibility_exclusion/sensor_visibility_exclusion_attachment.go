@@ -396,13 +396,13 @@ func (r *sensorVisibilityExclusionAttachmentResource) syncHostGroups(
 
 		existingGroups := make(map[string]bool)
 		for _, hg := range currentExclusion.Groups {
-			if hg != nil && hg.ID != nil {
+			if hg != nil && hg.ID != nil && *hg.ID != "" {
 				existingGroups[*hg.ID] = true
 			}
 		}
 
 		for _, existingGroup := range currentExclusion.Groups {
-			if existingGroup != nil && existingGroup.ID != nil {
+			if existingGroup != nil && existingGroup.ID != nil && *existingGroup.ID != "" {
 				shouldRemove := false
 				for _, removeGroup := range groupsToRemove {
 					if *existingGroup.ID == removeGroup {

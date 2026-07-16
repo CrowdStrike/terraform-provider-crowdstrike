@@ -9,9 +9,12 @@ import (
 	"testing"
 	"text/template"
 
+	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
@@ -1520,4 +1523,44 @@ resource "crowdstrike_sensor_update_policy" "test" {
 			},
 		},
 	})
+}
+
+// TestWrapDropsFlightControlPlaceholderGroups verifies that empty-ID host group
+// placeholders returned by the API in Flight Control setups do not trigger a
+// spurious "Host group mismatch" error and are dropped from state.
+func TestWrapDropsFlightControlPlaceholderGroups(t *testing.T) {
+	build := "1234"
+
+	policy := models.SensorUpdatePolicyV2{
+		ID:           utils.Addr("policy-1"),
+		Name:         utils.Addr("test"),
+		Description:  utils.Addr("test"),
+		Enabled:      utils.Addr(true),
+		PlatformName: utils.Addr("Windows"),
+		Settings: &models.SensorUpdateSettingsRespV2{
+			Build:               utils.Addr(build),
+			UninstallProtection: utils.Addr("DISABLED"),
+		},
+		Groups: []*models.HostGroupsHostGroupV1{
+			{ID: utils.Addr("real-group")},
+			{ID: utils.Addr("")}, // flight control placeholder assigned in a child CID
+		},
+	}
+
+	hostGroups, _ := types.SetValueFrom(t.Context(), types.StringType, []string{"real-group"})
+	model := sensorupdatepolicy.SensorUpdatePolicyResourceModel{
+		Build:      types.StringValue(build),
+		HostGroups: hostGroups,
+	}
+
+	diags := sensorupdatepolicy.WrapSensorUpdatePolicy(&model, t.Context(), policy, false, true)
+	if diags.HasError() {
+		t.Fatalf("expected no diagnostics, got: %v", diags.Errors())
+	}
+
+	var got []string
+	model.HostGroups.ElementsAs(t.Context(), &got, false)
+	if len(got) != 1 || got[0] != "real-group" {
+		t.Fatalf("expected host_groups=[real-group], got %v", got)
+	}
 }
