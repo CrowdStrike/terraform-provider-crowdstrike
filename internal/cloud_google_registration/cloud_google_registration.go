@@ -145,6 +145,7 @@ type cloudGoogleRegistrationResourceModel struct {
 	WifProjectNumber            types.String `tfsdk:"wif_project_number"`
 	WifProviderID               types.String `tfsdk:"wif_provider_id"`
 	WifProviderName             types.String `tfsdk:"wif_provider_name"`
+	WifIdentitySource           types.String `tfsdk:"wif_identity_source"`
 }
 
 func (m *cloudGoogleRegistrationResourceModel) getEntityIDs(ctx context.Context) ([]string, diag.Diagnostics) {
@@ -250,7 +251,7 @@ func (m *cloudGoogleRegistrationResourceModel) wrap(
 		m.Tags = tags
 	}
 
-	var wifProjectID, wifPoolID, wifPoolName, wifProjectNumber, wifProviderID, wifProviderName string
+	var wifProjectID, wifPoolID, wifPoolName, wifProjectNumber, wifProviderID, wifProviderName, wifIdentitySource string
 	if registration.WifProperties != nil {
 		wifProjectID = registration.WifProperties.ProjectID
 		wifPoolID = registration.WifProperties.PoolID
@@ -258,6 +259,7 @@ func (m *cloudGoogleRegistrationResourceModel) wrap(
 		wifProjectNumber = registration.WifProperties.ProjectNumber
 		wifProviderID = registration.WifProperties.ProviderID
 		wifProviderName = registration.WifProperties.ProviderName
+		wifIdentitySource = registration.WifProperties.IdentitySource
 	}
 	m.WifProjectID = flex.StringValueToFramework(wifProjectID)
 	m.WifPoolID = flex.StringValueToFramework(wifPoolID)
@@ -265,6 +267,7 @@ func (m *cloudGoogleRegistrationResourceModel) wrap(
 	m.WifProjectNumber = flex.StringValueToFramework(wifProjectNumber)
 	m.WifProviderID = flex.StringValueToFramework(wifProviderID)
 	m.WifProviderName = flex.StringValueToFramework(wifProviderName)
+	m.WifIdentitySource = flex.StringValueToFramework(wifIdentitySource)
 
 	hasIOA := false
 	hasDSPM := false
@@ -599,6 +602,10 @@ func (r *cloudGoogleRegistrationResource) Schema(
 			"wif_provider_name": schema.StringAttribute{
 				Computed:    true,
 				Description: "Workload Identity Federation provider name",
+			},
+			"wif_identity_source": schema.StringAttribute{
+				Computed:    true,
+				Description: "Workload Identity Federation identity source",
 			},
 		},
 	}

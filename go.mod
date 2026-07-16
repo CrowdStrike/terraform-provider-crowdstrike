@@ -3,7 +3,7 @@ module github.com/crowdstrike/terraform-provider-crowdstrike
 go 1.24.3
 
 require (
-	github.com/crowdstrike/gofalcon v0.21.1-0.20260630210305-0f789201d49e
+	github.com/crowdstrike/gofalcon v0.21.1-0.20260714161657-21b34ca8aee1
 	github.com/go-openapi/errors v0.22.0
 	github.com/go-openapi/runtime v0.27.1
 	github.com/go-openapi/strfmt v0.23.0
@@ -99,7 +99,7 @@ require (
 	github.com/yuin/goldmark-meta v1.1.0 // indirect
 	github.com/zclconf/go-cty v1.17.0 // indirect
 	go.abhg.dev/goldmark/frontmatter v0.2.0 // indirect
-	go.mongodb.org/mongo-driver v1.17.2 // indirect
+	go.mongodb.org/mongo-driver v1.17.7 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel v1.37.0 // indirect
 	go.opentelemetry.io/otel/metric v1.37.0 // indirect

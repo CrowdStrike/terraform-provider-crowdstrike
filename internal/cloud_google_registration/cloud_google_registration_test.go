@@ -66,6 +66,7 @@ func TestAccCloudGoogleRegistrationResource_Complete(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("status"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_pool_id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_provider_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_identity_source"), knownvalue.NotNull()),
 				},
 			},
 			{
@@ -130,6 +131,7 @@ func TestAccCloudGoogleRegistrationResource_Project(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("status"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_pool_id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_provider_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_identity_source"), knownvalue.NotNull()),
 				},
 			},
 			{
@@ -150,6 +152,7 @@ func TestAccCloudGoogleRegistrationResource_Project(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("status"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_pool_id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_provider_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_identity_source"), knownvalue.NotNull()),
 				},
 			},
 		},
@@ -180,6 +183,7 @@ func TestAccCloudGoogleRegistrationResource_Organization(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("status"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_pool_id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_provider_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_identity_source"), knownvalue.NotNull()),
 				},
 			},
 			{
@@ -198,6 +202,7 @@ func TestAccCloudGoogleRegistrationResource_Organization(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("status"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_pool_id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_provider_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_identity_source"), knownvalue.NotNull()),
 				},
 			},
 		},
@@ -225,6 +230,7 @@ func TestAccCloudGoogleRegistrationResource_RealtimeVisibility(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("status"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_pool_id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_provider_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_identity_source"), knownvalue.NotNull()),
 				},
 			},
 			{
