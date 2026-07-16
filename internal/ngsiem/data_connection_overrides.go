@@ -150,3 +150,50 @@ func withCreateConnectorConfigReader(reader *createConnectorConfigReader) ngsiem
 		op.Reader = reader
 	}
 }
+
+// The ExternalRegenerateDataConnectionToken 200 body is the standard envelope
+// `{ meta, resources: { token, ingest_url, created_at, expires_at } }`, but the
+// generated model types `resources` as an array
+// (`[]*DataconnectionmanagementConnectionToken`) while the API returns a single
+// object. The generated reader therefore fails with "cannot unmarshal object
+// into ... resources of type []*...". The reader below parses the real object
+// shape. Other status codes (notably 202 ConnectionNotReady) are delegated to
+// the generated reader.
+
+// regenerateTokenResponse mirrors the 200 envelope the API actually returns for
+// ExternalRegenerateDataConnectionToken.
+type regenerateTokenResponse struct {
+	Meta      *models.MsaMetaInfo                             `json:"meta"`
+	Errors    []*models.MsaAPIError                           `json:"errors"`
+	Resources *models.DataconnectionmanagementConnectionToken `json:"resources"`
+}
+
+// regenerateTokenReader deserializes the ExternalRegenerateDataConnectionToken
+// 200 response into regenerateTokenResponse, delegating all other status codes
+// to the generated reader.
+type regenerateTokenReader struct {
+	original runtime.ClientResponseReader
+	response *regenerateTokenResponse
+}
+
+func (r *regenerateTokenReader) ReadResponse(response runtime.ClientResponse, consumer runtime.Consumer) (any, error) {
+	if response.Code() == 200 {
+		body := &regenerateTokenResponse{}
+		if err := consumer.Consume(response.Body(), body); err != nil && err != io.EOF {
+			return nil, err
+		}
+		r.response = body
+		return ngsiem.NewExternalRegenerateDataConnectionTokenOK(), nil
+	}
+	return r.original.ReadResponse(response, consumer)
+}
+
+// withRegenerateTokenReader returns a ClientOption that swaps in a reader
+// parsing the real 200 envelope. The reader stores the parsed body so the caller
+// can read the minted token after the call returns.
+func withRegenerateTokenReader(reader *regenerateTokenReader) ngsiem.ClientOption {
+	return func(op *runtime.ClientOperation) {
+		reader.original = op.Reader
+		op.Reader = reader
+	}
+}

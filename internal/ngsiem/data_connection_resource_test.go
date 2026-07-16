@@ -64,7 +64,7 @@ func TestAccNGSIEMDataConnectionResource_Pull(t *testing.T) {
 			{
 				Config: testAccNGSIEMDataConnectionConfig_pull(connectorID, rName, ""),
 				ConfigStateChecks: []statecheck.StateCheck{
-					stateCheckDataConnectionExists(dataConnectionResourceName),
+					stateCheckDataConnectionExists(),
 					statecheck.ExpectKnownValue(dataConnectionResourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(dataConnectionResourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
 					statecheck.ExpectKnownValue(dataConnectionResourceName, tfjsonpath.New("connector_id"), knownvalue.StringExact(connectorID)),
@@ -140,7 +140,7 @@ func TestAccNGSIEMDataConnectionResource_Push(t *testing.T) {
 				// Step 1: required attributes only.
 				Config: testAccNGSIEMDataConnectionConfig_push(connectorID, rName, false),
 				ConfigStateChecks: []statecheck.StateCheck{
-					stateCheckDataConnectionExists(dataConnectionResourceName),
+					stateCheckDataConnectionExists(),
 					statecheck.ExpectKnownValue(dataConnectionResourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
 					statecheck.ExpectKnownValue(dataConnectionResourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
 					statecheck.ExpectKnownValue(dataConnectionResourceName, tfjsonpath.New("connector_id"), knownvalue.StringExact(connectorID)),
@@ -225,7 +225,7 @@ func TestAccNGSIEMDataConnectionResource_disappears(t *testing.T) {
 			{
 				Config: testAccNGSIEMDataConnectionConfig_push(connectorID, rName, false),
 				ConfigStateChecks: []statecheck.StateCheck{
-					stateCheckDataConnectionExists(dataConnectionResourceName),
+					stateCheckDataConnectionExists(),
 					stateCheckDataConnectionDisappears(dataConnectionResourceName),
 				},
 				ExpectNonEmptyPlan: true,
@@ -356,8 +356,8 @@ func (c dataConnectionExistsCheck) CheckState(ctx context.Context, req statechec
 
 // stateCheckDataConnectionExists asserts the connection at the given address
 // exists in the API.
-func stateCheckDataConnectionExists(name string) statecheck.StateCheck {
-	return dataConnectionExistsCheck{resourceAddress: name}
+func stateCheckDataConnectionExists() statecheck.StateCheck {
+	return dataConnectionExistsCheck{resourceAddress: dataConnectionResourceName}
 }
 
 // dataConnectionDisappearsCheck deletes the connection at the given address via
