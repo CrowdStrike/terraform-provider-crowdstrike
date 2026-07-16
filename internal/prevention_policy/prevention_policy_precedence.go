@@ -409,62 +409,49 @@ func (r *preventionPolicyPrecedenceResource) getPreventionPoliciesByPrecedence(
 		nonDefault = append(nonDefault, ref)
 	}
 
-	if len(nonDefault) == 0 {
+	distinct := distinctCIDs(nonDefault)
+	var ownCID string
+	switch len(distinct) {
+	case 0:
 		return []string{}, diags
-	}
-
-	ownCID, cidDiags := r.resolveCallerCID(ctx, nonDefault)
-	diags.Append(cidDiags...)
-	if diags.HasError() {
-		return nil, diags
+	case 1:
+		ownCID = distinct[0]
+	default:
+		cid, err := r.getCallerCID(ctx)
+		if err != nil {
+			tflog.Warn(ctx, "Could not resolve authenticated CID from the sensor installers CCID endpoint",
+				map[string]interface{}{
+					"error": err.Error(),
+				})
+			diags.AddError(
+				"Unable to determine the authenticated CID",
+				"Prevention policies from multiple CIDs were returned, which happens in a Flight Control (MSSP) environment. "+
+					"The provider could not determine which CID it is authenticated as to scope precedence correctly. "+
+					"Grant the `Sensor Download: Read` scope to the API client so the authenticated CID can be resolved.",
+			)
+			return nil, diags
+		}
+		ownCID = cid
 	}
 
 	return filterPoliciesByCID(nonDefault, ownCID), diags
 }
 
-// resolveCallerCID determines the CID authenticated by the provider so precedence can be
-// scoped to the caller's own policies.
-//
-// The authoritative source is the sensor installers CCID endpoint (requires the
-// Sensor Download: Read scope). When that lookup is unavailable the caller's CID is
-// inferred from the policies themselves: a single distinct CID is unambiguously the
-// caller's, but multiple distinct CIDs (a Flight Control hierarchy without the scope
-// granted) cannot be disambiguated and produce an error rather than a silent guess.
-func (r *preventionPolicyPrecedenceResource) resolveCallerCID(
-	ctx context.Context,
-	policies []policyRef,
-) (string, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
+// getCallerCID returns the CID authenticated by the provider, normalized to the
+// lowercase 32-character form used in policy responses. It reads the sensor installers
+// CCID endpoint, which requires the Sensor Download: Read scope.
+func (r *preventionPolicyPrecedenceResource) getCallerCID(ctx context.Context) (string, error) {
 	res, err := r.client.SensorDownload.GetSensorInstallersCCIDByQuery(
 		sensor_download.NewGetSensorInstallersCCIDByQueryParamsWithContext(ctx),
 	)
-	if err == nil && res != nil && res.Payload != nil && len(res.Payload.Resources) > 0 {
-		return stripChecksum(res.Payload.Resources[0]), diags
-	}
-
 	if err != nil {
-		tflog.Warn(ctx, "Could not resolve authenticated CID from the sensor installers CCID endpoint, falling back to policy CIDs",
-			map[string]interface{}{
-				"error": err.Error(),
-			})
+		return "", err
+	}
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
+		return "", fmt.Errorf("ccid query returned no data")
 	}
 
-	distinct := distinctCIDs(policies)
-	switch len(distinct) {
-	case 0:
-		return "", diags
-	case 1:
-		return distinct[0], diags
-	default:
-		diags.AddError(
-			"Unable to determine the authenticated CID",
-			"Prevention policies from multiple CIDs were returned, which happens in a Flight Control (MSSP) environment. "+
-				"The provider could not determine which CID it is authenticated as to scope precedence correctly. "+
-				"Grant the `Sensor Download: Read` scope to the API client so the authenticated CID can be resolved.",
-		)
-		return "", diags
-	}
+	return stripChecksum(res.Payload.Resources[0]), nil
 }
 
 // filterPoliciesByCID returns the ids of policies belonging to cid, preserving order.
