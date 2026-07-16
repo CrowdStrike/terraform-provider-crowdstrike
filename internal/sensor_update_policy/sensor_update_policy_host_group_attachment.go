@@ -79,7 +79,7 @@ func (d *sensorUpdatePolicyHostGroupAttachmentResourceModel) wrap(
 	} else {
 		existingHostGroups := make(map[string]bool)
 		for _, hg := range policy.Groups {
-			if hg != nil && hg.ID != nil {
+			if hg != nil && hg.ID != nil && *hg.ID != "" {
 				existingHostGroups[*hg.ID] = true
 			}
 		}

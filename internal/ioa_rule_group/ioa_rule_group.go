@@ -10,11 +10,13 @@ import (
 )
 
 // convertIOARuleGroupsToIDs converts []*models.IoaRuleGroupsRuleGroupV1 to a slice of types.String.
+// Groups with a nil or empty ID are skipped; in Flight Control setups the API can return
+// placeholder groups with an empty ID for rule groups assigned in a child CID.
 // The returned []types.String will never be null.
 func convertIOARuleGroupsToIDs(ioaRuleGroups []*models.IoaRuleGroupsRuleGroupV1) []types.String {
 	ioaIDs := make([]types.String, 0, len(ioaRuleGroups))
 	for _, group := range ioaRuleGroups {
-		if group != nil && group.ID != nil {
+		if group != nil && group.ID != nil && *group.ID != "" {
 			ioaIDs = append(ioaIDs, types.StringPointerValue(group.ID))
 		}
 	}

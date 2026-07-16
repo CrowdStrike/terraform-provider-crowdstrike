@@ -186,6 +186,9 @@ func updateRuleGroups(
 			groups := r.IoaRuleGroups
 
 			for _, group := range groups {
+				if group == nil || group.ID == nil || *group.ID == "" {
+					continue
+				}
 				returnedRuleGroups[*group.ID] = true
 			}
 		}
@@ -542,6 +545,9 @@ func updateHostGroups(
 			groups := r.Groups
 
 			for _, group := range groups {
+				if group == nil || group.ID == nil || *group.ID == "" {
+					continue
+				}
 				returnedHostGroups[*group.ID] = true
 			}
 		}

@@ -23,11 +23,13 @@ func (h HostGroupAction) String() string {
 }
 
 // convertHostGroupsToIDs converts []*models.HostGroupsHostGroupV1 to a slice of types.String.
+// Groups with a nil or empty ID are skipped; in Flight Control setups the API can return
+// placeholder groups with an empty ID for host groups assigned in a child CID.
 // The returned []types.String will never be null.
 func convertHostGroupsToIDs(groups []*models.HostGroupsHostGroupV1) []types.String {
 	groupIDs := make([]types.String, 0, len(groups))
 	for _, group := range groups {
-		if group != nil && group.ID != nil {
+		if group != nil && group.ID != nil && *group.ID != "" {
 			groupIDs = append(groupIDs, types.StringPointerValue(group.ID))
 		}
 	}

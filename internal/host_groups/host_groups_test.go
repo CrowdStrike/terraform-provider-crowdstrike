@@ -1,4 +1,4 @@
-package ioarulegroup
+package hostgroups
 
 import (
 	"testing"
@@ -9,15 +9,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestConvertIOARuleGroupsToIDs(t *testing.T) {
+func TestConvertHostGroupsToIDs(t *testing.T) {
 	tests := []struct {
 		name     string
-		groups   []*models.IoaRuleGroupsRuleGroupV1
+		groups   []*models.HostGroupsHostGroupV1
 		expected []types.String
 	}{
 		{
 			name:     "empty slice",
-			groups:   []*models.IoaRuleGroupsRuleGroupV1{},
+			groups:   []*models.HostGroupsHostGroupV1{},
 			expected: []types.String{},
 		},
 		{
@@ -27,35 +27,35 @@ func TestConvertIOARuleGroupsToIDs(t *testing.T) {
 		},
 		{
 			name: "nil entry",
-			groups: []*models.IoaRuleGroupsRuleGroupV1{
+			groups: []*models.HostGroupsHostGroupV1{
 				nil,
 			},
 			expected: []types.String{},
 		},
 		{
 			name: "entry with nil ID",
-			groups: []*models.IoaRuleGroupsRuleGroupV1{
+			groups: []*models.HostGroupsHostGroupV1{
 				{ID: nil},
 			},
 			expected: []types.String{},
 		},
 		{
 			name: "entry with empty ID (flight control placeholder)",
-			groups: []*models.IoaRuleGroupsRuleGroupV1{
+			groups: []*models.HostGroupsHostGroupV1{
 				{ID: utils.Addr("")},
 			},
 			expected: []types.String{},
 		},
 		{
 			name: "single valid entry",
-			groups: []*models.IoaRuleGroupsRuleGroupV1{
+			groups: []*models.HostGroupsHostGroupV1{
 				{ID: utils.Addr("id-1")},
 			},
 			expected: []types.String{types.StringValue("id-1")},
 		},
 		{
 			name: "multiple valid entries",
-			groups: []*models.IoaRuleGroupsRuleGroupV1{
+			groups: []*models.HostGroupsHostGroupV1{
 				{ID: utils.Addr("id-1")},
 				{ID: utils.Addr("id-2")},
 				{ID: utils.Addr("id-3")},
@@ -68,7 +68,7 @@ func TestConvertIOARuleGroupsToIDs(t *testing.T) {
 		},
 		{
 			name: "mixed nil and valid entries",
-			groups: []*models.IoaRuleGroupsRuleGroupV1{
+			groups: []*models.HostGroupsHostGroupV1{
 				{ID: utils.Addr("id-1")},
 				nil,
 				{ID: nil},
@@ -81,7 +81,7 @@ func TestConvertIOARuleGroupsToIDs(t *testing.T) {
 		},
 		{
 			name: "mixed empty-ID placeholders and valid entries",
-			groups: []*models.IoaRuleGroupsRuleGroupV1{
+			groups: []*models.HostGroupsHostGroupV1{
 				{ID: utils.Addr("id-1")},
 				{ID: utils.Addr("")},
 				{ID: utils.Addr("id-2")},
@@ -96,26 +96,26 @@ func TestConvertIOARuleGroupsToIDs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := convertIOARuleGroupsToIDs(tt.groups)
+			result := convertHostGroupsToIDs(tt.groups)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-func TestConvertIOARuleGroupToSet(t *testing.T) {
+func TestConvertHostGroupsToSet(t *testing.T) {
 	tests := []struct {
 		name          string
-		groups        []*models.IoaRuleGroupsRuleGroupV1
+		groups        []*models.HostGroupsHostGroupV1
 		expectedCount int
 	}{
 		{
 			name:          "empty slice",
-			groups:        []*models.IoaRuleGroupsRuleGroupV1{},
+			groups:        []*models.HostGroupsHostGroupV1{},
 			expectedCount: 0,
 		},
 		{
 			name: "valid entries",
-			groups: []*models.IoaRuleGroupsRuleGroupV1{
+			groups: []*models.HostGroupsHostGroupV1{
 				{ID: utils.Addr("id-1")},
 				{ID: utils.Addr("id-2")},
 			},
@@ -123,7 +123,7 @@ func TestConvertIOARuleGroupToSet(t *testing.T) {
 		},
 		{
 			name: "skips nil entries",
-			groups: []*models.IoaRuleGroupsRuleGroupV1{
+			groups: []*models.HostGroupsHostGroupV1{
 				{ID: utils.Addr("id-1")},
 				nil,
 				{ID: utils.Addr("id-2")},
@@ -132,7 +132,7 @@ func TestConvertIOARuleGroupToSet(t *testing.T) {
 		},
 		{
 			name: "skips empty-ID placeholders",
-			groups: []*models.IoaRuleGroupsRuleGroupV1{
+			groups: []*models.HostGroupsHostGroupV1{
 				{ID: utils.Addr("id-1")},
 				{ID: utils.Addr("")},
 				{ID: utils.Addr("id-2")},
@@ -143,29 +143,30 @@ func TestConvertIOARuleGroupToSet(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, diags := ConvertIOARuleGroupToSet(t.Context(), tt.groups)
+			result, diags := ConvertHostGroupsToSet(t.Context(), tt.groups)
 			assert.False(t, diags.HasError())
+			assert.False(t, result.IsNull())
 			assert.Len(t, result.Elements(), tt.expectedCount)
 		})
 	}
 }
 
-func TestConvertIOARuleGroupToList(t *testing.T) {
+func TestConvertHostGroupsToList(t *testing.T) {
 	tests := []struct {
 		name          string
-		groups        []*models.IoaRuleGroupsRuleGroupV1
+		groups        []*models.HostGroupsHostGroupV1
 		expectedCount int
 		expectedIDs   []string
 	}{
 		{
 			name:          "empty slice",
-			groups:        []*models.IoaRuleGroupsRuleGroupV1{},
+			groups:        []*models.HostGroupsHostGroupV1{},
 			expectedCount: 0,
 			expectedIDs:   []string{},
 		},
 		{
 			name: "preserves order",
-			groups: []*models.IoaRuleGroupsRuleGroupV1{
+			groups: []*models.HostGroupsHostGroupV1{
 				{ID: utils.Addr("id-b")},
 				{ID: utils.Addr("id-a")},
 			},
@@ -174,7 +175,7 @@ func TestConvertIOARuleGroupToList(t *testing.T) {
 		},
 		{
 			name: "drops empty-ID placeholders and preserves order",
-			groups: []*models.IoaRuleGroupsRuleGroupV1{
+			groups: []*models.HostGroupsHostGroupV1{
 				{ID: utils.Addr("id-b")},
 				{ID: utils.Addr("")},
 				{ID: utils.Addr("id-a")},
@@ -186,7 +187,7 @@ func TestConvertIOARuleGroupToList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, diags := ConvertIOARuleGroupToList(t.Context(), tt.groups)
+			result, diags := ConvertHostGroupsToList(t.Context(), tt.groups)
 			assert.False(t, diags.HasError())
 			assert.Len(t, result.Elements(), tt.expectedCount)
 

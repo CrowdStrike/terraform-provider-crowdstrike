@@ -652,7 +652,7 @@ func convertHostGroupsToSet(
 ) (types.Set, diag.Diagnostics) {
 	var hostGroups []string
 	for _, hostGroup := range groups {
-		if hostGroup != nil && hostGroup.ID != nil {
+		if hostGroup != nil && hostGroup.ID != nil && *hostGroup.ID != "" {
 			hostGroups = append(hostGroups, *hostGroup.ID)
 		}
 	}
@@ -666,7 +666,7 @@ func convertRuleGroupsToSet(
 ) (types.Set, diag.Diagnostics) {
 	var ruleGroups []string
 	for _, ruleGroup := range groups {
-		if ruleGroup != nil && ruleGroup.ID != nil {
+		if ruleGroup != nil && ruleGroup.ID != nil && *ruleGroup.ID != "" {
 			ruleGroups = append(ruleGroups, *ruleGroup.ID)
 		}
 	}

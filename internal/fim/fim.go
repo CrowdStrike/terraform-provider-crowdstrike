@@ -931,6 +931,9 @@ func (r *fimPolicyResource) assignHostGroups(
 ) diag.Diagnostics {
 	var hostGroups []string
 	for _, hostGroup := range groups {
+		if hostGroup == nil || hostGroup.ID == nil || *hostGroup.ID == "" {
+			continue
+		}
 		hostGroups = append(hostGroups, *hostGroup.ID)
 	}
 
@@ -1043,6 +1046,9 @@ func (r *fimPolicyResource) assignRuleGroups(
 ) diag.Diagnostics {
 	var ruleGroups []string
 	for _, ruleGroup := range groups {
+		if ruleGroup == nil || ruleGroup.ID == nil || *ruleGroup.ID == "" {
+			continue
+		}
 		ruleGroups = append(ruleGroups, *ruleGroup.ID)
 	}
 
