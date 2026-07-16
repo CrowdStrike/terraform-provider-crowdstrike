@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/prevention_policies"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_download"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	preventionpolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/prevention_policy"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
@@ -149,4 +150,143 @@ resource "crowdstrike_prevention_policy_precedence" "test" {
 %s  ]
 }
 `, platformName, quoted)
+}
+
+func TestFilterPoliciesByCID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		policies []preventionpolicy.PolicyRef
+		cid      string
+		want     []string
+	}{
+		{
+			name: "keeps only matching cid preserving order",
+			policies: []preventionpolicy.PolicyRef{
+				preventionpolicy.NewPolicyRef("a", "010abf4b", ""),
+				preventionpolicy.NewPolicyRef("b", "2436580c", ""),
+				preventionpolicy.NewPolicyRef("c", "010abf4b", ""),
+			},
+			cid:  "010abf4b",
+			want: []string{"a", "c"},
+		},
+		{
+			name: "case insensitive cid match",
+			policies: []preventionpolicy.PolicyRef{
+				preventionpolicy.NewPolicyRef("a", "010ABF4B", ""),
+			},
+			cid:  "010abf4b",
+			want: []string{"a"},
+		},
+		{
+			name: "no matches returns empty",
+			policies: []preventionpolicy.PolicyRef{
+				preventionpolicy.NewPolicyRef("a", "2436580c", ""),
+			},
+			cid:  "010abf4b",
+			want: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := preventionpolicy.FilterPoliciesByCID(tt.policies, tt.cid)
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Fatalf("got %v, want %v", got, tt.want)
+				}
+			}
+		})
+	}
+}
+
+func TestDistinctCIDs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		policies []preventionpolicy.PolicyRef
+		want     []string
+	}{
+		{
+			name: "single cid",
+			policies: []preventionpolicy.PolicyRef{
+				preventionpolicy.NewPolicyRef("a", "010abf4b", ""),
+				preventionpolicy.NewPolicyRef("b", "010abf4b", ""),
+			},
+			want: []string{"010abf4b"},
+		},
+		{
+			name: "multiple distinct cids first-seen order",
+			policies: []preventionpolicy.PolicyRef{
+				preventionpolicy.NewPolicyRef("a", "2436580c", ""),
+				preventionpolicy.NewPolicyRef("b", "010abf4b", ""),
+				preventionpolicy.NewPolicyRef("c", "2436580c", ""),
+			},
+			want: []string{"2436580c", "010abf4b"},
+		},
+		{
+			name: "empty cids skipped",
+			policies: []preventionpolicy.PolicyRef{
+				preventionpolicy.NewPolicyRef("a", "", ""),
+				preventionpolicy.NewPolicyRef("b", "010abf4b", ""),
+			},
+			want: []string{"010abf4b"},
+		},
+		{
+			name:     "no policies",
+			policies: []preventionpolicy.PolicyRef{},
+			want:     nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := preventionpolicy.DistinctCIDs(tt.policies)
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Fatalf("got %v, want %v", got, tt.want)
+				}
+			}
+		})
+	}
+}
+
+func TestStripChecksum(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "uppercase ccid with checksum",
+			in:   "010ABF4B1BA04B7DA3F240A4C56657AC-C1",
+			want: "010abf4b1ba04b7da3f240a4c56657ac",
+		},
+		{
+			name: "no checksum suffix",
+			in:   "010ABF4B1BA04B7DA3F240A4C56657AC",
+			want: "010abf4b1ba04b7da3f240a4c56657ac",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := preventionpolicy.StripChecksum(tt.in); got != tt.want {
+				t.Fatalf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
 }
