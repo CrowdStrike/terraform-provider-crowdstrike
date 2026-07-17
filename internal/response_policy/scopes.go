@@ -9,3 +9,15 @@ var apiScopesReadWrite = []scopes.Scope{
 		Write: true,
 	},
 }
+
+var precedenceAPIScopes = []scopes.Scope{
+	{
+		Name:  "Response Policies",
+		Read:  true,
+		Write: true,
+	},
+	{
+		Name: "Sensor Download",
+		Read: true,
+	},
+}
