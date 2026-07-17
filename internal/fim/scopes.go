@@ -17,3 +17,15 @@ var apiScopesReadWrite = []scopes.Scope{
 		Write: true,
 	},
 }
+
+var precedenceRequiredScopes = []scopes.Scope{
+	{
+		Name:  "Falcon FileVantage",
+		Read:  true,
+		Write: true,
+	},
+	{
+		Name: "Sensor Download",
+		Read: true,
+	},
+}
