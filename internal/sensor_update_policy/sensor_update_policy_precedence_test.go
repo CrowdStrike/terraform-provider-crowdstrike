@@ -24,35 +24,39 @@ func TestAccSensorUpdatePolicyPrecedenceResource_strict(t *testing.T) {
 	}
 	acctest.PreCheck(t)
 
-	platformName := "Linux"
-	ids := getNonDefaultSensorUpdatePolicyIDs(t, platformName)
-	if len(ids) == 0 {
-		t.Skipf("no non-default %s sensor update policies in tenant; nothing to test", platformName)
-	}
-
 	resourceName := "crowdstrike_sensor_update_policy_precedence.test"
 
-	idChecks := make([]knownvalue.Check, len(ids))
-	for i, id := range ids {
-		idChecks[i] = knownvalue.StringExact(id)
-	}
+	for _, platformName := range []string{"Windows", "Linux", "Mac"} {
+		platformName := platformName
+		t.Run(platformName, func(t *testing.T) {
+			ids := getNonDefaultSensorUpdatePolicyIDs(t, platformName)
+			if len(ids) == 0 {
+				t.Skipf("no non-default %s sensor update policies in tenant; nothing to test", platformName)
+			}
 
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccSensorUpdatePolicyPrecedenceStrictConfig(platformName, ids),
-				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(
-						resourceName,
-						tfjsonpath.New("ids"),
-						knownvalue.ListExact(idChecks),
-					),
+			idChecks := make([]knownvalue.Check, len(ids))
+			for i, id := range ids {
+				idChecks[i] = knownvalue.StringExact(id)
+			}
+
+			resource.Test(t, resource.TestCase{
+				ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+				PreCheck:                 func() { acctest.PreCheck(t) },
+				Steps: []resource.TestStep{
+					{
+						Config: testAccSensorUpdatePolicyPrecedenceStrictConfig(platformName, ids),
+						ConfigStateChecks: []statecheck.StateCheck{
+							statecheck.ExpectKnownValue(
+								resourceName,
+								tfjsonpath.New("ids"),
+								knownvalue.ListExact(idChecks),
+							),
+						},
+					},
 				},
-			},
-		},
-	})
+			})
+		})
+	}
 }
 
 // getNonDefaultSensorUpdatePolicyIDs returns every non-default sensor update policy id
