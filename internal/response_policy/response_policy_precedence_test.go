@@ -24,35 +24,38 @@ func TestAccResponsePolicyPrecedenceResource_strict(t *testing.T) {
 	}
 	acctest.PreCheck(t)
 
-	platformName := "Linux"
-	ids := getNonDefaultResponsePolicyIDs(t, platformName)
-	if len(ids) == 0 {
-		t.Skipf("no non-default %s response policies in tenant; nothing to test", platformName)
-	}
-
 	resourceName := "crowdstrike_response_policy_precedence.test"
 
-	idChecks := make([]knownvalue.Check, len(ids))
-	for i, id := range ids {
-		idChecks[i] = knownvalue.StringExact(id)
-	}
+	for _, platformName := range []string{"Windows", "Linux", "Mac"} {
+		t.Run(platformName, func(t *testing.T) {
+			ids := getNonDefaultResponsePolicyIDs(t, platformName)
+			if len(ids) == 0 {
+				t.Skipf("no non-default %s response policies in tenant; nothing to test", platformName)
+			}
 
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccResponsePolicyPrecedenceStrictConfig(platformName, ids),
-				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(
-						resourceName,
-						tfjsonpath.New("ids"),
-						knownvalue.ListExact(idChecks),
-					),
+			idChecks := make([]knownvalue.Check, len(ids))
+			for i, id := range ids {
+				idChecks[i] = knownvalue.StringExact(id)
+			}
+
+			resource.Test(t, resource.TestCase{
+				ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+				PreCheck:                 func() { acctest.PreCheck(t) },
+				Steps: []resource.TestStep{
+					{
+						Config: testAccResponsePolicyPrecedenceStrictConfig(platformName, ids),
+						ConfigStateChecks: []statecheck.StateCheck{
+							statecheck.ExpectKnownValue(
+								resourceName,
+								tfjsonpath.New("ids"),
+								knownvalue.ListExact(idChecks),
+							),
+						},
+					},
 				},
-			},
-		},
-	})
+			})
+		})
+	}
 }
 
 // getNonDefaultResponsePolicyIDs returns every non-default response policy id
