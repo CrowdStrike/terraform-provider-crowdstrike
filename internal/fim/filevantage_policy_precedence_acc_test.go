@@ -23,42 +23,38 @@ func TestAccFilevantagePolicyPrecedenceResource_strict(t *testing.T) {
 	}
 	acctest.PreCheck(t)
 
-	var platformName string
-	var ids []string
-	for _, p := range []string{"Windows", "Linux", "Mac"} {
-		if candidate := getNonDefaultFilevantagePolicyIDs(t, p); len(candidate) > 0 {
-			platformName = p
-			ids = candidate
-			break
-		}
-	}
-	if len(ids) == 0 {
-		t.Skip("no non-default filevantage policies in tenant for any platform; nothing to test")
-	}
-
 	resourceName := "crowdstrike_filevantage_policy_precedence.test"
 
-	idChecks := make([]knownvalue.Check, len(ids))
-	for i, id := range ids {
-		idChecks[i] = knownvalue.StringExact(id)
-	}
+	for _, platformName := range []string{"Windows", "Linux", "Mac"} {
+		t.Run(platformName, func(t *testing.T) {
+			ids := getNonDefaultFilevantagePolicyIDs(t, platformName)
+			if len(ids) == 0 {
+				t.Skipf("no non-default %s filevantage policies in tenant; nothing to test", platformName)
+			}
 
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps: []resource.TestStep{
-			{
-				Config: testAccFilevantagePolicyPrecedenceStrictConfig(platformName, ids),
-				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(
-						resourceName,
-						tfjsonpath.New("ids"),
-						knownvalue.ListExact(idChecks),
-					),
+			idChecks := make([]knownvalue.Check, len(ids))
+			for i, id := range ids {
+				idChecks[i] = knownvalue.StringExact(id)
+			}
+
+			resource.Test(t, resource.TestCase{
+				ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+				PreCheck:                 func() { acctest.PreCheck(t) },
+				Steps: []resource.TestStep{
+					{
+						Config: testAccFilevantagePolicyPrecedenceStrictConfig(platformName, ids),
+						ConfigStateChecks: []statecheck.StateCheck{
+							statecheck.ExpectKnownValue(
+								resourceName,
+								tfjsonpath.New("ids"),
+								knownvalue.ListExact(idChecks),
+							),
+						},
+					},
 				},
-			},
-		},
-	})
+			})
+		})
+	}
 }
 
 // getNonDefaultFilevantagePolicyIDs returns every non-default filevantage policy id
