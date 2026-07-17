@@ -334,19 +334,28 @@ func (r *firewallPolicyPrecedenceResource) getFirewallPoliciesByPrecedence(
 
 	filter := fmt.Sprintf("platform_name:'%s'", caser.String(platformName))
 	sort := "precedence.asc"
-	res, err := r.client.FirewallPolicies.QueryCombinedFirewallPolicies(
-		&firewall_policies.QueryCombinedFirewallPoliciesParams{
-			Context: ctx,
-			Filter:  &filter,
-			Sort:    &sort,
-		},
-	)
-	if err != nil {
-		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopesRead))
-		return nil, diags
-	}
+	limit := int64(5000)
+	offset := int64(0)
 
-	if res != nil && res.Payload != nil {
+	for {
+		res, err := r.client.FirewallPolicies.QueryCombinedFirewallPolicies(
+			&firewall_policies.QueryCombinedFirewallPoliciesParams{
+				Context: ctx,
+				Filter:  &filter,
+				Sort:    &sort,
+				Limit:   &limit,
+				Offset:  &offset,
+			},
+		)
+		if err != nil {
+			diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopesRead))
+			return nil, diags
+		}
+
+		if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
+			break
+		}
+
 		for _, policy := range res.Payload.Resources {
 			if policy == nil || policy.ID == nil {
 				continue
@@ -360,6 +369,22 @@ func (r *firewallPolicyPrecedenceResource) getFirewallPoliciesByPrecedence(
 				ref.name = *policy.Name
 			}
 			refs = append(refs, ref)
+		}
+
+		if res.Payload.Meta == nil || res.Payload.Meta.Pagination == nil ||
+			res.Payload.Meta.Pagination.Offset == nil || res.Payload.Meta.Pagination.Total == nil {
+
+			tflog.Warn(ctx, "Missing pagination metadata in API response, using offset+limit for next page",
+				map[string]interface{}{
+					"meta": res.Payload.Meta,
+				})
+			offset += limit
+			continue
+		}
+
+		offset = int64(*res.Payload.Meta.Pagination.Offset)
+		if offset >= *res.Payload.Meta.Pagination.Total {
+			break
 		}
 	}
 
