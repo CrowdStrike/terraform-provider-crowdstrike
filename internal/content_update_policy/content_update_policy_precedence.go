@@ -8,8 +8,10 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/content_update_policies"
+	"github.com/crowdstrike/gofalcon/falcon/client/sensor_download"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -30,7 +32,21 @@ var (
 
 var (
 	precedenceDocumentationSection string = "Content Update Policy"
-	precedenceMarkdownDescription  string = "This resource allows you to set the precedence of Content Update Policies based on the order of IDs."
+	precedenceMarkdownDescription  string = "This resource allows you to set the precedence of Content Update Policies based on the order of IDs.\n\n" +
+		"In a Flight Control (MSSP) environment the precedence API only manages the policies that belong to the CID authenticated by the provider. " +
+		"Policies belonging to other CIDs (parent or child) are returned by the API but cannot be reordered, so they are excluded automatically. " +
+		"Resolving the authenticated CID requires the `Sensor Download: Read` scope; without it, precedence can only be managed for tenants that are not part of a Flight Control hierarchy."
+	precedenceRequiredScopes []scopes.Scope = []scopes.Scope{
+		{
+			Name:  "Content Update Policy",
+			Read:  true,
+			Write: true,
+		},
+		{
+			Name: "Sensor Download",
+			Read: true,
+		},
+	}
 
 	dynamicEnforcement = "dynamic"
 )
@@ -106,7 +122,7 @@ func (r *contentUpdatePolicyPrecedenceResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: utils.MarkdownDescription(precedenceDocumentationSection, precedenceMarkdownDescription, apiScopesReadWrite),
+		MarkdownDescription: utils.MarkdownDescription(precedenceDocumentationSection, precedenceMarkdownDescription, precedenceRequiredScopes),
 		Attributes: map[string]schema.Attribute{
 			"ids": schema.ListAttribute{
 				Required:            true,
@@ -281,12 +297,28 @@ func (r *contentUpdatePolicyPrecedenceResource) ValidateConfig(
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 }
 
-// getContentUpdatePoliciesByPrecedence retrieves all content update policies ordered by precedence.
+// defaultPolicyName is the name of the default content update policy that exists in every CID.
+const defaultPolicyName = "platform_default"
+
+// policyRef holds the fields needed to scope precedence policies to the caller's CID.
+type policyRef struct {
+	id   string
+	cid  string
+	name string
+}
+
+// getContentUpdatePoliciesByPrecedence returns content update policy ids ordered by
+// precedence, scoped to the caller's own CID and excluding the default content update policy.
+//
+// The combined content update policy endpoint returns policies from every CID visible to the
+// caller (parent and children in a Flight Control hierarchy). The precedence API only
+// manages the caller's own-CID policies, so policies belonging to other CIDs and the
+// per-CID default policy are excluded here.
 func (r *contentUpdatePolicyPrecedenceResource) getContentUpdatePoliciesByPrecedence(
 	ctx context.Context,
 ) ([]string, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	var policies []string
+	var refs []policyRef
 
 	sort := "precedence.asc"
 	limit := int64(5000)
@@ -309,7 +341,7 @@ func (r *contentUpdatePolicyPrecedenceResource) getContentUpdatePoliciesByPreced
 					err.Error(),
 				),
 			)
-			return policies, diags
+			return nil, diags
 		}
 
 		if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
@@ -317,9 +349,18 @@ func (r *contentUpdatePolicyPrecedenceResource) getContentUpdatePoliciesByPreced
 		}
 
 		for _, policy := range res.Payload.Resources {
-			if policy != nil && policy.ID != nil {
-				policies = append(policies, *policy.ID)
+			if policy == nil || policy.ID == nil {
+				continue
 			}
+
+			ref := policyRef{id: *policy.ID}
+			if policy.Cid != nil {
+				ref.cid = *policy.Cid
+			}
+			if policy.Name != nil {
+				ref.name = *policy.Name
+			}
+			refs = append(refs, ref)
 		}
 
 		if res.Payload.Meta == nil || res.Payload.Meta.Pagination == nil ||
@@ -339,11 +380,96 @@ func (r *contentUpdatePolicyPrecedenceResource) getContentUpdatePoliciesByPreced
 		}
 	}
 
-	if len(policies) > 0 {
-		policies = policies[:len(policies)-1]
+	nonDefault := make([]policyRef, 0, len(refs))
+	for _, ref := range refs {
+		if ref.name == defaultPolicyName {
+			continue
+		}
+		nonDefault = append(nonDefault, ref)
 	}
 
-	return policies, diags
+	distinct := distinctCIDs(nonDefault)
+	var ownCID string
+	switch len(distinct) {
+	case 0:
+		return []string{}, diags
+	case 1:
+		ownCID = distinct[0]
+	default:
+		cid, err := r.getCallerCID(ctx)
+		if err != nil {
+			tflog.Warn(ctx, "Could not resolve authenticated CID from the sensor installers CCID endpoint",
+				map[string]interface{}{
+					"error": err.Error(),
+				})
+			diags.AddError(
+				"Unable to determine the authenticated CID",
+				"Content update policies from multiple CIDs were returned, which happens in a Flight Control (MSSP) environment. "+
+					"The provider could not determine which CID it is authenticated as to scope precedence correctly. "+
+					"Grant the `Sensor Download: Read` scope to the API client so the authenticated CID can be resolved.",
+			)
+			return nil, diags
+		}
+		ownCID = cid
+	}
+
+	return filterPoliciesByCID(nonDefault, ownCID), diags
+}
+
+// getCallerCID returns the CID authenticated by the provider, normalized to the
+// lowercase 32-character form used in policy responses. It reads the sensor installers
+// CCID endpoint, which requires the Sensor Download: Read scope.
+func (r *contentUpdatePolicyPrecedenceResource) getCallerCID(ctx context.Context) (string, error) {
+	res, err := r.client.SensorDownload.GetSensorInstallersCCIDByQuery(
+		sensor_download.NewGetSensorInstallersCCIDByQueryParamsWithContext(ctx),
+	)
+	if err != nil {
+		return "", err
+	}
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
+		return "", fmt.Errorf("ccid query returned no data")
+	}
+
+	return stripChecksum(res.Payload.Resources[0]), nil
+}
+
+// filterPoliciesByCID returns the ids of policies belonging to cid, preserving order.
+func filterPoliciesByCID(policies []policyRef, cid string) []string {
+	ids := make([]string, 0, len(policies))
+	for _, p := range policies {
+		if strings.EqualFold(p.cid, cid) {
+			ids = append(ids, p.id)
+		}
+	}
+	return ids
+}
+
+// distinctCIDs returns the unique, non-empty CIDs across policies, preserving first-seen order.
+func distinctCIDs(policies []policyRef) []string {
+	seen := make(map[string]struct{}, len(policies))
+	var cids []string
+	for _, p := range policies {
+		if p.cid == "" {
+			continue
+		}
+		key := strings.ToLower(p.cid)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		cids = append(cids, key)
+	}
+	return cids
+}
+
+// stripChecksum normalizes a CCID (32-character CID plus a "-YY" checksum) to the
+// lowercase 32-character CID used in policy responses.
+func stripChecksum(ccid string) string {
+	idx := strings.LastIndex(ccid, "-")
+	if idx < 0 {
+		return strings.ToLower(ccid)
+	}
+	return strings.ToLower(ccid[:idx])
 }
 
 // generateDynamicPolicyOrder takes the dynamic managed policies and returns a slice of all policies in the correct order.
