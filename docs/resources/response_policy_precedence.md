@@ -3,20 +3,24 @@ page_title: "crowdstrike_response_policy_precedence Resource - crowdstrike"
 subcategory: "Host Setup and Management"
 description: |-
   This resource allows you set the precedence of Response Policies based on the order of IDs.
+  In a Flight Control (MSSP) environment the precedence API only manages the policies that belong to the CID authenticated by the provider. Policies belonging to other CIDs (parent or child) are returned by the API but cannot be reordered, so they are excluded automatically. Resolving the authenticated CID requires the Sensor Download: Read scope; without it, precedence can only be managed for tenants that are not part of a Flight Control hierarchy.
   API Scopes
   The following API scopes are required:
-  Response Policies | Read & Write
+  Response Policies | Read & WriteSensor Download | Read
 ---
 
 # crowdstrike_response_policy_precedence (Resource)
 
 This resource allows you set the precedence of Response Policies based on the order of IDs.
 
+In a Flight Control (MSSP) environment the precedence API only manages the policies that belong to the CID authenticated by the provider. Policies belonging to other CIDs (parent or child) are returned by the API but cannot be reordered, so they are excluded automatically. Resolving the authenticated CID requires the `Sensor Download: Read` scope; without it, precedence can only be managed for tenants that are not part of a Flight Control hierarchy.
+
 ## API Scopes
 
 The following API scopes are required:
 
 - Response Policies | Read & Write
+- Sensor Download | Read
 
 
 ## Example Usage
