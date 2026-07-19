@@ -682,6 +682,13 @@ func (r *containerRegistryResource) ValidateConfig(
 		requireObjectField(&resp.Diagnostics, credPath.AtName("service_account_json"), cred.ServiceAccountJSON, "service_account_json", registryType)
 		validateServiceAccountJSON(ctx, &resp.Diagnostics, credPath.AtName("service_account_json"), cred.ServiceAccountJSON, registryType)
 	case "acr":
+		// cert and password select the auth method. Skip validation until both
+		// are known: a value derived from another resource is unknown here and
+		// may still resolve to null, so we cannot yet tell which method was
+		// chosen without risking a false error.
+		if cred.Cert.IsUnknown() || cred.Password.IsUnknown() {
+			break
+		}
 		hasCert := utils.IsKnown(cred.Cert)
 		hasPassword := utils.IsKnown(cred.Password)
 		switch {
