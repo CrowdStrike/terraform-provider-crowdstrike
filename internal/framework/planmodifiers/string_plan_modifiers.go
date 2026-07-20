@@ -2,9 +2,11 @@ package planmodifiers
 
 import (
 	"context"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // RequiresReplaceIfCleared returns a plan modifier that triggers resource
@@ -32,4 +34,30 @@ func RequiresReplaceIfCleared(summary, detail string) planmodifier.String {
 		summary,
 		detail,
 	)
+}
+
+// NormalizeTrailingNewlines returns a plan modifier that trims trailing newline
+// characters from the planned value. Use this when the API strips trailing
+// newlines from a field, which would otherwise cause "inconsistent result after
+// apply" errors.
+func NormalizeTrailingNewlines() planmodifier.String {
+	return normalizeTrailingNewlinesModifier{}
+}
+
+type normalizeTrailingNewlinesModifier struct{}
+
+func (m normalizeTrailingNewlinesModifier) Description(_ context.Context) string {
+	return "Trims trailing newline characters to match API normalization."
+}
+
+func (m normalizeTrailingNewlinesModifier) MarkdownDescription(_ context.Context) string {
+	return "Trims trailing newline characters to match API normalization."
+}
+
+func (m normalizeTrailingNewlinesModifier) PlanModifyString(_ context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if req.PlanValue.IsNull() || req.PlanValue.IsUnknown() {
+		return
+	}
+
+	resp.PlanValue = types.StringValue(strings.TrimRight(req.PlanValue.ValueString(), "\n"))
 }

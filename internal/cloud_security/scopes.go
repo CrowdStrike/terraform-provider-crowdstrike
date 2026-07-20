@@ -17,3 +17,16 @@ var cloudSecurityKacPolicyScopes = []scopes.Scope{
 		Write: true,
 	},
 }
+
+var cloudSecurityIacRuleScopes = []scopes.Scope{
+	{
+		Name:  "Cloud Security Policies",
+		Read:  true,
+		Write: true,
+	},
+	{
+		Name:  "Infrastructure-as-Code",
+		Read:  true,
+		Write: true,
+	},
+}

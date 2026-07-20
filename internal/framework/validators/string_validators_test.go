@@ -323,3 +323,4 @@ func TestSortFieldValidator_MultipleErrors(t *testing.T) {
 	assert.Contains(t, errorMessages, "Invalid Sort Field Format", "Should contain format error")
 	assert.Contains(t, errorMessages, "Invalid Sort Field", "Should contain invalid field error")
 }
+
