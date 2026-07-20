@@ -729,7 +729,7 @@ func verifySemanticFields(expectedLogic, expectedCategory string, expectedLabels
 	}
 }
 
-// TestVerifySemanticFields_Unit tests the helper function directly
+// TestVerifySemanticFields_Unit tests the helper function directly.
 func TestVerifySemanticFields_Unit(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -786,7 +786,7 @@ func TestVerifySemanticFields_Unit(t *testing.T) {
 	}
 }
 
-// TestSemanticEqualityLogic tests the core logic matches our custom type
+// TestSemanticEqualityLogic tests the core logic matches our custom type.
 func TestSemanticEqualityLogic(t *testing.T) {
 	testCases := []struct {
 		name     string
