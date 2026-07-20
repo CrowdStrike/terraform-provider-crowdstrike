@@ -2,7 +2,7 @@
 page_title: "crowdstrike_cloud_security_iac_custom_rule Resource - crowdstrike"
 subcategory: "Falcon Cloud Security"
 description: |-
-  This resource manages custom cloud security IAC rules. These rules enable scanning of Infrastructure as Code (IaC) configurations for security issues and policy violations using custom Rego policies. Custom IAC rules can be defined for Terraform, CloudFormation, or Kubernetes configurations across AWS, Azure, GCP, and other cloud providers.
+  This resource manages custom cloud security IAC rules. These rules enable scanning of Infrastructure as Code (IaC) configurations for security issues and policy violations using custom Rego policies.
   API Scopes
   The following API scopes are required:
   Cloud Security Policies | Read & WriteInfrastructure-as-Code | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_cloud_security_iac_custom_rule (Resource)
 
-This resource manages custom cloud security IAC rules. These rules enable scanning of Infrastructure as Code (IaC) configurations for security issues and policy violations using custom Rego policies. Custom IAC rules can be defined for Terraform, CloudFormation, or Kubernetes configurations across AWS, Azure, GCP, and other cloud providers.
+This resource manages custom cloud security IAC rules. These rules enable scanning of Infrastructure as Code (IaC) configurations for security issues and policy violations using custom Rego policies. 
 
 ## API Scopes
 
