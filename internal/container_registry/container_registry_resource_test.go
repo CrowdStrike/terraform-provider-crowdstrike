@@ -112,6 +112,10 @@ func TestAccContainerRegistryResource_ValidateConfig(t *testing.T) {
 	testCases := map[string]struct {
 		config      string
 		expectError *regexp.Regexp
+		// nonEmptyPlan is set for success-path cases that create resources, so
+		// a PlanOnly step produces a non-empty (create) plan rather than an
+		// error.
+		nonEmptyPlan bool
 	}{
 		"dockerhub_missing_password": {
 			config: acctest.ProviderConfig + `
@@ -244,6 +248,71 @@ resource "crowdstrike_container_registry" "test" {
 `,
 			expectError: regexp.MustCompile(`username is required for acr registry type`),
 		},
+		// Regression for #418: a password derived from another resource is
+		// unknown at plan time. acr validation must not fire while cert or
+		// password is unknown, so this config plans without a false "Invalid
+		// Credential for acr" error.
+		"acr_password_derived_value": {
+			config: acctest.ProviderConfig + `
+resource "terraform_data" "pw" {
+  input = "supersecret"
+}
+resource "crowdstrike_container_registry" "test" {
+  url  = "https://myregistry.azurecr.io/"
+  type = "acr"
+  credential = {
+    username = "u"
+    password = terraform_data.pw.id
+  }
+}
+`,
+			expectError:  nil,
+			nonEmptyPlan: true,
+		},
+		// Regression for #418: a derived cert (the method discriminator) must
+		// not trigger a false error while unknown.
+		"acr_cert_derived_value": {
+			config: acctest.ProviderConfig + `
+resource "terraform_data" "cert" {
+  input = "MIIBASE64=="
+}
+resource "crowdstrike_container_registry" "test" {
+  url  = "https://myregistry.azurecr.io/"
+  type = "acr"
+  credential = {
+    cert      = terraform_data.cert.id
+    auth_type = "cert"
+    tenant_id = "tid"
+    client    = "cid"
+  }
+}
+`,
+			expectError:  nil,
+			nonEmptyPlan: true,
+		},
+		// A required cert-auth sub-field (tenant_id) derived from another
+		// resource is unknown at plan time. Validation must not report it as
+		// missing while unknown; the error may only fire once the value is
+		// known and actually absent.
+		"acr_cert_derived_subfield": {
+			config: acctest.ProviderConfig + `
+resource "terraform_data" "tenant" {
+  input = "tid"
+}
+resource "crowdstrike_container_registry" "test" {
+  url  = "https://myregistry.azurecr.io/"
+  type = "acr"
+  credential = {
+    cert      = "MIIBASE64=="
+    auth_type = "cert"
+    tenant_id = terraform_data.tenant.id
+    client    = "cid"
+  }
+}
+`,
+			expectError:  nil,
+			nonEmptyPlan: true,
+		},
 		"oracle_missing_password": {
 			config: acctest.ProviderConfig + `
 resource "crowdstrike_container_registry" "test" {
@@ -278,9 +347,10 @@ resource "crowdstrike_container_registry" "test" {
 				ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 				Steps: []resource.TestStep{
 					{
-						Config:      tc.config,
-						PlanOnly:    true,
-						ExpectError: tc.expectError,
+						Config:             tc.config,
+						PlanOnly:           true,
+						ExpectError:        tc.expectError,
+						ExpectNonEmptyPlan: tc.nonEmptyPlan,
 					},
 				},
 			})
