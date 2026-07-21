@@ -116,9 +116,13 @@ func (r *firewallRuleGroupResource) readRuleGroupState(
 		}
 
 		if rulesResult != nil && rulesResult.Payload != nil && len(rulesResult.Payload.Resources) > 0 {
-			// Order rules to match the plan order by name
-			// The API returns rules in reverse order from how we send them
-			orderedRules, d := orderRulesByPlanNames(ctx, rulesResult.Payload.Resources, planRules)
+			// The API returns rules in a nondeterministic order, so first
+			// canonicalize to the rule group's rule_ids order (the group's
+			// precedence order), then order to match the plan order by name.
+			// The canonical order is what makes reads deterministic when no
+			// plan is available (e.g. terraform import).
+			canonicalRules := orderRulesByRuleIDs(rulesResult.Payload.Resources, ruleGroup.RuleIds)
+			orderedRules, d := orderRulesByPlanNames(ctx, canonicalRules, planRules)
 			diags.Append(d...)
 			if diags.HasError() {
 				return false, diags
@@ -138,8 +142,63 @@ func (r *firewallRuleGroupResource) readRuleGroupState(
 	return false, diags
 }
 
+// orderRulesByRuleIDs orders API rules to match the rule group's rule_ids
+// order, which is the group's canonical rule precedence. The rules API
+// (GET /fwmgr/entities/rules/v1) returns rules in a nondeterministic order,
+// even across identical requests, so without this canonicalization any read
+// that has no plan to order against (e.g. terraform import) stores rules in
+// a random order and the subsequent plan shows spurious rule reordering.
+//
+// A rule group's rule_ids entries reference the rules' family identifiers
+// (the stable identifier across rule updates), so rules are matched by
+// Family first and fall back to ID. Rules that match nothing in rule_ids
+// (which should not happen) are appended in response order.
+func orderRulesByRuleIDs(
+	apiRules []*models.FwmgrFirewallRuleV1,
+	ruleIDs []string,
+) []*models.FwmgrFirewallRuleV1 {
+	if len(apiRules) == 0 || len(ruleIDs) == 0 {
+		return apiRules
+	}
+
+	rulesByFamily := make(map[string]*models.FwmgrFirewallRuleV1, len(apiRules))
+	rulesByID := make(map[string]*models.FwmgrFirewallRuleV1, len(apiRules))
+	for _, rule := range apiRules {
+		if rule == nil {
+			continue
+		}
+		if rule.Family != nil {
+			rulesByFamily[*rule.Family] = rule
+		}
+		if rule.ID != nil {
+			rulesByID[*rule.ID] = rule
+		}
+	}
+
+	ordered := make([]*models.FwmgrFirewallRuleV1, 0, len(apiRules))
+	seen := make(map[*models.FwmgrFirewallRuleV1]bool, len(apiRules))
+	for _, ruleID := range ruleIDs {
+		rule, found := rulesByFamily[ruleID]
+		if !found {
+			rule, found = rulesByID[ruleID]
+		}
+		if found && !seen[rule] {
+			ordered = append(ordered, rule)
+			seen[rule] = true
+		}
+	}
+
+	// Append any rules not referenced by rule_ids in response order.
+	for _, rule := range apiRules {
+		if rule != nil && !seen[rule] {
+			ordered = append(ordered, rule)
+		}
+	}
+
+	return ordered
+}
+
 // orderRulesByPlanNames orders API rules to match plan order.
-// The API returns rules in reverse order from submission.
 func orderRulesByPlanNames(
 	ctx context.Context,
 	apiRules []*models.FwmgrFirewallRuleV1,
