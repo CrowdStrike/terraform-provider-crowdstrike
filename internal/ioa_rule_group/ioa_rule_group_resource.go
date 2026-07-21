@@ -47,14 +47,6 @@ func invertMap[K, V comparable](m map[K]V) map[V]K {
 	return inv
 }
 
-func invertNestedMap[K, V comparable](m map[K]map[V]K) map[K]map[K]V {
-	inv := make(map[K]map[K]V, len(m))
-	for outerKey, inner := range m {
-		inv[outerKey] = invertMap(inner)
-	}
-	return inv
-}
-
 var apiScopesReadWrite = []scopes.Scope{
 	{
 		Name:  "Custom IOA Rules",
@@ -83,8 +75,6 @@ var ruleTypeIDMap = map[string]map[string]string{
 		"Domain Name":        "16",
 	},
 }
-
-var ruleTypeNameMap = invertNestedMap(ruleTypeIDMap)
 
 var dispositionMap = map[string]int32{
 	"Monitor":      10,
@@ -560,7 +550,6 @@ type trackedRule struct {
 func (m *ioaRuleGroupResourceModel) wrap(
 	ctx context.Context,
 	group *models.APIRuleGroupV1,
-	platform string,
 	trackedRules []trackedRule,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
@@ -588,7 +577,7 @@ func (m *ioaRuleGroupResourceModel) wrap(
 		m.CommittedOn = types.StringValue(group.CommittedOn.String())
 	}
 
-	rules, d := wrapRules(ctx, group.Rules, platform, trackedRules)
+	rules, d := wrapRules(ctx, group.Rules, trackedRules)
 	diags.Append(d...)
 	if diags.HasError() {
 		return diags
@@ -601,7 +590,6 @@ func (m *ioaRuleGroupResourceModel) wrap(
 func wrapRules(
 	ctx context.Context,
 	apiRules []*models.APIRuleV1,
-	platform string,
 	trackedRules []trackedRule,
 ) (types.List, diag.Diagnostics) {
 	var diags diag.Diagnostics
@@ -633,18 +621,8 @@ func wrapRules(
 		}
 
 		ruleTypeName := ""
-		if apiRule.RuletypeID != nil {
-			if nameMap, ok := ruleTypeNameMap[platform]; ok {
-				if name, found := nameMap[*apiRule.RuletypeID]; found {
-					ruleTypeName = name
-				} else {
-					diags.AddError(
-						"Unknown rule type ID",
-						fmt.Sprintf("Rule type ID %q for platform %q is not recognized by this provider version.", *apiRule.RuletypeID, platform),
-					)
-					return types.ListNull(types.ObjectType{AttrTypes: ruleAttrTypes}), diags
-				}
-			}
+		if apiRule.RuletypeName != nil {
+			ruleTypeName = *apiRule.RuletypeName
 		}
 
 		actionName := ""
@@ -1050,7 +1028,7 @@ func (r *ioaRuleGroupResource) Create(
 		return
 	}
 
-	resp.Diagnostics.Append(plan.wrap(ctx, group, plan.Platform.ValueString(), trackedRules)...)
+	resp.Diagnostics.Append(plan.wrap(ctx, group, trackedRules)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
@@ -1087,12 +1065,7 @@ func (r *ioaRuleGroupResource) Read(
 		return
 	}
 
-	platform := ""
-	if group.Platform != nil {
-		platform = normalizePlatform(*group.Platform)
-	}
-
-	resp.Diagnostics.Append(state.wrap(ctx, group, platform, trackedRules)...)
+	resp.Diagnostics.Append(state.wrap(ctx, group, trackedRules)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -1246,7 +1219,7 @@ func (r *ioaRuleGroupResource) Update(
 		return
 	}
 
-	resp.Diagnostics.Append(plan.wrap(ctx, group, platform, trackedRules)...)
+	resp.Diagnostics.Append(plan.wrap(ctx, group, trackedRules)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 

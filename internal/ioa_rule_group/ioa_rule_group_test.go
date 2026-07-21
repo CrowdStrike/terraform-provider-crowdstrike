@@ -9,6 +9,83 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestWrapRulesResolvesTypeByName(t *testing.T) {
+	tests := []struct {
+		name         string
+		apiRules     []*models.APIRuleV1
+		expectedType map[string]string
+	}{
+		{
+			name: "canonical windows ids",
+			apiRules: []*models.APIRuleV1{
+				{
+					InstanceID:   utils.Addr("rule-1"),
+					Name:         utils.Addr("Proc"),
+					Description:  utils.Addr("d"),
+					RuletypeID:   utils.Addr("1"),
+					RuletypeName: utils.Addr("Process Creation"),
+				},
+			},
+			expectedType: map[string]string{"rule-1": "Process Creation"},
+		},
+		{
+			name: "legacy mac-range id in windows group resolves by name",
+			apiRules: []*models.APIRuleV1{
+				{
+					InstanceID:   utils.Addr("rule-1"),
+					Name:         utils.Addr("Proc"),
+					Description:  utils.Addr("d"),
+					RuletypeID:   utils.Addr("5"),
+					RuletypeName: utils.Addr("Process Creation"),
+				},
+			},
+			expectedType: map[string]string{"rule-1": "Process Creation"},
+		},
+		{
+			name: "id absent from current catalog resolves by name",
+			apiRules: []*models.APIRuleV1{
+				{
+					InstanceID:   utils.Addr("rule-1"),
+					Name:         utils.Addr("Net"),
+					Description:  utils.Addr("d"),
+					RuletypeID:   utils.Addr("3"),
+					RuletypeName: utils.Addr("Network Connection"),
+				},
+			},
+			expectedType: map[string]string{"rule-1": "Network Connection"},
+		},
+		{
+			name: "missing ruletype name yields empty type",
+			apiRules: []*models.APIRuleV1{
+				{
+					InstanceID:  utils.Addr("rule-1"),
+					Name:        utils.Addr("Proc"),
+					Description: utils.Addr("d"),
+					RuletypeID:  utils.Addr("1"),
+				},
+			},
+			expectedType: map[string]string{"rule-1": ""},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			list, diags := wrapRules(t.Context(), tt.apiRules, nil)
+			assert.False(t, diags.HasError())
+
+			rules := utils.ListTypeAs[ioaRuleModel](t.Context(), list, &diags)
+			assert.False(t, diags.HasError())
+			assert.Len(t, rules, len(tt.expectedType))
+
+			for _, r := range rules {
+				want, ok := tt.expectedType[r.InstanceID.ValueString()]
+				assert.True(t, ok, "unexpected instance id %q", r.InstanceID.ValueString())
+				assert.Equal(t, want, r.Type.ValueString())
+			}
+		})
+	}
+}
+
 func TestConvertIOARuleGroupsToIDs(t *testing.T) {
 	tests := []struct {
 		name     string
