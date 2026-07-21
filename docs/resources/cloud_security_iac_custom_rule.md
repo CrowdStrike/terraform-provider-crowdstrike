@@ -115,9 +115,18 @@ resource "crowdstrike_cloud_security_iac_custom_rule" "with_file" {
 - `labels` (List of String) Array of string labels for filtering and organizing rules. Changing this requires replacing the resource. The API may normalize the casing.
 - `remediation_info` (List of String) Information about how to remediate issues detected by this rule. Do not include numbering within this list. The Falcon console will automatically add numbering.
 - `resource_type` (String) Service-level category. Examples: `ACM`, `S3`, `IAM` for AWS; `AKS`, `Key Vault` for Azure; `BigQuery`, `GKE` for GCP. Defaults to `Custom`.
-- `severity` (String) Severity of the rule. Valid values are `critical`, `high`, `medium`, `informational`.
+- `severity` (String) Severity of the rule. Valid values are `critical`, `high`, `medium`, `informational`. Defaults to `critical`.
 
 ### Read-Only
 
 - `iac_framework` (String) Infrastructure-as-code framework for the custom rule. Currently only Terraform is supported.
 - `id` (String) Unique identifier of the policy rule.
+
+## Import
+
+Import is supported using the following syntax:
+
+```shell
+# The IaC custom rule can be imported using its unique identifier.
+terraform import crowdstrike_cloud_security_iac_custom_rule.example 7c86a274-c04b-4292-9f03-dafae42bde97
+```

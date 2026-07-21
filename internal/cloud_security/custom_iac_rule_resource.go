@@ -11,6 +11,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwtypes "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/types"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
@@ -124,23 +125,31 @@ func (r *cloudSecurityIacCustomRuleResource) Schema(
 				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
-					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"description": schema.StringAttribute{
 				Required:    true,
 				Description: "Description of the policy rule.",
+				Validators: []validator.String{
+					validators.StringNotWhitespace(),
+				},
 			},
 			"logic": schema.StringAttribute{
 				CustomType:  fwtypes.TrailingWhitespaceInsensitiveStringType{},
 				Required:    true,
 				Description: "Rego logic for the rule.",
+				Validators: []validator.String{
+					validators.StringNotWhitespace(),
+				},
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
 				Description: "Name of the policy rule.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					validators.StringNotWhitespace(),
 				},
 			},
 			"cloud_provider": schema.StringAttribute{
@@ -174,12 +183,15 @@ func (r *cloudSecurityIacCustomRuleResource) Schema(
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+				Validators: []validator.String{
+					validators.StringNotWhitespace(),
+				},
 			},
 			"severity": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
 				Default:             stringdefault.StaticString(IacRuleDefaultSeverity),
-				MarkdownDescription: "Severity of the rule. Valid values are `critical`, `high`, `medium`, `informational`.",
+				MarkdownDescription: "Severity of the rule. Valid values are `critical`, `high`, `medium`, `informational`. Defaults to `critical`.",
 				Validators: []validator.String{
 					stringvalidator.OneOf("critical", "high", "medium", "informational"),
 				},
@@ -191,7 +203,7 @@ func (r *cloudSecurityIacCustomRuleResource) Schema(
 				Validators: []validator.List{
 					listvalidator.SizeAtLeast(1),
 					listvalidator.ValueStringsAre(
-						stringvalidator.LengthAtLeast(1),
+						validators.StringNotWhitespace(),
 					),
 				},
 			},
@@ -202,32 +214,29 @@ func (r *cloudSecurityIacCustomRuleResource) Schema(
 				Validators: []validator.List{
 					listvalidator.SizeAtLeast(1),
 					listvalidator.ValueStringsAre(
-						stringvalidator.LengthAtLeast(1),
+						validators.StringNotWhitespace(),
 					),
 				},
 			},
 			"category": schema.StringAttribute{
 				CustomType:          fwtypes.CaseInsensitiveStringType{},
 				Optional:            true,
-				Computed:            true,
 				MarkdownDescription: "Grouping category for the rule (e.g., `Encryption`, `Networking`, `Backup`). The API may normalize the casing.",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+				Validators: []validator.String{
+					validators.StringNotWhitespace(),
 				},
 			},
 			"labels": schema.ListAttribute{
 				Optional:            true,
-				Computed:            true,
 				ElementType:         fwtypes.CaseInsensitiveStringType{},
 				MarkdownDescription: "Array of string labels for filtering and organizing rules. Changing this requires replacing the resource. The API may normalize the casing.",
 				Validators: []validator.List{
 					listvalidator.ValueStringsAre(
-						stringvalidator.LengthAtLeast(1),
+						validators.StringNotWhitespace(),
 					),
 				},
 				PlanModifiers: []planmodifier.List{
 					listplanmodifier.RequiresReplace(),
-					listplanmodifier.UseStateForUnknown(),
 				},
 			},
 		},
@@ -248,7 +257,7 @@ func (r *cloudSecurityIacCustomRuleResource) Create(
 	rule, diags := r.createCloudPolicyRule(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if rule != nil && rule.UUID != nil {
-		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), types.StringPointerValue(rule.UUID))...)
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), flex.StringPointerToFramework(rule.UUID))...)
 	}
 	if resp.Diagnostics.HasError() {
 		return
@@ -334,11 +343,11 @@ func (m *cloudSecurityIacCustomRuleResourceModel) wrap(
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	m.ID = types.StringPointerValue(rule.UUID)
-	m.Name = types.StringPointerValue(rule.Name)
-	m.Description = types.StringPointerValue(rule.Description)
+	m.ID = flex.StringPointerToFramework(rule.UUID)
+	m.Name = flex.StringPointerToFramework(rule.Name)
+	m.Description = flex.StringPointerToFramework(rule.Description)
 	m.Logic = fwtypes.TrailingWhitespaceInsensitiveString{
-		StringValue: types.StringValue(rule.Logic),
+		StringValue: flex.StringValueToFramework(rule.Logic),
 	}
 	m.Category = fwtypes.CaseInsensitiveString{
 		StringValue: flex.StringValueToFramework(rule.Category),
@@ -362,13 +371,17 @@ func (m *cloudSecurityIacCustomRuleResourceModel) wrap(
 
 	m.CloudProvider = flex.StringPointerToFramework(rule.Provider)
 
+	var iacFramework *string
 	if len(rule.RuleLogicList) > 0 {
-		m.IacFramework = flex.StringPointerToFramework(rule.RuleLogicList[0].Platform)
+		iacFramework = rule.RuleLogicList[0].Platform
 	}
+	m.IacFramework = flex.StringPointerToFramework(iacFramework)
 
+	var resourceType *string
 	if len(rule.ResourceTypes) > 0 {
-		m.ResourceType = flex.StringPointerToFramework(rule.ResourceTypes[0].ResourceType)
+		resourceType = rule.ResourceTypes[0].ResourceType
 	}
+	m.ResourceType = flex.StringPointerToFramework(resourceType)
 
 	m.Labels = types.ListNull(fwtypes.CaseInsensitiveStringType{})
 
@@ -376,7 +389,7 @@ func (m *cloudSecurityIacCustomRuleResourceModel) wrap(
 		return diags
 	}
 
-	customConfig, ok := rule.CustomConfiguration.(map[string]interface{})
+	customConfig, ok := rule.CustomConfiguration.(map[string]any)
 	if !ok {
 		return diags
 	}
@@ -386,7 +399,7 @@ func (m *cloudSecurityIacCustomRuleResourceModel) wrap(
 		return diags
 	}
 
-	labelsArray, ok := labelsInterface.([]interface{})
+	labelsArray, ok := labelsInterface.([]any)
 	if !ok {
 		return diags
 	}
@@ -471,6 +484,7 @@ func (r *cloudSecurityIacCustomRuleResource) getCloudPolicyRule(ctx context.Cont
 func (r *cloudSecurityIacCustomRuleResource) updateCloudPolicyRule(ctx context.Context, plan *cloudSecurityIacCustomRuleResourceModel) (*models.ApimodelsRule, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var remediationInfo string
+	var alertInfo string
 
 	body := &models.CommonUpdateRuleRequest{
 		Description: plan.Description.ValueString(),
@@ -497,13 +511,15 @@ func (r *cloudSecurityIacCustomRuleResource) updateCloudPolicyRule(ctx context.C
 	}}
 
 	if !plan.AlertInfo.IsNull() {
-		alertInfo, convertDiags := convertAlertInfoToAPIFormat(ctx, plan.AlertInfo)
+		var convertDiags diag.Diagnostics
+		alertInfo, convertDiags = convertAlertInfoToAPIFormat(ctx, plan.AlertInfo)
 		diags.Append(convertDiags...)
 		if diags.HasError() {
 			return nil, diags
 		}
-		body.AlertInfo = &alertInfo
 	}
+
+	body.AlertInfo = &alertInfo
 
 	return updateCloudPolicyRule(r.client, cloud_policies.UpdateRuleParams{
 		Context: ctx,

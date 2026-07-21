@@ -9,7 +9,10 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
 type ruleIacBaseConfig struct {
@@ -26,7 +29,6 @@ type ruleIacBaseConfig struct {
 type ruleIacConfig struct {
 	ruleIacBaseConfig
 	cloudProvider string
-	iacFramework  string
 	resourceType  string
 }
 
@@ -77,28 +79,24 @@ var commonIacConfig = ruleIacBaseConfig{
 var terraformIacConfig = ruleIacConfig{
 	ruleIacBaseConfig: commonIacConfig,
 	cloudProvider:     "AWS",
-	iacFramework:      "Terraform",
 	resourceType:      "EC2",
 }
 
 var azureIacConfig = ruleIacConfig{
 	ruleIacBaseConfig: commonIacConfig,
 	cloudProvider:     "Azure",
-	iacFramework:      "Terraform",
 	resourceType:      "Virtual Machines",
 }
 
 var gcpIacConfig = ruleIacConfig{
 	ruleIacBaseConfig: commonIacConfig,
 	cloudProvider:     "GCP",
-	iacFramework:      "Terraform",
 	resourceType:      "Compute Engine",
 }
 
 var generalIacConfig = ruleIacConfig{
 	ruleIacBaseConfig: commonIacConfig,
 	cloudProvider:     "General",
-	iacFramework:      "Terraform",
 	resourceType:      "Custom",
 }
 
@@ -108,15 +106,6 @@ func TestCloudSecurityIacCustomRuleResource_Terraform_Basic(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps:                    generateIacRuleBasicTests(terraformIacConfig, "Terraform"),
-	})
-}
-
-func TestCloudSecurityIacCustomRuleResource_Terraform_Rego(t *testing.T) {
-	skipIfRegoNotEnabled(t)
-	resource.ParallelTest(t, resource.TestCase{
-		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
-		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateIacRuleRegoTests(terraformIacConfig, "Terraform_Rego"),
 	})
 }
 
@@ -163,12 +152,12 @@ func TestCloudSecurityIacCustomRuleResource_RegoDefinedToOmitted(t *testing.T) {
 	})
 }
 
-func TestCloudSecurityIacCustomRuleResource_RegoDefinedToEmpty(t *testing.T) {
+func TestCloudSecurityIacCustomRuleResource_RegoInPlaceUpdate(t *testing.T) {
 	skipIfRegoNotEnabled(t)
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
-		Steps:                    generateIacRuleRegoDefinedToEmptyTests(terraformIacConfig, "Terraform_Empty_Rego"),
+		Steps:                    generateIacRuleInPlaceUpdateTests(terraformIacConfig, "Terraform_InPlaceUpdate"),
 	})
 }
 
@@ -180,12 +169,12 @@ func generateIacRuleBasicTests(config ruleIacConfig, ruleName string) []resource
 	resourceName := "crowdstrike_cloud_security_iac_custom_rule.rule" + "_" + ruleName
 
 	for i := range 2 {
-		alertInfo := strings.Join([]string{
-			`"` + strings.Join(config.alertInfo[i], `","`) + `"`,
-		}, "")
-		remediationInfo := strings.Join([]string{
-			`"` + strings.Join(config.remediationInfo[i], `","`) + `"`,
-		}, "")
+		alertInfo := `"` + strings.Join(config.alertInfo[i], `","`) + `"`
+		remediationInfo := `"` + strings.Join(config.remediationInfo[i], `","`) + `"`
+
+		lastAlertIdx := len(config.alertInfo[i]) - 1
+		lastRemediationIdx := len(config.remediationInfo[i]) - 1
+
 		resourceStep := resource.TestStep{
 			Config: fmt.Sprintf(`
 resource "crowdstrike_cloud_security_iac_custom_rule" "rule_%s" {
@@ -202,18 +191,18 @@ EOF
 }
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName, config.description[i],
 				config.cloudProvider, config.severity[i], remediationInfo, alertInfo, config.logic[i]),
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
-				resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
-				resource.TestCheckResourceAttr(resourceName, "description", config.description[i]),
-				resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
-				resource.TestCheckResourceAttr(resourceName, "iac_framework", "Terraform"),
-				resource.TestCheckResourceAttr(resourceName, "severity", config.severity[i]),
-				resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("alert_info.%d", len(config.alertInfo[i])-1), config.alertInfo[i][len(config.alertInfo[i])-1]),
-				resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("remediation_info.%d", len(config.remediationInfo[i])-1), config.remediationInfo[i][len(config.remediationInfo[i])-1]),
-				resource.TestCheckResourceAttr(resourceName, "logic", config.logic[i]+"\n"),
-				resource.TestCheckResourceAttrSet(resourceName, "id"),
-			),
+			ConfigStateChecks: []statecheck.StateCheck{
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("resource_type"), knownvalue.StringExact(config.resourceType)),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(config.ruleNamePrefix+ruleName)),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(config.description[i])),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_provider"), knownvalue.StringExact(config.cloudProvider)),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("iac_framework"), knownvalue.StringExact("Terraform")),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.StringExact(config.severity[i])),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("alert_info").AtSliceIndex(lastAlertIdx), knownvalue.StringExact(config.alertInfo[i][lastAlertIdx])),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("remediation_info").AtSliceIndex(lastRemediationIdx), knownvalue.StringExact(config.remediationInfo[i][lastRemediationIdx])),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("logic"), knownvalue.StringExact(config.logic[i]+"\n")),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+			},
 		}
 
 		importTestStep := resource.TestStep{
@@ -234,75 +223,6 @@ EOF
 
 		steps = append(steps, resourceStep)
 		steps = append(steps, importTestStep)
-	}
-
-	return steps
-}
-
-// Rego-based test with in-place updates of user defined remediation_info and alert_info.
-func generateIacRuleRegoTests(config ruleIacConfig, ruleName string) []resource.TestStep {
-	var steps []resource.TestStep
-	randomSuffix := sdkacctest.RandString(8)
-	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
-	resourceName := "crowdstrike_cloud_security_iac_custom_rule.rule" + "_" + ruleName
-
-	for i := range 2 {
-		alertInfo := strings.Join([]string{
-			`"` + strings.Join(config.alertInfo[i], `","`) + `"`,
-		}, "")
-		remediationInfo := strings.Join([]string{
-			`"` + strings.Join(config.remediationInfo[i], `","`) + `"`,
-		}, "")
-		resourceStep := resource.TestStep{
-			Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_iac_custom_rule" "rule_%s" {
-  resource_type    = "%s"
-  name             = "%s"
-  description      = "%s"
-  cloud_provider   = "%s"
-  severity         = "%s"
-  remediation_info = [%s]
-  logic = <<EOF
-%s
-EOF
-  alert_info   = [%s]
-}
-`, ruleName, config.resourceType, config.ruleNamePrefix+ruleName, config.description[i],
-				config.cloudProvider, config.severity[i], remediationInfo, config.logic[i],
-				alertInfo),
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
-				resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
-				resource.TestCheckResourceAttr(resourceName, "description", config.description[i]),
-				resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
-				resource.TestCheckResourceAttr(resourceName, "iac_framework", "Terraform"),
-				resource.TestCheckResourceAttr(resourceName, "severity", config.severity[i]),
-				resource.TestCheckResourceAttr(resourceName, "logic", config.logic[i]+"\n"),
-				resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("alert_info.%d", len(config.alertInfo[i])-1), config.alertInfo[i][len(config.alertInfo[i])-1]),
-				resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("remediation_info.%d", len(config.remediationInfo[i])-1), config.remediationInfo[i][len(config.remediationInfo[i])-1]),
-				resource.TestCheckResourceAttrSet(resourceName, "id"),
-			),
-		}
-
-		importTestStep := resource.TestStep{
-			ResourceName:                         resourceName,
-			ImportState:                          true,
-			ImportStateVerify:                    true,
-			ImportStateVerifyIdentifierAttribute: "id",
-			ImportStateVerifyIgnore:              []string{"logic"}, // API strips trailing whitespace; semantic equality handles plan-time but not import verify
-			ImportStateCheck:                     verifySemanticFields(config.logic[i]+"\n", "", nil),
-			ImportStateIdFunc: func(s *terraform.State) (string, error) {
-				rs, ok := s.RootModule().Resources[resourceName]
-				if !ok {
-					return "", fmt.Errorf("Resource not found: %s", resourceName)
-				}
-				return rs.Primary.Attributes["id"], nil
-			},
-		}
-
-		steps = append(steps, resourceStep)
-		steps = append(steps, importTestStep)
-
 	}
 
 	return steps
@@ -316,9 +236,10 @@ func generateMinimalIacRuleRegoTests(config ruleIacConfig, ruleName string) []re
 	resourceName := "crowdstrike_cloud_security_iac_custom_rule.rule" + "_" + ruleName
 
 	for i := range 2 {
-		alertInfo := strings.Join([]string{
-			`"` + strings.Join(config.alertInfo[i], `","`) + `"`,
-		}, "")
+		alertInfo := `"` + strings.Join(config.alertInfo[i], `","`) + `"`
+
+		lastAlertIdx := len(config.alertInfo[i]) - 1
+
 		resourceStep := resource.TestStep{
 			Config: fmt.Sprintf(`
 resource "crowdstrike_cloud_security_iac_custom_rule" "rule_%s" {
@@ -332,16 +253,16 @@ EOF
 }
 `, ruleName, config.ruleNamePrefix+ruleName, config.description[i],
 				config.cloudProvider, config.logic[i], alertInfo),
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
-				resource.TestCheckResourceAttr(resourceName, "description", config.description[i]),
-				resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
-				resource.TestCheckResourceAttr(resourceName, "iac_framework", "Terraform"),
-				resource.TestCheckResourceAttr(resourceName, "logic", config.logic[i]+"\n"),
-				resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("alert_info.%d", len(config.alertInfo[i])-1), config.alertInfo[i][len(config.alertInfo[i])-1]),
-				resource.TestCheckResourceAttrSet(resourceName, "id"),
-				resource.TestCheckResourceAttrSet(resourceName, "severity"),
-			),
+			ConfigStateChecks: []statecheck.StateCheck{
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(config.ruleNamePrefix+ruleName)),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(config.description[i])),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_provider"), knownvalue.StringExact(config.cloudProvider)),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("iac_framework"), knownvalue.StringExact("Terraform")),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("logic"), knownvalue.StringExact(config.logic[i]+"\n")),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("alert_info").AtSliceIndex(lastAlertIdx), knownvalue.StringExact(config.alertInfo[i][lastAlertIdx])),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.NotNull()),
+			},
 		}
 
 		importTestStep := resource.TestStep{
@@ -374,12 +295,11 @@ func generateIacRuleRegoDefinedToOmittedTests(config ruleIacConfig, ruleName str
 	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
 	resourceName := "crowdstrike_cloud_security_iac_custom_rule.rule" + "_" + ruleName + "_definedToOmitted"
 
-	alertInfo := strings.Join([]string{
-		`"` + strings.Join(config.alertInfo[0], `","`) + `"`,
-	}, "")
-	remediationInfo := strings.Join([]string{
-		`"` + strings.Join(config.remediationInfo[0], `","`) + `"`,
-	}, "")
+	alertInfo := `"` + strings.Join(config.alertInfo[0], `","`) + `"`
+	remediationInfo := `"` + strings.Join(config.remediationInfo[0], `","`) + `"`
+
+	lastAlertIdx := len(config.alertInfo[0]) - 1
+	lastRemediationIdx := len(config.remediationInfo[0]) - 1
 
 	definedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
@@ -398,18 +318,18 @@ EOF
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName, config.description[0],
 			config.cloudProvider, config.severity[0], remediationInfo,
 			alertInfo, config.logic[0]),
-		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
-			resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
-			resource.TestCheckResourceAttr(resourceName, "description", config.description[0]),
-			resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
-			resource.TestCheckResourceAttr(resourceName, "iac_framework", "Terraform"),
-			resource.TestCheckResourceAttr(resourceName, "severity", config.severity[0]),
-			resource.TestCheckResourceAttr(resourceName, "logic", config.logic[0]+"\n"),
-			resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("alert_info.%d", len(config.alertInfo[0])-1), config.alertInfo[0][len(config.alertInfo[0])-1]),
-			resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("remediation_info.%d", len(config.remediationInfo[0])-1), config.remediationInfo[0][len(config.remediationInfo[0])-1]),
-			resource.TestCheckResourceAttrSet(resourceName, "id"),
-		),
+		ConfigStateChecks: []statecheck.StateCheck{
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("resource_type"), knownvalue.StringExact(config.resourceType)),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(config.ruleNamePrefix+ruleName)),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(config.description[0])),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_provider"), knownvalue.StringExact(config.cloudProvider)),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("iac_framework"), knownvalue.StringExact("Terraform")),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.StringExact(config.severity[0])),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("logic"), knownvalue.StringExact(config.logic[0]+"\n")),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("alert_info").AtSliceIndex(lastAlertIdx), knownvalue.StringExact(config.alertInfo[0][lastAlertIdx])),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("remediation_info").AtSliceIndex(lastRemediationIdx), knownvalue.StringExact(config.remediationInfo[0][lastRemediationIdx])),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+		},
 	}
 
 	undefinedStep := resource.TestStep{
@@ -425,17 +345,18 @@ EOF
 }
 `, ruleName, config.ruleNamePrefix+ruleName, config.description[0],
 			config.cloudProvider, config.severity[0], config.logic[0]),
-		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
-			resource.TestCheckResourceAttr(resourceName, "description", config.description[0]),
-			resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
-			resource.TestCheckResourceAttr(resourceName, "iac_framework", "Terraform"),
-			resource.TestCheckResourceAttr(resourceName, "severity", config.severity[0]),
-			resource.TestCheckResourceAttr(resourceName, "logic", config.logic[0]+"\n"),
-			resource.TestCheckResourceAttr(resourceName, "remediation_info.#", "0"),
-			resource.TestCheckResourceAttr(resourceName, "alert_info.#", "0"),
-			resource.TestCheckResourceAttrSet(resourceName, "id"),
-		),
+		ConfigStateChecks: []statecheck.StateCheck{
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(config.ruleNamePrefix+ruleName)),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(config.description[0])),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_provider"), knownvalue.StringExact(config.cloudProvider)),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("iac_framework"), knownvalue.StringExact("Terraform")),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.StringExact(config.severity[0])),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("logic"), knownvalue.StringExact(config.logic[0]+"\n")),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("resource_type"), knownvalue.StringExact("Custom")),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("remediation_info"), knownvalue.Null()),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("alert_info"), knownvalue.Null()),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+		},
 	}
 
 	steps = append(steps, definedStep)
@@ -444,23 +365,22 @@ EOF
 	return steps
 }
 
-// Validating optional fields work correctly.
-func generateIacRuleRegoDefinedToEmptyTests(config ruleIacConfig, ruleName string) []resource.TestStep {
+// Validating optional fields (remediation_info, alert_info) can be updated in place without replacement.
+func generateIacRuleInPlaceUpdateTests(config ruleIacConfig, ruleName string) []resource.TestStep {
 	var steps []resource.TestStep
 	randomSuffix := sdkacctest.RandString(8)
 	ruleName = fmt.Sprintf("tfacc_%s_%s", ruleName, randomSuffix)
-	resourceName := "crowdstrike_cloud_security_iac_custom_rule.rule" + "_" + ruleName + "_definedToEmpty"
+	resourceName := "crowdstrike_cloud_security_iac_custom_rule.rule" + "_" + ruleName + "_inPlaceUpdate"
 
-	alertInfo := strings.Join([]string{
-		`"` + strings.Join(config.alertInfo[0], `","`) + `"`,
-	}, "")
-	remediationInfo := strings.Join([]string{
-		`"` + strings.Join(config.remediationInfo[0], `","`) + `"`,
-	}, "")
+	alertInfo := `"` + strings.Join(config.alertInfo[0], `","`) + `"`
+	remediationInfo := `"` + strings.Join(config.remediationInfo[0], `","`) + `"`
+
+	lastAlertIdx := len(config.alertInfo[0]) - 1
+	lastRemediationIdx := len(config.remediationInfo[0]) - 1
 
 	definedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_iac_custom_rule" "rule_%s_definedToEmpty" {
+resource "crowdstrike_cloud_security_iac_custom_rule" "rule_%s_inPlaceUpdate" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -475,23 +395,23 @@ EOF
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName, config.description[0],
 			config.cloudProvider, config.severity[0], remediationInfo,
 			alertInfo, config.logic[0]),
-		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
-			resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
-			resource.TestCheckResourceAttr(resourceName, "description", config.description[0]),
-			resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
-			resource.TestCheckResourceAttr(resourceName, "iac_framework", "Terraform"),
-			resource.TestCheckResourceAttr(resourceName, "severity", config.severity[0]),
-			resource.TestCheckResourceAttr(resourceName, "logic", config.logic[0]+"\n"),
-			resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("alert_info.%d", len(config.alertInfo[0])-1), config.alertInfo[0][len(config.alertInfo[0])-1]),
-			resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("remediation_info.%d", len(config.remediationInfo[0])-1), config.remediationInfo[0][len(config.remediationInfo[0])-1]),
-			resource.TestCheckResourceAttrSet(resourceName, "id"),
-		),
+		ConfigStateChecks: []statecheck.StateCheck{
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("resource_type"), knownvalue.StringExact(config.resourceType)),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(config.ruleNamePrefix+ruleName)),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(config.description[0])),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_provider"), knownvalue.StringExact(config.cloudProvider)),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("iac_framework"), knownvalue.StringExact("Terraform")),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.StringExact(config.severity[0])),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("logic"), knownvalue.StringExact(config.logic[0]+"\n")),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("alert_info").AtSliceIndex(lastAlertIdx), knownvalue.StringExact(config.alertInfo[0][lastAlertIdx])),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("remediation_info").AtSliceIndex(lastRemediationIdx), knownvalue.StringExact(config.remediationInfo[0][lastRemediationIdx])),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+		},
 	}
 
 	undefinedStep := resource.TestStep{
 		Config: fmt.Sprintf(`
-resource "crowdstrike_cloud_security_iac_custom_rule" "rule_%s_definedToEmpty" {
+resource "crowdstrike_cloud_security_iac_custom_rule" "rule_%s_inPlaceUpdate" {
   resource_type    = "%s"
   name             = "%s"
   description      = "%s"
@@ -505,18 +425,18 @@ EOF
 }
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName, config.description[0],
 			config.cloudProvider, config.severity[0], alertInfo, config.logic[0]),
-		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
-			resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
-			resource.TestCheckResourceAttr(resourceName, "description", config.description[0]),
-			resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
-			resource.TestCheckResourceAttr(resourceName, "iac_framework", "Terraform"),
-			resource.TestCheckResourceAttr(resourceName, "severity", config.severity[0]),
-			resource.TestCheckResourceAttr(resourceName, "logic", config.logic[0]+"\n"),
-			resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("alert_info.%d", len(config.alertInfo[0])-1), config.alertInfo[0][len(config.alertInfo[0])-1]),
-			resource.TestCheckResourceAttr(resourceName, "remediation_info.0", "Fix this issue"),
-			resource.TestCheckResourceAttrSet(resourceName, "id"),
-		),
+		ConfigStateChecks: []statecheck.StateCheck{
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("resource_type"), knownvalue.StringExact(config.resourceType)),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(config.ruleNamePrefix+ruleName)),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(config.description[0])),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_provider"), knownvalue.StringExact(config.cloudProvider)),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("iac_framework"), knownvalue.StringExact("Terraform")),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.StringExact(config.severity[0])),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("logic"), knownvalue.StringExact(config.logic[0]+"\n")),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("alert_info").AtSliceIndex(lastAlertIdx), knownvalue.StringExact(config.alertInfo[0][lastAlertIdx])),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("remediation_info").AtSliceIndex(0), knownvalue.StringExact("Fix this issue")),
+			statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+		},
 	}
 
 	steps = append(steps, definedStep)
@@ -541,12 +461,12 @@ func generateIacRuleCategoryAndLabelsTests(config ruleIacConfig, ruleName string
 	resourceName := "crowdstrike_cloud_security_iac_custom_rule.rule" + "_" + ruleName
 
 	for i := range 2 {
-		alertInfo := strings.Join([]string{
-			`"` + strings.Join(config.alertInfo[i], `","`) + `"`,
-		}, "")
-		labels := strings.Join([]string{
-			`"` + strings.Join(config.labels[i], `","`) + `"`,
-		}, "")
+		alertInfo := `"` + strings.Join(config.alertInfo[i], `","`) + `"`
+		labels := `"` + strings.Join(config.labels[i], `","`) + `"`
+
+		lastAlertIdx := len(config.alertInfo[i]) - 1
+		lastLabelIdx := len(config.labels[i]) - 1
+
 		resourceStep := resource.TestStep{
 			Config: fmt.Sprintf(`
 resource "crowdstrike_cloud_security_iac_custom_rule" "rule_%s" {
@@ -563,18 +483,18 @@ EOF
 }
 `, ruleName, config.ruleNamePrefix+ruleName, config.description[i],
 				config.cloudProvider, config.severity[i], config.category[i], labels, alertInfo, config.logic[i]),
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
-				resource.TestCheckResourceAttr(resourceName, "description", config.description[i]),
-				resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
-				resource.TestCheckResourceAttr(resourceName, "iac_framework", "Terraform"),
-				resource.TestCheckResourceAttr(resourceName, "severity", config.severity[i]),
-				resource.TestCheckResourceAttr(resourceName, "category", config.category[i]),
-				resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("labels.%d", len(config.labels[i])-1), config.labels[i][len(config.labels[i])-1]),
-				resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("alert_info.%d", len(config.alertInfo[i])-1), config.alertInfo[i][len(config.alertInfo[i])-1]),
-				resource.TestCheckResourceAttr(resourceName, "logic", config.logic[i]+"\n"),
-				resource.TestCheckResourceAttrSet(resourceName, "id"),
-			),
+			ConfigStateChecks: []statecheck.StateCheck{
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(config.ruleNamePrefix+ruleName)),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(config.description[i])),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_provider"), knownvalue.StringExact(config.cloudProvider)),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("iac_framework"), knownvalue.StringExact("Terraform")),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.StringExact(config.severity[i])),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("category"), knownvalue.StringExact(config.category[i])),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("labels").AtSliceIndex(lastLabelIdx), knownvalue.StringExact(config.labels[i][lastLabelIdx])),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("alert_info").AtSliceIndex(lastAlertIdx), knownvalue.StringExact(config.alertInfo[i][lastAlertIdx])),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("logic"), knownvalue.StringExact(config.logic[i]+"\n")),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+			},
 		}
 
 		importTestStep := resource.TestStep{
@@ -622,12 +542,12 @@ func generateIacRuleWithFileFunctionTests(config ruleIacConfig, ruleName string)
 	}
 
 	for i := range 2 {
-		alertInfo := strings.Join([]string{
-			`"` + strings.Join(config.alertInfo[i], `","`) + `"`,
-		}, "")
-		remediationInfo := strings.Join([]string{
-			`"` + strings.Join(config.remediationInfo[i], `","`) + `"`,
-		}, "")
+		alertInfo := `"` + strings.Join(config.alertInfo[i], `","`) + `"`
+		remediationInfo := `"` + strings.Join(config.remediationInfo[i], `","`) + `"`
+
+		lastAlertIdx := len(config.alertInfo[i]) - 1
+		lastRemediationIdx := len(config.remediationInfo[i]) - 1
+
 		resourceStep := resource.TestStep{
 			Config: fmt.Sprintf(`
 resource "crowdstrike_cloud_security_iac_custom_rule" "rule_%s" {
@@ -642,18 +562,18 @@ resource "crowdstrike_cloud_security_iac_custom_rule" "rule_%s" {
 }
 `, ruleName, config.resourceType, config.ruleNamePrefix+ruleName, config.description[i],
 				config.cloudProvider, config.severity[i], remediationInfo, alertInfo, testFiles[i]),
-			Check: resource.ComposeAggregateTestCheckFunc(
-				resource.TestCheckResourceAttr(resourceName, "resource_type", config.resourceType),
-				resource.TestCheckResourceAttr(resourceName, "name", config.ruleNamePrefix+ruleName),
-				resource.TestCheckResourceAttr(resourceName, "description", config.description[i]),
-				resource.TestCheckResourceAttr(resourceName, "cloud_provider", config.cloudProvider),
-				resource.TestCheckResourceAttr(resourceName, "iac_framework", "Terraform"),
-				resource.TestCheckResourceAttr(resourceName, "severity", config.severity[i]),
-				resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("alert_info.%d", len(config.alertInfo[i])-1), config.alertInfo[i][len(config.alertInfo[i])-1]),
-				resource.TestCheckResourceAttr(resourceName, fmt.Sprintf("remediation_info.%d", len(config.remediationInfo[i])-1), config.remediationInfo[i][len(config.remediationInfo[i])-1]),
-				resource.TestCheckResourceAttr(resourceName, "logic", config.logic[i]+"\n"),
-				resource.TestCheckResourceAttrSet(resourceName, "id"),
-			),
+			ConfigStateChecks: []statecheck.StateCheck{
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("resource_type"), knownvalue.StringExact(config.resourceType)),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(config.ruleNamePrefix+ruleName)),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(config.description[i])),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_provider"), knownvalue.StringExact(config.cloudProvider)),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("iac_framework"), knownvalue.StringExact("Terraform")),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("severity"), knownvalue.StringExact(config.severity[i])),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("alert_info").AtSliceIndex(lastAlertIdx), knownvalue.StringExact(config.alertInfo[i][lastAlertIdx])),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("remediation_info").AtSliceIndex(lastRemediationIdx), knownvalue.StringExact(config.remediationInfo[i][lastRemediationIdx])),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("logic"), knownvalue.StringExact(config.logic[i]+"\n")),
+				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.NotNull()),
+			},
 		}
 
 		importTestStep := resource.TestStep{
@@ -732,85 +652,115 @@ func verifySemanticFields(expectedLogic, expectedCategory string, expectedLabels
 // TestVerifySemanticFields_Unit tests the helper function directly.
 func TestVerifySemanticFields_Unit(t *testing.T) {
 	tests := []struct {
-		name       string
-		expected   string
-		actual     string
-		shouldPass bool
+		name           string
+		expectedLogic  string
+		expectedCat    string
+		expectedLabels []string
+		attributes     map[string]string
+		shouldPass     bool
 	}{
+		// logic checks
 		{
-			name:       "exact match",
-			expected:   "hello world",
-			actual:     "hello world",
-			shouldPass: true,
+			name:          "logic exact match",
+			expectedLogic: "hello world",
+			attributes:    map[string]string{"logic": "hello world"},
+			shouldPass:    true,
 		},
 		{
-			name:       "trailing newline difference",
-			expected:   "hello world\n",
-			actual:     "hello world",
-			shouldPass: true,
+			name:          "logic trailing newline difference",
+			expectedLogic: "hello world\n",
+			attributes:    map[string]string{"logic": "hello world"},
+			shouldPass:    true,
 		},
 		{
-			name:       "multiple trailing newlines",
-			expected:   "hello world\n\n\n",
-			actual:     "hello world",
-			shouldPass: true,
+			name:          "logic multiple trailing newlines",
+			expectedLogic: "hello world\n\n\n",
+			attributes:    map[string]string{"logic": "hello world"},
+			shouldPass:    true,
 		},
 		{
-			name:       "content differs",
-			expected:   "hello world",
-			actual:     "goodbye world",
-			shouldPass: false,
+			name:          "logic content differs",
+			expectedLogic: "hello world",
+			attributes:    map[string]string{"logic": "goodbye world"},
+			shouldPass:    false,
+		},
+		// category checks
+		{
+			name:          "category exact match",
+			expectedLogic: "logic",
+			expectedCat:   "Network Security",
+			attributes:    map[string]string{"logic": "logic", "category": "Network Security"},
+			shouldPass:    true,
+		},
+		{
+			name:          "category case insensitive match",
+			expectedLogic: "logic",
+			expectedCat:   "Network Security",
+			attributes:    map[string]string{"logic": "logic", "category": "network security"},
+			shouldPass:    true,
+		},
+		{
+			name:          "category content differs",
+			expectedLogic: "logic",
+			expectedCat:   "Network Security",
+			attributes:    map[string]string{"logic": "logic", "category": "Data Encryption"},
+			shouldPass:    false,
+		},
+		// labels checks
+		{
+			name:           "labels exact match",
+			expectedLogic:  "logic",
+			expectedLabels: []string{"aws", "network"},
+			attributes:     map[string]string{"logic": "logic", "labels.#": "2", "labels.0": "aws", "labels.1": "network"},
+			shouldPass:     true,
+		},
+		{
+			name:           "labels case insensitive match",
+			expectedLogic:  "logic",
+			expectedLabels: []string{"AWS", "Network"},
+			attributes:     map[string]string{"logic": "logic", "labels.#": "2", "labels.0": "aws", "labels.1": "network"},
+			shouldPass:     true,
+		},
+		{
+			name:           "labels content differs",
+			expectedLogic:  "logic",
+			expectedLabels: []string{"aws", "network"},
+			attributes:     map[string]string{"logic": "logic", "labels.#": "2", "labels.0": "aws", "labels.1": "storage"},
+			shouldPass:     false,
+		},
+		{
+			name:           "labels count mismatch",
+			expectedLogic:  "logic",
+			expectedLabels: []string{"aws", "network"},
+			attributes:     map[string]string{"logic": "logic", "labels.#": "1", "labels.0": "aws"},
+			shouldPass:     false,
+		},
+		// empty states
+		{
+			name:          "no instance states",
+			expectedLogic: "logic",
+			attributes:    nil,
+			shouldPass:    false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create a mock instance state
-			state := &terraform.InstanceState{
-				Attributes: map[string]string{
-					"logic": tt.actual,
-				},
+			var states []*terraform.InstanceState
+			if tt.attributes != nil {
+				states = []*terraform.InstanceState{
+					{Attributes: tt.attributes},
+				}
 			}
 
-			// Call the helper with only logic (no category/labels)
-			checkFunc := verifySemanticFields(tt.expected, "", nil)
-			err := checkFunc([]*terraform.InstanceState{state})
+			checkFunc := verifySemanticFields(tt.expectedLogic, tt.expectedCat, tt.expectedLabels)
+			err := checkFunc(states)
 
 			if tt.shouldPass && err != nil {
 				t.Errorf("expected check to pass, but got error: %v", err)
 			}
 			if !tt.shouldPass && err == nil {
 				t.Errorf("expected check to fail, but it passed")
-			}
-		})
-	}
-}
-
-// TestSemanticEqualityLogic tests the core logic matches our custom type.
-func TestSemanticEqualityLogic(t *testing.T) {
-	testCases := []struct {
-		name     string
-		value1   string
-		value2   string
-		expected bool
-	}{
-		{"both with trailing newline", "test\n", "test\n", true},
-		{"one with trailing newline", "test\n", "test", true},
-		{"multiple trailing newlines", "test\n\n\n", "test", true},
-		{"trailing spaces", "test   ", "test", true},
-		{"trailing tabs", "test\t\t", "test", true},
-		{"different content", "test1", "test2", false},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			trimmed1 := strings.TrimRightFunc(tc.value1, unicode.IsSpace)
-			trimmed2 := strings.TrimRightFunc(tc.value2, unicode.IsSpace)
-			result := trimmed1 == trimmed2
-
-			if result != tc.expected {
-				t.Errorf("expected %v, got %v for %q vs %q (trimmed: %q vs %q)",
-					tc.expected, result, tc.value1, tc.value2, trimmed1, trimmed2)
 			}
 		})
 	}
