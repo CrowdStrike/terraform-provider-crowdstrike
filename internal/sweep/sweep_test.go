@@ -28,6 +28,7 @@ import (
 	rtrscript "github.com/crowdstrike/terraform-provider-crowdstrike/internal/rtr_script"
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/user"
 	usergroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/user_group"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
@@ -64,4 +65,5 @@ func registerSweepers() {
 	sensorupdatepolicy.RegisterSweepers()
 	sensorvisibilityexclusion.RegisterSweepers()
 	usergroup.RegisterSweepers()
+	user.RegisterSweepers()
 }

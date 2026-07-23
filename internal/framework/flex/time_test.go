@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	fwtypes "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/types"
 	"github.com/go-openapi/strfmt"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 )
@@ -208,6 +209,87 @@ func TestDateTimeValueToFramework(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := DateTimeValueToFramework(tt.input)
+
+			if result.IsNull() != tt.expected.IsNull() {
+				t.Errorf("IsNull() mismatch: got %v, want %v", result.IsNull(), tt.expected.IsNull())
+			}
+
+			if !result.IsNull() && !tt.expected.IsNull() {
+				if result.ValueString() != tt.expected.ValueString() {
+					t.Errorf("ValueString() mismatch: got %v, want %v", result.ValueString(), tt.expected.ValueString())
+				}
+			}
+		})
+	}
+}
+
+func TestDateTimeValueToFwRFC3339(t *testing.T) {
+	validTime := time.Date(2025, 1, 29, 10, 30, 45, 0, time.UTC)
+
+	tests := []struct {
+		name     string
+		input    strfmt.DateTime
+		expected fwtypes.RFC3339
+	}{
+		{
+			name:     "valid datetime returns RFC3339 value",
+			input:    strfmt.DateTime(validTime),
+			expected: fwtypes.NewRFC3339TimeValue(validTime),
+		},
+		{
+			name:     "zero datetime returns null",
+			input:    strfmt.DateTime{},
+			expected: fwtypes.NewRFC3339Null(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := DateTimeValueToFwRFC3339(tt.input)
+
+			if result.IsNull() != tt.expected.IsNull() {
+				t.Errorf("IsNull() mismatch: got %v, want %v", result.IsNull(), tt.expected.IsNull())
+			}
+
+			if !result.IsNull() && !tt.expected.IsNull() {
+				if result.ValueString() != tt.expected.ValueString() {
+					t.Errorf("ValueString() mismatch: got %v, want %v", result.ValueString(), tt.expected.ValueString())
+				}
+			}
+		})
+	}
+}
+
+func TestDateTimePointerToFwRFC3339(t *testing.T) {
+	validTime := time.Date(2025, 1, 29, 10, 30, 45, 0, time.UTC)
+	validDateTime := strfmt.DateTime(validTime)
+	zeroDateTime := strfmt.DateTime{}
+
+	tests := []struct {
+		name     string
+		input    *strfmt.DateTime
+		expected fwtypes.RFC3339
+	}{
+		{
+			name:     "valid datetime pointer returns RFC3339 value",
+			input:    &validDateTime,
+			expected: fwtypes.NewRFC3339TimeValue(validTime),
+		},
+		{
+			name:     "nil pointer returns null",
+			input:    nil,
+			expected: fwtypes.NewRFC3339Null(),
+		},
+		{
+			name:     "zero datetime pointer returns null",
+			input:    &zeroDateTime,
+			expected: fwtypes.NewRFC3339Null(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := DateTimePointerToFwRFC3339(tt.input)
 
 			if result.IsNull() != tt.expected.IsNull() {
 				t.Errorf("IsNull() mismatch: got %v, want %v", result.IsNull(), tt.expected.IsNull())
