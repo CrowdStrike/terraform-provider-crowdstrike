@@ -38,6 +38,7 @@ import (
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/user"
 	usergroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/user_group"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -389,6 +390,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		correlationrules.NewCorrelationRulesDataSource,
 		ngsiem.NewDataConnectorDataSource,
 		ngsiem.NewDataConnectorsDataSource,
+		user.NewUserDataSource,
 	}
 }
 
