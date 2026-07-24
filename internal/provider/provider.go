@@ -340,6 +340,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		cloudsecurity.NewCloudSecuritySuppressionRuleResource,
 		dataprotection.NewDataProtectionContentPatternResource,
 		dataprotection.NewDataProtectionSensitivityLabelResource,
+		dataprotection.NewDataProtectionPolicyResource,
 		responsepolicy.NewResponsePolicyResource,
 		responsepolicy.NewResponsePolicyPrecedenceResource,
 		rtrscript.NewRTRScriptResource,
