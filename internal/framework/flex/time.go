@@ -3,6 +3,7 @@ package flex
 import (
 	"time"
 
+	fwtypes "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/types"
 	"github.com/go-openapi/strfmt"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -78,4 +79,23 @@ func FrameworkToRFC3339Pointer(v timetypes.RFC3339) *string {
 	}
 	val := v.ValueString()
 	return &val
+}
+
+// DateTimeValueToFwRFC3339 converts a strfmt.DateTime (by value) to an fwtypes.RFC3339.
+// A zero time returns a null fwtypes.RFC3339.
+func DateTimeValueToFwRFC3339(v strfmt.DateTime) fwtypes.RFC3339 {
+	t := time.Time(v)
+	if t.IsZero() {
+		return fwtypes.NewRFC3339Null()
+	}
+	return fwtypes.NewRFC3339TimeValue(t)
+}
+
+// DateTimePointerToFwRFC3339 converts a *strfmt.DateTime to an fwtypes.RFC3339.
+// A nil pointer or zero time returns a null fwtypes.RFC3339.
+func DateTimePointerToFwRFC3339(v *strfmt.DateTime) fwtypes.RFC3339 {
+	if v == nil {
+		return fwtypes.NewRFC3339Null()
+	}
+	return DateTimeValueToFwRFC3339(*v)
 }

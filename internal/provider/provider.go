@@ -38,6 +38,7 @@ import (
 	sensorupdatepolicy "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_update_policy"
 	sensorvisibilityexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/sensor_visibility_exclusion"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/user"
 	usergroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/user_group"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -347,6 +348,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		ioaexclusion.NewIOAExclusionResource,
 		ioarulegroup.NewIOARuleGroupResource,
 		usergroup.NewUserGroupResource,
+		user.NewUserResource,
 		installtoken.NewInstallTokenResource,
 		firewall.NewFirewallRuleGroupResource,
 		firewall.NewFirewallPolicyResource,
