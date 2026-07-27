@@ -23,8 +23,8 @@ import (
 )
 
 const (
-	dataSourceDocumentationSection = "User Management"
-	dataSourceMarkdownDescription  = "This data source provides information about a single Falcon user. Use this to look up a user by user UUID or email and reference their attributes in other resources."
+	dataSourceDocumentationSection    = "User Management"
+	userDataSourceMarkdownDescription = "This data source provides information about a single Falcon user. Use this to look up a user by user UUID or email and reference their attributes in other resources."
 )
 
 var dataSourceApiScopes = []scopes.Scope{
@@ -106,7 +106,7 @@ func (d *userDataSource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
 			dataSourceDocumentationSection,
-			dataSourceMarkdownDescription,
+			userDataSourceMarkdownDescription,
 			dataSourceApiScopes,
 		),
 		Attributes: map[string]schema.Attribute{
