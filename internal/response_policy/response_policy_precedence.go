@@ -141,7 +141,7 @@ func (r *responsePolicyPrecedenceResource) Schema(
 				Required:    true,
 				Description: "The platform of the response policies. One of: Windows, Mac, Linux",
 				Validators: []validator.String{
-					stringvalidator.OneOf("Windows", "Linux", "Mac"),
+					stringvalidator.OneOfCaseInsensitive("Windows", "Linux", "Mac"),
 				},
 			},
 			"last_updated": schema.StringAttribute{

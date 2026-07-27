@@ -40,6 +40,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/user"
 	usergroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/user_group"
+	userroles "github.com/crowdstrike/terraform-provider-crowdstrike/internal/user_roles"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/function"
@@ -113,7 +114,7 @@ func (p *CrowdStrikeProvider) Schema(
 				Optional:            true,
 			},
 			"cloud": schema.StringAttribute{
-				MarkdownDescription: "Falcon Cloud to authenticate to. Valid values are autodiscover, us-1, us-2, us-3, eu-1, us-gov-1, us-gov-2. Will use FALCON_CLOUD environment variable when left blank.",
+				MarkdownDescription: "Falcon Cloud to authenticate to. Valid values are `autodiscover`, `us-1`, `us-2`, `us-3`, `eu-1`, `us-gov-1`, `us-gov-2`. Defaults to the `FALCON_CLOUD` environment variable when left blank. GovCloud regions (`us-gov-1`, `us-gov-2`) do not support `autodiscover`, so this value must be set explicitly (either here or via `FALCON_CLOUD`) when authenticating to those clouds.",
 				Optional:            true,
 				Validators: []validator.String{
 					stringvalidator.OneOfCaseInsensitive(
@@ -348,6 +349,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		ioaexclusion.NewIOAExclusionResource,
 		ioarulegroup.NewIOARuleGroupResource,
 		usergroup.NewUserGroupResource,
+		user.NewUserResource,
 		installtoken.NewInstallTokenResource,
 		firewall.NewFirewallRuleGroupResource,
 		firewall.NewFirewallPolicyResource,
@@ -391,6 +393,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		ngsiem.NewDataConnectorDataSource,
 		ngsiem.NewDataConnectorsDataSource,
 		user.NewUserDataSource,
+		userroles.NewUserRolesDataSource,
 	}
 }
 
