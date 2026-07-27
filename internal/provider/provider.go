@@ -112,7 +112,7 @@ func (p *CrowdStrikeProvider) Schema(
 				Optional:            true,
 			},
 			"cloud": schema.StringAttribute{
-				MarkdownDescription: "Falcon Cloud to authenticate to. Valid values are autodiscover, us-1, us-2, us-3, eu-1, us-gov-1, us-gov-2. Will use FALCON_CLOUD environment variable when left blank.",
+				MarkdownDescription: "Falcon Cloud to authenticate to. Valid values are `autodiscover`, `us-1`, `us-2`, `us-3`, `eu-1`, `us-gov-1`, `us-gov-2`. Defaults to the `FALCON_CLOUD` environment variable when left blank. GovCloud regions (`us-gov-1`, `us-gov-2`) do not support `autodiscover`, so this value must be set explicitly (either here or via `FALCON_CLOUD`) when authenticating to those clouds.",
 				Optional:            true,
 				Validators: []validator.String{
 					stringvalidator.OneOfCaseInsensitive(
