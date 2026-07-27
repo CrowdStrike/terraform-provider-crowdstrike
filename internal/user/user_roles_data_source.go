@@ -1,4 +1,4 @@
-package userroles
+package user
 
 import (
 	"context"
@@ -34,9 +34,8 @@ var (
 const entitiesRolesBatchSize = 5000
 
 var (
-	documentationSection          = "User Management"
 	dataSourceMarkdownDescription = "Lists the Falcon user roles available for a customer (CID), including default and custom roles with their display name, description, scope, and type."
-	requiredScopes                = []scopes.Scope{
+	dataSourceRequiredScopes      = []scopes.Scope{
 		{Name: "User Management", Read: true},
 	}
 )
@@ -115,7 +114,7 @@ func (d *userRolesDataSource) Schema(
 	resp *datasource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: utils.MarkdownDescription(documentationSection, dataSourceMarkdownDescription, requiredScopes),
+		MarkdownDescription: utils.MarkdownDescription(documentationSection, dataSourceMarkdownDescription, dataSourceRequiredScopes),
 		Attributes: map[string]schema.Attribute{
 			"user_uuid": schema.StringAttribute{
 				Optional:            true,
@@ -247,7 +246,7 @@ func (d *userRolesDataSource) queryRoleIDs(
 
 	res, err := d.client.UserManagement.QueriesRolesV1(params)
 	if err != nil {
-		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, requiredScopes))
+		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, dataSourceRequiredScopes))
 		return nil, diags
 	}
 
@@ -292,7 +291,7 @@ func (d *userRolesDataSource) getRoles(
 
 		res, err := d.client.UserManagement.EntitiesRolesGETV2(params)
 		if err != nil {
-			diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, requiredScopes))
+			diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, dataSourceRequiredScopes))
 			return nil, diags
 		}
 
