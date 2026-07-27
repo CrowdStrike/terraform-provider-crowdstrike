@@ -1,4 +1,4 @@
-package userroles_test
+package user_test
 
 import (
 	"regexp"
