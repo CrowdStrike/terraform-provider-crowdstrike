@@ -531,6 +531,12 @@ type mlFilePathExclusionUpdateParams struct {
 }
 
 func (p *mlFilePathExclusionUpdateParams) WriteToRequest(r runtime.ClientRequest, _ strfmt.Registry) error {
+	// Generated params clear the per-request timeout via SetTimeout; without it
+	// the request is capped at go-openapi's 30s DefaultTimeout, which updates
+	// with large host_groups lists can exceed.
+	if err := r.SetTimeout(0); err != nil {
+		return err
+	}
 	if p.Body != nil {
 		if err := r.SetBodyParam(p.Body); err != nil {
 			return err
