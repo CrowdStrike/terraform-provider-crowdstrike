@@ -176,7 +176,7 @@ func (r *userRoleAssignmentResource) Schema(
 			"role_ids": schema.SetAttribute{
 				Optional:            true,
 				ElementType:         types.StringType,
-				MarkdownDescription: "The set of role IDs to assign directly to the user. This set is authoritative for permanently, directly-granted roles. Omit it to revoke every directly-assigned role.",
+				MarkdownDescription: "The set of role IDs to assign directly to the user. This set is authoritative for permanently, directly-granted roles. Omit it to revoke every directly-assigned role. Use the `crowdstrike_user_roles` data source to list the role IDs available in a CID.",
 				Validators: []validator.Set{
 					setvalidator.SizeAtLeast(1),
 					setvalidator.ValueStringsAre(fwvalidators.StringNotWhitespace()),
