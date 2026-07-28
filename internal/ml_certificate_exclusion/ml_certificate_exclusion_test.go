@@ -7,6 +7,7 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -149,5 +150,38 @@ func TestWrapPreservesOptionalNullsAndFlattensCertificate(t *testing.T) {
 	}
 	if !gotTo.Equal(wantTo) {
 		t.Fatalf("unexpected flattened valid_to: got %v, want %v", gotTo, wantTo)
+	}
+}
+
+type timeoutRecordingRequest struct {
+	runtime.TestClientRequest
+	timeout    time.Duration
+	timeoutSet bool
+}
+
+func (r *timeoutRecordingRequest) SetTimeout(d time.Duration) error {
+	r.timeout = d
+	r.timeoutSet = true
+	return nil
+}
+
+func TestCertExclusionsUpdateParamsClearDefaultTimeout(t *testing.T) {
+	id := "exclusion-id"
+	body := &certExclusionsUpdateReqV1{
+		Exclusions: []*certExclusionUpdateReqV1{{ID: &id}},
+	}
+	req := &timeoutRecordingRequest{}
+
+	if err := (&certExclusionsUpdateParams{Body: body}).WriteToRequest(req, nil); err != nil {
+		t.Fatalf("expected WriteToRequest to succeed, got %v", err)
+	}
+	if !req.timeoutSet {
+		t.Fatal("expected WriteToRequest to override the default request timeout")
+	}
+	if req.timeout != 0 {
+		t.Fatalf("expected request timeout to be cleared, got %v", req.timeout)
+	}
+	if got := req.GetBodyParam(); got != interface{}(body) {
+		t.Fatalf("unexpected body param: got %v, want %v", got, body)
 	}
 }

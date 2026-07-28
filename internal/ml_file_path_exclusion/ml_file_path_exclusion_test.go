@@ -7,10 +7,38 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type timeoutRecordingRequest struct {
+	runtime.TestClientRequest
+	timeout    time.Duration
+	timeoutSet bool
+}
+
+func (r *timeoutRecordingRequest) SetTimeout(d time.Duration) error {
+	r.timeout = d
+	r.timeoutSet = true
+	return nil
+}
+
+func TestMLFilePathExclusionUpdateParamsClearDefaultTimeout(t *testing.T) {
+	t.Parallel()
+
+	id := "exclusion-id"
+	body := &mlFilePathExclusionUpdateReqV1{ID: &id}
+	req := &timeoutRecordingRequest{}
+
+	err := (&mlFilePathExclusionUpdateParams{Body: body}).WriteToRequest(req, nil)
+	require.NoError(t, err)
+
+	assert.True(t, req.timeoutSet, "WriteToRequest should override the default request timeout")
+	assert.Equal(t, time.Duration(0), req.timeout, "request should be bounded by the operation context, not a per-request timeout")
+	assert.Equal(t, body, req.GetBodyParam())
+}
 
 func TestBuildExcludedFrom(t *testing.T) {
 	t.Parallel()
