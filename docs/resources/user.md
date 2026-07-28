@@ -55,6 +55,8 @@ variable "user_password" {
   sensitive   = true
 }
 
+data "crowdstrike_cid" "current" {}
+
 # Create a user with an initial password.
 #
 # password_wo is write-only and is never stored in state. Because the Falcon
@@ -65,6 +67,7 @@ resource "crowdstrike_user" "with_password" {
   email               = "jane.doe@example.com"
   first_name          = "Jane"
   last_name           = "Doe"
+  cid                 = data.crowdstrike_cid.current.cid
   password_wo         = var.user_password
   password_wo_version = 1
 }
@@ -76,6 +79,7 @@ resource "crowdstrike_user" "invite" {
   email      = "john.smith@example.com"
   first_name = "John"
   last_name  = "Smith"
+  cid        = data.crowdstrike_cid.current.cid
 }
 ```
 
@@ -84,13 +88,13 @@ resource "crowdstrike_user" "invite" {
 
 ### Required
 
+- `cid` (String) The customer ID (CID) to create the user in, which becomes the user's home CID. Falcon Flight Control (FCTL) customers making requests from the parent CID can set this to the ID of a child CID. Provide the 32-character lowercase hexadecimal CID without the checksum suffix (e.g. `abcdef1234567890abcdef1234567890`, not `ABCDEF1234567890ABCDEF1234567890-0F`); use the `crowdstrike_cid` data source to get the CID for the authenticating credentials. Changing this forces a new user to be created.
 - `email` (String) The user's email address, which is also their login. Must be unique: it cannot be used by another user or in another CID. The domain must belong to the CID's domain allowlist, which is configured during the CID's initial provisioning (contact Support to change it). In CIDs with single sign-on (SSO) enabled, the email address must exactly match the information in your IdP. Changing this forces a new user to be created.
 - `first_name` (String) The user's first name.
 - `last_name` (String) The user's last name.
 
 ### Optional
 
-- `cid` (String) The customer ID (CID) to create the user in, which becomes the user's home CID. Falcon Flight Control (FCTL) customers making requests from the parent CID can set this to the ID of a child CID. If not provided, the user is created in the CID making the request (the CID associated with the provider credentials). Changing this forces a new user to be created.
 - `password_wo` (String, Sensitive) The user's initial password. This is a write-only argument: it is never stored in Terraform state. Because the Falcon API has no in-place password-change endpoint, changing the password requires replacing the user; use `password_wo_version` to trigger that replacement. If omitted, the user is created without a password. When SSO is not enabled, CrowdStrike sends the user an automated email prompting them to create a password and configure MFA. Must be set together with `password_wo_version`.
 - `password_wo_version` (Number) The version of `password_wo`. Increment this value to apply a new password. Because there is no in-place password-change API, changing this forces the user to be replaced (deleted and recreated), which mints a new UUID and drops any role assignments attached to the old UUID. Must be set together with `password_wo`.
 

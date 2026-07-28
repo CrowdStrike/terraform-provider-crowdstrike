@@ -3,7 +3,6 @@ package user
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"sort"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
@@ -11,10 +10,10 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
+	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
-	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -124,10 +123,7 @@ func (d *userRolesDataSource) Schema(
 				Optional:            true,
 				MarkdownDescription: "(FCTL customers) When making requests from the parent CID, use cid to specify the ID of the child CID to retrieve user role IDs from. Multiple values are not supported. In FCTL deployments, a user_uuid may be assigned the same role in multiple CIDs. The cid parameter ensures that role IDs are retrieved from the right CID. If a cid is not provided, the user role IDs are retrieved for the CID making the request. Provide the 32-character lowercase hexadecimal CID without the checksum suffix (e.g. `abcdef1234567890abcdef1234567890`, not `ABCDEF1234567890ABCDEF1234567890-0F`).",
 				Validators: []validator.String{
-					stringvalidator.RegexMatches(
-						regexp.MustCompile(`^[a-f0-9]{32}$`),
-						"must be a 32-character lowercase hexadecimal CID without the checksum suffix",
-					),
+					fwvalidators.CID(),
 				},
 			},
 			"roles": schema.ListNestedAttribute{

@@ -14,19 +14,19 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
-// testUserEmailDomain is the email domain used to build test user emails. The
-// Falcon tenant only accepts users whose domain is allowlisted, so it is
+// testUserEmail returns a unique email in the tenant's allowlisted domain. The
+// Falcon tenant only accepts users whose domain is allowlisted, so the domain is
 // configurable via TF_ACC_USER_EMAIL_DOMAIN and defaults to crowdstrike.com.
-func testUserEmailDomain() string {
-	if d := os.Getenv("TF_ACC_USER_EMAIL_DOMAIN"); d != "" {
-		return d
+func testUserEmail() string {
+	domain := os.Getenv("TF_ACC_USER_EMAIL_DOMAIN")
+	if domain == "" {
+		domain = "crowdstrike.com"
 	}
-	return "crowdstrike.com"
+	return fmt.Sprintf("%s@%s", acctest.RandomResourceName(), domain)
 }
 
 func TestAccUserResource_basic(t *testing.T) {
-	rName := acctest.RandomResourceName()
-	email := fmt.Sprintf("%s@%s", rName, testUserEmailDomain())
+	email := testUserEmail()
 	resourceName := "crowdstrike_user.test"
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -56,8 +56,7 @@ func TestAccUserResource_basic(t *testing.T) {
 }
 
 func TestAccUserResource_update(t *testing.T) {
-	rName := acctest.RandomResourceName()
-	email := fmt.Sprintf("%s@%s", rName, testUserEmailDomain())
+	email := testUserEmail()
 	resourceName := "crowdstrike_user.test"
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -93,8 +92,7 @@ func TestAccUserResource_update(t *testing.T) {
 // password_wo_version replaces the user (a new UUID is minted), since the
 // Falcon API has no in-place password-change endpoint.
 func TestAccUserResource_passwordVersionReplace(t *testing.T) {
-	rName := acctest.RandomResourceName()
-	email := fmt.Sprintf("%s@%s", rName, testUserEmailDomain())
+	email := testUserEmail()
 	resourceName := "crowdstrike_user.test"
 
 	idsDiffer := statecheck.CompareValue(compare.ValuesDiffer())
@@ -127,20 +125,26 @@ func TestAccUserResource_passwordVersionReplace(t *testing.T) {
 
 func testAccUserConfig_basic(email, firstName, lastName string) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
+data "crowdstrike_cid" "current" {}
+
 resource "crowdstrike_user" "test" {
   email      = %[1]q
   first_name = %[2]q
   last_name  = %[3]q
+  cid        = data.crowdstrike_cid.current.cid
 }
 `, email, firstName, lastName)
 }
 
 func testAccUserConfig_password(email, password string, version int) string {
 	return acctest.ProviderConfig + fmt.Sprintf(`
+data "crowdstrike_cid" "current" {}
+
 resource "crowdstrike_user" "test" {
   email               = %[1]q
   first_name          = "John"
   last_name           = "Doe"
+  cid                 = data.crowdstrike_cid.current.cid
   password_wo         = %[2]q
   password_wo_version = %[3]d
 }

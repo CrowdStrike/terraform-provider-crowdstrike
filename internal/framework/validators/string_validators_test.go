@@ -323,3 +323,103 @@ func TestSortFieldValidator_MultipleErrors(t *testing.T) {
 	assert.Contains(t, errorMessages, "Invalid Sort Field Format", "Should contain format error")
 	assert.Contains(t, errorMessages, "Invalid Sort Field", "Should contain invalid field error")
 }
+
+func TestCIDValidator(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		value       types.String
+		expectError bool
+	}{
+		{
+			name:        "valid lowercase hex cid",
+			value:       types.StringValue("abcdef1234567890abcdef1234567890"),
+			expectError: false,
+		},
+		{
+			name:        "valid all digits",
+			value:       types.StringValue("01234567890123456789012345678901"),
+			expectError: false,
+		},
+		{
+			name:        "valid all letters",
+			value:       types.StringValue("abcdefabcdefabcdefabcdefabcdefab"),
+			expectError: false,
+		},
+		{
+			name:        "invalid - uppercase",
+			value:       types.StringValue("ABCDEF1234567890ABCDEF1234567890"),
+			expectError: true,
+		},
+		{
+			name:        "invalid - mixed case",
+			value:       types.StringValue("AbCdEf1234567890abcdef1234567890"),
+			expectError: true,
+		},
+		{
+			name:        "invalid - checksum suffix",
+			value:       types.StringValue("abcdef1234567890abcdef1234567890-0f"),
+			expectError: true,
+		},
+		{
+			name:        "invalid - uppercase with checksum suffix",
+			value:       types.StringValue("ABCDEF1234567890ABCDEF1234567890-0F"),
+			expectError: true,
+		},
+		{
+			name:        "invalid - too short",
+			value:       types.StringValue("abcdef1234567890abcdef123456789"),
+			expectError: true,
+		},
+		{
+			name:        "invalid - too long",
+			value:       types.StringValue("abcdef1234567890abcdef12345678901"),
+			expectError: true,
+		},
+		{
+			name:        "invalid - non-hex characters",
+			value:       types.StringValue("ghijkl1234567890abcdef1234567890"),
+			expectError: true,
+		},
+		{
+			name:        "invalid - empty string",
+			value:       types.StringValue(""),
+			expectError: true,
+		},
+		{
+			name:        "invalid - whitespace padded",
+			value:       types.StringValue(" abcdef1234567890abcdef123456789 "),
+			expectError: true,
+		},
+		{
+			name:        "null value",
+			value:       types.StringNull(),
+			expectError: false,
+		},
+		{
+			name:        "unknown value",
+			value:       types.StringUnknown(),
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := validator.StringRequest{
+				Path:           path.Root("cid"),
+				PathExpression: path.MatchRoot("cid"),
+				ConfigValue:    tt.value,
+			}
+			resp := &validator.StringResponse{}
+
+			CID().ValidateString(context.Background(), req, resp)
+
+			if tt.expectError {
+				assert.True(t, resp.Diagnostics.HasError(), "Expected error but got none for value: %q", tt.value.ValueString())
+			} else {
+				assert.False(t, resp.Diagnostics.HasError(), "Unexpected error for value: %q", tt.value.ValueString())
+			}
+		})
+	}
+}

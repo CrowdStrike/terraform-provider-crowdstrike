@@ -50,7 +50,7 @@ resource "crowdstrike_cid_group" "example" {
 
 ### Optional
 
-- `cids` (Set of String) Set of CID identifiers that are members of this group.
+- `cids` (Set of String) Set of CID identifiers that are members of this group. Provide each CID as 32 lowercase hexadecimal characters with no checksum suffix (e.g. `abcdef1234567890abcdef1234567890`, not `ABCDEF1234567890ABCDEF1234567890-0F`).
 - `description` (String) The description of the CID group.
 
 ### Read-Only

@@ -3,8 +3,6 @@ package user
 import (
 	"context"
 	"fmt"
-	"regexp"
-	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/user_management"
@@ -17,7 +15,6 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
-	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -84,7 +81,7 @@ func (m *userResourceModel) wrap(ctx context.Context, user models.DomainUser) di
 	m.Email = flex.StringValueToFramework(user.UID)
 	m.FirstName = flex.StringValueToFramework(user.FirstName)
 	m.LastName = flex.StringValueToFramework(user.LastName)
-	m.Cid = flex.StringValueToFramework(strings.ToUpper(user.Cid))
+	m.Cid = flex.StringValueToFramework(user.Cid)
 	m.Status = flex.StringValueToFramework(user.Status)
 	m.UserType = flex.StringValueToFramework(user.UserType)
 
@@ -173,18 +170,13 @@ func (r *userResource) Schema(
 				},
 			},
 			"cid": schema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "The customer ID (CID) to create the user in, which becomes the user's home CID. Falcon Flight Control (FCTL) customers making requests from the parent CID can set this to the ID of a child CID. If not provided, the user is created in the CID making the request (the CID associated with the provider credentials). Changing this forces a new user to be created.",
+				Required:    true,
+				Description: "The customer ID (CID) to create the user in, which becomes the user's home CID. Falcon Flight Control (FCTL) customers making requests from the parent CID can set this to the ID of a child CID. Provide the 32-character lowercase hexadecimal CID without the checksum suffix (e.g. `abcdef1234567890abcdef1234567890`, not `ABCDEF1234567890ABCDEF1234567890-0F`); use the `crowdstrike_cid` data source to get the CID for the authenticating credentials. Changing this forces a new user to be created.",
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.RegexMatches(
-						regexp.MustCompile(`^[a-fA-F0-9]{32}$`),
-						"must be a 32-character hexadecimal string",
-					),
+					fwvalidators.CID(),
 				},
 			},
 			"password_wo": schema.StringAttribute{
@@ -262,12 +254,10 @@ func (r *userResource) Create(
 	}
 
 	createBody := &models.DomainCreateUserRequest{
+		Cid:       plan.Cid.ValueString(),
 		FirstName: plan.FirstName.ValueString(),
 		LastName:  plan.LastName.ValueString(),
 		UID:       plan.Email.ValueString(),
-	}
-	if utils.IsKnown(plan.Cid) {
-		createBody.Cid = strings.ToLower(plan.Cid.ValueString())
 	}
 	if !config.PasswordWO.IsNull() {
 		createBody.Password = config.PasswordWO.ValueString()

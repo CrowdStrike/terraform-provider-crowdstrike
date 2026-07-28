@@ -230,7 +230,7 @@ func (r *correlationRuleResource) Schema(
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					CIDValidator(),
+					fwvalidators.CID(),
 				},
 			},
 			"name": schema.StringAttribute{

@@ -348,6 +348,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		ioaexclusion.NewIOAExclusionResource,
 		ioarulegroup.NewIOARuleGroupResource,
 		usergroup.NewUserGroupResource,
+		user.NewUserRoleAssignmentResource,
 		user.NewUserResource,
 		installtoken.NewInstallTokenResource,
 		firewall.NewFirewallRuleGroupResource,
