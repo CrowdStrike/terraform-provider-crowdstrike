@@ -3,15 +3,12 @@ package hostgroups
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
-	"github.com/crowdstrike/gofalcon/falcon/client/host_group"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -19,7 +16,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 const (
@@ -184,82 +180,13 @@ func (d *hostGroupDataSource) Read(
 		return
 	}
 
-	if utils.IsKnown(data.ID) {
-		// Look up by ID using GetHostGroups.
-		tflog.Debug(ctx, "[datasource] Looking up host group by ID", map[string]any{
-			"id": data.ID.ValueString(),
-		})
-
-		res, err := d.client.HostGroup.GetHostGroups(
-			&host_group.GetHostGroupsParams{
-				Context: ctx,
-				Ids:     []string{data.ID.ValueString()},
-			},
-		)
-		notFoundDetail := fmt.Sprintf("No host group found with ID %q.", data.ID.ValueString())
-		if err != nil {
-			resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, dataSourceApiScopes, tferrors.WithNotFoundDetail(notFoundDetail)))
-			return
-		}
-
-		if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
-			resp.Diagnostics.Append(tferrors.NewNotFoundError(notFoundDetail))
-			return
-		}
-
-		data.wrap(res.Payload.Resources[0])
-	} else {
-		// Look up by name using QueryCombinedHostGroups with FQL filter.
-		name := data.Name.ValueString()
-
-		tflog.Debug(ctx, "[datasource] Looking up host group by name", map[string]any{
-			"name": name,
-		})
-
-		filter := fmt.Sprintf("name:'%s'", strings.ToLower(name))
-		params := &host_group.QueryCombinedHostGroupsParams{
-			Context: ctx,
-			Filter:  &filter,
-		}
-
-		res, err := d.client.HostGroup.QueryCombinedHostGroups(params)
-		notFoundDetail := fmt.Sprintf("No host group found with name %q.", name)
-		if err != nil {
-			resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, dataSourceApiScopes, tferrors.WithNotFoundDetail(notFoundDetail)))
-			return
-		}
-
-		if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
-			resp.Diagnostics.Append(tferrors.NewNotFoundError(notFoundDetail))
-			return
-		}
-
-		// The FQL name filter may return partial matches, so filter
-		// client-side for an exact (case-insensitive) name match.
-		var matched []*models.HostGroupsHostGroupV1
-		for _, g := range res.Payload.Resources {
-			if g != nil && g.Name != nil && strings.EqualFold(*g.Name, name) {
-				matched = append(matched, g)
-			}
-		}
-
-		if len(matched) == 0 {
-			resp.Diagnostics.Append(tferrors.NewNotFoundError(
-				fmt.Sprintf("No host group found with exact name %q.", name),
-			))
-			return
-		}
-
-		if len(matched) > 1 {
-			resp.Diagnostics.AddError(
-				"Multiple host groups found",
-				fmt.Sprintf("Found %d host groups with name %q. Host group names are expected to be unique.", len(matched), name),
-			)
-			return
-		}
-
-		data.wrap(matched[0])
+	group, diags := lookupHostGroup(ctx, d.client, data.ID.ValueString(), data.Name.ValueString())
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
+
+	data.wrap(group)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

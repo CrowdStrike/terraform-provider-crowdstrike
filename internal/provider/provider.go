@@ -380,6 +380,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		firewall.NewFirewallPoliciesDataSource,
 		firewall.NewFirewallRuleGroupsDataSource,
 		hostgroups.NewHostGroupDataSource,
+		hostgroups.NewHostGroupMembersDataSource,
 		cidgroup.NewCIDGroupDataSource,
 		cid.NewCIDDataSource,
 		rtrscript.NewRTRScriptDataSource,
