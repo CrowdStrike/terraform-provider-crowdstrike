@@ -5,7 +5,6 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client/ngsiem"
 	"github.com/crowdstrike/gofalcon/falcon/models"
-	"github.com/go-openapi/errors"
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 )
@@ -33,13 +32,21 @@ type updateDataConnectionRequestOverride struct {
 }
 
 // createDataConnectionParamsOverride serializes the create request body using
-// the enrichment-corrected struct. It mirrors the generated
-// ExternalCreateDataConnectionParams.WriteToRequest (body only).
+// the enrichment-corrected struct. It delegates to the generated
+// ExternalCreateDataConnectionParams.WriteToRequest so the request inherits
+// everything the call site configured (notably the per-request timeout), then
+// replaces the body.
 type createDataConnectionParamsOverride struct {
-	body *createDataConnectionRequestOverride
+	generated runtime.ClientRequestWriter
+	body      *createDataConnectionRequestOverride
 }
 
-func (p *createDataConnectionParamsOverride) WriteToRequest(r runtime.ClientRequest, _ strfmt.Registry) error {
+func (p *createDataConnectionParamsOverride) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
+	if p.generated != nil {
+		if err := p.generated.WriteToRequest(r, reg); err != nil {
+			return err
+		}
+	}
 	if p.body != nil {
 		if err := r.SetBodyParam(p.body); err != nil {
 			return err
@@ -49,28 +56,24 @@ func (p *createDataConnectionParamsOverride) WriteToRequest(r runtime.ClientRequ
 }
 
 // updateDataConnectionParamsOverride serializes the update request body using
-// the enrichment-corrected struct. It mirrors the generated
-// ExternalUpdateDataConnectionParams.WriteToRequest, including the required
-// `ids` query param.
+// the enrichment-corrected struct. It delegates to the generated
+// ExternalUpdateDataConnectionParams.WriteToRequest, which writes the
+// per-request timeout and the required `ids` query param, then replaces the body.
 type updateDataConnectionParamsOverride struct {
-	body *updateDataConnectionRequestOverride
-	ids  string
+	generated runtime.ClientRequestWriter
+	body      *updateDataConnectionRequestOverride
 }
 
-func (p *updateDataConnectionParamsOverride) WriteToRequest(r runtime.ClientRequest, _ strfmt.Registry) error {
-	var res []error
+func (p *updateDataConnectionParamsOverride) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
+	if p.generated != nil {
+		if err := p.generated.WriteToRequest(r, reg); err != nil {
+			return err
+		}
+	}
 	if p.body != nil {
 		if err := r.SetBodyParam(p.body); err != nil {
 			return err
 		}
-	}
-	if p.ids != "" {
-		if err := r.SetQueryParam("ids", p.ids); err != nil {
-			return err
-		}
-	}
-	if len(res) > 0 {
-		return errors.CompositeValidationError(res...)
 	}
 	return nil
 }
@@ -80,6 +83,7 @@ func (p *updateDataConnectionParamsOverride) WriteToRequest(r runtime.ClientRequ
 func withCreateEnrichmentOverride(body *models.DataconnectionmanagementCreateDataConnectionRequest) ngsiem.ClientOption {
 	return func(op *runtime.ClientOperation) {
 		op.Params = &createDataConnectionParamsOverride{
+			generated: op.Params,
 			body: &createDataConnectionRequestOverride{
 				DataconnectionmanagementCreateDataConnectionRequest: *body,
 				EnableHostEnrichment: body.EnableHostEnrichment,
@@ -90,16 +94,16 @@ func withCreateEnrichmentOverride(body *models.DataconnectionmanagementCreateDat
 }
 
 // withUpdateEnrichmentOverride returns a ClientOption that swaps in the
-// enrichment-corrected update body serializer, preserving the `ids` query param.
-func withUpdateEnrichmentOverride(body *models.DataconnectionmanagementUpdateDataConnectionRequest, ids string) ngsiem.ClientOption {
+// enrichment-corrected update body serializer.
+func withUpdateEnrichmentOverride(body *models.DataconnectionmanagementUpdateDataConnectionRequest) ngsiem.ClientOption {
 	return func(op *runtime.ClientOperation) {
 		op.Params = &updateDataConnectionParamsOverride{
+			generated: op.Params,
 			body: &updateDataConnectionRequestOverride{
 				DataconnectionmanagementUpdateDataConnectionRequest: *body,
 				EnableHostEnrichment: body.EnableHostEnrichment,
 				EnableUserEnrichment: body.EnableUserEnrichment,
 			},
-			ids: ids,
 		}
 	}
 }

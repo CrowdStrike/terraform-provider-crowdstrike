@@ -258,8 +258,7 @@ func (r *dataConnectionResource) Create(
 		return
 	}
 
-	params := ngsiem.NewExternalCreateDataConnectionParams().
-		WithContext(ctx).
+	params := ngsiem.NewExternalCreateDataConnectionParamsWithContext(ctx).
 		WithBody(createRequest)
 
 	res, err := r.client.Ngsiem.ExternalCreateDataConnection(
@@ -384,14 +383,13 @@ func (r *dataConnectionResource) Update(
 		return
 	}
 
-	params := ngsiem.NewExternalUpdateDataConnectionParams().
-		WithContext(ctx).
+	params := ngsiem.NewExternalUpdateDataConnectionParamsWithContext(ctx).
 		WithIds(plan.ID.ValueString()).
 		WithBody(updateRequest)
 
 	_, err := r.client.Ngsiem.ExternalUpdateDataConnection(
 		params,
-		withUpdateEnrichmentOverride(updateRequest, plan.ID.ValueString()),
+		withUpdateEnrichmentOverride(updateRequest),
 	)
 	if err != nil {
 		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(
