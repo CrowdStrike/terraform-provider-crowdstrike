@@ -2,12 +2,52 @@ package fim_test
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
+
+func TestAccFilevantagePolicyAttachmentResource_policyNotFound(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping acceptance test")
+	}
+
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck: func() {
+			acctest.PreCheck(t)
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFilevantagePolicyAttachmentConfig_policyNotFound(rName),
+				ExpectError: regexp.MustCompile(
+					`FileVantage Policy Not Found[\s\S]*does\s+not\s+exist[\s\S]*crowdstrike_filevantage_policy`,
+				),
+			},
+		},
+	})
+}
+
+func testAccFilevantagePolicyAttachmentConfig_policyNotFound(rName string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_host_group" "test" {
+  name        = %[1]q
+  description = "test host group for attachment tests"
+  type        = "staticByID"
+  host_ids    = []
+}
+
+resource "crowdstrike_filevantage_policy_attachment" "test" {
+  id          = "00000000000000000000000000000000"
+  host_groups = [crowdstrike_host_group.test.id]
+}
+`, rName)
+}
 
 func TestAccFilevantagePolicyAttachmentResource_basic(t *testing.T) {
 	if testing.Short() {

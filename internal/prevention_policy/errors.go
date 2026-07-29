@@ -1,9 +1,12 @@
 package preventionpolicy
 
-import "github.com/hashicorp/terraform-plugin-framework/diag"
+import (
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+)
 
-const notFoundErrorSummary = "Prevention Policy not found"
+const notFoundErrorSummary = tferrors.NotFoundErrorSummary
 
 func newNotFoundError(detail string) diag.ErrorDiagnostic {
-	return diag.NewErrorDiagnostic(notFoundErrorSummary, detail)
+	return tferrors.NewNotFoundError(detail)
 }

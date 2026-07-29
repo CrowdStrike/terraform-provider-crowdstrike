@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -18,7 +19,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -39,6 +39,18 @@ var (
 		},
 	}
 )
+
+func newAttachmentPolicyNotFoundError(policyID string) diag.ErrorDiagnostic {
+	return diag.NewErrorDiagnostic(
+		"Sensor Update Policy Not Found",
+		fmt.Sprintf(
+			"Sensor update policy with ID %q does not exist. "+
+				"This resource manages attachments to an existing policy and does not create a policy. "+
+				"Ensure the correct policy ID was provided or use the crowdstrike_sensor_update_policy resource to create a policy.",
+			policyID,
+		),
+	)
+}
 
 func NewSensorUpdatePolicyHostGroupAttachmentResource() resource.Resource {
 	return &sensorUpdatePolicyHostGroupAttachmentResource{}
@@ -191,8 +203,12 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Create(
 	}
 
 	policy, diags := getSensorUpdatePolicy(ctx, r.client, plan.ID.ValueString())
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(newAttachmentPolicyNotFoundError(plan.ID.ValueString()))
+			return
+		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -218,8 +234,12 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Create(
 	}
 
 	policy, diags = getSensorUpdatePolicy(ctx, r.client, plan.ID.ValueString())
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(newAttachmentPolicyNotFoundError(plan.ID.ValueString()))
+			return
+		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -240,19 +260,13 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Read(
 	}
 
 	policy, diags := getSensorUpdatePolicy(ctx, r.client, state.ID.ValueString())
-	for _, err := range diags.Errors() {
-		if err.Summary() == notFoundErrorSummary {
-			tflog.Warn(
-				ctx,
-				fmt.Sprintf("sensor update policy %s not found, removing from state", state.ID),
-			)
-
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 			resp.State.RemoveResource(ctx)
 			return
 		}
-	}
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -284,8 +298,12 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Update(
 		}
 
 		policy, diags := getSensorUpdatePolicy(ctx, r.client, plan.ID.ValueString())
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
+		if diags.HasError() {
+			if tferrors.HasNotFoundError(diags) {
+				resp.Diagnostics.Append(newAttachmentPolicyNotFoundError(plan.ID.ValueString()))
+				return
+			}
+			resp.Diagnostics.Append(diags...)
 			return
 		}
 
@@ -320,8 +338,12 @@ func (r *sensorUpdatePolicyHostGroupAttachmentResource) Update(
 	}
 
 	policy, diag := getSensorUpdatePolicy(ctx, r.client, plan.ID.ValueString())
-	resp.Diagnostics.Append(diag...)
-	if resp.Diagnostics.HasError() {
+	if diag.HasError() {
+		if tferrors.HasNotFoundError(diag) {
+			resp.Diagnostics.Append(newAttachmentPolicyNotFoundError(plan.ID.ValueString()))
+			return
+		}
+		resp.Diagnostics.Append(diag...)
 		return
 	}
 

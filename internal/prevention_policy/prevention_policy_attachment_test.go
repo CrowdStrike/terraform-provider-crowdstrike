@@ -3,12 +3,52 @@ package preventionpolicy_test
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
+
+func TestAccPreventionPolicyAttachmentResource_policyNotFound(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping acceptance test")
+	}
+
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck: func() {
+			acctest.PreCheck(t)
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: testAccPreventionPolicyAttachmentConfig_policyNotFound(rName),
+				ExpectError: regexp.MustCompile(
+					`Prevention Policy Not Found[\s\S]*does\s+not\s+exist[\s\S]*crowdstrike_prevention_policy_\*`,
+				),
+			},
+		},
+	})
+}
+
+func testAccPreventionPolicyAttachmentConfig_policyNotFound(rName string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_host_group" "test" {
+  name        = %[1]q
+  description = "test host group for attachment tests"
+  type        = "staticByID"
+  host_ids    = []
+}
+
+resource "crowdstrike_prevention_policy_attachment" "test" {
+  id          = "00000000000000000000000000000000"
+  host_groups = [crowdstrike_host_group.test.id]
+}
+`, rName)
+}
 
 func TestAccPreventionPolicyAttachmentResource_basic(t *testing.T) {
 	if testing.Short() {
