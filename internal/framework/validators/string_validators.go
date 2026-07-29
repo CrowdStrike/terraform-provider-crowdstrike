@@ -102,3 +102,37 @@ func SortField(validFields []string) validator.String {
 		validFields: validFields,
 	}
 }
+
+var cidNormalizedPattern = regexp.MustCompile(`^[a-f0-9]{32}$`)
+
+// cidValidator validates a CrowdStrike CID: 32 lowercase hex characters,
+// with no `-NN` checksum suffix. The API returns the canonical form, so we
+// require it here to avoid state drift after apply.
+type cidValidator struct{}
+
+func (v cidValidator) Description(_ context.Context) string {
+	return "must be a CrowdStrike CID in canonical form: 32 lowercase hex characters, with no `-NN` checksum suffix"
+}
+
+func (v cidValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v cidValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	value := req.ConfigValue.ValueString()
+	if !cidNormalizedPattern.MatchString(value) {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Invalid cid",
+			fmt.Sprintf("cid must be 32 lowercase hex characters with no `-NN` checksum suffix. Got: %q", value),
+		)
+	}
+}
+
+// CID validates a CrowdStrike CID.
+func CID() validator.String {
+	return cidValidator{}
+}

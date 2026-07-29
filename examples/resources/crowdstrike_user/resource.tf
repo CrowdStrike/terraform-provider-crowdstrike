@@ -16,6 +16,8 @@ variable "user_password" {
   sensitive   = true
 }
 
+data "crowdstrike_cid" "current" {}
+
 # Create a user with an initial password.
 #
 # password_wo is write-only and is never stored in state. Because the Falcon
@@ -26,6 +28,7 @@ resource "crowdstrike_user" "with_password" {
   email               = "jane.doe@example.com"
   first_name          = "Jane"
   last_name           = "Doe"
+  cid                 = data.crowdstrike_cid.current.cid
   password_wo         = var.user_password
   password_wo_version = 1
 }
@@ -37,4 +40,5 @@ resource "crowdstrike_user" "invite" {
   email      = "john.smith@example.com"
   first_name = "John"
   last_name  = "Smith"
+  cid        = data.crowdstrike_cid.current.cid
 }

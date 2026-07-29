@@ -84,7 +84,7 @@ data "crowdstrike_user_roles" "test" {
   cid = "ABCDEF1234567890ABCDEF1234567890-0F"
 }
 `,
-				ExpectError: regexp.MustCompile("must be a 32-character lowercase hexadecimal CID"),
+				ExpectError: regexp.MustCompile("must be 32 lowercase hex characters"),
 			},
 		},
 	})

@@ -124,9 +124,9 @@ func (r *cidGroupResource) Schema(
 			"cids": schema.SetAttribute{
 				ElementType:         types.StringType,
 				Optional:            true,
-				MarkdownDescription: "Set of CID identifiers that are members of this group.",
+				MarkdownDescription: "Set of CID identifiers that are members of this group. Provide each CID as 32 lowercase hexadecimal characters with no checksum suffix (e.g. `abcdef1234567890abcdef1234567890`, not `ABCDEF1234567890ABCDEF1234567890-0F`).",
 				Validators: []validator.Set{
-					setvalidator.ValueStringsAre(fwvalidators.StringNotWhitespace()),
+					setvalidator.ValueStringsAre(fwvalidators.CID()),
 				},
 			},
 			"cid": schema.StringAttribute{
