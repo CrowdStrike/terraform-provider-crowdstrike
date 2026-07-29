@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	fwtypes "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/types"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -144,10 +145,23 @@ type timeBlock struct {
 
 func (t timeBlock) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"days":       types.SetType{ElemType: types.StringType},
+		"days":       types.SetType{ElemType: fwtypes.CaseInsensitiveStringType{}},
 		"start_time": types.StringType,
 		"end_time":   types.StringType,
 	}
+}
+
+// flattenDays converts the day numbers used by the api into a set of day names.
+// The set uses fwtypes.CaseInsensitiveStringType so the casing a user configured
+// is preserved in state, since the api only returns day numbers.
+func flattenDays(ctx context.Context, days []int64) (types.Set, diag.Diagnostics) {
+	daysStr := make([]string, 0, len(days))
+
+	for _, d := range days {
+		daysStr = append(daysStr, int64ToDay[d])
+	}
+
+	return types.SetValueFrom(ctx, fwtypes.CaseInsensitiveStringType{}, daysStr)
 }
 
 // validTime checks if the start and end time are atleast 1 hour apart.

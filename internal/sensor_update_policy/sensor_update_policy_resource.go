@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	fwtypes "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/types"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
@@ -212,14 +213,8 @@ func (d *sensorUpdatePolicyResourceModel) wrap(
 
 					for _, s := range policy.Settings.Scheduler.Schedules {
 						sCopy := s
-						daysStr := []string{}
 
-						for _, d := range sCopy.Days {
-							dCopy := d
-							daysStr = append(daysStr, int64ToDay[dCopy])
-						}
-
-						days, diagsDay := types.SetValueFrom(ctx, types.StringType, daysStr)
+						days, diagsDay := flattenDays(ctx, sCopy.Days)
 						diags.Append(diagsDay...)
 						if diags.HasError() {
 							return diags
@@ -388,8 +383,8 @@ func (r *sensorUpdatePolicyResource) Schema(
 							Attributes: map[string]schema.Attribute{
 								"days": schema.SetAttribute{
 									Required:    true,
-									ElementType: types.StringType,
-									Description: "The days of the week the time block should be active.",
+									ElementType: fwtypes.CaseInsensitiveStringType{},
+									Description: "The days of the week the time block should be active. Case-insensitive.",
 									Validators: []validator.Set{
 										setvalidator.ValueStringsAre(
 											stringvalidator.OneOfCaseInsensitive(
@@ -975,7 +970,7 @@ func (r *sensorUpdatePolicyResource) ValidateConfig(
 				resp.Diagnostics.Append(b.Days.ElementsAs(ctx, &days, false)...)
 
 				for _, day := range days {
-					_, ok := usedDays[day]
+					_, ok := usedDays[strings.ToLower(day)]
 					if ok {
 						resp.Diagnostics.AddAttributeError(
 							path.Root("schedule"),
@@ -987,7 +982,7 @@ func (r *sensorUpdatePolicyResource) ValidateConfig(
 						)
 					}
 
-					usedDays[day] = nil
+					usedDays[strings.ToLower(day)] = nil
 				}
 			}
 		}

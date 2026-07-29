@@ -7,6 +7,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
@@ -388,4 +389,77 @@ resource "crowdstrike_default_sensor_update_policy" "default" {
 			},
 		},
 	})
+}
+
+// regression test for https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues/200
+func TestAccDefaultSensorUpdatePolicyResourceWithSchedule_CapitalizedDays(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: testAccDefaultSensorUpdatePolicyResourceConfigCapitalizedDays(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+					resource.TestCheckResourceAttr(resourceName, "platform_name", "Windows"),
+					resource.TestCheckResourceAttr(resourceName, "schedule.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "schedule.timezone", "Etc/UTC"),
+					resource.TestCheckResourceAttr(resourceName, "schedule.time_blocks.#", "1"),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"schedule.time_blocks.0.days.#",
+						"3",
+					),
+					// the configured casing is kept in state, not the api's lowercase form
+					resource.TestCheckTypeSetElemAttr(
+						resourceName,
+						"schedule.time_blocks.0.days.*",
+						"Monday",
+					),
+					resource.TestCheckTypeSetElemAttr(
+						resourceName,
+						"schedule.time_blocks.0.days.*",
+						"Wednesday",
+					),
+					resource.TestCheckTypeSetElemAttr(
+						resourceName,
+						"schedule.time_blocks.0.days.*",
+						"Friday",
+					),
+				),
+			},
+			// re-planning the same config proves the configured casing round-trips through refresh
+			{
+				Config: testAccDefaultSensorUpdatePolicyResourceConfigCapitalizedDays(),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+		},
+	})
+}
+
+func testAccDefaultSensorUpdatePolicyResourceConfigCapitalizedDays() string {
+	return acctest.ProviderConfig + `
+resource "crowdstrike_default_sensor_update_policy" "default" {
+  platform_name = "Windows"
+  build         = ""
+  schedule = {
+    enabled = true
+    timezone = "Etc/UTC"
+    time_blocks = [
+      {
+        days       = ["Monday", "Wednesday", "Friday"]
+        start_time = "09:00"
+        end_time   = "17:00"
+      }
+    ]
+  }
+}
+`
 }

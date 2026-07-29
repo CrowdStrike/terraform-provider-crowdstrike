@@ -97,7 +97,7 @@ Optional:
 
 Required:
 
-- `days` (Set of String) The days of the week the time block should be active.
+- `days` (Set of String) The days of the week the time block should be active. Case-insensitive.
 - `end_time` (String) The end time for the time block in 24HR format. Must be atleast 1 hour more than start_time.
 - `start_time` (String) The start time for the time block in 24HR format. Must be atleast 1 hour before end_time.
 
