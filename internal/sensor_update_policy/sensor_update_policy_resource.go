@@ -91,7 +91,7 @@ func (d *sensorUpdatePolicyResourceModel) wrap(
 
 	d.ID = types.StringValue(*policy.ID)
 	d.Name = types.StringValue(*policy.Name)
-	d.Description = types.StringValue(*policy.Description)
+	d.Description = utils.PlanAwareStringValue(d.Description, policy.Description)
 	d.Enabled = types.BoolValue(*policy.Enabled)
 
 	if validateHostGroups {

@@ -17,7 +17,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
 // sensorUpdatePolicyConfig represents a complete policy configuration for testing.
@@ -1373,10 +1376,12 @@ resource "crowdstrike_sensor_update_policy" "test" {
 				),
 			},
 			{
-				ResourceName:            resourceName,
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"last_updated"},
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+				// The API reports an unset description as "", which import cannot tell apart
+				// from an explicit description = "". Import resolves it to null.
+				ImportStateVerifyIgnore: []string{"last_updated", "description"},
 			},
 		},
 	})
@@ -1523,6 +1528,163 @@ resource "crowdstrike_sensor_update_policy" "test" {
 			},
 		},
 	})
+}
+
+func testAccSensorUpdatePolicyConfig_noDescription(rName string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_sensor_update_policy" "test" {
+  name          = %q
+  platform_name = "Windows"
+  build         = ""
+  schedule = {
+    enabled = false
+  }
+}
+`, rName)
+}
+
+func testAccSensorUpdatePolicyConfig_withDescription(rName, description string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_sensor_update_policy" "test" {
+  name          = %q
+  description   = %q
+  platform_name = "Windows"
+  build         = ""
+  schedule = {
+    enabled = false
+  }
+}
+`, rName, description)
+}
+
+func TestAccSensorUpdatePolicyResource_nullDescription(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	resourceName := "crowdstrike_sensor_update_policy.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccSensorUpdatePolicyConfig_noDescription(rName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.Null()),
+				},
+			},
+			{
+				Config: testAccSensorUpdatePolicyConfig_withDescription(rName, "made with terraform"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("made with terraform")),
+				},
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"last_updated"},
+			},
+		},
+	})
+}
+
+// TestAccSensorUpdatePolicyResource_emptyDescription verifies that practitioners who
+// already have description = "" in their configuration keep working. An explicit empty
+// string must stay an empty string in state, not be normalized to null.
+func TestAccSensorUpdatePolicyResource_emptyDescription(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	resourceName := "crowdstrike_sensor_update_policy.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccSensorUpdatePolicyConfig_withDescription(rName, ""),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("")),
+				},
+			},
+			{
+				Config:   testAccSensorUpdatePolicyConfig_withDescription(rName, ""),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+// TestWrapDescription verifies that wrap preserves the practitioner's intent for the
+// optional description: a null config stays null when the API echoes back "", while an
+// explicit empty string is kept as an empty string for backwards compatibility.
+func TestWrapDescription(t *testing.T) {
+	tests := []struct {
+		name   string
+		plan   types.String
+		apiVal *string
+		want   types.String
+	}{
+		{
+			name:   "null plan with empty api value stays null",
+			plan:   types.StringNull(),
+			apiVal: utils.Addr(""),
+			want:   types.StringNull(),
+		},
+		{
+			name:   "null plan with nil api value stays null",
+			plan:   types.StringNull(),
+			apiVal: nil,
+			want:   types.StringNull(),
+		},
+		{
+			name:   "empty plan with empty api value stays empty",
+			plan:   types.StringValue(""),
+			apiVal: utils.Addr(""),
+			want:   types.StringValue(""),
+		},
+		{
+			name:   "set plan takes the api value",
+			plan:   types.StringValue("made with terraform"),
+			apiVal: utils.Addr("made with terraform"),
+			want:   types.StringValue("made with terraform"),
+		},
+		{
+			name:   "null plan takes a non empty api value",
+			plan:   types.StringNull(),
+			apiVal: utils.Addr("set outside terraform"),
+			want:   types.StringValue("set outside terraform"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			build := "1234"
+			policy := models.SensorUpdatePolicyV2{
+				ID:           utils.Addr("policy-1"),
+				Name:         utils.Addr("test"),
+				Description:  tt.apiVal,
+				Enabled:      utils.Addr(true),
+				PlatformName: utils.Addr("Windows"),
+				Settings: &models.SensorUpdateSettingsRespV2{
+					Build:               utils.Addr(build),
+					UninstallProtection: utils.Addr("DISABLED"),
+				},
+			}
+
+			model := sensorupdatepolicy.SensorUpdatePolicyResourceModel{
+				Build:       types.StringValue(build),
+				Description: tt.plan,
+			}
+
+			diags := sensorupdatepolicy.WrapSensorUpdatePolicy(&model, t.Context(), policy, false, false)
+			if diags.HasError() {
+				t.Fatalf("expected no diagnostics, got: %v", diags.Errors())
+			}
+
+			if !model.Description.Equal(tt.want) {
+				t.Errorf("description = %s, want %s", model.Description, tt.want)
+			}
+		})
+	}
 }
 
 // TestWrapDropsFlightControlPlaceholderGroups verifies that empty-ID host group
