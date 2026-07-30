@@ -1564,3 +1564,171 @@ func TestWrapDropsFlightControlPlaceholderGroups(t *testing.T) {
 		t.Fatalf("expected host_groups=[real-group], got %v", got)
 	}
 }
+
+// regression test for https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues/200
+func TestAccSensorUpdatePolicyResourceWithSchedule_CapitalizedDays(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	resourceName := "crowdstrike_sensor_update_policy.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccSensorUpdatePolicyResourceConfigCapitalizedDays(rName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(resourceName, "id"),
+					resource.TestCheckResourceAttr(resourceName, "name", rName),
+					resource.TestCheckResourceAttr(resourceName, "platform_name", "Windows"),
+					resource.TestCheckResourceAttr(resourceName, "schedule.enabled", "true"),
+					resource.TestCheckResourceAttr(resourceName, "schedule.timezone", "Etc/UTC"),
+					resource.TestCheckResourceAttr(resourceName, "schedule.time_blocks.#", "1"),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"schedule.time_blocks.0.days.#",
+						"3",
+					),
+					// the configured casing is kept in state, not the api's lowercase form
+					resource.TestCheckTypeSetElemAttr(
+						resourceName,
+						"schedule.time_blocks.0.days.*",
+						"Monday",
+					),
+					resource.TestCheckTypeSetElemAttr(
+						resourceName,
+						"schedule.time_blocks.0.days.*",
+						"Wednesday",
+					),
+					resource.TestCheckTypeSetElemAttr(
+						resourceName,
+						"schedule.time_blocks.0.days.*",
+						"Friday",
+					),
+				),
+			},
+			// re-planning the same config proves the configured casing round-trips through refresh
+			{
+				Config: testAccSensorUpdatePolicyResourceConfigCapitalizedDays(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+			// lowercase day names still work
+			{
+				Config: testAccSensorUpdatePolicyResourceConfigLowercaseDays(rName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"schedule.time_blocks.0.days.#",
+						"3",
+					),
+					resource.TestCheckTypeSetElemAttr(
+						resourceName,
+						"schedule.time_blocks.0.days.*",
+						"monday",
+					),
+				),
+			},
+			{
+				Config: testAccSensorUpdatePolicyResourceConfigLowercaseDays(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+			// import has no configuration, so it produces the canonical lowercase form
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"last_updated"},
+			},
+		},
+	})
+}
+
+func testAccSensorUpdatePolicyResourceConfigCapitalizedDays(rName string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_sensor_update_policy" "test" {
+  name          = %[1]q
+  description   = "made with terraform"
+  platform_name = "Windows"
+  build         = ""
+  schedule = {
+    enabled = true
+    timezone = "Etc/UTC"
+    time_blocks = [
+      {
+        days       = ["Monday", "Wednesday", "Friday"]
+        start_time = "09:00"
+        end_time   = "17:00"
+      }
+    ]
+  }
+}
+`, rName)
+}
+
+func testAccSensorUpdatePolicyResourceConfigLowercaseDays(rName string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_sensor_update_policy" "test" {
+  name          = %[1]q
+  description   = "made with terraform"
+  platform_name = "Windows"
+  build         = ""
+  schedule = {
+    enabled = true
+    timezone = "Etc/UTC"
+    time_blocks = [
+      {
+        days       = ["monday", "wednesday", "friday"]
+        start_time = "09:00"
+        end_time   = "17:00"
+      }
+    ]
+  }
+}
+`, rName)
+}
+
+// regression test for https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues/200
+// duplicate day detection must be case-insensitive.
+func TestAccSensorUpdatePolicyResource_DuplicateDaysMixedCase(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_sensor_update_policy" "test" {
+  name          = %[1]q
+  platform_name = "Windows"
+  build         = ""
+  schedule = {
+    enabled = true
+    timezone = "Etc/UTC"
+    time_blocks = [
+      {
+        days       = ["Monday"]
+        start_time = "09:00"
+        end_time   = "17:00"
+      },
+      {
+        days       = ["monday"]
+        start_time = "18:00"
+        end_time   = "20:00"
+      }
+    ]
+  }
+}
+`, rName),
+				ExpectError: regexp.MustCompile("(?i)Duplicate days in schedule"),
+			},
+		},
+	})
+}

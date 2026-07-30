@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
+	fwtypes "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/types"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
@@ -177,12 +178,7 @@ func (m *sensorUpdatePoliciesDataSourceModel) wrap(ctx context.Context, policies
 						timeBlockObjects := []timeBlock{}
 
 						for _, s := range policy.Settings.Scheduler.Schedules {
-							daysStr := []string{}
-							for _, d := range s.Days {
-								daysStr = append(daysStr, int64ToDay[d])
-							}
-
-							days, diagsDay := types.SetValueFrom(ctx, types.StringType, daysStr)
+							days, diagsDay := flattenDays(ctx, s.Days)
 							diags.Append(diagsDay...)
 							if diags.HasError() {
 								return diags
@@ -407,7 +403,7 @@ func (d *sensorUpdatePoliciesDataSource) Schema(
 										Attributes: map[string]schema.Attribute{
 											"days": schema.SetAttribute{
 												Computed:    true,
-												ElementType: types.StringType,
+												ElementType: fwtypes.CaseInsensitiveStringType{},
 												Description: "Days of the week when this time block is active",
 											},
 											"start_time": schema.StringAttribute{
