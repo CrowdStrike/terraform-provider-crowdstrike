@@ -198,7 +198,9 @@ func orderRulesByRuleIDs(
 	return ordered
 }
 
-// orderRulesByPlanNames orders API rules to match plan order.
+// orderRulesByPlanNames orders API rules to match plan order. Rule IDs are
+// preferred because Falcon permits duplicate names. Name matching is a FIFO
+// fallback for plans where computed IDs are not yet known.
 func orderRulesByPlanNames(
 	ctx context.Context,
 	apiRules []*models.FwmgrFirewallRuleV1,
@@ -215,11 +217,17 @@ func orderRulesByPlanNames(
 		return apiRules, diags
 	}
 
-	// Build a map of rule name to API rule
-	rulesByName := make(map[string]*models.FwmgrFirewallRuleV1)
+	rulesByID := make(map[string]*models.FwmgrFirewallRuleV1, len(apiRules))
+	rulesByName := make(map[string][]*models.FwmgrFirewallRuleV1)
 	for _, rule := range apiRules {
-		if rule != nil && rule.Name != nil {
-			rulesByName[*rule.Name] = rule
+		if rule == nil {
+			continue
+		}
+		if rule.ID != nil {
+			rulesByID[*rule.ID] = rule
+		}
+		if rule.Name != nil {
+			rulesByName[*rule.Name] = append(rulesByName[*rule.Name], rule)
 		}
 	}
 
@@ -232,20 +240,30 @@ func orderRulesByPlanNames(
 
 	// Build ordered slice matching plan order
 	ordered := make([]*models.FwmgrFirewallRuleV1, 0, len(planRuleModels))
+	seen := make(map[*models.FwmgrFirewallRuleV1]bool, len(apiRules))
 	for _, planRule := range planRuleModels {
-		name := planRule.Name.ValueString()
-		if rule, found := rulesByName[name]; found {
+		if utils.IsKnown(planRule.ID) {
+			if rule, found := rulesByID[planRule.ID.ValueString()]; found && !seen[rule] {
+				ordered = append(ordered, rule)
+				seen[rule] = true
+				continue
+			}
+		}
+
+		for _, rule := range rulesByName[planRule.Name.ValueString()] {
+			if seen[rule] {
+				continue
+			}
 			ordered = append(ordered, rule)
-			delete(rulesByName, name) // Remove to avoid duplicates
+			seen[rule] = true
+			break
 		}
 	}
 
 	// Append any remaining rules not in plan (shouldn't happen normally)
 	for _, rule := range apiRules {
-		if rule != nil && rule.Name != nil {
-			if _, stillExists := rulesByName[*rule.Name]; stillExists {
-				ordered = append(ordered, rule)
-			}
+		if rule != nil && !seen[rule] {
+			ordered = append(ordered, rule)
 		}
 	}
 
@@ -265,17 +283,25 @@ func wrapRules(
 		return types.ListNull(types.ObjectType{AttrTypes: firewallRuleModel{}.attrTypes()}), diags
 	}
 
-	// Build a map of plan rules by name to preserve values the API doesn't return
-	planRulesByName := make(map[string]firewallRuleModel)
+	// Preserve plan-only values by stable rule ID. Name queues are needed only
+	// for create plans where computed IDs are not known yet.
+	planRulesByID := make(map[string]int)
+	planRulesByName := make(map[string][]int)
+	var planRuleModels []firewallRuleModel
 	if utils.IsKnown(planRules) {
-		var planRuleModels []firewallRuleModel
 		diags.Append(planRules.ElementsAs(ctx, &planRuleModels, false)...)
 		if !diags.HasError() {
-			for _, pr := range planRuleModels {
-				planRulesByName[pr.Name.ValueString()] = pr
+			for i, pr := range planRuleModels {
+				if utils.IsKnown(pr.ID) {
+					planRulesByID[pr.ID.ValueString()] = i
+				}
+				name := pr.Name.ValueString()
+				planRulesByName[name] = append(planRulesByName[name], i)
 			}
 		}
 	}
+	planNameIndexes := make(map[string]int)
+	usedPlanIndexes := make(map[int]bool, len(planRuleModels))
 
 	rules := make([]firewallRuleModel, 0, len(apiRules))
 	for _, apiRule := range apiRules {
@@ -306,9 +332,24 @@ func wrapRules(
 		// Get plan rule for preserving values the API rewrites (address "*"
 		// sentinel and single-port end values).
 		var planRule *firewallRuleModel
-		if apiRule.Name != nil {
-			if pr, ok := planRulesByName[*apiRule.Name]; ok {
-				planRule = &pr
+		if apiRule.ID != nil {
+			if index, ok := planRulesByID[*apiRule.ID]; ok {
+				planRule = &planRuleModels[index]
+				usedPlanIndexes[index] = true
+			}
+		}
+		if planRule == nil && apiRule.Name != nil {
+			name := *apiRule.Name
+			candidates := planRulesByName[name]
+			for planNameIndexes[name] < len(candidates) {
+				candidateIndex := candidates[planNameIndexes[name]]
+				planNameIndexes[name]++
+				if usedPlanIndexes[candidateIndex] {
+					continue
+				}
+				planRule = &planRuleModels[candidateIndex]
+				usedPlanIndexes[candidateIndex] = true
+				break
 			}
 		}
 
@@ -723,24 +764,25 @@ func (r *firewallRuleGroupResource) buildDiffOperations(
 		}
 	}
 
-	// Build maps for state rules - by name to ID and by name to rule model
-	stateRulesByName := make(map[string]string)
-	stateRuleModelsByName := make(map[string]firewallRuleModel)
+	type existingRule struct {
+		familyID string
+		model    firewallRuleModel
+	}
+	stateRulesByID := make(map[string]existingRule)
+	stateRulesByName := make(map[string][]existingRule)
 	for i, rule := range stateRules {
 		if utils.IsKnown(rule.ID) && i < len(ruleGroup.RuleIds) {
-			stateRulesByName[rule.Name.ValueString()] = ruleGroup.RuleIds[i]
-			stateRuleModelsByName[rule.Name.ValueString()] = rule
+			existing := existingRule{familyID: ruleGroup.RuleIds[i], model: rule}
+			stateRulesByID[rule.ID.ValueString()] = existing
+			name := rule.Name.ValueString()
+			stateRulesByName[name] = append(stateRulesByName[name], existing)
 		}
 	}
-
-	// Build a map of rule ID to index for replace operations
-	ruleIDToIndex := make(map[string]int)
-	for i, id := range ruleGroup.RuleIds {
-		ruleIDToIndex[id] = i
-	}
+	stateNameIndexes := make(map[string]int)
 
 	// Track which existing rule IDs are still in use
 	usedRuleIDs := make(map[string]bool)
+	matchedRuleIDs := make(map[string]bool)
 
 	// Track rules that need to be added (new or modified)
 	type ruleToAdd struct {
@@ -753,10 +795,26 @@ func (r *firewallRuleGroupResource) buildDiffOperations(
 	tempIDCounter := 1
 	for _, planRule := range planRules {
 		ruleName := planRule.Name.ValueString()
-		if existingID, found := stateRulesByName[ruleName]; found {
+		existing, found := existingRule{}, false
+		if utils.IsKnown(planRule.ID) {
+			existing, found = stateRulesByID[planRule.ID.ValueString()]
+		}
+		if !found {
+			candidates := stateRulesByName[ruleName]
+			for stateNameIndexes[ruleName] < len(candidates) {
+				candidate := candidates[stateNameIndexes[ruleName]]
+				stateNameIndexes[ruleName]++
+				if matchedRuleIDs[candidate.familyID] {
+					continue
+				}
+				existing, found = candidate, true
+				break
+			}
+		}
+		if found {
+			matchedRuleIDs[existing.familyID] = true
 			// Existing rule - check if it has changed
-			stateRule := stateRuleModelsByName[ruleName]
-			if r.ruleHasChanged(planRule, stateRule) {
+			if r.ruleHasChanged(planRule, existing.model) {
 				// Rule properties changed - needs remove+add with temp_id
 				tempID := fmt.Sprintf("temp_id:%d", tempIDCounter)
 				tempIDCounter++
@@ -768,9 +826,9 @@ func (r *firewallRuleGroupResource) buildDiffOperations(
 				newRuleVersions = append(newRuleVersions, 0)
 			} else {
 				// Rule unchanged - keep existing ID
-				newRuleIDs = append(newRuleIDs, existingID)
+				newRuleIDs = append(newRuleIDs, existing.familyID)
 				newRuleVersions = append(newRuleVersions, 0)
-				usedRuleIDs[existingID] = true
+				usedRuleIDs[existing.familyID] = true
 			}
 		} else {
 			// New rule - add with temp_id
@@ -814,7 +872,7 @@ func (r *firewallRuleGroupResource) buildDiffOperations(
 // buildRulePayloadForDiff creates a rule payload map for JSON Patch add operations.
 func (r *firewallRuleGroupResource) buildRulePayloadForDiff(
 	rule firewallRuleModel,
-	_ string,
+	platform string,
 	tempID string,
 ) map[string]interface{} {
 	// Map protocol name to IANA number
@@ -835,6 +893,25 @@ func (r *firewallRuleGroupResource) buildRulePayloadForDiff(
 		// The API requires "log" but never returns it and the console has no
 		// control for it, so it is not part of the schema. Send a constant false.
 		"log": false,
+	}
+
+	fqdn := rule.Fqdn.ValueString()
+	payload["fqdn"] = fqdn
+	payload["fqdn_enabled"] = fqdn != ""
+
+	if protocol == protocolMapping["ICMPV4"] || protocol == protocolMapping["ICMPV6"] {
+		icmpType := rule.IcmpType.ValueString()
+		icmpCode := rule.IcmpCode.ValueString()
+		if icmpType == "" {
+			icmpType = "*"
+		}
+		if icmpCode == "" {
+			icmpCode = "*"
+		}
+		payload["icmp"] = map[string]interface{}{
+			"icmp_type": icmpType,
+			"icmp_code": icmpCode,
+		}
 	}
 
 	// Add local_address if specified
@@ -871,9 +948,13 @@ func (r *firewallRuleGroupResource) buildRulePayloadForDiff(
 	})
 
 	if !rule.ExecutablePath.IsNull() && rule.ExecutablePath.ValueString() != "" {
+		pathType := "windows_path"
+		if platform == "Mac" || platform == "Linux" {
+			pathType = "unix_path"
+		}
 		fields = append(fields, map[string]interface{}{
 			"name":  "image_name",
-			"type":  "windows_path",
+			"type":  pathType,
 			"value": rule.ExecutablePath.ValueString(),
 		})
 	}
