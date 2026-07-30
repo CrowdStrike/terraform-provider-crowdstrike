@@ -11,6 +11,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -23,7 +24,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -38,6 +38,18 @@ var (
 	attachmentResourceMarkdownDescription string         = "This resource allows managing the host groups and rule groups attached to a FileVantage policy. By default (when `exclusive` is true), this resource takes exclusive ownership over the host groups and rule groups assigned to a FileVantage policy. When `exclusive` is false, this resource only manages the specific host groups and rule groups defined in the configuration. If you want to fully create or manage a FileVantage policy please use the `filevantage_policy` resource."
 	attachmentRequiredScopes              []scopes.Scope = apiScopesReadWrite
 )
+
+func newAttachmentPolicyNotFoundError(policyID string) diag.ErrorDiagnostic {
+	return diag.NewErrorDiagnostic(
+		"FileVantage Policy Not Found",
+		fmt.Sprintf(
+			"FileVantage policy with ID %q does not exist. "+
+				"This resource manages attachments to an existing policy and does not create a policy. "+
+				"Ensure the correct policy ID was provided or use the crowdstrike_filevantage_policy resource to create a policy.",
+			policyID,
+		),
+	)
+}
 
 func NewFilevantagePolicyAttachmentResource() resource.Resource {
 	return &filevantagePolicyAttachmentResource{}
@@ -249,8 +261,12 @@ func (r *filevantagePolicyAttachmentResource) Create(
 	}
 
 	policy, diags := getFilevantagePolicy(ctx, r.client, plan.ID.ValueString())
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(newAttachmentPolicyNotFoundError(plan.ID.ValueString()))
+			return
+		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -294,8 +310,12 @@ func (r *filevantagePolicyAttachmentResource) Create(
 	}
 
 	policy, diags = getFilevantagePolicy(ctx, r.client, plan.ID.ValueString())
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(newAttachmentPolicyNotFoundError(plan.ID.ValueString()))
+			return
+		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -316,20 +336,13 @@ func (r *filevantagePolicyAttachmentResource) Read(
 	}
 
 	policy, diags := getFilevantagePolicy(ctx, r.client, state.ID.ValueString())
-	for _, err := range diags.Errors() {
-		if err.Summary() == "Failed to get FileVantage policy" {
-			tflog.Warn(
-				ctx,
-				fmt.Sprintf("FileVantage policy %s not found, removing from state", state.ID),
-			)
-
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 			resp.State.RemoveResource(ctx)
 			return
 		}
-	}
-
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -367,8 +380,12 @@ func (r *filevantagePolicyAttachmentResource) Update(
 		}
 
 		policy, diags := getFilevantagePolicy(ctx, r.client, plan.ID.ValueString())
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
+		if diags.HasError() {
+			if tferrors.HasNotFoundError(diags) {
+				resp.Diagnostics.Append(newAttachmentPolicyNotFoundError(plan.ID.ValueString()))
+				return
+			}
+			resp.Diagnostics.Append(diags...)
 			return
 		}
 
@@ -432,8 +449,12 @@ func (r *filevantagePolicyAttachmentResource) Update(
 	}
 
 	policy, diags := getFilevantagePolicy(ctx, r.client, plan.ID.ValueString())
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(newAttachmentPolicyNotFoundError(plan.ID.ValueString()))
+			return
+		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -498,18 +519,25 @@ func getFilevantagePolicy(
 		Ids:     []string{id},
 	})
 	if err != nil {
-		diags.AddError(
-			"Failed to get FileVantage policy",
-			fmt.Sprintf("Failed to get FileVantage policy (%s): %s", id, err),
+		diags.Append(
+			tferrors.NewDiagnosticFromAPIError(
+				tferrors.Read,
+				err,
+				attachmentRequiredScopes,
+				tferrors.WithNotFoundDetail(
+					fmt.Sprintf("No FileVantage policy with id: %s found.", id),
+				),
+			),
 		)
 
 		return nil, diags
 	}
 
-	if len(res.Payload.Resources) == 0 {
-		diags.AddError(
-			"Failed to get FileVantage policy",
-			fmt.Sprintf("FileVantage policy (%s) not found", id),
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 {
+		diags.Append(
+			tferrors.NewNotFoundError(
+				fmt.Sprintf("No FileVantage policy with id: %s found.", id),
+			),
 		)
 
 		return nil, diags

@@ -40,6 +40,18 @@ var (
 	attachmentRequiredScopes              []scopes.Scope = apiScopes
 )
 
+func newAttachmentExclusionNotFoundError(exclusionID string) diag.ErrorDiagnostic {
+	return diag.NewErrorDiagnostic(
+		"Sensor Visibility Exclusion Not Found",
+		fmt.Sprintf(
+			"Sensor visibility exclusion with ID %q does not exist. "+
+				"This resource manages attachments to an existing exclusion and does not create an exclusion. "+
+				"Ensure the correct exclusion ID was provided or use the crowdstrike_sensor_visibility_exclusion resource to create an exclusion.",
+			exclusionID,
+		),
+	)
+}
+
 func NewSensorVisibilityExclusionAttachmentResource() resource.Resource {
 	return &sensorVisibilityExclusionAttachmentResource{}
 }
@@ -196,8 +208,12 @@ func (r *sensorVisibilityExclusionAttachmentResource) Create(
 	}
 
 	exclusion, diags := getSensorVisibilityExclusion(ctx, r.client, plan.ID.ValueString())
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(newAttachmentExclusionNotFoundError(plan.ID.ValueString()))
+			return
+		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -223,8 +239,12 @@ func (r *sensorVisibilityExclusionAttachmentResource) Create(
 	}
 
 	exclusion, diags = getSensorVisibilityExclusion(ctx, r.client, plan.ID.ValueString())
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(newAttachmentExclusionNotFoundError(plan.ID.ValueString()))
+			return
+		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -245,18 +265,13 @@ func (r *sensorVisibilityExclusionAttachmentResource) Read(
 	}
 
 	exclusion, diags := getSensorVisibilityExclusion(ctx, r.client, state.ID.ValueString())
-	if tferrors.HasNotFoundError(diags) {
-		tflog.Warn(
-			ctx,
-			fmt.Sprintf("sensor visibility exclusion %s not found, removing from state", state.ID),
-		)
-
-		resp.State.RemoveResource(ctx)
-		return
-	}
-
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
+			resp.State.RemoveResource(ctx)
+			return
+		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -282,8 +297,12 @@ func (r *sensorVisibilityExclusionAttachmentResource) Update(
 	planHostGroups := plan.HostGroups
 
 	exclusion, diags := getSensorVisibilityExclusion(ctx, r.client, plan.ID.ValueString())
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(newAttachmentExclusionNotFoundError(plan.ID.ValueString()))
+			return
+		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
@@ -324,8 +343,12 @@ func (r *sensorVisibilityExclusionAttachmentResource) Update(
 	}
 
 	exclusion, diags = getSensorVisibilityExclusion(ctx, r.client, plan.ID.ValueString())
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	if diags.HasError() {
+		if tferrors.HasNotFoundError(diags) {
+			resp.Diagnostics.Append(newAttachmentExclusionNotFoundError(plan.ID.ValueString()))
+			return
+		}
+		resp.Diagnostics.Append(diags...)
 		return
 	}
 
