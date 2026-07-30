@@ -59,6 +59,12 @@ type patchRuleParams struct {
 }
 
 func (p *patchRuleParams) WriteToRequest(r runtime.ClientRequest, _ strfmt.Registry) error {
+	// Generated params clear the per-request timeout via SetTimeout; without it
+	// the request is capped at go-openapi's 30s DefaultTimeout instead of being
+	// bounded by the operation context.
+	if err := r.SetTimeout(0); err != nil {
+		return err
+	}
 	if p.Body == nil {
 		return nil
 	}
