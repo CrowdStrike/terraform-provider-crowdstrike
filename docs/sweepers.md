@@ -93,6 +93,7 @@ The following sweepers are currently registered:
 - `crowdstrike_ml_file_path_exclusion` - Machine learning file path exclusions
 - `crowdstrike_data_protection_content_pattern` - Data protection content patterns
 - `crowdstrike_data_protection_sensitivity_label` - Data protection sensitivity labels
+- `crowdstrike_data_protection_policy` - Data protection policies
 - `crowdstrike_cloud_compliance_custom_framework` - Cloud compliance custom frameworks
 - `crowdstrike_cloud_group` - Cloud groups
 - `crowdstrike_cloud_security_custom_rule` - Cloud security custom rules
