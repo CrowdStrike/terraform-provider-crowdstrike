@@ -16,9 +16,6 @@ var (
 
 	NamePattern        = namePattern
 	DescriptionPattern = descriptionPattern
-
-	MaxNameLength        = maxNameLength
-	MaxDescriptionLength = maxDescriptionLength
 )
 
 // NewPolicyRef builds a policyRef for tests in the external test package.

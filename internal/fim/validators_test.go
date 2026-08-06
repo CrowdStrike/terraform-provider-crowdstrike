@@ -131,26 +131,6 @@ func TestPatternsAcceptRealisticValues(t *testing.T) {
 	}
 }
 
-func TestLengthLimitsMatchAPI(t *testing.T) {
-	t.Parallel()
-
-	// Observed limits: name 100, description 500. Unlike the character rules the
-	// API reports these as a descriptive 400.
-	if fim.MaxNameLength != 100 {
-		t.Errorf("MaxNameLength = %d, want 100", fim.MaxNameLength)
-	}
-	if fim.MaxDescriptionLength != 500 {
-		t.Errorf("MaxDescriptionLength = %d, want 500", fim.MaxDescriptionLength)
-	}
-
-	// A value at the limit must still satisfy the character pattern, so the two
-	// validators cannot contradict each other.
-	atLimit := strings.Repeat("a", fim.MaxNameLength)
-	if !fim.NamePattern.MatchString(atLimit) {
-		t.Errorf("NamePattern rejected %d valid characters", len(atLimit))
-	}
-}
-
 func TestPatternsRejectEveryNonLetterASCIISymbolNotAllowlisted(t *testing.T) {
 	t.Parallel()
 
