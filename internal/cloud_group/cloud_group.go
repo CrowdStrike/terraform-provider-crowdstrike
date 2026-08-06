@@ -500,6 +500,7 @@ func (r *cloudGroupResource) Schema(
 				Description: "Contact information for stakeholders responsible for the cloud group. List of email addresses.",
 				ElementType: types.StringType,
 				Validators: []validator.List{
+					listvalidator.SizeAtLeast(1),
 					listvalidator.UniqueValues(),
 					listvalidator.NoNullValues(),
 					listvalidator.ValueStringsAre(
