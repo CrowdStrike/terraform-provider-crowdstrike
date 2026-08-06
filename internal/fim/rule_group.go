@@ -207,7 +207,8 @@ func (r *filevantageRuleGroupResource) Schema(
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
-				Description: "Name of the filevantage rule group.",
+				Description: "Name of the filevantage rule group." + nameConstraints,
+				Validators:  nameValidators(),
 			},
 			"type": schema.StringAttribute{
 				Optional:    true,
@@ -223,7 +224,8 @@ func (r *filevantageRuleGroupResource) Schema(
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
-				Description: "Description of the filevantage rule group.",
+				Description: "Description of the filevantage rule group." + descriptionConstraints,
+				Validators:  descriptionValidators(),
 			},
 			"rules": schema.ListNestedAttribute{
 				Optional:    true,

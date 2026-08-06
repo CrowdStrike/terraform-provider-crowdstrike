@@ -171,7 +171,8 @@ func (r *fimPolicyResource) Schema(
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
-				Description: "Name of the filevantage policy.",
+				Description: "Name of the filevantage policy." + nameConstraints,
+				Validators:  nameValidators(),
 			},
 			"enabled": schema.BoolAttribute{
 				Optional:    true,
@@ -198,7 +199,8 @@ func (r *fimPolicyResource) Schema(
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
-				Description: "Description of the filevantage policy.",
+				Description: "Description of the filevantage policy." + descriptionConstraints,
+				Validators:  descriptionValidators(),
 			},
 			"scheduled_exclusions": schema.ListNestedAttribute{
 				Optional:    true,
