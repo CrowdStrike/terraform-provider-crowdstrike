@@ -292,6 +292,10 @@ func TestAccCloudSecurityGroupResource_Validation(t *testing.T) {
 			configFunc:  testAccCloudSecurityGroupResourceConfigInvalidOwnerEmail,
 			expectError: regexp.MustCompile("Invalid Attribute Value|must be a valid email address"),
 		},
+		"empty_owners": {
+			configFunc:  testAccCloudSecurityGroupResourceConfigEmptyOwners,
+			expectError: regexp.MustCompile("Invalid Attribute Value|list must contain at least 1 elements"),
+		},
 		"duplicate_registry": {
 			configFunc:  testAccCloudSecurityGroupResourceConfigDuplicateRegistry,
 			expectError: regexp.MustCompile("Found duplicate registry value"),
@@ -589,6 +593,19 @@ func testAccCloudSecurityGroupResourceConfigInvalidEnvironment(rName string) str
 resource "crowdstrike_cloud_group" "test" {
   name        = %[1]q
   environment = "invalid"
+
+  aws = {
+    account_ids = ["123456789012"]
+  }
+}
+`, rName)
+}
+
+func testAccCloudSecurityGroupResourceConfigEmptyOwners(rName string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_cloud_group" "test" {
+  name   = %[1]q
+  owners = []
 
   aws = {
     account_ids = ["123456789012"]
