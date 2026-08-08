@@ -115,12 +115,12 @@ output "filevantage_policy" {
 
 ### Required
 
-- `name` (String) Name of the filevantage policy.
+- `name` (String) Name of the filevantage policy. Limited to 100 characters, and may only contain letters, digits, underscores, spaces, and - : ; , . ! ( ) & [ ].
 - `platform_name` (String) Platform for the filevantage policy to manage. (Windows, Mac, Linux)
 
 ### Optional
 
-- `description` (String) Description of the filevantage policy.
+- `description` (String) Description of the filevantage policy. Limited to 500 characters, and may only contain letters, digits, underscores, spaces, newlines, and - : ; , . ! ( ) & [ ] @.
 - `enabled` (Boolean) Enable the filevantage policy.
 - `host_groups` (Set of String) Host Group ids to attach to the filevantage policy.
 - `rule_groups` (List of String) Rule Group ids to attach to the filevantage policy. Precedence is based on the order of the list. Rule groups must be the same type as the policy.

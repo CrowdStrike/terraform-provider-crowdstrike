@@ -207,7 +207,11 @@ func (r *filevantageRuleGroupResource) Schema(
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
-				Description: "Name of the filevantage rule group.",
+				Description: "Name of the filevantage rule group. Limited to 100 characters, and may only contain " + nameCharacters + ".",
+				Validators: []validator.String{
+					stringvalidator.LengthAtMost(100),
+					stringvalidator.RegexMatches(namePattern, "must contain only "+nameCharacters),
+				},
 			},
 			"type": schema.StringAttribute{
 				Optional:    true,
@@ -223,7 +227,11 @@ func (r *filevantageRuleGroupResource) Schema(
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
-				Description: "Description of the filevantage rule group.",
+				Description: "Description of the filevantage rule group. Limited to 500 characters, and may only contain " + descriptionCharacters + ".",
+				Validators: []validator.String{
+					stringvalidator.LengthAtMost(500),
+					stringvalidator.RegexMatches(descriptionPattern, "must contain only "+descriptionCharacters),
+				},
 			},
 			"rules": schema.ListNestedAttribute{
 				Optional:    true,

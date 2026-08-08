@@ -71,11 +71,11 @@ output "filevantage_rule_group" {
 
 ### Required
 
-- `name` (String) Name of the filevantage rule group.
+- `name` (String) Name of the filevantage rule group. Limited to 100 characters, and may only contain letters, digits, underscores, spaces, and - : ; , . ! ( ) & [ ].
 
 ### Optional
 
-- `description` (String) Description of the filevantage rule group.
+- `description` (String) Description of the filevantage rule group. Limited to 500 characters, and may only contain letters, digits, underscores, spaces, newlines, and - : ; , . ! ( ) & [ ] @.
 - `rules` (Attributes List) Rules to be associated with the rule group. Precedence is determined by the order of the rules in the list. (see [below for nested schema](#nestedatt--rules))
 - `type` (String) The type of filevantage rule group.
 

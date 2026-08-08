@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 	"time"
 
@@ -25,6 +26,22 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+)
+
+// The FileVantage API restricts name and description on rule group and policy
+// entities to a fixed character set and answers a violation with an opaque HTTP 500
+// rather than a validation error, so these patterns catch it during plan instead.
+// The two fields differ: description also allows `@` and newlines, name does not.
+var (
+	namePattern        = regexp.MustCompile(`^[\w\p{L}\p{M}\- :;,.!()&\[\]]*$`)
+	descriptionPattern = regexp.MustCompile(`^[\w\p{L}\p{M}\- :;,.!()&\[\]\n@]*$`)
+)
+
+// Shared by the schema descriptions and the validator messages so the generated
+// docs and the plan-time error cannot drift apart.
+const (
+	nameCharacters        = "letters, digits, underscores, spaces, and - : ; , . ! ( ) & [ ]"
+	descriptionCharacters = "letters, digits, underscores, spaces, newlines, and - : ; , . ! ( ) & [ ] @"
 )
 
 // hostGroupAction action for policies-host-group api.
@@ -171,7 +188,11 @@ func (r *fimPolicyResource) Schema(
 			},
 			"name": schema.StringAttribute{
 				Required:    true,
-				Description: "Name of the filevantage policy.",
+				Description: "Name of the filevantage policy. Limited to 100 characters, and may only contain " + nameCharacters + ".",
+				Validators: []validator.String{
+					stringvalidator.LengthAtMost(100),
+					stringvalidator.RegexMatches(namePattern, "must contain only "+nameCharacters),
+				},
 			},
 			"enabled": schema.BoolAttribute{
 				Optional:    true,
@@ -198,7 +219,11 @@ func (r *fimPolicyResource) Schema(
 			},
 			"description": schema.StringAttribute{
 				Optional:    true,
-				Description: "Description of the filevantage policy.",
+				Description: "Description of the filevantage policy. Limited to 500 characters, and may only contain " + descriptionCharacters + ".",
+				Validators: []validator.String{
+					stringvalidator.LengthAtMost(500),
+					stringvalidator.RegexMatches(descriptionPattern, "must contain only "+descriptionCharacters),
+				},
 			},
 			"scheduled_exclusions": schema.ListNestedAttribute{
 				Optional:    true,
