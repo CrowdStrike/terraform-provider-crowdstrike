@@ -2,7 +2,9 @@ package tferrors
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -360,6 +362,278 @@ func TestNewDiagnosticFromPayloadErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gotDiag := NewDiagnosticFromPayloadErrors(tt.operation, tt.payloadErrors)
 			assert.Equal(t, tt.wantDiag, gotDiag)
+		})
+	}
+}
+
+// requestContext mirrors the prefix gofalcon's generated Error methods put in front
+// of the payload.
+const requestContext = "[GET /some/endpoint/v1][400] someEndpointBadRequest"
+
+// fakeTypedResponse stands in for a generated gofalcon error response. It reproduces
+// the two things the rendering depends on: a GetPayload method, and an Error method
+// that formats the payload with %+v the way go-swagger emits it.
+type fakeTypedResponse struct {
+	payload any
+}
+
+func (f *fakeTypedResponse) GetPayload() any { return f.payload }
+
+func (f *fakeTypedResponse) Error() string {
+	return fmt.Sprintf("%s  %+v", requestContext, f.payload)
+}
+
+// TestRenderPayloadError covers every payload error type gofalcon defines. The
+// models disagree on almost everything: Code appears as *int32, int32, string and
+// *string, Message as both *string and string, and the optional fields differ per
+// service. All of them must render in the format gofalcon hand-writes for
+// models.MsaAPIError, so a diagnostic never betrays which service failed.
+//
+// models.MsaAPIError cases assert against that String method directly rather than
+// against a literal, so the day gofalcon changes it this fails instead of drifting.
+func TestRenderPayloadError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		payloadError any
+		expected     string
+	}{
+		{
+			name:         "MsaAPIError",
+			payloadError: &models.MsaAPIError{Code: utils.Addr(int32(400)), ID: "abc123", Message: utils.Addr("boom")},
+			expected:     "{Code:400 ID:abc123 Message:boom}",
+		},
+		{
+			name:         "MsaAPIError without an id",
+			payloadError: &models.MsaAPIError{Code: utils.Addr(int32(400)), Message: utils.Addr("boom")},
+			expected:     "{Code:400 Message:boom}",
+		},
+		{
+			name:         "MsaAPIError with an absent trailing field keeps the trailing space",
+			payloadError: &models.MsaAPIError{Code: utils.Addr(int32(500)), ID: "abc123"},
+			expected:     "{Code:500 ID:abc123 }",
+		},
+		{
+			name:         "MsaAPIError with an empty but present message",
+			payloadError: &models.MsaAPIError{Code: utils.Addr(int32(500)), Message: utils.Addr("")},
+			expected:     "{Code:500 Message:}",
+		},
+		{
+			name:         "MsaAPIError with no fields set",
+			payloadError: &models.MsaAPIError{},
+			expected:     "{}",
+		},
+		{
+			name:         "PolicymanagerError",
+			payloadError: &models.PolicymanagerError{Code: utils.Addr(int32(400)), Field: "platform_name", ID: "abc123", Message: utils.Addr("boom")},
+			expected:     "{Code:400 Field:platform_name ID:abc123 Message:boom}",
+		},
+		{
+			name:         "PolicymanagerError without a field renders like MsaAPIError",
+			payloadError: &models.PolicymanagerError{Code: utils.Addr(int32(400)), ID: "abc123", Message: utils.Addr("boom")},
+			expected:     "{Code:400 ID:abc123 Message:boom}",
+		},
+		{
+			name:         "FwmgrMsaspecError renders like MsaAPIError",
+			payloadError: &models.FwmgrMsaspecError{Code: utils.Addr(int32(400)), ID: "abc123", Message: utils.Addr("boom")},
+			expected:     "{Code:400 ID:abc123 Message:boom}",
+		},
+		{
+			name:         "DomainReconAPIError",
+			payloadError: &models.DomainReconAPIError{Code: utils.Addr(int32(400)), ID: "abc123", Message: utils.Addr("boom"), MessageKey: "recon_key"},
+			expected:     "{Code:400 ID:abc123 Message:boom MessageKey:recon_key}",
+		},
+		{
+			name:         "ReconmsaAPIError with an absent trailing field",
+			payloadError: &models.ReconmsaAPIError{Code: utils.Addr(int32(400)), ID: "abc123", Message: utils.Addr("boom")},
+			expected:     "{Code:400 ID:abc123 Message:boom }",
+		},
+		{
+			name:         "MalqueryQueryError",
+			payloadError: &models.MalqueryQueryError{Code: utils.Addr(int32(400)), ID: "abc123", Message: utils.Addr("boom"), Type: "query"},
+			expected:     "{Code:400 ID:abc123 Message:boom Type:query}",
+		},
+		{
+			name:         "DevicecontrolapiRespMSAErrorV1",
+			payloadError: &models.DevicecontrolapiRespMSAErrorV1{Code: utils.Addr(int32(400)), Message: utils.Addr("boom"), ResourceID: "res-1", Type: "policy"},
+			expected:     "{Code:400 Message:boom ResourceID:res-1 Type:policy}",
+		},
+		{
+			name:         "AssetgroupmanagerV1Error with plain string fields",
+			payloadError: &models.AssetgroupmanagerV1Error{Code: "invalid_request", ID: "abc123", Message: "boom"},
+			expected:     "{Code:invalid_request ID:abc123 Message:boom}",
+		},
+		{
+			name:         "ResponsesError",
+			payloadError: &models.ResponsesError{Code: utils.Addr(int32(400)), Field: "name", ID: "abc123", Message: utils.Addr("boom")},
+			expected:     "{Code:400 Field:name ID:abc123 Message:boom}",
+		},
+		{
+			name:         "QuickscanproError with a string pointer code",
+			payloadError: &models.QuickscanproError{Code: utils.Addr("invalid_request"), Message: utils.Addr("boom")},
+			expected:     "{Code:invalid_request Message:boom}",
+		},
+		{
+			name: "GraphValidationError with many optional fields",
+			payloadError: &models.GraphValidationError{
+				Code:         int32(42),
+				Level:        "error",
+				Message:      utils.Addr("boom"),
+				NodeID:       "node-1",
+				ParentNodeID: "node-0",
+				Property:     "trigger.value",
+				ResourceID:   "res-1",
+			},
+			expected: "{Code:42 Level:error Message:boom NodeID:node-1 ParentNodeID:node-0 Property:trigger.value ResourceID:res-1 }",
+		},
+		{
+			name:         "FalconxMalqueryErrorV1 with plain scalar fields",
+			payloadError: &models.FalconxMalqueryErrorV1{Code: int32(400), Message: "boom"},
+			expected:     "{Code:400 Message:boom}",
+		},
+		{
+			name:         "nil error",
+			payloadError: (*models.PolicymanagerError)(nil),
+			expected:     "<nil>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rendered := renderPayloadError(reflect.ValueOf(tt.payloadError))
+			assert.Equal(t, tt.expected, rendered)
+
+			if msaError, ok := tt.payloadError.(*models.MsaAPIError); ok {
+				assert.Equal(t, msaError.String(), rendered,
+					"must match the String method gofalcon hand-writes for MsaAPIError")
+			}
+		})
+	}
+}
+
+// TestDetailFromTypedPayload renders the generated response models the provider
+// actually receives, covering the payload fields surrounding the errors and the
+// cases that must render nothing so the caller falls back to err.Error().
+//
+// Payloads carrying models.MsaAPIError are additionally required to be byte
+// identical to err.Error(), because gofalcon already renders those readably and
+// every existing resource in the provider surfaces that text today.
+func TestDetailFromTypedPayload(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		// expected is the rendered payload, without the request context prefix. An
+		// empty value means no detail is produced at all.
+		expected string
+		// matchesGofalcon marks payloads gofalcon renders readably on its own, whose
+		// rendering must not change.
+		matchesGofalcon bool
+	}{
+		{
+			name: "PolicymanagerPoliciesResponse",
+			err: &fakeTypedResponse{payload: &models.PolicymanagerPoliciesResponse{
+				Errors: []*models.PolicymanagerError{
+					{
+						Code:    utils.Addr(int32(400)),
+						Field:   "platform_name",
+						Message: utils.Addr("platform_name parameter has to be either 'win', or 'mac', it is: nope"),
+					},
+				},
+			}},
+			expected: "&{Errors:[{Code:400 Field:platform_name Message:platform_name parameter has to be either 'win', or 'mac', it is: nope}] Meta:<nil> Resources:[]}",
+		},
+		{
+			name: "PolicymanagerPoliciesResponse with meta",
+			err: &fakeTypedResponse{payload: &models.PolicymanagerPoliciesResponse{
+				Errors: []*models.PolicymanagerError{
+					{Code: utils.Addr(int32(400)), Message: utils.Addr("boom")},
+				},
+				Meta: &models.MsaMetaInfo{TraceID: utils.Addr("trace-id")},
+			}},
+			expected: "&{Errors:[{Code:400 Message:boom}] Meta:PoweredBy: TraceID:trace-id} Resources:[]}",
+		},
+		{
+			name: "ResponsesPolicySearchV1",
+			err: &fakeTypedResponse{payload: &models.ResponsesPolicySearchV1{
+				Errors: []*models.ResponsesError{
+					{Code: utils.Addr(int32(400)), Field: "name", Message: utils.Addr("boom")},
+				},
+			}},
+			expected: "&{Errors:[{Code:400 Field:name Message:boom}] Meta:<nil> Resources:[]}",
+		},
+		{
+			name: "PreventionRespV1 matches gofalcon",
+			err: &fakeTypedResponse{payload: &models.PreventionRespV1{
+				Errors: []*models.MsaAPIError{
+					{Code: utils.Addr(int32(400)), Message: utils.Addr("Invalid filter expression supplied")},
+				},
+				Meta: &models.MsaMetaInfo{
+					QueryTime: utils.Addr(float64(0.0001)),
+					TraceID:   utils.Addr("trace-id"),
+				},
+			}},
+			expected:        "&{Errors:[{Code:400 Message:Invalid filter expression supplied}] Meta:PoweredBy: QueryTime:0.0001 TraceID:trace-id} Resources:[]}",
+			matchesGofalcon: true,
+		},
+		{
+			name: "DomainCIDGroupsResponseV1 with multiple errors matches gofalcon",
+			err: &fakeTypedResponse{payload: &models.DomainCIDGroupsResponseV1{
+				Errors: []*models.MsaAPIError{
+					{Code: utils.Addr(int32(400)), Message: utils.Addr("first")},
+					{Code: utils.Addr(int32(400)), Message: utils.Addr("second")},
+				},
+			}},
+			expected:        "&{Errors:[{Code:400 Message:first} {Code:400 Message:second}] Meta:<nil> Resources:[]}",
+			matchesGofalcon: true,
+		},
+		{
+			name: "DomainCIDGroupsResponseV1 with a nil error element matches gofalcon",
+			err: &fakeTypedResponse{payload: &models.DomainCIDGroupsResponseV1{
+				Errors: []*models.MsaAPIError{nil},
+			}},
+			expected:        "&{Errors:[<nil>] Meta:<nil> Resources:[]}",
+			matchesGofalcon: true,
+		},
+		{
+			name: "not a typed response",
+			err:  errors.New("plain error"),
+		},
+		{
+			name: "nil payload",
+			err:  &fakeTypedResponse{payload: (*models.PreventionRespV1)(nil)},
+		},
+		{
+			name: "payload without an errors field",
+			err:  &fakeTypedResponse{payload: &models.MsaMetaInfo{}},
+		},
+		{
+			name: "empty errors slice",
+			err:  &fakeTypedResponse{payload: &models.PreventionRespV1{Errors: []*models.MsaAPIError{}}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			detail := detailFromTypedPayload(tt.err)
+
+			if tt.expected == "" {
+				assert.Empty(t, detail)
+				return
+			}
+
+			assert.Equal(t, requestContext+"  "+tt.expected, detail)
+
+			if tt.matchesGofalcon {
+				assert.Equal(t, tt.err.Error(), detail,
+					"rendering must match what gofalcon produces for MsaAPIError payloads")
+			}
 		})
 	}
 }
