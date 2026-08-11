@@ -2,6 +2,7 @@ package tferrors
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -45,6 +46,22 @@ func HasNotFoundError(diags diag.Diagnostics) bool {
 			return true
 		}
 	}
+	return false
+}
+
+// IsServerError reports whether a gofalcon error carries a 5xx status. Every
+// generated response type implements runtime.ClientResponseStatus, so this is a
+// type check rather than a match on the error text. errors.As is used rather than a
+// direct type assertion so a wrapped error is still classified.
+//
+// Callers use this to tell a retryable server-side failure from a request the API
+// rejected outright.
+func IsServerError(err error) bool {
+	var status runtime.ClientResponseStatus
+	if errors.As(err, &status) {
+		return status.IsServerError()
+	}
+
 	return false
 }
 
@@ -334,11 +351,23 @@ func NewDiagnosticFromPayloadErrors(operation Operation, payloadErrors []*models
 	return nil
 }
 
-// extractAPIErrorDetail attempts to read error messages from the response body
-// of a runtime.APIError. This handles cases where the gofalcon SDK does not have
+// extractAPIErrorDetail attempts to read error messages out of a failed gofalcon
+// response. Two shapes are handled: a runtime.APIError, whose body must be parsed
+// as JSON because the SDK has no typed response struct for the status code, and a
+// generated typed response, whose payload carries the errors as a struct.
+func extractAPIErrorDetail(err error) string {
+	if detail := detailFromRuntimeAPIError(err); detail != "" {
+		return detail
+	}
+
+	return detailFromTypedPayload(err)
+}
+
+// detailFromRuntimeAPIError reads error messages from the response body of a
+// runtime.APIError. This handles cases where the gofalcon SDK does not have
 // a typed response struct for a given status code (e.g., 400), causing the error
 // to fall into the default case of ReadResponse with an unreadable body reference.
-func extractAPIErrorDetail(err error) string {
+func detailFromRuntimeAPIError(err error) string {
 	apiErr, ok := err.(*runtime.APIError)
 	if !ok {
 		return ""
@@ -373,4 +402,193 @@ func extractAPIErrorDetail(err error) string {
 	}
 
 	return strings.Join(messages, "; ")
+}
+
+// errorsFieldName is the field every gofalcon response payload uses to carry
+// application-level errors.
+const errorsFieldName = "Errors"
+
+// detailFromTypedPayload renders a generated gofalcon response payload, reached
+// through the GetPayload method that go-swagger emits on every typed response.
+//
+// gofalcon's own rendering comes from the generated Error methods, which format the
+// payload with %+v. That only produces readable output for payloads whose error
+// type has a String method, which in practice is just models.MsaAPIError; every
+// other error type (PolicymanagerError, FwmgrMsaspecError, GraphValidationError,
+// and the rest) renders as a pointer address. This reproduces the MsaAPIError
+// rendering for all of them so diagnostics read the same regardless of which error
+// model an endpoint returns.
+//
+// Returns an empty string when the payload carries no errors, leaving the caller to
+// fall back to err.Error().
+func detailFromTypedPayload(err error) string {
+	payload := typedResponsePayload(err)
+	if !payload.IsValid() {
+		return ""
+	}
+
+	payloadErrors := payload.FieldByName(errorsFieldName)
+	if !payloadErrors.IsValid() || payloadErrors.Kind() != reflect.Slice || payloadErrors.Len() == 0 {
+		return ""
+	}
+
+	return errorContextPrefix(err) + renderPayload(payload)
+}
+
+// renderPayload renders a response payload in the same shape fmt produces for a
+// pointer to a struct, substituting a readable rendering for the errors slice.
+// Every other field is delegated to fmt so that types gofalcon already renders
+// well, such as models.MsaMetaInfo, keep their existing output.
+func renderPayload(payload reflect.Value) string {
+	var rendered strings.Builder
+	rendered.WriteString("&{")
+
+	payloadType := payload.Type()
+	for i := 0; i < payload.NumField(); i++ {
+		if i > 0 {
+			rendered.WriteString(" ")
+		}
+
+		field := payloadType.Field(i)
+		rendered.WriteString(field.Name)
+		rendered.WriteString(":")
+
+		if field.Name == errorsFieldName {
+			rendered.WriteString(renderPayloadErrors(payload.Field(i)))
+			continue
+		}
+
+		fmt.Fprintf(&rendered, "%+v", payload.Field(i).Interface())
+	}
+
+	rendered.WriteString("}")
+
+	return rendered.String()
+}
+
+// renderPayloadErrors renders a slice of payload errors the way fmt renders a slice
+// whose elements carry a String method: space separated inside square brackets.
+func renderPayloadErrors(payloadErrors reflect.Value) string {
+	var rendered strings.Builder
+	rendered.WriteString("[")
+
+	for i := 0; i < payloadErrors.Len(); i++ {
+		if i > 0 {
+			rendered.WriteString(" ")
+		}
+
+		rendered.WriteString(renderPayloadError(payloadErrors.Index(i)))
+	}
+
+	rendered.WriteString("]")
+
+	return rendered.String()
+}
+
+// renderPayloadError renders a single payload error, matching the String method
+// gofalcon hand-writes for models.MsaAPIError in falcon/models/helper_methods.go.
+//
+// That method skips fields the API omitted and puts a space after every field it
+// writes except the last one declared on the struct, which leaves a trailing space
+// whenever that last field is absent. Both quirks are reproduced here, because the
+// point of this rendering is to be indistinguishable from gofalcon's own.
+func renderPayloadError(payloadError reflect.Value) string {
+	payloadError = derefToStruct(payloadError)
+	if !payloadError.IsValid() {
+		return "<nil>"
+	}
+
+	payloadErrorType := payloadError.Type()
+	lastFieldSet := false
+
+	var fields []string
+	for i := 0; i < payloadError.NumField(); i++ {
+		value, ok := setFieldValue(payloadError.Field(i))
+		if !ok {
+			continue
+		}
+
+		fields = append(fields, fmt.Sprintf("%s:%+v", payloadErrorType.Field(i).Name, value))
+		lastFieldSet = i == payloadError.NumField()-1
+	}
+
+	rendered := strings.Join(fields, " ")
+	if len(fields) > 0 && !lastFieldSet {
+		rendered += " "
+	}
+
+	return "{" + rendered + "}"
+}
+
+// setFieldValue reports whether a payload error field was populated by the API and
+// returns the value to render for it. Pointer fields count as populated when
+// non-nil, and plain fields when non-zero, which mirrors how these models are
+// declared: required fields are pointers and optional ones carry omitempty.
+func setFieldValue(field reflect.Value) (any, bool) {
+	if field.Kind() == reflect.Ptr {
+		if field.IsNil() {
+			return nil, false
+		}
+
+		return field.Elem().Interface(), true
+	}
+
+	if field.IsZero() {
+		return nil, false
+	}
+
+	return field.Interface(), true
+}
+
+// payloadMarker is where a generated Error method stops describing the request and
+// starts rendering the response payload.
+const payloadMarker = "  &{"
+
+// errorContextPrefix returns the request context that gofalcon's generated Error
+// methods put in front of the payload, in the form "[METHOD /path][code] opName  ".
+// That prefix is worth keeping so these diagnostics read the same as the ones from
+// endpoints whose payload errors render on their own; only the payload rendering
+// that follows it is unusable. Returns an empty string when the prefix cannot be
+// located, leaving the caller with a bare message.
+func errorContextPrefix(err error) string {
+	context, _, found := strings.Cut(err.Error(), payloadMarker)
+	if !found {
+		return ""
+	}
+
+	return context + "  "
+}
+
+// typedResponsePayload calls the GetPayload method on a generated gofalcon
+// response and returns the payload struct it yields. An invalid Value is returned
+// when the error is not a typed response or carries no payload.
+func typedResponsePayload(err error) reflect.Value {
+	method := reflect.ValueOf(err).MethodByName("GetPayload")
+	if !method.IsValid() {
+		return reflect.Value{}
+	}
+
+	methodType := method.Type()
+	if methodType.NumIn() != 0 || methodType.NumOut() != 1 {
+		return reflect.Value{}
+	}
+
+	return derefToStruct(method.Call(nil)[0])
+}
+
+// derefToStruct follows pointers down to a struct value, returning an invalid
+// Value when a nil pointer or a non-struct is encountered.
+func derefToStruct(value reflect.Value) reflect.Value {
+	for value.Kind() == reflect.Ptr || value.Kind() == reflect.Interface {
+		if value.IsNil() {
+			return reflect.Value{}
+		}
+		value = value.Elem()
+	}
+
+	if value.Kind() != reflect.Struct {
+		return reflect.Value{}
+	}
+
+	return value
 }
