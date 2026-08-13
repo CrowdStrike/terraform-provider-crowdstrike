@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
+	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	ioarulegroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_rule_group"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -57,6 +58,8 @@ type defaultPreventionPolicyLinuxResourceModel struct {
 	SensorTamperingProtection            types.Bool   `tfsdk:"sensor_tampering_protection"`
 	MemoryVisibility                     types.Bool   `tfsdk:"memory_visibility"`
 	OnWriteScriptFileVisibility          types.Bool   `tfsdk:"on_write_script_file_visibility"`
+	DetectPackageOnWrite                 types.Bool   `tfsdk:"detect_non_executables_on_write"`
+	QuarantinePackageOnWrite             types.Bool   `tfsdk:"quarantine_non_executables_on_write"`
 	ExtendedCommandLineVisibility        types.Bool   `tfsdk:"extended_command_line_visibility"`
 	DBusVisibility                       types.Bool   `tfsdk:"dbus_visibility"`
 	EnhancePHPVisibility                 types.Bool   `tfsdk:"enhance_php_visibility"`
@@ -109,6 +112,8 @@ func (m *defaultPreventionPolicyLinuxResourceModel) generatePreventionSettings(c
 		"SensorTamperingProtection":            m.SensorTamperingProtection,
 		"MemoryVisibility":                     m.MemoryVisibility,
 		"OnWriteScriptFileVisibility":          m.OnWriteScriptFileVisibility,
+		"DetectPackageOnWrite":                 m.DetectPackageOnWrite,
+		"QuarantinePackageOnWrite":             m.QuarantinePackageOnWrite,
 		"ExtendedCommandLineVisibility":        m.ExtendedCommandLineVisibility,
 		"DBusVisibility":                       m.DBusVisibility,
 		"EnhancePHPVisibility":                 m.EnhancePHPVisibility,
@@ -200,6 +205,8 @@ func (m *defaultPreventionPolicyLinuxResourceModel) assignPreventionSettings(
 	m.OnWriteScriptFileVisibility = defaultBoolFalse(
 		toggleSettings["OnWriteScriptFileVisibility"],
 	)
+	m.DetectPackageOnWrite = defaultBoolFalse(toggleSettings["DetectPackageOnWrite"])
+	m.QuarantinePackageOnWrite = defaultBoolFalse(toggleSettings["QuarantinePackageOnWrite"])
 	m.ExtendedCommandLineVisibility = defaultBoolFalse(
 		toggleSettings["ExtendedCommandLineVisibility"],
 	)
@@ -437,6 +444,30 @@ func (r *defaultPreventionPolicyLinuxResource) ValidateConfig(
 	}
 
 	resp.Diagnostics.Append(utils.ValidateEmptyIDs(ctx, config.RuleGroups, "ioa_rule_groups")...)
+
+	resp.Diagnostics.Append(
+		fwvalidators.BoolRequiresBool(
+			config.DetectPackageOnWrite,
+			config.FilesystemVisibility,
+			"detect_non_executables_on_write",
+			"filesystem_visibility",
+		)...)
+
+	resp.Diagnostics.Append(
+		fwvalidators.BoolRequiresBool(
+			config.QuarantinePackageOnWrite,
+			config.DetectPackageOnWrite,
+			"quarantine_non_executables_on_write",
+			"detect_non_executables_on_write",
+		)...)
+
+	resp.Diagnostics.Append(
+		fwvalidators.BoolRequiresBool(
+			config.QuarantinePackageOnWrite,
+			config.NextGenAV,
+			"quarantine_non_executables_on_write",
+			"quarantine",
+		)...)
 
 	if utils.IsKnown(config.CloudAntiMalware) {
 		var slider mlSlider

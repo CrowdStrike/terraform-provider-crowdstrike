@@ -61,6 +61,8 @@ resource "crowdstrike_default_prevention_policy_linux" "default" {
   tls_visibility                               = true
   sensor_tampering_protection                  = true
   on_write_script_file_visibility              = true
+  detect_non_executables_on_write              = true
+  quarantine_non_executables_on_write          = true
   memory_visibility                            = true
   extended_command_line_visibility             = true
   dbus_visibility                              = true
@@ -92,6 +94,7 @@ output "default_prevention_policy_linux" {
 - `custom_blocking` (Boolean) Whether to enable the setting. Block processes matching hashes that you add to IOC Management with the action set to "Block" or "Block, hide detection".
 - `dbus_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor local D-Bus traffic for malicious patterns and improved detections.
 - `description` (String) Description of the prevention policy.
+- `detect_non_executables_on_write` (Boolean) Whether to enable the setting. Detect non-executable files, classified as malicious by CrowdStrike’s Intelligence analysts, when they are written to disk. Requires filesystem_visibility to be enabled.
 - `drift_prevention` (Boolean) Whether to enable the setting. Block new processes originating from files written in a container. This prevents a container from drifting from its immutable runtime state.
 - `email_protocol_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor SMTP, IMAP, and POP3 traffic for malicious patterns and improved detections.
 - `enhance_environment_variable_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor an extended set of changes to environment variables in order to enhance visibility.
@@ -107,6 +110,7 @@ output "default_prevention_policy_linux" {
 - `php_script_optimization` (Boolean) Whether to enable the setting. Mitigates high volume PHP script execution to only the first time it's seen by the server.
 - `prevent_suspicious_processes` (Boolean) Whether to enable the setting. Block processes that CrowdStrike analysts classify as suspicious. These are focused on dynamic IOAs, such as malware, exploits and other threats.
 - `quarantine` (Boolean) Whether to enable the setting. Quarantine executable files after they’re prevented by NGAV. When this is enabled, we recommend setting anti-malware prevention levels to Moderate or higher and not using other antivirus solutions.
+- `quarantine_non_executables_on_write` (Boolean) Whether to enable the setting. Quarantine non-executable files, classified as malicious by CrowdStrike’s Intelligence analysts, when they are written to disk. Requires detect_non_executables_on_write and quarantine to be enabled.
 - `retrospective_detections` (Boolean) Whether to enable the setting. Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.
 - `script_based_execution_monitoring` (Boolean) Whether to enable the setting. Provides visibility into suspicious scripts, including shell and other scripting languages.
 - `sensor_anti_malware` (Attributes) For offline and online hosts, use sensor-based machine learning to identify and analyze unknown executables as they run to detect and prevent malware. (see [below for nested schema](#nestedatt--sensor_anti_malware))

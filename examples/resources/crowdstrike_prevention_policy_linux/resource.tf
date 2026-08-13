@@ -40,6 +40,8 @@ resource "crowdstrike_prevention_policy_linux" "example" {
   tls_visibility                               = true
   sensor_tampering_protection                  = true
   on_write_script_file_visibility              = true
+  detect_non_executables_on_write              = true
+  quarantine_non_executables_on_write          = true
   memory_visibility                            = true
   extended_command_line_visibility             = true
   dbus_visibility                              = true

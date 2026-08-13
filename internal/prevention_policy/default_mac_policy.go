@@ -49,6 +49,8 @@ type defaultPreventionPolicyMacResourceModel struct {
 	ScriptBasedExecutionMonitoring     types.Bool   `tfsdk:"script_based_execution_monitoring"`
 	DetectOnWrite                      types.Bool   `tfsdk:"detect_on_write"`
 	QuarantineOnWrite                  types.Bool   `tfsdk:"quarantine_on_write"`
+	DetectPackageOnWrite               types.Bool   `tfsdk:"detect_non_executables_on_write"`
+	QuarantinePackageOnWrite           types.Bool   `tfsdk:"quarantine_non_executables_on_write"`
 	NextGenAV                          types.Bool   `tfsdk:"quarantine"`
 	CustomBlacklisting                 types.Bool   `tfsdk:"custom_blocking"`
 	PreventSuspiciousProcesses         types.Bool   `tfsdk:"prevent_suspicious_processes"`
@@ -95,6 +97,8 @@ func (m *defaultPreventionPolicyMacResourceModel) generatePreventionSettings(ctx
 		"ScriptBasedExecutionMonitoring":     m.ScriptBasedExecutionMonitoring,
 		"DetectOnWrite":                      m.DetectOnWrite,
 		"QuarantineOnWrite":                  m.QuarantineOnWrite,
+		"DetectPackageOnWrite":               m.DetectPackageOnWrite,
+		"QuarantinePackageOnWrite":           m.QuarantinePackageOnWrite,
 		"NextGenAV":                          m.NextGenAV,
 		"CustomBlacklisting":                 m.CustomBlacklisting,
 		"PreventSuspiciousProcesses":         m.PreventSuspiciousProcesses,
@@ -195,6 +199,8 @@ func (m *defaultPreventionPolicyMacResourceModel) assignPreventionSettings(
 	)
 	m.DetectOnWrite = defaultBoolFalse(toggleSettings["DetectOnWrite"])
 	m.QuarantineOnWrite = defaultBoolFalse(toggleSettings["QuarantineOnWrite"])
+	m.DetectPackageOnWrite = defaultBoolFalse(toggleSettings["DetectPackageOnWrite"])
+	m.QuarantinePackageOnWrite = defaultBoolFalse(toggleSettings["QuarantinePackageOnWrite"])
 	m.NextGenAV = defaultBoolFalse(toggleSettings["NextGenAV"])
 	m.CustomBlacklisting = defaultBoolFalse(toggleSettings["CustomBlacklisting"])
 	m.PreventSuspiciousProcesses = defaultBoolFalse(
@@ -463,6 +469,22 @@ func (r *defaultPreventionPolicyMacResource) ValidateConfig(
 			config.DetectOnWrite,
 			"quarantine_on_write",
 			"detect_on_write",
+		)...)
+
+	resp.Diagnostics.Append(
+		fwvalidators.BoolRequiresBool(
+			config.QuarantinePackageOnWrite,
+			config.DetectPackageOnWrite,
+			"quarantine_non_executables_on_write",
+			"detect_non_executables_on_write",
+		)...)
+
+	resp.Diagnostics.Append(
+		fwvalidators.BoolRequiresBool(
+			config.QuarantinePackageOnWrite,
+			config.NextGenAV,
+			"quarantine_non_executables_on_write",
+			"quarantine",
 		)...)
 
 	if utils.IsKnown(config.CloudAntiMalware) {

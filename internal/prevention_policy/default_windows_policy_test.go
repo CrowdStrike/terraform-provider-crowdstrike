@@ -25,6 +25,19 @@ resource "crowdstrike_default_prevention_policy_windows" "test" {
 }`
 }
 
+// testAccDefaultPreventionPolicyWindowsConfig_nonExecutablesOnWriteError builds
+// configs that fail validation at plan time, so they are never applied to the
+// tenant's real default policy.
+func testAccDefaultPreventionPolicyWindowsConfig_nonExecutablesOnWriteError(
+	toggles string,
+) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_default_prevention_policy_windows" "test" {
+  ioa_rule_groups = []
+%s
+}`, toggles)
+}
+
 func testAccDefaultPreventionPolicyWindowsConfig_basic() string {
 	return acctest.ProviderConfig + `
 resource "crowdstrike_default_prevention_policy_windows" "test" {
@@ -36,6 +49,7 @@ resource "crowdstrike_default_prevention_policy_windows" "test" {
   wsl2_visibility                        = true
   suspicious_file_analysis               = true
   retrospective_detections               = true
+  detect_non_executables_on_write        = true
 
   cloud_anti_malware_microsoft_office_files = {
     detection  = "MODERATE"
@@ -66,6 +80,7 @@ resource "crowdstrike_default_prevention_policy_windows" "test" {
   wsl2_visibility                        = false
   suspicious_file_analysis               = false
   retrospective_detections               = false
+  detect_non_executables_on_write        = false
 
   cloud_anti_malware_microsoft_office_files = {
     detection  = "MODERATE"
@@ -94,6 +109,7 @@ resource "crowdstrike_default_prevention_policy_windows" "test" {
   wsl2_visibility                        = true
   suspicious_file_analysis               = true
   retrospective_detections               = true
+  detect_non_executables_on_write        = true
 
   cloud_anti_malware_microsoft_office_files = {
     detection  = "MODERATE"
@@ -202,6 +218,40 @@ func TestAccDefaultPreventionPolicyWindowsResource_validationError(t *testing.T)
 	})
 }
 
+func TestAccDefaultPreventionPolicyWindowsResource_nonExecutablesOnWriteValidationError(
+	t *testing.T,
+) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.SkipBelow(version.Must(version.NewVersion("1.12.0"))),
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: testAccDefaultPreventionPolicyWindowsConfig_nonExecutablesOnWriteError(`
+  quarantine_non_executables_on_write         = true
+  detect_non_executables_on_write             = false
+  quarantine_and_security_center_registration = true
+`),
+				ExpectError: regexp.MustCompile(
+					"quarantine_non_executables_on_write requires detect_non_executables_on_write",
+				),
+			},
+			{
+				Config: testAccDefaultPreventionPolicyWindowsConfig_nonExecutablesOnWriteError(`
+  quarantine_non_executables_on_write         = true
+  detect_non_executables_on_write             = true
+  quarantine_and_security_center_registration = false
+`),
+				ExpectError: regexp.MustCompile(
+					"quarantine_non_executables_on_write requires quarantine_and_security_center_registration",
+				),
+			},
+		},
+	})
+}
+
 // regression test for https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues/149
 func TestAccDefaultPreventionPolicyWindowsResource_descriptionRemoval(t *testing.T) {
 	resourceName := "crowdstrike_default_prevention_policy_windows.test"
@@ -285,6 +335,11 @@ func TestAccDefaultPreventionPolicyWindowsResource(t *testing.T) {
 					),
 					resource.TestCheckResourceAttr(
 						resourceName,
+						"detect_non_executables_on_write",
+						"true",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
 						"cloud_anti_malware_microsoft_office_files.detection",
 						"MODERATE",
 					),
@@ -361,6 +416,11 @@ func TestAccDefaultPreventionPolicyWindowsResource(t *testing.T) {
 					resource.TestCheckResourceAttr(
 						resourceName,
 						"retrospective_detections",
+						"false",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"detect_non_executables_on_write",
 						"false",
 					),
 					resource.TestCheckResourceAttr(

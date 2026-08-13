@@ -2,6 +2,7 @@ package preventionpolicy_test
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
@@ -65,6 +66,8 @@ func TestAccPreventionPolicyMac_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("script_based_execution_monitoring"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("detect_on_write"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("quarantine_on_write"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("detect_non_executables_on_write"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("quarantine_non_executables_on_write"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("quarantine"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("custom_blocking"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("intelligence_sourced_threats"), knownvalue.Bool(false)),
@@ -105,6 +108,8 @@ func TestAccPreventionPolicyMac_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("custom_blocking"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("detect_on_write"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("quarantine_on_write"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("detect_non_executables_on_write"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("quarantine_non_executables_on_write"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("script_based_execution_monitoring"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("upload_unknown_detection_related_executables"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("upload_unknown_executables"), knownvalue.Bool(true)),
@@ -143,6 +148,8 @@ func TestAccPreventionPolicyMac_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("script_based_execution_monitoring"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("detect_on_write"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("quarantine_on_write"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("detect_non_executables_on_write"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("quarantine_non_executables_on_write"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("quarantine"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("custom_blocking"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("intelligence_sourced_threats"), knownvalue.Bool(false)),
@@ -175,6 +182,47 @@ func TestAccPreventionPolicyMac_update(t *testing.T) {
 	})
 }
 
+func TestAccPreventionPolicyMac_nonExecutablesOnWriteValidationError(t *testing.T) {
+	rName := acctest.RandomResourceName()
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccPreventionPolicyMacConfig_nonExecutablesOnWrite(rName, `
+  quarantine_non_executables_on_write = true
+  detect_non_executables_on_write     = false
+  quarantine                          = true
+`),
+				ExpectError: regexp.MustCompile(
+					"quarantine_non_executables_on_write requires detect_non_executables_on_write",
+				),
+			},
+			{
+				Config: testAccPreventionPolicyMacConfig_nonExecutablesOnWrite(rName, `
+  quarantine_non_executables_on_write = true
+  detect_non_executables_on_write     = true
+  quarantine                          = false
+`),
+				ExpectError: regexp.MustCompile(
+					"quarantine_non_executables_on_write requires quarantine",
+				),
+			},
+		},
+	})
+}
+
+func testAccPreventionPolicyMacConfig_nonExecutablesOnWrite(name, toggles string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_prevention_policy_mac" "test" {
+  name           = %[1]q
+  host_groups    = []
+  ioa_rule_groups = []
+%[2]s
+}`, name, toggles)
+}
+
 func testAccPreventionPolicyMacConfig_basic(name string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_prevention_policy_mac" "test" {
@@ -201,6 +249,8 @@ resource "crowdstrike_prevention_policy_mac" "test" {
   custom_blocking                            = true
   detect_on_write                            = true
   quarantine_on_write                        = true
+  detect_non_executables_on_write            = true
+  quarantine_non_executables_on_write        = true
   script_based_execution_monitoring          = true
   upload_unknown_detection_related_executables = true
   upload_unknown_executables                 = true

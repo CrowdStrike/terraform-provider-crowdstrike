@@ -69,6 +69,8 @@ type defaultPreventionPolicyWindowsResourceModel struct {
 	USBInsertionTriggeredScan                  types.Bool   `tfsdk:"usb_insertion_triggered_scan"`
 	DetectOnWrite                              types.Bool   `tfsdk:"detect_on_write"`
 	QuarantineOnWrite                          types.Bool   `tfsdk:"quarantine_on_write"`
+	DetectPackageOnWrite                       types.Bool   `tfsdk:"detect_non_executables_on_write"`
+	QuarantinePackageOnWrite                   types.Bool   `tfsdk:"quarantine_non_executables_on_write"`
 	OnWriteScriptFileVisibility                types.Bool   `tfsdk:"on_write_script_file_visibility"`
 	NextGenAV                                  types.Bool   `tfsdk:"quarantine_and_security_center_registration"`
 	NextGenAVQuarantineOnRemovableMedia        types.Bool   `tfsdk:"quarantine_on_removable_media"`
@@ -151,6 +153,8 @@ func (m *defaultPreventionPolicyWindowsResourceModel) generatePreventionSettings
 		"USBInsertionTriggeredScan":                 m.USBInsertionTriggeredScan,
 		"DetectOnWrite":                             m.DetectOnWrite,
 		"QuarantineOnWrite":                         m.QuarantineOnWrite,
+		"DetectPackageOnWrite":                      m.DetectPackageOnWrite,
+		"QuarantinePackageOnWrite":                  m.QuarantinePackageOnWrite,
 		"OnWriteScriptFileVisibility":               m.OnWriteScriptFileVisibility,
 		"NextGenAV":                                 m.NextGenAV,
 		"NextGenAVQuarantineOnRemovableMedia":       m.NextGenAVQuarantineOnRemovableMedia,
@@ -358,6 +362,8 @@ func (m *defaultPreventionPolicyWindowsResourceModel) assignPreventionSettings(
 	m.USBInsertionTriggeredScan = defaultBoolFalse(toggleSettings["USBInsertionTriggeredScan"])
 	m.DetectOnWrite = defaultBoolFalse(toggleSettings["DetectOnWrite"])
 	m.QuarantineOnWrite = defaultBoolFalse(toggleSettings["QuarantineOnWrite"])
+	m.DetectPackageOnWrite = defaultBoolFalse(toggleSettings["DetectPackageOnWrite"])
+	m.QuarantinePackageOnWrite = defaultBoolFalse(toggleSettings["QuarantinePackageOnWrite"])
 	m.OnWriteScriptFileVisibility = defaultBoolFalse(
 		toggleSettings["OnWriteScriptFileVisibility"],
 	)
@@ -808,6 +814,22 @@ func (r *defaultPreventionPolicyWindowsResource) ValidateConfig(
 			config.DetectOnWrite,
 			"quarantine_on_write",
 			"detect_on_write",
+		)...)
+
+	resp.Diagnostics.Append(
+		fwvalidators.BoolRequiresBool(
+			config.QuarantinePackageOnWrite,
+			config.DetectPackageOnWrite,
+			"quarantine_non_executables_on_write",
+			"detect_non_executables_on_write",
+		)...)
+
+	resp.Diagnostics.Append(
+		fwvalidators.BoolRequiresBool(
+			config.QuarantinePackageOnWrite,
+			config.NextGenAV,
+			"quarantine_non_executables_on_write",
+			"quarantine_and_security_center_registration",
 		)...)
 
 	resp.Diagnostics.Append(

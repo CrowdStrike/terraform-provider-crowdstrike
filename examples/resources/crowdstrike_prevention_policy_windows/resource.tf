@@ -92,6 +92,8 @@ resource "crowdstrike_prevention_policy_windows" "example" {
   quarantine_and_security_center_registration    = true
   quarantine_on_removable_media                  = true
   quarantine_on_write                            = true
+  detect_non_executables_on_write                = true
+  quarantine_non_executables_on_write            = true
   script_based_execution_monitoring              = true
   sensor_tampering_protection                    = true
   suspicious_registry_operations                 = true

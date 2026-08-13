@@ -76,6 +76,8 @@ func TestAccPreventionPolicyLinux_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_tampering_protection"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("memory_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("on_write_script_file_visibility"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("detect_non_executables_on_write"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("quarantine_non_executables_on_write"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("extended_command_line_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("dbus_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhance_php_visibility"), knownvalue.Bool(false)),
@@ -119,6 +121,8 @@ func TestAccPreventionPolicyLinux_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_tampering_protection"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("memory_visibility"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("on_write_script_file_visibility"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("detect_non_executables_on_write"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("quarantine_non_executables_on_write"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("extended_command_line_visibility"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("dbus_visibility"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhance_php_visibility"), knownvalue.Bool(true)),
@@ -162,6 +166,8 @@ func TestAccPreventionPolicyLinux_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_tampering_protection"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("memory_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("on_write_script_file_visibility"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("detect_non_executables_on_write"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("quarantine_non_executables_on_write"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("extended_command_line_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("dbus_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhance_php_visibility"), knownvalue.Bool(false)),
@@ -203,6 +209,48 @@ func TestAccPreventionPolicyLinux_validationError(t *testing.T) {
 	})
 }
 
+func TestAccPreventionPolicyLinux_nonExecutablesOnWriteValidationError(t *testing.T) {
+	rName := acctest.RandomResourceName()
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccPreventionPolicyLinuxConfig_nonExecutablesOnWrite(rName, `
+  detect_non_executables_on_write = true
+  filesystem_visibility           = false
+`),
+				ExpectError: regexp.MustCompile(
+					"detect_non_executables_on_write requires filesystem_visibility",
+				),
+			},
+			{
+				Config: testAccPreventionPolicyLinuxConfig_nonExecutablesOnWrite(rName, `
+  quarantine_non_executables_on_write = true
+  detect_non_executables_on_write     = false
+  filesystem_visibility               = true
+  quarantine                          = true
+`),
+				ExpectError: regexp.MustCompile(
+					"quarantine_non_executables_on_write requires detect_non_executables_on_write",
+				),
+			},
+			{
+				Config: testAccPreventionPolicyLinuxConfig_nonExecutablesOnWrite(rName, `
+  quarantine_non_executables_on_write = true
+  detect_non_executables_on_write     = true
+  filesystem_visibility               = true
+  quarantine                          = false
+`),
+				ExpectError: regexp.MustCompile(
+					"quarantine_non_executables_on_write requires quarantine",
+				),
+			},
+		},
+	})
+}
+
 func testAccPreventionPolicyLinuxConfig_basic(name string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_prevention_policy_linux" "test" {
@@ -237,6 +285,8 @@ resource "crowdstrike_prevention_policy_linux" "test" {
   sensor_tampering_protection                  = true
   memory_visibility                            = true
   on_write_script_file_visibility              = true
+  detect_non_executables_on_write               = true
+  quarantine_non_executables_on_write          = true
   extended_command_line_visibility             = true
   dbus_visibility                              = true
   enhance_php_visibility                       = true
@@ -257,6 +307,16 @@ resource "crowdstrike_prevention_policy_linux" "test" {
     prevention = "CAUTIOUS"
   }
 }`, name)
+}
+
+func testAccPreventionPolicyLinuxConfig_nonExecutablesOnWrite(name, toggles string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_prevention_policy_linux" "test" {
+  name           = %[1]q
+  host_groups    = []
+  ioa_rule_groups = []
+%[2]s
+}`, name, toggles)
 }
 
 func testAccPreventionPolicyLinuxConfig_validationError(name string) string {

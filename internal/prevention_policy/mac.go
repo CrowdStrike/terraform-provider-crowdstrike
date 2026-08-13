@@ -58,6 +58,8 @@ type preventionPolicyMacResourceModel struct {
 	ScriptBasedExecutionMonitoring     types.Bool   `tfsdk:"script_based_execution_monitoring"`
 	DetectOnWrite                      types.Bool   `tfsdk:"detect_on_write"`
 	QuarantineOnWrite                  types.Bool   `tfsdk:"quarantine_on_write"`
+	DetectPackageOnWrite               types.Bool   `tfsdk:"detect_non_executables_on_write"`
+	QuarantinePackageOnWrite           types.Bool   `tfsdk:"quarantine_non_executables_on_write"`
 	NextGenAV                          types.Bool   `tfsdk:"quarantine"`
 	CustomBlacklisting                 types.Bool   `tfsdk:"custom_blocking"`
 	PreventSuspiciousProcesses         types.Bool   `tfsdk:"prevent_suspicious_processes"`
@@ -432,6 +434,22 @@ func (r *preventionPolicyMacResource) ValidateConfig(
 			"detect_on_write",
 		)...)
 
+	resp.Diagnostics.Append(
+		fwvalidators.BoolRequiresBool(
+			config.QuarantinePackageOnWrite,
+			config.DetectPackageOnWrite,
+			"quarantine_non_executables_on_write",
+			"detect_non_executables_on_write",
+		)...)
+
+	resp.Diagnostics.Append(
+		fwvalidators.BoolRequiresBool(
+			config.QuarantinePackageOnWrite,
+			config.NextGenAV,
+			"quarantine_non_executables_on_write",
+			"quarantine",
+		)...)
+
 	if utils.IsKnown(config.CloudAntiMalware) {
 		var slider mlSlider
 		if diagsSlider := config.CloudAntiMalware.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
@@ -522,6 +540,8 @@ func (r *preventionPolicyMacResource) assignPreventionSettings(
 	)
 	state.DetectOnWrite = defaultBoolFalse(toggleSettings["DetectOnWrite"])
 	state.QuarantineOnWrite = defaultBoolFalse(toggleSettings["QuarantineOnWrite"])
+	state.DetectPackageOnWrite = defaultBoolFalse(toggleSettings["DetectPackageOnWrite"])
+	state.QuarantinePackageOnWrite = defaultBoolFalse(toggleSettings["QuarantinePackageOnWrite"])
 	state.NextGenAV = defaultBoolFalse(toggleSettings["NextGenAV"])
 	state.CustomBlacklisting = defaultBoolFalse(toggleSettings["CustomBlacklisting"])
 	state.PreventSuspiciousProcesses = defaultBoolFalse(
@@ -593,6 +613,8 @@ func (r *preventionPolicyMacResource) generatePreventionSettings(
 		"ScriptBasedExecutionMonitoring":     config.ScriptBasedExecutionMonitoring,
 		"DetectOnWrite":                      config.DetectOnWrite,
 		"QuarantineOnWrite":                  config.QuarantineOnWrite,
+		"DetectPackageOnWrite":               config.DetectPackageOnWrite,
+		"QuarantinePackageOnWrite":           config.QuarantinePackageOnWrite,
 		"NextGenAV":                          config.NextGenAV,
 		"CustomBlacklisting":                 config.CustomBlacklisting,
 		"PreventSuspiciousProcesses":         config.PreventSuspiciousProcesses,
