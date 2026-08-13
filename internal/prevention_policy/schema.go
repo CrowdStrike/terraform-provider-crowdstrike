@@ -317,6 +317,12 @@ func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 			"quarantine_on_write": toggleAttribute(
 				"Use machine learning to quarantine suspicious files when they're written to disk. To adjust quarantine sensitivity, change Anti-malware Prevention levels in Sensor Machine Learning and Cloud Machine Learning.",
 			),
+			"detect_non_executables_on_write": toggleAttribute(
+				"Detect non-executable files, classified as malicious by CrowdStrike’s Intelligence analysts, when they are written to disk.",
+			),
+			"quarantine_non_executables_on_write": toggleAttribute(
+				"Quarantine non-executable files, classified as malicious by CrowdStrike’s Intelligence analysts, when they are written to disk. Requires detect_non_executables_on_write and quarantine_and_security_center_registration to be enabled.",
+			),
 			"on_write_script_file_visibility": toggleAttribute(
 				"Provides improved visibility into various script files being written to disk in addition to clouding a portion of their content.",
 			),
@@ -518,6 +524,12 @@ func generateMacSchema(defaultPolicy bool) schema.Schema {
 			"quarantine_on_write": toggleAttribute(
 				"Use machine learning to quarantine suspicious files when they're written to disk. To adjust quarantine sensitivity, change Anti-malware Prevention levels in Sensor Machine Learning and Cloud Machine Learning.",
 			),
+			"detect_non_executables_on_write": toggleAttribute(
+				"Detect non-executable files, classified as malicious by CrowdStrike’s Intelligence analysts, when they are written to disk.",
+			),
+			"quarantine_non_executables_on_write": toggleAttribute(
+				"Quarantine non-executable files, classified as malicious by CrowdStrike’s Intelligence analysts, when they are written to disk. Requires detect_non_executables_on_write and quarantine to be enabled.",
+			),
 			"quarantine": toggleAttribute(
 				"Quarantine executable files after they’re prevented by NGAV. When this is enabled, we recommend setting anti-malware prevention levels to Moderate or higher and not using other antivirus solutions.",
 			),
@@ -668,6 +680,12 @@ func generateLinuxSchema(defaultPolicy bool) schema.Schema {
 			),
 			"on_write_script_file_visibility": toggleAttribute(
 				"Provides improved visibility into various script files being written to disk in addition to clouding a portion of their content.",
+			),
+			"detect_non_executables_on_write": toggleAttribute(
+				"Detect non-executable files, classified as malicious by CrowdStrike’s Intelligence analysts, when they are written to disk. Requires filesystem_visibility to be enabled.",
+			),
+			"quarantine_non_executables_on_write": toggleAttribute(
+				"Quarantine non-executable files, classified as malicious by CrowdStrike’s Intelligence analysts, when they are written to disk. Requires detect_non_executables_on_write and quarantine to be enabled.",
 			),
 			"extended_command_line_visibility": toggleAttribute(
 				"Allows the sensor to monitor full CLI commands that include pipes and redirects. This is applicable only for User mode.",

@@ -64,6 +64,8 @@ resource "crowdstrike_prevention_policy_mac" "example" {
   prevent_suspicious_processes                 = true
   quarantine                                   = true
   quarantine_on_write                          = true
+  detect_non_executables_on_write              = true
+  quarantine_non_executables_on_write          = true
   script_based_execution_monitoring            = true
   sensor_tampering_protection                  = true
   upload_unknown_executables                   = true
@@ -97,6 +99,7 @@ output "prevention_policy_mac" {
 - `cloud_anti_malware` (Attributes) Use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware for your online hosts. (see [below for nested schema](#nestedatt--cloud_anti_malware))
 - `custom_blocking` (Boolean) Whether to enable the setting. Block processes matching hashes that you add to IOC Management with the action set to "Block" or "Block, hide detection".
 - `description` (String) Description of the prevention policy.
+- `detect_non_executables_on_write` (Boolean) Whether to enable the setting. Detect non-executable files, classified as malicious by CrowdStrike’s Intelligence analysts, when they are written to disk.
 - `detect_on_write` (Boolean) Whether to enable the setting. Use machine learning to analyze suspicious files when they're written to disk. To adjust detection sensitivity, change Anti-malware Detection levels in Sensor Machine Learning and Cloud Machine Learning.
 - `empyre_backdoor` (Boolean) Whether to enable the setting. A process with behaviors indicative of the Empyre Backdoor was terminated.
 - `enabled` (Boolean) Enable the prevention policy.
@@ -107,6 +110,7 @@ output "prevention_policy_mac" {
 - `notify_end_users` (Boolean) Whether to enable the setting. Show a pop-up notification to the end user when the Falcon sensor blocks, kills, or quarantines. See these messages in Console.app by searching for Process: Falcon Notifications.
 - `prevent_suspicious_processes` (Boolean) Whether to enable the setting. Block processes that CrowdStrike analysts classify as suspicious. These are focused on dynamic IOAs, such as malware, exploits and other threats.
 - `quarantine` (Boolean) Whether to enable the setting. Quarantine executable files after they’re prevented by NGAV. When this is enabled, we recommend setting anti-malware prevention levels to Moderate or higher and not using other antivirus solutions.
+- `quarantine_non_executables_on_write` (Boolean) Whether to enable the setting. Quarantine non-executable files, classified as malicious by CrowdStrike’s Intelligence analysts, when they are written to disk. Requires detect_non_executables_on_write and quarantine to be enabled.
 - `quarantine_on_write` (Boolean) Whether to enable the setting. Use machine learning to quarantine suspicious files when they're written to disk. To adjust quarantine sensitivity, change Anti-malware Prevention levels in Sensor Machine Learning and Cloud Machine Learning.
 - `retrospective_detections` (Boolean) Whether to enable the setting. Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.
 - `script_based_execution_monitoring` (Boolean) Whether to enable the setting. Provides visibility into suspicious scripts, including shell and other scripting languages.

@@ -116,6 +116,8 @@ resource "crowdstrike_prevention_policy_windows" "example" {
   quarantine_and_security_center_registration    = true
   quarantine_on_removable_media                  = true
   quarantine_on_write                            = true
+  detect_non_executables_on_write                = true
+  quarantine_non_executables_on_write            = true
   script_based_execution_monitoring              = true
   sensor_tampering_protection                    = true
   suspicious_registry_operations                 = true
@@ -166,6 +168,7 @@ output "prevention_policy_windows" {
 - `cryptowall` (Boolean) Whether to enable the setting. A process associated with Cryptowall was blocked.
 - `custom_blocking` (Boolean) Whether to enable the setting. Block processes matching hashes that you add to IOC Management with the action set to "Block" or "Block, hide detection".
 - `description` (String) Description of the prevention policy.
+- `detect_non_executables_on_write` (Boolean) Whether to enable the setting. Detect non-executable files, classified as malicious by CrowdStrike’s Intelligence analysts, when they are written to disk.
 - `detect_on_write` (Boolean) Whether to enable the setting. Use machine learning to analyze suspicious files when they're written to disk. To adjust detection sensitivity, change Anti-malware Detection levels in Sensor Machine Learning and Cloud Machine Learning.
 - `drive_by_download` (Boolean) Whether to enable the setting. A suspicious file written by a browser attempted to execute and was blocked.
 - `driver_load_prevention` (Boolean) Whether to enable the setting. Block the loading of kernel drivers that CrowdStrike analysts have identified as malicious. Available on Windows 10 and Windows Server 2016 and later.
@@ -195,6 +198,7 @@ output "prevention_policy_windows" {
 - `on_write_script_file_visibility` (Boolean) Whether to enable the setting. Provides improved visibility into various script files being written to disk in addition to clouding a portion of their content.
 - `prevent_suspicious_processes` (Boolean) Whether to enable the setting. Block processes that CrowdStrike analysts classify as suspicious. These are focused on dynamic IOAs, such as malware, exploits and other threats.
 - `quarantine_and_security_center_registration` (Boolean) Whether to enable the setting. Quarantine executable files after they’re prevented by NGAV. When this is enabled, we recommend setting anti-malware prevention levels to Moderate or higher and not using other antivirus solutions. CrowdStrike Falcon registers with Windows Security Center, disabling Windows Defender.
+- `quarantine_non_executables_on_write` (Boolean) Whether to enable the setting. Quarantine non-executable files, classified as malicious by CrowdStrike’s Intelligence analysts, when they are written to disk. Requires detect_non_executables_on_write and quarantine_and_security_center_registration to be enabled.
 - `quarantine_on_removable_media` (Boolean) Whether to enable the setting. Quarantine executable files after they’re prevented by NGAV.
 - `quarantine_on_write` (Boolean) Whether to enable the setting. Use machine learning to quarantine suspicious files when they're written to disk. To adjust quarantine sensitivity, change Anti-malware Prevention levels in Sensor Machine Learning and Cloud Machine Learning.
 - `redact_http_detection_details` (Boolean) Whether to enable the setting. Remove certain information from HTTP Detection events, including URL, raw HTTP header and POST bodies if they were present. This does not affect the generation of HTTP Detections, only additional details that would be included and may include personal information (depending on the malware in question). When disabled, the information is used to improve the response to detection events. Has no effect unless HTTP Detections is also enabled.

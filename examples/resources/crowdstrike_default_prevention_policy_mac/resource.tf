@@ -37,6 +37,8 @@ resource "crowdstrike_default_prevention_policy_mac" "default" {
   prevent_suspicious_processes                 = true
   quarantine                                   = true
   quarantine_on_write                          = true
+  detect_non_executables_on_write              = true
+  quarantine_non_executables_on_write          = true
   script_based_execution_monitoring            = true
   sensor_tampering_protection                  = true
   upload_unknown_executables                   = true

@@ -28,6 +28,9 @@ resource "crowdstrike_prevention_policy_windows" "test" {
   wsl2_visibility                        = true
   suspicious_file_analysis               = true
   retrospective_detections               = true
+  quarantine_and_security_center_registration = true
+  detect_non_executables_on_write             = true
+  quarantine_non_executables_on_write         = true
   cloud_anti_malware_microsoft_office_files = {
     detection  = "MODERATE"
     prevention = "MODERATE"
@@ -56,6 +59,9 @@ resource "crowdstrike_prevention_policy_windows" "test" {
   wsl2_visibility                        = true
   suspicious_file_analysis               = true
   retrospective_detections               = true
+  quarantine_and_security_center_registration = true
+  detect_non_executables_on_write             = true
+  quarantine_non_executables_on_write         = true
   cloud_anti_malware_microsoft_office_files = {
     detection  = "MODERATE"
     prevention = "MODERATE"
@@ -90,6 +96,9 @@ resource "crowdstrike_prevention_policy_windows" "test" {
   wsl2_visibility                        = false
   suspicious_file_analysis               = false
   retrospective_detections               = false
+  quarantine_and_security_center_registration = false
+  detect_non_executables_on_write             = false
+  quarantine_non_executables_on_write         = false
   cloud_anti_malware_microsoft_office_files = {
     detection  = "MODERATE"
     prevention = "DISABLED"
@@ -117,6 +126,20 @@ resource "crowdstrike_prevention_policy_windows" "test" {
   boot_configuration_database_protection = true
 }
 `, rName)
+}
+
+func testAccPreventionPolicyWindowsConfig_nonExecutablesOnWrite(
+	rName string,
+	toggles string,
+) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_prevention_policy_windows" "test" {
+  name            = "%s"
+  host_groups     = []
+  ioa_rule_groups = []
+%s
+}
+`, rName, toggles)
 }
 
 // regression test to handle unknown states https://github.com/CrowdStrike/terraform-provider-crowdstrike/issues/136
@@ -236,6 +259,37 @@ func TestAccPreventionPolicyWindowsResource_validationError(t *testing.T) {
 	})
 }
 
+func TestAccPreventionPolicyWindowsResource_nonExecutablesOnWriteValidationError(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccPreventionPolicyWindowsConfig_nonExecutablesOnWrite(rName, `
+  quarantine_non_executables_on_write         = true
+  detect_non_executables_on_write             = false
+  quarantine_and_security_center_registration = true
+`),
+				ExpectError: regexp.MustCompile(
+					"quarantine_non_executables_on_write requires detect_non_executables_on_write",
+				),
+			},
+			{
+				Config: testAccPreventionPolicyWindowsConfig_nonExecutablesOnWrite(rName, `
+  quarantine_non_executables_on_write         = true
+  detect_non_executables_on_write             = true
+  quarantine_and_security_center_registration = false
+`),
+				ExpectError: regexp.MustCompile(
+					"quarantine_non_executables_on_write requires quarantine_and_security_center_registration",
+				),
+			},
+		},
+	})
+}
+
 func TestAccPreventionPolicyWindowsResource(t *testing.T) {
 	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resourceName := "crowdstrike_prevention_policy_windows.test"
@@ -285,6 +339,16 @@ func TestAccPreventionPolicyWindowsResource(t *testing.T) {
 					resource.TestCheckResourceAttr(
 						resourceName,
 						"retrospective_detections",
+						"true",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"detect_non_executables_on_write",
+						"true",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"quarantine_non_executables_on_write",
 						"true",
 					),
 					resource.TestCheckResourceAttr(
@@ -374,6 +438,16 @@ func TestAccPreventionPolicyWindowsResource(t *testing.T) {
 					resource.TestCheckResourceAttr(
 						resourceName,
 						"retrospective_detections",
+						"false",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"detect_non_executables_on_write",
+						"false",
+					),
+					resource.TestCheckResourceAttr(
+						resourceName,
+						"quarantine_non_executables_on_write",
 						"false",
 					),
 					resource.TestCheckResourceAttr(
