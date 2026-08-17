@@ -1,0 +1,66 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+{{ if gt (len (split .Description " --- ")) 1 -}}
+subcategory: "{{ index (split .Description " --- ") 0 }}"
+{{- else -}}
+subcategory: ""
+{{- end }}
+description: |-
+{{ if gt (len (split .Description " --- ")) 1 -}}
+{{ index (split .Description " --- ") 1 | plainmarkdown | trimspace | prefixlines "  " }}
+{{- else -}}
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+{{- end }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ if gt (len (split .Description " --- ")) 1 -}}
+{{ index (split .Description " --- ") 1 | trimspace }}
+{{ else }}
+{{ .Description | trimspace }}
+{{- end }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile (printf "%s%s%s" "examples/data-sources/" .Name "/data-source.tf") }}
+{{- end }}
+
+## Filtering
+
+Provide `id` to look a cloud group up by its UUID, or `filter` to find it with a
+Falcon Query Language (FQL) expression. A filter must resolve to exactly one
+group: the data source fails if it matches none, and fails if it matches more than
+one.
+
+For the FQL syntax itself, the operators, and how to escape a value in a Terraform
+string, see the
+[Filtering with Falcon Query Language](https://registry.terraform.io/providers/crowdstrike/crowdstrike/latest/docs/guides/falcon-query-language)
+guide. This page covers what is specific to cloud groups.
+
+### Filterable properties
+
+| Property | Matches |
+| --- | --- |
+| `name` | The group name. |
+| `description` | The group description. |
+| `business_impact` | The group's impact tag: `low`, `moderate`, or `high`. |
+| `business_unit` | The group's business unit tag. |
+| `environment` | The group's environment tag: `dev`, `test`, `stage`, or `prod`. |
+| `created_at` | When the group was created. |
+| `updated_at` | When the group was last updated. |
+| `id` | The group's UUID. Prefer the `id` argument, which uses the dedicated by-ID endpoint. |
+| `cloud_provider` | A cloud provider in the group's selectors: `aws`, `azure`, or `gcp`. |
+| `account_id` | An account ID in the group's selectors. |
+| `region` | A region in the group's selectors, for example `us-west-2`. |
+| `cloud_provider_tag` | A cloud resource tag in the group's selectors, in `key=value` form. |
+| `image_registry` | An image registry in the group's selectors. |
+| `image_repository` | An image repository in the group's selectors. |
+| `image_tag` | An image tag in the group's selectors. |
+| `gcrn` | A cloud resource name. |
+
+{{ .SchemaMarkdown | trimspace }}
+{{- if .HasImport }}
+
+{{- end }}
