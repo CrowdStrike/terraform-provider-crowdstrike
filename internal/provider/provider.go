@@ -397,6 +397,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		user.NewUserRolesDataSource,
 		user.NewUserDataSource,
 		dataprotection.NewFileTypeDataSource,
+		dataprotection.NewDataProtectionPolicyDataSource,
 	}
 }
 
