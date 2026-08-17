@@ -396,6 +396,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		ngsiem.NewDataConnectorsDataSource,
 		user.NewUserRolesDataSource,
 		user.NewUserDataSource,
+		dataprotection.NewFileTypeDataSource,
 	}
 }
 
