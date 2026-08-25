@@ -73,7 +73,7 @@ output "framework_version" {
 ## Filtering
 
 Provide either `id` to look a framework up directly, or `filter` to find it with a
-[Falcon Query Language (FQL)](https://falcon.crowdstrike.com/documentation/page/d3c84a1b/falcon-query-language-fql)
+[Falcon Query Language (FQL)](https://registry.terraform.io/providers/CrowdStrike/crowdstrike/latest/docs/guides/falcon-query-language)
 expression. A filter must resolve to exactly one framework: the data source fails
 if it matches none or more than one. Both forms work for built-in frameworks, such
 as CIS, and custom ones.
