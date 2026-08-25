@@ -1,0 +1,48 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+{{ if gt (len (split .Description " --- ")) 1 -}}
+subcategory: "{{ index (split .Description " --- ") 0 }}"
+{{- else -}}
+subcategory: ""
+{{- end }}
+description: |-
+{{ if gt (len (split .Description " --- ")) 1 -}}
+{{ index (split .Description " --- ") 1 | plainmarkdown | trimspace | prefixlines "  " }}
+{{- else -}}
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+{{- end }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ if gt (len (split .Description " --- ")) 1 -}}
+{{ index (split .Description " --- ") 1 | trimspace }}
+{{ else }}
+{{ .Description | trimspace }}
+{{- end }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{ tffile (printf "%s%s%s" "examples/data-sources/" .Name "/data-source.tf") }}
+{{- end }}
+
+## Filtering
+
+Provide either `id` to look a framework up directly, or `filter` to find it with a
+[Falcon Query Language (FQL)](https://registry.terraform.io/providers/CrowdStrike/crowdstrike/latest/docs/guides/falcon-query-language)
+expression. A filter must resolve to exactly one framework: the data source fails
+if it matches none or more than one. Both forms work for built-in frameworks, such
+as CIS, and custom ones.
+
+The filterable properties are:
+
+- `compliance_framework_name`
+- `compliance_framework_version`
+- `compliance_framework_authority`
+
+The framework identifier is not filterable; use `id` to look one up by identifier.
+See the Example Usage above for filter examples.
+
+{{ .SchemaMarkdown | trimspace }}
+
