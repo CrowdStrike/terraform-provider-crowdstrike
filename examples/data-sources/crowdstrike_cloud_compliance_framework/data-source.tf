@@ -10,43 +10,37 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
-# Look up a compliance framework by ID, built-in or custom
+# Look up a compliance framework by ID, built-in or custom.
 data "crowdstrike_cloud_compliance_framework" "by_id" {
-  id = "3d67d331d69742f2a3e1e5db2e5f5f0f"
+  id = "3d67d331-d697-42f2-a3e1-e5db2e5f5f0f"
 }
 
-# Look up a compliance framework with an FQL filter. The filter must match
-# exactly one framework, otherwise the lookup fails.
-#
-# Only compliance_framework_name, compliance_framework_version, and
-# compliance_framework_authority are filterable. The framework ID is not
-# filterable at all, so use the id argument above to look a framework up by ID.
-#
-# The default FQL operator is "equal to", which compares the whole name and is
-# case sensitive. Framework names are unique, so name equality is the reliable
-# way to resolve a single framework.
+# Look up by name. Name equality is case sensitive and matches the whole name;
+# framework names are unique, so this resolves a single framework.
 data "crowdstrike_cloud_compliance_framework" "by_name" {
   filter = "compliance_framework_name:'PCI DSS Internal'"
 }
 
-# Equality does no partial matching, so reach for an operator when you only know
-# part of the name. Wildcards need both the operator asterisk after the colon and
-# a wildcard asterisk in the value, and they ignore case. Partial matches happily
-# cover several frameworks, and matching more than one is an error, so keep the
-# pattern narrow.
+# Match part of a name with a case-insensitive wildcard. Keep it narrow: matching
+# more than one framework is an error.
 data "crowdstrike_cloud_compliance_framework" "by_name_prefix" {
   filter = "compliance_framework_name:*'pci dss internal*'"
 }
 
-# Reference the data source's attributes elsewhere
-output "framework_sections" {
-  value = data.crowdstrike_cloud_compliance_framework.by_name.sections
+# Combine properties with "+" to pin a specific built-in benchmark release.
+data "crowdstrike_cloud_compliance_framework" "by_name_authority_version" {
+  filter = "compliance_framework_name:'CIS Amazon Web Services Foundations Benchmark'+compliance_framework_authority:'CIS'+compliance_framework_version:'1.4.0'"
 }
 
-output "framework_control_ids" {
-  value = flatten([
-    for section in values(data.crowdstrike_cloud_compliance_framework.by_name.sections) : [
-      for control in values(section.controls) : control.id
-    ]
-  ])
+# Reference the data source's attributes elsewhere
+output "framework_id" {
+  value = data.crowdstrike_cloud_compliance_framework.by_name.id
+}
+
+output "framework_authority" {
+  value = data.crowdstrike_cloud_compliance_framework.by_name.authority
+}
+
+output "framework_version" {
+  value = data.crowdstrike_cloud_compliance_framework.by_name.version
 }
