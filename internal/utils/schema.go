@@ -74,7 +74,7 @@ func SliceToListTypeObject[T any](
 
 	for _, elem := range elems {
 		v := reflect.ValueOf(elem)
-		if v.Kind() == reflect.Ptr && v.IsNil() {
+		if v.Kind() == reflect.Pointer && v.IsNil() {
 			continue
 		}
 		elemsSlice = append(elemsSlice, elem)

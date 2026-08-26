@@ -299,7 +299,7 @@ func handle207PayloadErrors(operation Operation, err error, cfg *errorConfig) di
 	}
 
 	payloadVal := reflect.ValueOf(payload)
-	if payloadVal.Kind() == reflect.Ptr {
+	if payloadVal.Kind() == reflect.Pointer {
 		payloadVal = payloadVal.Elem()
 	}
 
@@ -525,7 +525,7 @@ func renderPayloadError(payloadError reflect.Value) string {
 // non-nil, and plain fields when non-zero, which mirrors how these models are
 // declared: required fields are pointers and optional ones carry omitempty.
 func setFieldValue(field reflect.Value) (any, bool) {
-	if field.Kind() == reflect.Ptr {
+	if field.Kind() == reflect.Pointer {
 		if field.IsNil() {
 			return nil, false
 		}
@@ -579,7 +579,7 @@ func typedResponsePayload(err error) reflect.Value {
 // derefToStruct follows pointers down to a struct value, returning an invalid
 // Value when a nil pointer or a non-struct is encountered.
 func derefToStruct(value reflect.Value) reflect.Value {
-	for value.Kind() == reflect.Ptr || value.Kind() == reflect.Interface {
+	for value.Kind() == reflect.Pointer || value.Kind() == reflect.Interface {
 		if value.IsNil() {
 			return reflect.Value{}
 		}
