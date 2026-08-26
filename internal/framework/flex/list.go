@@ -40,3 +40,16 @@ func FlattenStringValueList(
 
 	return types.ListValueFrom(ctx, types.StringType, values)
 }
+
+// FlattenStringValueListOrEmpty converts a slice of strings to a Terraform list of
+// strings. Returns an empty list, never null, if the slice is empty or nil.
+func FlattenStringValueListOrEmpty(
+	ctx context.Context,
+	values []string,
+) (types.List, diag.Diagnostics) {
+	if values == nil {
+		values = []string{}
+	}
+
+	return types.ListValueFrom(ctx, types.StringType, values)
+}

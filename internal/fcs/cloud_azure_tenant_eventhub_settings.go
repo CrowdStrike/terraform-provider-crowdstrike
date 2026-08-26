@@ -139,15 +139,19 @@ func (r *cloudAzureTenantEventhubSettingsResource) Schema(
 	}
 }
 
-// wrap transforms Go values to their terraform wrapped values.
-func (m *cloudAzureTenantEventhubSettingsModel) wrap(
-	ctx context.Context,
+// flattenEventhubSettings converts the eventhub settings on an Azure tenant
+// registration to their terraform types. The caller wraps the returned slice in
+// the collection its schema declares. The slice is never nil, so converting it
+// yields an empty collection rather than null.
+func flattenEventhubSettings(
 	registration models.AzureTenantRegistration,
-) diag.Diagnostics {
-	var diags diag.Diagnostics
-
+) []*eventhubSettings {
 	eventhubSettingsSlice := make([]*eventhubSettings, 0, len(registration.EventHubSettings))
 	for _, setting := range registration.EventHubSettings {
+		// The API models this as a slice of pointers, so an element can be nil.
+		if setting == nil {
+			continue
+		}
 		eventhubSettingsSlice = append(eventhubSettingsSlice, &eventhubSettings{
 			ConsumerGroup: types.StringPointerValue(setting.ConsumerGroup),
 			Id:            types.StringPointerValue(setting.EventHubID),
@@ -155,23 +159,27 @@ func (m *cloudAzureTenantEventhubSettingsModel) wrap(
 		})
 	}
 
-	eventhubSettingsSet, err := types.SetValueFrom(
-		ctx,
-		types.ObjectType{AttrTypes: eventhubSettings{}.attrTypes()},
-		eventhubSettingsSlice,
-	)
-	diags.Append(err...)
+	return eventhubSettingsSlice
+}
+
+// wrap transforms Go values to their terraform wrapped values.
+func (m *cloudAzureTenantEventhubSettingsModel) wrap(
+	ctx context.Context,
+	registration models.AzureTenantRegistration,
+) diag.Diagnostics {
+	settings := flattenEventhubSettings(registration)
+	objectType := types.ObjectType{AttrTypes: eventhubSettings{}.attrTypes()}
+
+	eventhubSettingsSet, diags := types.SetValueFrom(ctx, objectType, settings)
 	if diags.HasError() {
 		return diags
 	}
 
-	if m.Settings.IsNull() && len(eventhubSettingsSet.Elements()) == 0 {
-		eventhubSettingsSet = types.SetNull(
-			types.ObjectType{AttrTypes: eventhubSettings{}.attrTypes()},
-		)
+	if m.Settings.IsNull() && len(settings) == 0 {
+		eventhubSettingsSet = types.SetNull(objectType)
 	}
 
-	m.TenantId = types.StringValue(*registration.TenantID)
+	m.TenantId = types.StringPointerValue(registration.TenantID)
 	m.Settings = eventhubSettingsSet
 
 	return diags

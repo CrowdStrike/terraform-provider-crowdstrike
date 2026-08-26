@@ -234,3 +234,39 @@ func TestFlattenStringValueList(t *testing.T) {
 		})
 	}
 }
+
+func TestFlattenStringValueListOrEmpty(t *testing.T) {
+	t.Parallel()
+
+	testcases := []struct {
+		name     string
+		values   []string
+		expected types.List
+	}{
+		{
+			name:     "nil slice returns empty list",
+			values:   nil,
+			expected: acctest.StringListOrEmpty(),
+		},
+		{
+			name:     "empty slice returns empty list",
+			values:   []string{},
+			expected: acctest.StringListOrEmpty(),
+		},
+		{
+			name:     "slice with valid values returns list",
+			values:   []string{"value1", "value2", "value3"},
+			expected: acctest.StringListOrEmpty("value1", "value2", "value3"),
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, diags := flex.FlattenStringValueListOrEmpty(t.Context(), tc.values)
+
+			assert.False(t, diags.HasError(), "unexpected diagnostics errors: %v", diags.Errors())
+			assert.False(t, result.IsNull(), "expected a non-null list")
+			assert.True(t, result.Equal(tc.expected), "expected %v, got %v", tc.expected, result)
+		})
+	}
+}

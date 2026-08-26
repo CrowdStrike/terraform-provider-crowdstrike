@@ -19,3 +19,14 @@ func StringListOrNull(values ...string) types.List {
 	}
 	return types.ListValueMust(types.StringType, attrs)
 }
+
+// StringListOrEmpty creates a string list (types.List) from the provided values.
+// Returns an empty string list if no values are provided.
+// Test use only - panics on error via types.ListValueMust.
+func StringListOrEmpty(values ...string) types.List {
+	attrs := make([]attr.Value, len(values))
+	for i, v := range values {
+		attrs[i] = types.StringValue(v)
+	}
+	return types.ListValueMust(types.StringType, attrs)
+}

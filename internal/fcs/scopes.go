@@ -17,3 +17,12 @@ var azureRegistrationScopes = []scopes.Scope{
 		Write: true,
 	},
 }
+
+// azureRegistrationReadScopes are the scopes a read-only lookup needs.
+var azureRegistrationReadScopes = []scopes.Scope{
+	{
+		Name:  "Cloud security Azure registration",
+		Read:  true,
+		Write: false,
+	},
+}
