@@ -10,6 +10,8 @@ type (
 	DSPMOptions                  = dspmOptions
 	VulnerabilityScanningOptions = vulnerabilityScanningOptions
 	SettingsConfig               = settingsConfig
+	AzureTenantFeatures          = azureTenantFeatures
+	EventhubSettings             = eventhubSettings
 )
 
 var (
@@ -17,4 +19,8 @@ var (
 	BuildProductsFromModel          = (*cloudAWSAccountResource).buildProductsFromModel
 	UpdateFeatureStatesFromProducts = updateFeatureStatesFromProducts
 	BuildPatchAccount               = buildPatchAccount
+
+	FlattenEventhubSettings    = flattenEventhubSettings
+	FlattenAzureTenantFeatures = flattenAzureTenantFeatures
+	EventhubSettingsAttrTypes  = eventhubSettings{}.attrTypes
 )

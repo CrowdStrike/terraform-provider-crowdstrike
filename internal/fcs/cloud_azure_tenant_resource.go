@@ -373,6 +373,83 @@ func (r *cloudAzureTenantResource) Schema(
 	}
 }
 
+// azureTenantFeatures is the product feature state derived from an Azure tenant
+// registration's products and additional features. AgentlessScanningSubscriptions
+// stays a Go slice so the caller wraps it in the collection its schema declares.
+type azureTenantFeatures struct {
+	RealtimeVisibility             types.Object
+	DSPM                           types.Object
+	VulnerabilityScanning          types.Object
+	AgentlessScanningSubscriptions []string
+}
+
+// flattenAzureTenantFeatures derives the enabled state of each product feature from
+// an Azure tenant registration. A feature is enabled either by appearing under the
+// cspm product's features or by having an entry in the registration's additional
+// features.
+func flattenAzureTenantFeatures(
+	ctx context.Context,
+	registration models.AzureTenantRegistration,
+) (azureTenantFeatures, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	var features azureTenantFeatures
+
+	hasIOA := false
+	hasDSPM := false
+	hasVulnScanning := false
+	for _, product := range registration.Products {
+		// The API models both the product entry and its name as pointers, so
+		// either can be nil.
+		if product == nil || product.Product == nil {
+			continue
+		}
+		if *product.Product != "cspm" {
+			continue
+		}
+		for _, feature := range product.Features {
+			switch feature {
+			case "ioa":
+				hasIOA = true
+			case "dspm":
+				hasDSPM = true
+			case "vulnerability_scanning":
+				hasVulnScanning = true
+			}
+		}
+	}
+
+	for _, af := range registration.AdditionalFeatures {
+		if af == nil || af.Feature == nil {
+			continue
+		}
+		switch *af.Feature {
+		case "dspm":
+			features.AgentlessScanningSubscriptions = af.SubscriptionIds
+			hasDSPM = true
+		case "vulnerability_scanning":
+			features.AgentlessScanningSubscriptions = af.SubscriptionIds
+			hasVulnScanning = true
+		}
+	}
+
+	rtv := realtimeVisibilityModel{Enabled: types.BoolValue(hasIOA)}
+	rtvObj, d := rtv.ToObject(ctx)
+	diags.Append(d...)
+	features.RealtimeVisibility = rtvObj
+
+	dspm := dspmModel{Enabled: types.BoolValue(hasDSPM)}
+	dspmObj, d := dspm.ToObject(ctx)
+	diags.Append(d...)
+	features.DSPM = dspmObj
+
+	vulnScanning := vulnerabilityScanningModel{Enabled: types.BoolValue(hasVulnScanning)}
+	vulnScanningObj, d := vulnScanning.ToObject(ctx)
+	diags.Append(d...)
+	features.VulnerabilityScanning = vulnScanningObj
+
+	return features, diags
+}
+
 func (m *cloudAzureTenantModel) wrap(
 	ctx context.Context,
 	registration models.AzureTenantRegistration,
@@ -424,55 +501,16 @@ func (m *cloudAzureTenantModel) wrap(
 	m.ResourceNameSuffix = types.StringPointerValue(registration.ResourceNameSuffix)
 	m.Tags = tags
 
-	hasIOA := false
-	hasDSPM := false
-	hasVulnScanning := false
-	for _, product := range registration.Products {
-		if *product.Product == "cspm" {
-			for _, feature := range product.Features {
-				switch feature {
-				case "ioa":
-					hasIOA = true
-				case "dspm":
-					hasDSPM = true
-				case "vulnerability_scanning":
-					hasVulnScanning = true
-				}
-			}
-		}
-	}
+	features, d := flattenAzureTenantFeatures(ctx, registration)
+	diags.Append(d...)
 
-	var agentlessSubIds []string
-	for _, af := range registration.AdditionalFeatures {
-		if af != nil && af.Feature != nil {
-			switch *af.Feature {
-			case "dspm":
-				agentlessSubIds = af.SubscriptionIds
-				hasDSPM = true
-			case "vulnerability_scanning":
-				agentlessSubIds = af.SubscriptionIds
-				hasVulnScanning = true
-			}
-		}
-	}
-	agentlessSubscriptionsSet, d := flex.FlattenStringValueSet(ctx, agentlessSubIds)
+	agentlessSubscriptionsSet, d := flex.FlattenStringValueSet(ctx, features.AgentlessScanningSubscriptions)
 	diags.Append(d...)
 	m.AgentlessScanningSubscriptionIds = agentlessSubscriptionsSet
 
-	rtv := realtimeVisibilityModel{Enabled: types.BoolValue(hasIOA)}
-	rtvObj, d := rtv.ToObject(ctx)
-	diags.Append(d...)
-	m.RealtimeVisibility = rtvObj
-
-	dspm := dspmModel{Enabled: types.BoolValue(hasDSPM)}
-	dspmObj, d := dspm.ToObject(ctx)
-	diags.Append(d...)
-	m.DSPM = dspmObj
-
-	vulnScanning := vulnerabilityScanningModel{Enabled: types.BoolValue(hasVulnScanning)}
-	vulnScanningObj, d := vulnScanning.ToObject(ctx)
-	diags.Append(d...)
-	m.VulnerabilityScanning = vulnScanningObj
+	m.RealtimeVisibility = features.RealtimeVisibility
+	m.DSPM = features.DSPM
+	m.VulnerabilityScanning = features.VulnerabilityScanning
 
 	return diags
 }
