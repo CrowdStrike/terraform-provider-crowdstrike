@@ -120,7 +120,10 @@ func TestBuildRulePayloadForDiffPreservesMatchCriteria(t *testing.T) {
 	if payload["fqdn"] != "example.com" || payload["fqdn_enabled"] != true {
 		t.Fatalf("expected FQDN criteria, got %v", payload)
 	}
-	fields := payload["fields"].([]map[string]interface{})
+	fields, ok := payload["fields"].([]map[string]interface{})
+	if !ok {
+		t.Fatalf("expected fields to be []map[string]interface{}, got %T", payload["fields"])
+	}
 	if fields[1]["type"] != "unix_path" {
 		t.Fatalf("expected macOS executable to use unix_path, got %v", fields[1])
 	}
