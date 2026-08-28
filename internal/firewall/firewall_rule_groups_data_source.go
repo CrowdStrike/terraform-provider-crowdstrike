@@ -188,8 +188,7 @@ func wrapRuleGroupRules(
 		return types.ListNull(dsRuleType), diags
 	}
 
-	nullPlan := types.ListNull(types.ObjectType{AttrTypes: firewallRuleModel{}.attrTypes()})
-	rulesList, d := wrapRules(ctx, orderedRules, nullPlan)
+	rulesList, d := wrapRules(ctx, orderedRules)
 	diags.Append(d...)
 	if diags.HasError() {
 		return types.ListNull(dsRuleType), diags
@@ -297,11 +296,11 @@ func dataSourceRuleSchemaAttributes() map[string]schema.Attribute {
 		},
 		"icmp_type": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "ICMP type for ICMP protocol rules",
+			MarkdownDescription: "ICMP type for ICMP protocol rules, or `*` for any. Null on non-ICMP rules.",
 		},
 		"icmp_code": schema.StringAttribute{
 			Computed:            true,
-			MarkdownDescription: "ICMP code for ICMP protocol rules",
+			MarkdownDescription: "ICMP code for ICMP protocol rules, or `*` for any. Null on non-ICMP rules.",
 		},
 		"watch_mode": schema.BoolAttribute{
 			Computed:            true,
@@ -318,7 +317,7 @@ func dataSourceAddressRangeSchemaAttributes() map[string]schema.Attribute {
 		},
 		"netmask": schema.Int64Attribute{
 			Computed:            true,
-			MarkdownDescription: "CIDR netmask",
+			MarkdownDescription: "CIDR netmask. 0 for a single IP, and for the `*` address.",
 		},
 	}
 }

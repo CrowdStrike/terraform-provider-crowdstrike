@@ -168,3 +168,55 @@ resource "crowdstrike_firewall_rule_group" "mac_rules" {
 output "firewall_rule_group" {
   value = crowdstrike_firewall_rule_group.web_servers
 }
+
+# "Any" values. An omitted address list, icmp_type or icmp_code means "any", which the
+# provider stores as "*" because that is what the Falcon API reports. Writing "*" out
+# means the same thing, so both of the rules below produce identical state.
+resource "crowdstrike_firewall_rule_group" "icmp_rules" {
+  name        = "ICMP Rules"
+  description = "Allow ping, matching any address and any ICMP type or code"
+  platform    = "Windows"
+  enabled     = true
+
+  rules = [
+    {
+      name      = "Allow Any ICMP"
+      enabled   = true
+      action    = "ALLOW"
+      direction = "IN"
+      protocol  = "ICMPV4"
+      # local_address, remote_address, icmp_type and icmp_code all default to "*".
+    },
+    {
+      name      = "Allow Any ICMP Spelled Out"
+      enabled   = true
+      action    = "ALLOW"
+      direction = "IN"
+      protocol  = "ICMPV4"
+
+      icmp_type = "*"
+      icmp_code = "*"
+
+      local_address = [
+        {
+          address = "*"
+        }
+      ]
+      remote_address = [
+        {
+          address = "*"
+        }
+      ]
+    },
+    {
+      # A specific ICMP type with any code: echo request from any address.
+      name      = "Allow Echo Request"
+      enabled   = true
+      action    = "ALLOW"
+      direction = "IN"
+      protocol  = "ICMPV4"
+
+      icmp_type = "8"
+    }
+  ]
+}
