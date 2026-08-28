@@ -113,8 +113,8 @@ Read-Only:
 - `enabled` (Boolean) Whether the rule is enabled
 - `executable_path` (String) Path to executable that this rule applies to
 - `fqdn` (String) Fully qualified domain name for the rule
-- `icmp_code` (String) ICMP code for ICMP protocol rules
-- `icmp_type` (String) ICMP type for ICMP protocol rules
+- `icmp_code` (String) ICMP code for ICMP protocol rules, or `*` for any. Null on non-ICMP rules.
+- `icmp_type` (String) ICMP type for ICMP protocol rules, or `*` for any. Null on non-ICMP rules.
 - `id` (String) Identifier for the firewall rule
 - `local_address` (Attributes List) Local IP addresses for the rule (see [below for nested schema](#nestedatt--rule_groups--rules--local_address))
 - `local_port` (Attributes List) Local ports for the rule (see [below for nested schema](#nestedatt--rule_groups--rules--local_port))
@@ -132,7 +132,7 @@ Read-Only:
 Read-Only:
 
 - `address` (String) IP address or `*` for any
-- `netmask` (Number) CIDR netmask
+- `netmask` (Number) CIDR netmask. 0 for a single IP, and for the `*` address.
 
 
 <a id="nestedatt--rule_groups--rules--local_port"></a>
@@ -150,7 +150,7 @@ Read-Only:
 Read-Only:
 
 - `address` (String) IP address or `*` for any
-- `netmask` (Number) CIDR netmask
+- `netmask` (Number) CIDR netmask. 0 for a single IP, and for the `*` address.
 
 
 <a id="nestedatt--rule_groups--rules--remote_port"></a>

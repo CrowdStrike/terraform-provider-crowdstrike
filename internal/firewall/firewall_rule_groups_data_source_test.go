@@ -255,6 +255,51 @@ func TestAccFirewallRuleGroupsDataSource_withFilter(t *testing.T) {
 						dataSourceName, rgPath("rules").AtSliceIndex(0).AtMapKey("local_port"),
 						compare.ValuesSame(),
 					),
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("id"),
+						dataSourceName, rgPath("rules").AtSliceIndex(0).AtMapKey("id"),
+						compare.ValuesSame(),
+					),
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("local_address"),
+						dataSourceName, rgPath("rules").AtSliceIndex(0).AtMapKey("local_address"),
+						compare.ValuesSame(),
+					),
+					statecheck.ExpectKnownValue(
+						dataSourceName,
+						rgPath("rules").AtSliceIndex(0).AtMapKey("local_address"),
+						knownvalue.ListExact([]knownvalue.Check{
+							knownvalue.ObjectExact(map[string]knownvalue.Check{
+								"address": knownvalue.StringExact("*"),
+								"netmask": knownvalue.Int64Exact(0),
+							}),
+						}),
+					),
+					statecheck.CompareValuePairs(
+						resourceName, tfjsonpath.New("rules").AtSliceIndex(0).AtMapKey("remote_address"),
+						dataSourceName, rgPath("rules").AtSliceIndex(0).AtMapKey("remote_address"),
+						compare.ValuesSame(),
+					),
+					statecheck.ExpectKnownValue(
+						dataSourceName,
+						rgPath("rules").AtSliceIndex(0).AtMapKey("remote_address"),
+						knownvalue.ListExact([]knownvalue.Check{
+							knownvalue.ObjectExact(map[string]knownvalue.Check{
+								"address": knownvalue.StringExact("*"),
+								"netmask": knownvalue.Int64Exact(0),
+							}),
+						}),
+					),
+					statecheck.ExpectKnownValue(
+						dataSourceName,
+						rgPath("rules").AtSliceIndex(0).AtMapKey("icmp_type"),
+						knownvalue.Null(),
+					),
+					statecheck.ExpectKnownValue(
+						dataSourceName,
+						rgPath("rules").AtSliceIndex(0).AtMapKey("icmp_code"),
+						knownvalue.Null(),
+					),
 				},
 			},
 		},
