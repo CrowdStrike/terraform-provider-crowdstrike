@@ -8,8 +8,7 @@ description: |-
   The roles in role_ids are granted to the user in the CID set by cid. Use the crowdstrike_cid data source to get the CID for the authenticating credentials.
   Roles a user inherits through a user group or CID group (Falcon Flight Control), and temporary roles (granted with an expiration), are not shown or managed by this resource and are left untouched.
   Custom roles
-  Unlike default roles, which are global and valid in every CID, a custom role belongs to the CID it was created in. A custom role can only be granted to a user whose home CID is the CID that owns the role: the CID a user was created in, reported by the cid attribute of the crowdstrike_user resource. Granting a custom role to a user homed in any other CID fails with invalid roleID='<role id>' specified, even when cid is set to the CID that owns the role. This is a restriction of the Falcon platform, not of this provider.
-  To find the custom roles a user can be granted, set both cid and user_uuid on the crowdstrike_user_roles data source. Filtering by cid alone lists every custom role that CID owns, including roles that users homed elsewhere cannot receive.
+  Unlike default roles, custom roles are specific to the CID in which they are created. For Flight Control multi-CID environments, custom roles must be created and assigned in the home CID of the user. You can't assign a custom role to a user in a CID that is not their home CID.
   API Scopes
   The following API scopes are required:
   User management | Read & Write
@@ -29,9 +28,7 @@ Roles a user inherits through a user group or CID group (Falcon Flight Control),
 
 ## Custom roles
 
-Unlike default roles, which are global and valid in every CID, a custom role belongs to the CID it was created in. A custom role can only be granted to a user whose **home CID** is the CID that owns the role: the CID a user was created in, reported by the `cid` attribute of the `crowdstrike_user` resource. Granting a custom role to a user homed in any other CID fails with `invalid roleID='<role id>' specified`, even when `cid` is set to the CID that owns the role. This is a restriction of the Falcon platform, not of this provider.
-
-To find the custom roles a user can be granted, set both `cid` and `user_uuid` on the `crowdstrike_user_roles` data source. Filtering by `cid` alone lists every custom role that CID owns, including roles that users homed elsewhere cannot receive.
+Unlike default roles, custom roles are specific to the CID in which they are created. For Flight Control multi-CID environments, custom roles must be created and assigned in the home CID of the user. You can't assign a custom role to a user in a CID that is not their home CID.
 
 ## API Scopes
 
