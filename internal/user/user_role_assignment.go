@@ -43,7 +43,14 @@ var (
 		"Roles assigned directly outside of Terraform in this CID will be removed on the next apply.\n\n" +
 		"Omitting `role_ids` leaves the user with no directly-assigned roles.\n\n" +
 		"The roles in `role_ids` are granted to the user in the CID set by `cid`. Use the `crowdstrike_cid` data source to get the CID for the authenticating credentials.\n\n" +
-		"Roles a user inherits through a user group or CID group (Falcon Flight Control), and temporary roles (granted with an expiration), are not shown or managed by this resource and are left untouched."
+		"Roles a user inherits through a user group or CID group (Falcon Flight Control), and temporary roles (granted with an expiration), are not shown or managed by this resource and are left untouched.\n\n" +
+		"## Custom roles\n\n" +
+		"Unlike default roles, which are global and valid in every CID, a custom role belongs to the CID it was created in. " +
+		"A custom role can only be granted to a user whose **home CID** is the CID that owns the role: the CID a user was created in, reported by the `cid` attribute of the `crowdstrike_user` resource. " +
+		"Granting a custom role to a user homed in any other CID fails with `invalid roleID='<role id>' specified`, even when `cid` is set to the CID that owns the role. " +
+		"This is a restriction of the Falcon platform, not of this provider.\n\n" +
+		"To find the custom roles a user can be granted, set both `cid` and `user_uuid` on the `crowdstrike_user_roles` data source. " +
+		"Filtering by `cid` alone lists every custom role that CID owns, including roles that users homed elsewhere cannot receive."
 	roleAssignmentRequiredScopes []scopes.Scope = []scopes.Scope{
 		{
 			Name:  "User management",
