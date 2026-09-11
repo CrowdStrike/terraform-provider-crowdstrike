@@ -845,3 +845,202 @@ resource "crowdstrike_cloud_google_registration" "test" {
 }
 `, rName, projectID, infraProjectID, wifProjectID, wifProjectNumber)
 }
+
+func TestAccCloudGoogleRegistrationResource_ExistingWifPoolIDWithOrganization(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	orgID := generateGoogleCloudOrgID()
+	infraProjectID := generateGoogleCloudProjectID()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccCloudGoogleRegistrationConfig_existingWifPoolIDWithOrganization(rName, orgID, infraProjectID),
+				ExpectError: regexp.MustCompile("existing_wif_pool_id is only valid for project-scoped registrations"),
+				PlanOnly:    true,
+			},
+		},
+	})
+}
+
+func TestAccCloudGoogleRegistrationResource_ExistingWifPoolIDWithRealtimeVisibility(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	projectID := generateGoogleCloudProjectID()
+	infraProjectID := generateGoogleCloudProjectID()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccCloudGoogleRegistrationConfig_existingWifPoolIDWithRealtimeVisibility(rName, projectID, infraProjectID),
+				ExpectError: regexp.MustCompile("existing_wif_pool_id cannot be used with realtime_visibility enabled"),
+				PlanOnly:    true,
+			},
+		},
+	})
+}
+
+func TestAccCloudGoogleRegistrationResource_ExistingWifPoolIDWithWifProject(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	projectID := generateGoogleCloudProjectID()
+	infraProjectID := generateGoogleCloudProjectID()
+	wifProjectID := generateGoogleCloudProjectID()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccCloudGoogleRegistrationConfig_existingWifPoolIDWithWifProject(rName, projectID, infraProjectID, wifProjectID),
+				ExpectError: regexp.MustCompile("existing_wif_pool_id cannot be used together with wif_project"),
+				PlanOnly:    true,
+			},
+		},
+	})
+}
+
+func TestAccCloudGoogleRegistrationResource_ExistingWifPoolIDRequiresReplace(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	projectID := generateGoogleCloudProjectID()
+	infraProjectID := generateGoogleCloudProjectID()
+	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
+	resourceName := "crowdstrike_cloud_google_registration.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudGoogleRegistrationConfig_project(rName, infraProjectID, wifProjectID, wifProjectNumber, projectID),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_project"), knownvalue.StringExact(wifProjectID)),
+				},
+			},
+			{
+				Config:             testAccCloudGoogleRegistrationConfig_existingWifPoolID(rName, projectID, infraProjectID),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
+func TestAccCloudGoogleRegistrationResource_ExistingWifPoolIDAttach(t *testing.T) {
+	t.Skip("requires cloudregistration backend support for existing_wif_pool_id — not available in sandbox; local gofalcon patch only adds the Go struct fields")
+
+	rNameOwner := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	rNameAttached := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	projectID := generateGoogleCloudProjectID()
+	projectID2 := generateGoogleCloudProjectID()
+	infraProjectID := generateGoogleCloudProjectID()
+	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
+	ownerResourceName := "crowdstrike_cloud_google_registration.owner"
+	attachedResourceName := "crowdstrike_cloud_google_registration.attached"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudGoogleRegistrationConfig_existingWifPoolIDAttach(rNameOwner, rNameAttached, projectID, projectID2, infraProjectID, wifProjectID, wifProjectNumber),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(ownerResourceName, tfjsonpath.New("wif_pool_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(attachedResourceName, tfjsonpath.New("existing_wif_pool_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(attachedResourceName, tfjsonpath.New("wif_pool_registration_id"), knownvalue.NotNull()),
+				},
+			},
+		},
+	})
+}
+
+func TestAccCloudGoogleRegistrationResource_ExistingWifPoolIDInvalidPassthrough(t *testing.T) {
+	t.Skip("requires cloudregistration backend support for existing_wif_pool_id — not available in sandbox; local gofalcon patch only adds the Go struct fields")
+
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	projectID := generateGoogleCloudProjectID()
+	infraProjectID := generateGoogleCloudProjectID()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccCloudGoogleRegistrationConfig_existingWifPoolID(rName, projectID, infraProjectID),
+				ExpectError: regexp.MustCompile(`(?s).*`),
+			},
+		},
+	})
+}
+
+func testAccCloudGoogleRegistrationConfig_existingWifPoolIDWithOrganization(rName, orgID, infraProjectID string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_cloud_google_registration" "test" {
+  name                 = %[1]q
+  organization         = %[2]q
+  infra_project        = %[3]q
+  existing_wif_pool_id = "projects/123456789/locations/global/workloadIdentityPools/test-pool"
+}
+`, rName, orgID, infraProjectID)
+}
+
+func testAccCloudGoogleRegistrationConfig_existingWifPoolIDWithRealtimeVisibility(rName, projectID, infraProjectID string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_cloud_google_registration" "test" {
+  name                 = %[1]q
+  projects             = [%[2]q]
+  infra_project        = %[3]q
+  existing_wif_pool_id = "projects/123456789/locations/global/workloadIdentityPools/test-pool"
+
+  realtime_visibility = {
+    enabled = true
+  }
+}
+`, rName, projectID, infraProjectID)
+}
+
+func testAccCloudGoogleRegistrationConfig_existingWifPoolIDWithWifProject(rName, projectID, infraProjectID, wifProjectID string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_cloud_google_registration" "test" {
+  name                 = %[1]q
+  projects             = [%[2]q]
+  infra_project        = %[3]q
+  wif_project          = %[4]q
+  existing_wif_pool_id = "projects/123456789/locations/global/workloadIdentityPools/test-pool"
+}
+`, rName, projectID, infraProjectID, wifProjectID)
+}
+
+func testAccCloudGoogleRegistrationConfig_existingWifPoolID(rName, projectID, infraProjectID string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_cloud_google_registration" "test" {
+  name                 = %[1]q
+  projects             = [%[2]q]
+  infra_project        = %[3]q
+  existing_wif_pool_id = "projects/123456789/locations/global/workloadIdentityPools/test-pool"
+}
+`, rName, projectID, infraProjectID)
+}
+
+func testAccCloudGoogleRegistrationConfig_existingWifPoolIDAttach(rNameOwner, rNameAttached, projectID, projectID2, infraProjectID, wifProjectID, wifProjectNumber string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_cloud_google_registration" "owner" {
+  name               = %[1]q
+  projects           = [%[3]q]
+  infra_project      = %[5]q
+  wif_project        = %[6]q
+  wif_project_number = %[7]q
+}
+
+resource "crowdstrike_cloud_google_registration" "attached" {
+  name                 = %[2]q
+  projects             = [%[4]q]
+  infra_project        = %[5]q
+  existing_wif_pool_id = crowdstrike_cloud_google_registration.owner.wif_pool_id
+}
+`, rNameOwner, rNameAttached, projectID, projectID2, infraProjectID, wifProjectID, wifProjectNumber)
+}

@@ -207,15 +207,19 @@ func (r *cloudGoogleRegistrationSettingsResource) Schema(
 				},
 			},
 			"wif_pool_name": schema.StringAttribute{
-				Optional:    true,
-				Description: "The Workload Identity Federation (WIF) pool name.",
+				Optional: true,
+				Computed: true,
+				Description: "The Workload Identity Federation (WIF) pool name. When attached to " +
+					"another registration's WIF pool, this is resolved to that pool's name automatically.",
 				Validators: []validator.String{
 					validators.StringNotWhitespace(),
 				},
 			},
 			"wif_provider_name": schema.StringAttribute{
-				Optional:    true,
-				Description: "The Workload Identity Federation (WIF) provider name.",
+				Optional: true,
+				Computed: true,
+				Description: "The Workload Identity Federation (WIF) provider name. When attached to " +
+					"another registration's WIF pool, this is resolved to that pool's provider name automatically.",
 				Validators: []validator.String{
 					validators.StringNotWhitespace(),
 				},
@@ -625,11 +629,30 @@ func (r *cloudGoogleRegistrationSettingsResource) Delete(
 		return
 	}
 
+	current, diags := r.getRegistration(ctx, data.RegistrationID.ValueString())
+	resp.Diagnostics.Append(diags...)
+	if tferrors.HasNotFoundError(resp.Diagnostics) {
+		return
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Registrations attached to another registration's WIF pool don't own their WIF
+	// properties - the backend mirrors the owner's values into every GET response, and
+	// rejects any update request that includes wif_pool_name/wif_provider_name
+	attachedToAnotherPool := current.WifPoolRegistrationID != ""
+
 	data.LogIngestionSinkName = types.StringValue("")
 	data.LogIngestionTopicID = types.StringValue("")
 	data.LogIngestionSubscriptionName = types.StringValue("")
-	data.WifPoolName = types.StringValue("")
-	data.WifProviderName = types.StringValue("")
+	if attachedToAnotherPool {
+		data.WifPoolName = types.StringNull()
+		data.WifProviderName = types.StringNull()
+	} else {
+		data.WifPoolName = types.StringValue("")
+		data.WifProviderName = types.StringValue("")
+	}
 	data.AgentlessScanningSettings = types.ObjectNull((&agentlessScanningSettingsModel{}).AttributeTypes())
 
 	registration, err := r.updateRegistration(ctx, &data)
@@ -670,7 +693,7 @@ func (r *cloudGoogleRegistrationSettingsResource) Delete(
 		}
 	}
 
-	if registration.WifProperties != nil {
+	if registration.WifProperties != nil && !attachedToAnotherPool {
 		if registration.WifProperties.PoolName != "" {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("wif_pool_name"),
@@ -820,8 +843,16 @@ func (r *cloudGoogleRegistrationSettingsResource) updateRegistration(
 		LogIngestionSinkName:         flex.FrameworkToStringPointer(data.LogIngestionSinkName),
 		LogIngestionTopicID:          flex.FrameworkToStringPointer(data.LogIngestionTopicID),
 		LogIngestionSubscriptionName: flex.FrameworkToStringPointer(data.LogIngestionSubscriptionName),
-		WifPoolName:                  flex.FrameworkToStringPointer(data.WifPoolName),
-		WifProviderName:              flex.FrameworkToStringPointer(data.WifProviderName),
+	}
+
+	// FrameworkToStringPointer turns null/unknown into a pointer to "", which the backend treats
+	// as "WIF properties provided" (even though empty) and rejects for registrations attached to
+	// another registration's WIF pool.
+	if !data.WifPoolName.IsNull() && !data.WifPoolName.IsUnknown() {
+		updateReq.WifPoolName = flex.FrameworkToStringPointer(data.WifPoolName)
+	}
+	if !data.WifProviderName.IsNull() && !data.WifProviderName.IsUnknown() {
+		updateReq.WifProviderName = flex.FrameworkToStringPointer(data.WifProviderName)
 	}
 
 	d := marshalAgentlessScanningSettings(ctx, data.AgentlessScanningSettings, updateReq)

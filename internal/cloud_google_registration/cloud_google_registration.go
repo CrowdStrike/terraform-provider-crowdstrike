@@ -146,6 +146,8 @@ type cloudGoogleRegistrationResourceModel struct {
 	WifProviderID               types.String `tfsdk:"wif_provider_id"`
 	WifProviderName             types.String `tfsdk:"wif_provider_name"`
 	WifIdentitySource           types.String `tfsdk:"wif_identity_source"`
+	ExistingWifPoolID           types.String `tfsdk:"existing_wif_pool_id"`
+	WifPullRegistrationID       types.String `tfsdk:"wif_pool_registration_id"`
 }
 
 func (m *cloudGoogleRegistrationResourceModel) getEntityIDs(ctx context.Context) ([]string, diag.Diagnostics) {
@@ -268,6 +270,7 @@ func (m *cloudGoogleRegistrationResourceModel) wrap(
 	m.WifProviderID = flex.StringValueToFramework(wifProviderID)
 	m.WifProviderName = flex.StringValueToFramework(wifProviderName)
 	m.WifIdentitySource = flex.StringValueToFramework(wifIdentitySource)
+	m.WifPullRegistrationID = flex.StringValueToFramework(registration.WifPoolRegistrationID)
 
 	hasIOA := false
 	hasDSPM := false
@@ -477,8 +480,12 @@ func (r *cloudGoogleRegistrationResource) Schema(
 				},
 			},
 			"wif_project": schema.StringAttribute{
-				Required:    true,
-				Description: "The Google Cloud project ID for Workload Identity Federation",
+				Optional:    true,
+				Computed:    true,
+				Description: "The Google Cloud project ID for Workload Identity Federation. Required unless existing_wif_pool_id is set, in which case it's resolved from the owner registration",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 				Validators: []validator.String{
 					validators.StringNotWhitespace(),
 					stringvalidator.LengthBetween(6, 30),
@@ -489,14 +496,25 @@ func (r *cloudGoogleRegistrationResource) Schema(
 				},
 			},
 			"wif_project_number": schema.StringAttribute{
-				Required:    true,
-				Description: "Google Cloud project number for Workload Identity Federation",
+				Optional:    true,
+				Computed:    true,
+				Description: "Google Cloud project number for Workload Identity Federation. Required unless existing_wif_pool_id is set, in which case it's resolved from the owner registration",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 				Validators: []validator.String{
 					validators.StringNotWhitespace(),
 					stringvalidator.RegexMatches(
 						regexp.MustCompile(`^[0-9]+$`),
 						"must be numeric",
 					),
+				},
+			},
+			"existing_wif_pool_id": schema.StringAttribute{
+				Optional:    true,
+				Description: "The ID of an existing GCP Workload Identity Pool, owned by another registration under the same CID, to attach this registration to instead of creating a new pool. Only valid for project-scoped registrations with no real-time visibility, DSPM, or vulnerability scanning enabled",
+				Validators: []validator.String{
+					validators.StringNotWhitespace(),
 				},
 			},
 
@@ -607,6 +625,10 @@ func (r *cloudGoogleRegistrationResource) Schema(
 				Computed:    true,
 				Description: "Workload Identity Federation identity source",
 			},
+			"wif_pool_registration_id": schema.StringAttribute{
+				Computed:    true,
+				Description: "The ID of the registration that owns the Workload Identity Federation pool this registration uses. Empty unless this registration is attached to another registration's pool via existing_wif_pool_id",
+			},
 		},
 	}
 }
@@ -660,6 +682,68 @@ func (r *cloudGoogleRegistrationResource) ValidateConfig(
 			)
 		}
 	}
+
+	if utils.IsKnown(config.ExistingWifPoolID) {
+		if utils.IsKnown(config.Organization) || utils.IsKnown(config.Folders) {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("existing_wif_pool_id"),
+				"Invalid Attribute Combination",
+				"existing_wif_pool_id is only valid for project-scoped registrations and cannot be used with organization or folders",
+			)
+		}
+
+		if !config.RealtimeVisibility.IsNull() {
+			var rtv realtimeVisibilityModel
+			resp.Diagnostics.Append(rtv.FromObject(ctx, config.RealtimeVisibility)...)
+			if rtv.Enabled.ValueBool() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("existing_wif_pool_id"),
+					"Invalid Attribute Combination",
+					"existing_wif_pool_id cannot be used with realtime_visibility enabled",
+				)
+			}
+		}
+
+		if !config.DSPM.IsNull() {
+			var dspm dspmModel
+			resp.Diagnostics.Append(dspm.FromObject(ctx, config.DSPM)...)
+			if dspm.Enabled.ValueBool() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("existing_wif_pool_id"),
+					"Invalid Attribute Combination",
+					"existing_wif_pool_id cannot be used with dspm enabled",
+				)
+			}
+		}
+
+		if !config.VulnerabilityScanning.IsNull() {
+			var vulnScan vulnerabilityScanningModel
+			resp.Diagnostics.Append(vulnScan.FromObject(ctx, config.VulnerabilityScanning)...)
+			if vulnScan.Enabled.ValueBool() {
+				resp.Diagnostics.AddAttributeError(
+					path.Root("existing_wif_pool_id"),
+					"Invalid Attribute Combination",
+					"existing_wif_pool_id cannot be used with vulnerability_scanning enabled",
+				)
+			}
+		}
+
+		if utils.IsKnown(config.WifProjectID) || utils.IsKnown(config.WifProjectNumber) {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("existing_wif_pool_id"),
+				"Invalid Attribute Combination",
+				"existing_wif_pool_id cannot be used together with wif_project or wif_project_number",
+			)
+		}
+	} else if utils.IsNull(config.ExistingWifPoolID) {
+		if utils.IsNull(config.WifProjectID) || utils.IsNull(config.WifProjectNumber) {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("wif_project"),
+				"Missing Required Attribute",
+				"wif_project and wif_project_number are required unless existing_wif_pool_id is set",
+			)
+		}
+	}
 }
 
 func (r *cloudGoogleRegistrationResource) Create(
@@ -701,6 +785,7 @@ func (r *cloudGoogleRegistrationResource) Create(
 
 	createReq.ResourceNameSuffix = flex.FrameworkToStringPointer(plan.ResourceNameSuffix)
 	createReq.ResourceNamePrefix = flex.FrameworkToStringPointer(plan.ResourceNamePrefix)
+	createReq.ExistingWifPoolID = flex.FrameworkToStringPointer(plan.ExistingWifPoolID)
 
 	patterns := []string{}
 	if !plan.ExcludedProjectPatterns.IsNull() {
@@ -1053,6 +1138,30 @@ func (r *cloudGoogleRegistrationResource) ModifyPlan(ctx context.Context, req re
 
 	if scopeChanged {
 		resp.RequiresReplace = append(resp.RequiresReplace, path.Root("organization"), path.Root("folders"), path.Root("projects"))
+	}
+
+	var stateExistingWifPoolID, planExistingWifPoolID types.String
+	req.State.GetAttribute(ctx, path.Root("existing_wif_pool_id"), &stateExistingWifPoolID)
+	req.Plan.GetAttribute(ctx, path.Root("existing_wif_pool_id"), &planExistingWifPoolID)
+
+	stateHasExistingWifPoolID := utils.IsKnown(stateExistingWifPoolID)
+	planHasExistingWifPoolID := utils.IsKnown(planExistingWifPoolID)
+
+	existingWifPoolIDChanged := false
+	switch {
+	case stateHasExistingWifPoolID != planHasExistingWifPoolID:
+		existingWifPoolIDChanged = true
+	case stateHasExistingWifPoolID && planHasExistingWifPoolID && stateExistingWifPoolID.ValueString() != planExistingWifPoolID.ValueString():
+		existingWifPoolIDChanged = true
+	}
+
+	if existingWifPoolIDChanged {
+		resp.RequiresReplace = append(
+			resp.RequiresReplace,
+			path.Root("existing_wif_pool_id"),
+			path.Root("wif_project"),
+			path.Root("wif_project_number"),
+		)
 	}
 }
 
