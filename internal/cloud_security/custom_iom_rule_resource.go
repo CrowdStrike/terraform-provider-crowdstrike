@@ -146,22 +146,19 @@ func (r *cloudSecurityIomCustomRuleResource) Schema(
 			},
 			"controls": schema.SetNestedAttribute{
 				Optional:            true,
-				Computed:            true,
-				MarkdownDescription: "Security framework and compliance rule information. Utilize the `crowdstrike_cloud_compliance_framework_controls` data source to obtain this information. When `controls` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `controls`.",
+				MarkdownDescription: "Custom compliance controls to associate with this rule. Only custom controls (authority `Custom`) are supported. Utilize the `crowdstrike_cloud_compliance_framework_controls` data source to obtain control codes from a custom framework.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"authority": schema.StringAttribute{
-							Optional:    true,
-							Computed:    true,
-							Description: "The compliance framework",
+							Required:    true,
+							Description: "The compliance framework authority. Must be 'Custom'.",
 							Validators: []validator.String{
-								validators.StringNotWhitespace(),
+								stringvalidator.OneOf("Custom"),
 							},
 						},
 						"code": schema.StringAttribute{
-							Optional:    true,
-							Computed:    true,
-							Description: "The compliance framework rule code",
+							Required:    true,
+							Description: "The control code from the custom compliance framework.",
 							Validators: []validator.String{
 								validators.StringNotWhitespace(),
 							},
@@ -417,7 +414,7 @@ func (r *cloudSecurityIomCustomRuleResource) ModifyPlan(
 	}
 
 	if utils.IsKnown(config.ParentRuleId) {
-		if utils.IsNull(config.AlertInfo) || utils.IsNull(config.Controls) || utils.IsNull(config.RemediationInfo) {
+		if utils.IsNull(config.AlertInfo) || utils.IsNull(config.RemediationInfo) {
 			var parent cloudSecurityIomCustomRuleResourceModel
 			rule, diags := r.getCloudPolicyRule(ctx, plan.ParentRuleId.ValueString())
 			resp.Diagnostics.Append(diags...)
@@ -437,10 +434,6 @@ func (r *cloudSecurityIomCustomRuleResource) ModifyPlan(
 			if utils.IsNull(config.RemediationInfo) {
 				plan.RemediationInfo = parent.RemediationInfo
 			}
-
-			if utils.IsNull(config.Controls) {
-				plan.Controls = parent.Controls
-			}
 		}
 	} else {
 		// Set values to unknown when parent rule is not yet known, allowing Update and Create to handle inherited values.
@@ -450,10 +443,6 @@ func (r *cloudSecurityIomCustomRuleResource) ModifyPlan(
 
 		if utils.IsNull(config.RemediationInfo) && utils.IsKnown(plan.RemediationInfo) {
 			plan.RemediationInfo = types.ListUnknown(plan.RemediationInfo.ElementType(ctx))
-		}
-
-		if utils.IsNull(config.Controls) && utils.IsKnown(plan.Controls) {
-			plan.Controls = types.SetUnknown(plan.Controls.ElementType(ctx))
 		}
 	}
 
@@ -507,10 +496,19 @@ func (m *cloudSecurityIomCustomRuleResourceModel) wrap(
 	}
 
 	var controlsDiags diag.Diagnostics
+	seen := make(map[string]bool)
+	var uniqueControls []*models.ApimodelsControl
+	for _, control := range rule.Controls {
+		key := fmt.Sprintf("%s:%s", types.StringPointerValue(control.Authority), types.StringPointerValue(control.Code))
+		if !seen[key] {
+			seen[key] = true
+			uniqueControls = append(uniqueControls, control)
+		}
+	}
 	m.Controls, controlsDiags = flex.FlattenObjectValueSetFrom(
 		ctx,
 		types.ObjectType{AttrTypes: policyControl{}.AttributeTypes()},
-		rule.Controls,
+		uniqueControls,
 		func(control *models.ApimodelsControl) (policyControl, diag.Diagnostics) {
 			return policyControl{
 				Authority: types.StringPointerValue(control.Authority),
@@ -526,6 +524,7 @@ func (m *cloudSecurityIomCustomRuleResourceModel) wrap(
 	if len(rule.RuleLogicList) > 0 {
 		m.CloudPlatform = types.StringPointerValue(rule.RuleLogicList[0].Platform)
 	}
+	m.CloudPlatform = m.CloudProvider
 
 	if len(rule.ResourceTypes) > 0 {
 		m.ResourceType = types.StringPointerValue(rule.ResourceTypes[0].ResourceType)
@@ -557,9 +556,8 @@ func (r *cloudSecurityIomCustomRuleResource) createCloudPolicyRule(ctx context.C
 
 		emptyRemediationInfo := plan.RemediationInfo.IsUnknown() || plan.RemediationInfo.IsNull()
 		emptyAlertInfo := plan.AlertInfo.IsUnknown() || plan.AlertInfo.IsNull()
-		emptyControls := plan.Controls.IsUnknown() || plan.Controls.IsNull()
 
-		if emptyRemediationInfo || emptyAlertInfo || emptyControls {
+		if emptyRemediationInfo || emptyAlertInfo {
 			rule, diags := r.getCloudPolicyRule(ctx, plan.ParentRuleId.ValueString())
 			if diags.HasError() {
 				return nil, diags
@@ -576,10 +574,6 @@ func (r *cloudSecurityIomCustomRuleResource) createCloudPolicyRule(ctx context.C
 
 			if emptyRemediationInfo {
 				plan.RemediationInfo = parent.RemediationInfo
-			}
-
-			if emptyControls {
-				plan.Controls = parent.Controls
 			}
 		}
 	} else {
@@ -648,18 +642,20 @@ func (r *cloudSecurityIomCustomRuleResource) clearInheritedInfo(
 
 	configRemediationInfo := plan.RemediationInfo
 	configAlertInfo := plan.AlertInfo
+	configControls := plan.Controls
 
 	diags.Append(plan.wrap(ctx, newRule)...)
 	if diags.HasError() {
 		return nil, diags
 	}
 
-	if plan.RemediationInfo.Equal(configRemediationInfo) && plan.AlertInfo.Equal(configAlertInfo) {
+	if plan.RemediationInfo.Equal(configRemediationInfo) && plan.AlertInfo.Equal(configAlertInfo) && plan.Controls.Equal(configControls) {
 		return newRule, diags
 	}
 
 	plan.RemediationInfo = configRemediationInfo
 	plan.AlertInfo = configAlertInfo
+	plan.Controls = configControls
 
 	rule, updateDiags := r.updateCloudPolicyRule(ctx, plan)
 	diags.Append(updateDiags...)
@@ -703,9 +699,8 @@ func (r *cloudSecurityIomCustomRuleResource) updateCloudPolicyRule(ctx context.C
 		var ruleResp *models.ApimodelsRule
 		emptyRemediationInfo := plan.RemediationInfo.IsUnknown() || plan.RemediationInfo.IsNull()
 		emptyAlertInfo := plan.AlertInfo.IsUnknown() || plan.AlertInfo.IsNull()
-		emptyControls := plan.Controls.IsUnknown() || plan.Controls.IsNull()
 
-		if emptyRemediationInfo || emptyAlertInfo || emptyControls {
+		if emptyRemediationInfo || emptyAlertInfo {
 			ruleResp, diags = r.getCloudPolicyRule(ctx, plan.ParentRuleId.ValueString())
 			if diags.HasError() {
 				return nil, diags
@@ -720,10 +715,6 @@ func (r *cloudSecurityIomCustomRuleResource) updateCloudPolicyRule(ctx context.C
 
 		if emptyAlertInfo {
 			plan.AlertInfo = parentRule.AlertInfo
-		}
-
-		if emptyControls {
-			plan.Controls = parentRule.Controls
 		}
 	}
 

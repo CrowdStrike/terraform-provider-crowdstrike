@@ -154,7 +154,7 @@ resource "crowdstrike_cloud_security_iom_custom_rule" "custom_rule_from_file" {
 
 - `alert_info` (List of String) A list of the alert logic and detection criteria for rule violations. Do not include numbering within this list. The Falcon console will automatically add numbering. When `alert_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `alert_info`.
 - `attack_types` (Set of String) Specific attack types associated with the rule. If `parent_rule_id` is defined, `attack_types` will be inherited from the parent rule and cannot be specified using this field.
-- `controls` (Attributes Set) Security framework and compliance rule information. Utilize the `crowdstrike_cloud_compliance_framework_controls` data source to obtain this information. When `controls` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `controls`. (see [below for nested schema](#nestedatt--controls))
+- `controls` (Attributes Set) Custom compliance controls to associate with this rule. Only custom controls (authority `Custom`) are supported. Utilize the `crowdstrike_cloud_compliance_framework_controls` data source to obtain control codes from a custom framework. (see [below for nested schema](#nestedatt--controls))
 - `logic` (String) Rego logic for the rule. Either `logic` or `parent_rule_id` must be defined. When `parent_rule_id` is set, the rule inherits the Rego logic from the parent rule. Note: The API does not return Rego logic for rules created from a parent rule, so this field will not appear in state when using `parent_rule_id`.
 - `parent_rule_id` (String) Id of the parent rule to inherit properties from. The `crowdstrike_cloud_security_rules` data source can be used to query Falcon for parent rule information to use in this field. Required if `logic` is not specified.
 - `remediation_info` (List of String) Information about how to remediate issues detected by this rule. Do not include numbering within this list. The Falcon console will automatically add numbering. When `remediation_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `remediation_info`.
@@ -168,10 +168,10 @@ resource "crowdstrike_cloud_security_iom_custom_rule" "custom_rule_from_file" {
 <a id="nestedatt--controls"></a>
 ### Nested Schema for `controls`
 
-Optional:
+Required:
 
-- `authority` (String) The compliance framework
-- `code` (String) The compliance framework rule code
+- `authority` (String) The compliance framework authority. Must be 'Custom'.
+- `code` (String) The control code from the custom compliance framework.
 
 ## Import
 
