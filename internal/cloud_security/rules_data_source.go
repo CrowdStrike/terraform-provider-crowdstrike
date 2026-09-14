@@ -493,7 +493,13 @@ func (r *cloudSecurityRulesDataSource) getRules(
 			}
 
 			var policyControls []policyControl
+			seen := make(map[string]bool)
 			for _, control := range resource.Controls {
+				key := fmt.Sprintf("%s:%s", types.StringPointerValue(control.Authority), types.StringPointerValue(control.Code))
+				if seen[key] {
+					continue
+				}
+				seen[key] = true
 				policyControls = append(policyControls, policyControl{
 					Authority: types.StringPointerValue(control.Authority),
 					Code:      types.StringPointerValue(control.Code),

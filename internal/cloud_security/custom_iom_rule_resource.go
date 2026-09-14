@@ -146,22 +146,19 @@ func (r *cloudSecurityIomCustomRuleResource) Schema(
 			},
 			"controls": schema.SetNestedAttribute{
 				Optional:            true,
-				Computed:            true,
-				MarkdownDescription: "Security framework and compliance rule information. Utilize the `crowdstrike_cloud_compliance_framework_controls` data source to obtain this information. When `controls` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `controls`.",
+				MarkdownDescription: "Custom compliance controls to associate with this rule. Only custom controls (authority `Custom`) are supported. Utilize the `crowdstrike_cloud_compliance_framework_controls` data source to obtain control codes from a custom framework.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"authority": schema.StringAttribute{
-							Optional:    true,
-							Computed:    true,
-							Description: "The compliance framework",
+							Required:    true,
+							Description: "The compliance framework authority. Must be 'Custom'.",
 							Validators: []validator.String{
-								validators.StringNotWhitespace(),
+								stringvalidator.OneOf("Custom"),
 							},
 						},
 						"code": schema.StringAttribute{
-							Optional:    true,
-							Computed:    true,
-							Description: "The compliance framework rule code",
+							Required:    true,
+							Description: "The control code from the custom compliance framework.",
 							Validators: []validator.String{
 								validators.StringNotWhitespace(),
 							},
@@ -285,13 +282,21 @@ func (r *cloudSecurityIomCustomRuleResource) Create(
 		return
 	}
 
-	plan.CloudPlatform = plan.CloudProvider
-
 	rule, diags := r.createCloudPolicyRule(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
+
+	// Record the id as soon as the API reports one, before checking for errors and
+	// before any follow-up call. The rule exists at this point, so a later failure
+	// must still leave a resource Terraform can refresh and destroy.
 	if rule != nil && rule.UUID != nil {
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), types.StringPointerValue(rule.UUID))...)
 	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	rule, diags = r.clearInheritedInfo(ctx, &plan, rule)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -337,8 +342,6 @@ func (r *cloudSecurityIomCustomRuleResource) Update(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	plan.CloudPlatform = plan.CloudProvider
 
 	rule, diags := r.updateCloudPolicyRule(ctx, &plan)
 	if diags.HasError() {
@@ -411,7 +414,7 @@ func (r *cloudSecurityIomCustomRuleResource) ModifyPlan(
 	}
 
 	if utils.IsKnown(config.ParentRuleId) {
-		if utils.IsNull(config.AlertInfo) || utils.IsNull(config.Controls) || utils.IsNull(config.RemediationInfo) {
+		if utils.IsNull(config.AlertInfo) || utils.IsNull(config.RemediationInfo) {
 			var parent cloudSecurityIomCustomRuleResourceModel
 			rule, diags := r.getCloudPolicyRule(ctx, plan.ParentRuleId.ValueString())
 			resp.Diagnostics.Append(diags...)
@@ -431,10 +434,6 @@ func (r *cloudSecurityIomCustomRuleResource) ModifyPlan(
 			if utils.IsNull(config.RemediationInfo) {
 				plan.RemediationInfo = parent.RemediationInfo
 			}
-
-			if utils.IsNull(config.Controls) {
-				plan.Controls = parent.Controls
-			}
 		}
 	} else {
 		// Set values to unknown when parent rule is not yet known, allowing Update and Create to handle inherited values.
@@ -444,10 +443,6 @@ func (r *cloudSecurityIomCustomRuleResource) ModifyPlan(
 
 		if utils.IsNull(config.RemediationInfo) && utils.IsKnown(plan.RemediationInfo) {
 			plan.RemediationInfo = types.ListUnknown(plan.RemediationInfo.ElementType(ctx))
-		}
-
-		if utils.IsNull(config.Controls) && utils.IsKnown(plan.Controls) {
-			plan.Controls = types.SetUnknown(plan.Controls.ElementType(ctx))
 		}
 	}
 
@@ -501,10 +496,19 @@ func (m *cloudSecurityIomCustomRuleResourceModel) wrap(
 	}
 
 	var controlsDiags diag.Diagnostics
+	seen := make(map[string]bool)
+	var uniqueControls []*models.ApimodelsControl
+	for _, control := range rule.Controls {
+		key := fmt.Sprintf("%s:%s", types.StringPointerValue(control.Authority), types.StringPointerValue(control.Code))
+		if !seen[key] {
+			seen[key] = true
+			uniqueControls = append(uniqueControls, control)
+		}
+	}
 	m.Controls, controlsDiags = flex.FlattenObjectValueSetFrom(
 		ctx,
 		types.ObjectType{AttrTypes: policyControl{}.AttributeTypes()},
-		rule.Controls,
+		uniqueControls,
 		func(control *models.ApimodelsControl) (policyControl, diag.Diagnostics) {
 			return policyControl{
 				Authority: types.StringPointerValue(control.Authority),
@@ -520,6 +524,7 @@ func (m *cloudSecurityIomCustomRuleResourceModel) wrap(
 	if len(rule.RuleLogicList) > 0 {
 		m.CloudPlatform = types.StringPointerValue(rule.RuleLogicList[0].Platform)
 	}
+	m.CloudPlatform = m.CloudProvider
 
 	if len(rule.ResourceTypes) > 0 {
 		m.ResourceType = types.StringPointerValue(rule.ResourceTypes[0].ResourceType)
@@ -533,9 +538,12 @@ func (r *cloudSecurityIomCustomRuleResource) createCloudPolicyRule(ctx context.C
 	isDuplicateRule := !plan.ParentRuleId.IsNull()
 
 	body := &models.CommonCreateRuleRequest{
-		Description:  plan.Description.ValueStringPointer(),
-		Name:         plan.Name.ValueStringPointer(),
-		Platform:     plan.CloudPlatform.ValueStringPointer(),
+		Description: plan.Description.ValueStringPointer(),
+		Name:        plan.Name.ValueStringPointer(),
+		// The API requires platform and provider to carry the same value. Never send
+		// cloud_platform here: for a rule inherited from a default parent the API
+		// reports it as "Cloud", which it then refuses to accept back.
+		Platform:     plan.CloudProvider.ValueStringPointer(),
 		Provider:     plan.CloudProvider.ValueStringPointer(),
 		ResourceType: plan.ResourceType.ValueStringPointer(),
 		Domain:       utils.Addr(IomRuleDefaultDomain),
@@ -548,9 +556,8 @@ func (r *cloudSecurityIomCustomRuleResource) createCloudPolicyRule(ctx context.C
 
 		emptyRemediationInfo := plan.RemediationInfo.IsUnknown() || plan.RemediationInfo.IsNull()
 		emptyAlertInfo := plan.AlertInfo.IsUnknown() || plan.AlertInfo.IsNull()
-		emptyControls := plan.Controls.IsUnknown() || plan.Controls.IsNull()
 
-		if emptyRemediationInfo || emptyAlertInfo || emptyControls {
+		if emptyRemediationInfo || emptyAlertInfo {
 			rule, diags := r.getCloudPolicyRule(ctx, plan.ParentRuleId.ValueString())
 			if diags.HasError() {
 				return nil, diags
@@ -567,10 +574,6 @@ func (r *cloudSecurityIomCustomRuleResource) createCloudPolicyRule(ctx context.C
 
 			if emptyRemediationInfo {
 				plan.RemediationInfo = parent.RemediationInfo
-			}
-
-			if emptyControls {
-				plan.Controls = parent.Controls
 			}
 		}
 	} else {
@@ -620,28 +623,56 @@ func (r *cloudSecurityIomCustomRuleResource) createCloudPolicyRule(ctx context.C
 		return nil, diags
 	}
 
-	// Duplicate rules can only set remediation_info and alert_info
-	// to empty during an update, not on initial creation
-	if isDuplicateRule {
-		configRemdiationInfo := plan.RemediationInfo
-		configAlertInfo := plan.AlertInfo
-		diags = plan.wrap(ctx, newRule)
-		if diags.HasError() {
-			return nil, diags
-		}
+	return newRule, diags
+}
 
-		if !plan.RemediationInfo.Equal(configRemdiationInfo) || !plan.AlertInfo.Equal(configAlertInfo) {
-			plan.RemediationInfo = configRemdiationInfo
-			plan.AlertInfo = configAlertInfo
-			rule, diags := r.updateCloudPolicyRule(ctx, plan)
-			if diags.HasError() {
-				return nil, diags
-			}
-			newRule = rule
-		}
+// clearInheritedInfo empties alert_info and remediation_info on a rule created from a
+// parent rule. The create API ignores empty values for those fields on inherited rules,
+// so clearing them requires a follow-up update after the rule exists.
+func (r *cloudSecurityIomCustomRuleResource) clearInheritedInfo(
+	ctx context.Context,
+	plan *cloudSecurityIomCustomRuleResourceModel,
+	newRule *models.ApimodelsRule,
+) (*models.ApimodelsRule, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if plan.ParentRuleId.IsNull() {
+		return newRule, diags
 	}
 
-	return newRule, diags
+	configRemediationInfo := plan.RemediationInfo
+	configAlertInfo := plan.AlertInfo
+	configControls := plan.Controls
+
+	diags.Append(plan.wrap(ctx, newRule)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	if plan.RemediationInfo.Equal(configRemediationInfo) && plan.AlertInfo.Equal(configAlertInfo) && plan.Controls.Equal(configControls) {
+		return newRule, diags
+	}
+
+	plan.RemediationInfo = configRemediationInfo
+	plan.AlertInfo = configAlertInfo
+	plan.Controls = configControls
+
+	rule, updateDiags := r.updateCloudPolicyRule(ctx, plan)
+	diags.Append(updateDiags...)
+	if diags.HasError() {
+		diags.AddWarning(
+			"Rule created but not fully configured",
+			fmt.Sprintf(
+				"Rule %q was created in Falcon with id %s, but clearing its inherited alert_info and remediation_info failed. "+
+					"The id has been saved to state, so the rule is tracked by Terraform and will be replaced on the next apply.",
+				plan.Name.ValueString(),
+				plan.ID.ValueString(),
+			),
+		)
+		return nil, diags
+	}
+
+	return rule, diags
 }
 
 func (r *cloudSecurityIomCustomRuleResource) getCloudPolicyRule(ctx context.Context, id string) (*models.ApimodelsRule, diag.Diagnostics) {
@@ -668,9 +699,8 @@ func (r *cloudSecurityIomCustomRuleResource) updateCloudPolicyRule(ctx context.C
 		var ruleResp *models.ApimodelsRule
 		emptyRemediationInfo := plan.RemediationInfo.IsUnknown() || plan.RemediationInfo.IsNull()
 		emptyAlertInfo := plan.AlertInfo.IsUnknown() || plan.AlertInfo.IsNull()
-		emptyControls := plan.Controls.IsUnknown() || plan.Controls.IsNull()
 
-		if emptyRemediationInfo || emptyAlertInfo || emptyControls {
+		if emptyRemediationInfo || emptyAlertInfo {
 			ruleResp, diags = r.getCloudPolicyRule(ctx, plan.ParentRuleId.ValueString())
 			if diags.HasError() {
 				return nil, diags
@@ -685,10 +715,6 @@ func (r *cloudSecurityIomCustomRuleResource) updateCloudPolicyRule(ctx context.C
 
 		if emptyAlertInfo {
 			plan.AlertInfo = parentRule.AlertInfo
-		}
-
-		if emptyControls {
-			plan.Controls = parentRule.Controls
 		}
 	}
 
@@ -705,7 +731,10 @@ func (r *cloudSecurityIomCustomRuleResource) updateCloudPolicyRule(ctx context.C
 	body.AlertInfo = &alertInfo
 
 	ruleLogic := &models.ApimodelsRuleLogic{
-		Platform:        plan.CloudPlatform.ValueStringPointer(),
+		// The API only accepts AWS, Azure, GCP, or OCI here. A rule inherited from a
+		// default parent reports its platform as "Cloud", so echoing cloud_platform
+		// back would fail with "Cloud is not a supported platform for SubDomain IOM".
+		Platform:        plan.CloudProvider.ValueStringPointer(),
 		RemediationInfo: &remediationInfo,
 	}
 

@@ -185,19 +185,20 @@ func createCloudPolicyRule(client *client.CrowdStrikeAPISpecification, params cl
 		return nil, diags
 	}
 
-	if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 {
+	if resp == nil || resp.Payload == nil || len(resp.Payload.Resources) == 0 || resp.Payload.Resources[0] == nil {
 		diags.Append(tferrors.NewEmptyResponseError(tferrors.Create))
 		return nil, diags
 	}
 
 	payload := resp.GetPayload()
+	newRule = payload.Resources[0]
 
+	// The API can report body-level errors alongside a created resource. Return the
+	// rule anyway so the caller can record its id before surfacing the error.
 	if err = falcon.AssertNoError(payload.Errors); err != nil {
 		diags.Append(tferrors.NewOperationError(tferrors.Create, err))
-		return nil, diags
+		return newRule, diags
 	}
-
-	newRule = payload.Resources[0]
 
 	return newRule, diags
 }

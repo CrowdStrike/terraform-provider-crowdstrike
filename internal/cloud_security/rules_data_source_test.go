@@ -168,7 +168,7 @@ func testCloudRules(config dataRuleConfig) (steps []resource.TestStep) {
 		},
 		{
 			Config: fmt.Sprintf(`
-		resource "crowdstrike_cloud_security_custom_rule" "rule_%[1]s" {
+		resource "crowdstrike_cloud_security_iom_custom_rule" "rule_%[1]s" {
 		  resource_type    = "%[5]s"
 		  name             = "%[6]s"
 		  description      = "Test Custom Rule Name"
@@ -218,7 +218,7 @@ func TestCloudSecurityRulesDatasourceWithSuppressionRule(t *testing.T) {
 	randomSuffix := sdkacctest.RandString(8)
 	customRuleName := fmt.Sprintf("%s Custom Rule With Suppression %s", acctest.ResourcePrefix, randomSuffix)
 	suppressionRuleName := fmt.Sprintf("TF Test Suppression for Custom Rule %s", randomSuffix)
-	customRuleResourceName := "crowdstrike_cloud_security_custom_rule.test_with_suppression"
+	customRuleResourceName := "crowdstrike_cloud_security_iom_custom_rule.test_with_suppression"
 	suppressionResourceName := "crowdstrike_cloud_security_suppression_rule.test_suppression"
 	dataSourceName := "data.crowdstrike_cloud_security_rules.test_with_suppression"
 
@@ -284,7 +284,7 @@ data "crowdstrike_cloud_security_rules" "parent_rule" {
 }
 
 # Create a custom rule
-resource "crowdstrike_cloud_security_custom_rule" "test_with_suppression" {
+resource "crowdstrike_cloud_security_iom_custom_rule" "test_with_suppression" {
   resource_type    = "AWS::IAM::CredentialReport"
   name             = "%[1]s"
   description      = "Test custom rule for suppression data source test"
@@ -300,7 +300,7 @@ resource "crowdstrike_cloud_security_suppression_rule" "test_suppression" {
   reason            = "false-positive"
 
   rule_selection_filter = {
-    ids = [crowdstrike_cloud_security_custom_rule.test_with_suppression.id]
+    ids = [crowdstrike_cloud_security_iom_custom_rule.test_with_suppression.id]
   }
 
   asset_filter = {
