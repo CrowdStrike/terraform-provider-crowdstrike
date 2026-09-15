@@ -8,6 +8,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/ml_exclusions"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/clientoverrides"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
 	fwvalidators "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
@@ -100,7 +101,7 @@ func (m *mlFilePathExclusionResourceModel) wrap(
 	if appliedGlobally {
 		m.HostGroups, groupDiags = types.SetValueFrom(ctx, types.StringType, []string{mlFilePathExclusionGlobalHostGroupID})
 	} else {
-		m.HostGroups, groupDiags = flex.FlattenHostGroupsToSet(ctx, exclusion.Groups)
+		m.HostGroups, groupDiags = flex.FlattenStringValueSet(ctx, exclusion.Groups)
 	}
 	diags.Append(groupDiags...)
 
@@ -264,7 +265,7 @@ func (r *mlFilePathExclusionResource) Create(
 	params := ml_exclusions.NewCreateMLExclusionsV1ParamsWithContext(ctx)
 	params.SetBody(createReq)
 
-	createResp, err := r.client.MlExclusions.CreateMLExclusionsV1(params)
+	createResp, err := r.client.MlExclusions.CreateMLExclusionsV1(params, clientoverrides.DecodeExclusionsGroups)
 	if err != nil {
 		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(
 			tferrors.Create,
@@ -362,6 +363,7 @@ func (r *mlFilePathExclusionResource) Update(
 			// so we override the request writer with the ML-compatible payload.
 			operation.Params = &mlFilePathExclusionUpdateParams{Body: updateReq}
 		},
+		clientoverrides.DecodeExclusionsGroups,
 	)
 	if err != nil {
 		resp.Diagnostics.Append(tferrors.NewDiagnosticFromAPIError(

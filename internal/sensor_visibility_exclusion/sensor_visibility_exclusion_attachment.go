@@ -14,6 +14,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/go-openapi/swag"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -449,7 +450,7 @@ func (r *sensorVisibilityExclusionAttachmentResource) syncHostGroups(
 			ID:                  currentExclusion.ID,
 			Value:               *currentExclusion.Value,
 			Groups:              updatedGroups,
-			IsDescendantProcess: currentExclusion.IsDescendantProcess,
+			IsDescendantProcess: swag.BoolValue(currentExclusion.IsDescendantProcess),
 			Comment:             "updated by terraform crowdstrike provider",
 		}
 

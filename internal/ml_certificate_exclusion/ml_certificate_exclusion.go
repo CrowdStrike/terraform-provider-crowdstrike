@@ -16,6 +16,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
+	"github.com/go-openapi/swag"
 	"github.com/hashicorp/terraform-plugin-framework-timetypes/timetypes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -94,19 +95,21 @@ func (m *mlCertificateExclusionResourceModel) wrap(
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
+	appliedGlobally := swag.BoolValue(exclusion.AppliedGlobally)
+
 	m.ID = types.StringPointerValue(exclusion.ID)
-	m.Name = types.StringValue(exclusion.Name)
-	m.Description = flex.StringValueToFramework(exclusion.Description)
-	m.Comment = flex.StringValueToFramework(exclusion.Comment)
-	m.Enabled = types.BoolValue(exclusion.Status == "enabled")
-	m.AppliedGlobally = types.BoolValue(exclusion.AppliedGlobally)
-	m.CreatedBy = flex.StringValueToFramework(exclusion.CreatedBy)
-	m.CreatedOn = flex.DateTimeValueToFramework(exclusion.CreatedOn)
-	m.ModifiedBy = flex.StringValueToFramework(exclusion.ModifiedBy)
-	m.ModifiedOn = flex.DateTimeValueToFramework(exclusion.ModifiedOn)
+	m.Name = flex.StringPointerToFramework(exclusion.Name)
+	m.Description = flex.StringPointerToFramework(exclusion.Description)
+	m.Comment = flex.StringPointerToFramework(exclusion.Comment)
+	m.Enabled = types.BoolValue(swag.StringValue(exclusion.Status) == "enabled")
+	m.AppliedGlobally = types.BoolValue(appliedGlobally)
+	m.CreatedBy = flex.StringPointerToFramework(exclusion.CreatedBy)
+	m.CreatedOn = flex.DateTimePointerToFramework(exclusion.CreatedOn)
+	m.ModifiedBy = flex.StringPointerToFramework(exclusion.ModifiedBy)
+	m.ModifiedOn = flex.DateTimePointerToFramework(exclusion.ModifiedOn)
 
 	var hostGroupDiags diag.Diagnostics
-	if exclusion.AppliedGlobally {
+	if appliedGlobally {
 		m.HostGroups, hostGroupDiags = types.SetValueFrom(ctx, types.StringType, []string{mlCertificateExclusionGlobalHostGroupID})
 	} else {
 		m.HostGroups, hostGroupDiags = types.SetValueFrom(ctx, types.StringType, exclusion.HostGroups)

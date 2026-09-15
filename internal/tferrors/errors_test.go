@@ -488,11 +488,6 @@ func TestRenderPayloadError(t *testing.T) {
 			expected: "{Code:42 Level:error Message:boom NodeID:node-1 ParentNodeID:node-0 Property:trigger.value ResourceID:res-1 }",
 		},
 		{
-			name:         "FalconxMalqueryErrorV1 with plain scalar fields",
-			payloadError: &models.FalconxMalqueryErrorV1{Code: int32(400), Message: "boom"},
-			expected:     "{Code:400 Message:boom}",
-		},
-		{
 			name:         "nil error",
 			payloadError: (*models.PolicymanagerError)(nil),
 			expected:     "<nil>",

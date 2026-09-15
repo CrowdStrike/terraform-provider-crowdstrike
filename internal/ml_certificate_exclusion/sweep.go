@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/certificate_based_exclusions"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/sweep"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/go-openapi/swag"
 )
 
 func RegisterSweepers() {
@@ -57,14 +58,15 @@ func sweepMLCertificateExclusions(ctx context.Context, client *client.CrowdStrik
 			continue
 		}
 
-		if !strings.HasPrefix(exclusion.Name, sweep.ResourcePrefix) {
-			sweep.Trace("Skipping ML Certificate Exclusion %s (not a test resource)", exclusion.Name)
+		name := swag.StringValue(exclusion.Name)
+		if !strings.HasPrefix(name, sweep.ResourcePrefix) {
+			sweep.Trace("Skipping ML Certificate Exclusion %s (not a test resource)", name)
 			continue
 		}
 
 		sweepables = append(sweepables, sweep.NewSweepResource(
 			*exclusion.ID,
-			exclusion.Name,
+			name,
 			deleteMLCertificateExclusion,
 		))
 	}
