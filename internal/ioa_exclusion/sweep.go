@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/sweep"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/go-openapi/swag"
 )
 
 func RegisterSweepers() {
@@ -63,14 +64,15 @@ func sweepIOAExclusions(
 			continue
 		}
 
-		if !strings.HasPrefix(exclusion.Name, sweep.ResourcePrefix) {
-			sweep.Trace("Skipping IOA Exclusion %s (not a test resource)", exclusion.Name)
+		name := swag.StringValue(exclusion.Name)
+		if !strings.HasPrefix(name, sweep.ResourcePrefix) {
+			sweep.Trace("Skipping IOA Exclusion %s (not a test resource)", name)
 			continue
 		}
 
 		sweepables = append(sweepables, sweep.NewSweepResource(
 			*exclusion.ID,
-			exclusion.Name,
+			name,
 			deleteIOAExclusion,
 		))
 	}

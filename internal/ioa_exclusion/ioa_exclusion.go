@@ -76,26 +76,28 @@ func (m *IOAExclusionResourceModel) wrap(
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
+	appliedGlobally := exclusion.AppliedGlobally != nil && *exclusion.AppliedGlobally
+
 	m.ID = types.StringPointerValue(exclusion.ID)
-	m.Name = flex.StringValueToFramework(exclusion.Name)
-	m.Description = flex.StringValueToFramework(exclusion.Description)
-	m.PatternID = flex.StringValueToFramework(exclusion.PatternID)
-	m.PatternName = flex.StringValueToFramework(exclusion.PatternName)
-	m.ClRegex = flex.StringValueToFramework(exclusion.ClRegex)
-	m.IfnRegex = flex.StringValueToFramework(exclusion.IfnRegex)
-	m.ParentClRegex = flex.StringValueToFramework(exclusion.ParentClRegex)
-	m.ParentIfnRegex = flex.StringValueToFramework(exclusion.ParentIfnRegex)
-	m.GrandparentClRegex = flex.StringValueToFramework(exclusion.GrandparentClRegex)
-	m.GrandparentIfnRegex = flex.StringValueToFramework(exclusion.GrandparentIfnRegex)
-	m.Comment = flex.StringValueToFramework(exclusion.Comment)
-	m.AppliedGlobally = types.BoolValue(exclusion.AppliedGlobally)
-	m.CreatedBy = flex.StringValueToFramework(exclusion.CreatedBy)
-	m.CreatedOn = flex.DateTimeValueToFramework(exclusion.CreatedOn)
-	m.ModifiedBy = flex.StringValueToFramework(exclusion.ModifiedBy)
-	m.LastModified = flex.DateTimeValueToFramework(exclusion.LastModified)
+	m.Name = flex.StringPointerToFramework(exclusion.Name)
+	m.Description = flex.StringPointerToFramework(exclusion.Description)
+	m.PatternID = flex.StringPointerToFramework(exclusion.PatternID)
+	m.PatternName = flex.StringPointerToFramework(exclusion.PatternName)
+	m.ClRegex = flex.StringPointerToFramework(exclusion.ClRegex)
+	m.IfnRegex = flex.StringPointerToFramework(exclusion.IfnRegex)
+	m.ParentClRegex = flex.StringPointerToFramework(exclusion.ParentClRegex)
+	m.ParentIfnRegex = flex.StringPointerToFramework(exclusion.ParentIfnRegex)
+	m.GrandparentClRegex = flex.StringPointerToFramework(exclusion.GrandparentClRegex)
+	m.GrandparentIfnRegex = flex.StringPointerToFramework(exclusion.GrandparentIfnRegex)
+	m.Comment = flex.StringPointerToFramework(exclusion.Comment)
+	m.AppliedGlobally = types.BoolValue(appliedGlobally)
+	m.CreatedBy = flex.StringPointerToFramework(exclusion.CreatedBy)
+	m.CreatedOn = flex.DateTimePointerToFramework(exclusion.CreatedOn)
+	m.ModifiedBy = flex.StringPointerToFramework(exclusion.ModifiedBy)
+	m.LastModified = flex.DateTimePointerToFramework(exclusion.LastModified)
 
 	var groupDiags diag.Diagnostics
-	if exclusion.AppliedGlobally {
+	if appliedGlobally {
 		m.Groups, groupDiags = types.SetValueFrom(ctx, types.StringType, []string{"all"})
 	} else {
 		m.Groups, groupDiags = flex.FlattenStringValueSet(ctx, exclusion.HostGroups)

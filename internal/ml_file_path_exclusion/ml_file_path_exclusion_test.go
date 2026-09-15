@@ -147,9 +147,7 @@ func TestMLFilePathExclusionWrap(t *testing.T) {
 				CreatedOn:       &createdOn,
 				LastModified:    &lastModified,
 				ExcludedFrom:    []string{mlExcludedFromBlocking},
-				Groups: []*models.HostGroupsHostGroupV1{
-					{ID: utils.Addr("host-group-1")},
-				},
+				Groups:          []string{"host-group-1"},
 			},
 			expectedHostGroups:    []string{"host-group-1"},
 			expectedAppliedGlobal: false,
