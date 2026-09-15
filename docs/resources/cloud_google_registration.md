@@ -144,8 +144,8 @@ resource "crowdstrike_cloud_google_registration" "example_attach_existing_wif" {
 - `resource_name_suffix` (String) Suffix to add to created Google Cloud resource names. The combined length of prefix and suffix must not exceed 13 characters
 - `tags` (Map of String) Google Cloud tags to apply to created resources
 - `vulnerability_scanning` (Attributes) Enable vulnerability scanning (see [below for nested schema](#nestedatt--vulnerability_scanning))
-- `wif_project` (String) The Google Cloud project ID for Workload Identity Federation. Required unless existing_wif_pool_id is set
-- `wif_project_number` (String) Google Cloud project number for Workload Identity Federation. Required unless existing_wif_pool_id is set
+- `wif_project` (String) The Google Cloud project ID for Workload Identity Federation. Required unless existing_wif_pool_id is set, in which case it's resolved from the owner registration
+- `wif_project_number` (String) Google Cloud project number for Workload Identity Federation. Required unless existing_wif_pool_id is set, in which case it's resolved from the owner registration
 
 ### Read-Only
 
@@ -153,9 +153,9 @@ resource "crowdstrike_cloud_google_registration" "example_attach_existing_wif" {
 - `registration_scope` (String) The scope of the registration. One of: `organization`, `folder`, `project`
 - `status` (String) The current status of the registration. Possible values: `partial` (registration is in setup incomplete status), `complete` (registration was setup successfully and validation succeeded), `validation_failed` (registration was setup successfully, but validation failed)
 - `wif_identity_source` (String) Workload Identity Federation identity source
-- `wif_pool_registration_id` (String) The ID of the registration that owns the Workload Identity Federation pool this registration uses. Empty unless this registration is attached to another registration's pool via existing_wif_pool_id
 - `wif_pool_id` (String) Workload Identity Federation pool ID
 - `wif_pool_name` (String) Workload Identity Federation pool name
+- `wif_pool_registration_id` (String) The ID of the registration that owns the Workload Identity Federation pool this registration uses. Empty unless this registration is attached to another registration's pool via existing_wif_pool_id
 - `wif_provider_id` (String) Workload Identity Federation provider ID
 - `wif_provider_name` (String) Workload Identity Federation provider name
 
