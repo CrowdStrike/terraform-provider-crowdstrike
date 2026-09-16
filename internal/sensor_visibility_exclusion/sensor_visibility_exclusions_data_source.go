@@ -13,6 +13,7 @@ import (
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/go-openapi/swag"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -124,7 +125,7 @@ func (m *SensorVisibilityExclusionsDataSourceModel) wrap(ctx context.Context, ex
 		exclusionModel.RegexpValue = flex.StringPointerToFramework(exclusion.RegexpValue)
 		exclusionModel.ValueHash = flex.StringPointerToFramework(exclusion.ValueHash)
 		exclusionModel.AppliedGlobally = types.BoolPointerValue(exclusion.AppliedGlobally)
-		exclusionModel.ApplyToDescendantProcesses = types.BoolValue(exclusion.IsDescendantProcess)
+		exclusionModel.ApplyToDescendantProcesses = types.BoolValue(swag.BoolValue(exclusion.IsDescendantProcess))
 		exclusionModel.LastModified = flex.StringValueToFramework(exclusion.LastModified.String())
 		exclusionModel.ModifiedBy = flex.StringPointerToFramework(exclusion.ModifiedBy)
 		exclusionModel.CreatedOn = flex.StringValueToFramework(exclusion.CreatedOn.String())

@@ -7,6 +7,7 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/ml_exclusions"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/clientoverrides"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/sweep"
 )
 
@@ -45,7 +46,7 @@ func sweepMLFilePathExclusions(
 	getParams.WithContext(ctx)
 	getParams.SetIds(ids)
 
-	getResp, err := client.MlExclusions.GetMLExclusionsV1(getParams)
+	getResp, err := client.MlExclusions.GetMLExclusionsV1(getParams, clientoverrides.DecodeExclusionsGroups)
 	if sweep.SkipSweepError(err) {
 		sweep.Warn("Skipping ML exclusion sweep: %s", err)
 		return nil, nil

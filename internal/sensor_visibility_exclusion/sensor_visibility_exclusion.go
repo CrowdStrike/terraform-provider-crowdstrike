@@ -8,11 +8,13 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_visibility_exclusions"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/clientoverrides"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/go-openapi/swag"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
@@ -89,7 +91,7 @@ func (m *SensorVisibilityExclusionResourceModel) wrap(
 	m.ModifiedBy = types.StringPointerValue(exclusion.ModifiedBy)
 	m.CreatedOn = types.StringValue(exclusion.CreatedOn.String())
 	m.CreatedBy = types.StringPointerValue(exclusion.CreatedBy)
-	m.ApplyToDescendantProcesses = types.BoolPointerValue(&exclusion.IsDescendantProcess)
+	m.ApplyToDescendantProcesses = types.BoolValue(swag.BoolValue(exclusion.IsDescendantProcess))
 
 	// Convert API groups to terraform set
 	groupsSet, groupsDiags := hostgroups.ConvertHostGroupsToSet(ctx, exclusion.Groups)
@@ -367,7 +369,7 @@ func (r *sensorVisibilityExclusionResource) Create(
 	params.SetBody(createReq)
 
 	tflog.Debug(ctx, "Calling CrowdStrike API to create sensor visibility exclusion")
-	createResp, err := r.client.SensorVisibilityExclusions.CreateSVExclusionsV1(params)
+	createResp, err := r.client.SensorVisibilityExclusions.CreateSVExclusionsV1(params, clientoverrides.DecodeExclusionsGroups)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create Sensor Visibility Exclusion",

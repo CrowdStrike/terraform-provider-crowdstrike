@@ -265,23 +265,23 @@ func TestWrapUsesV2ResponseFields(t *testing.T) {
 
 	exclusion := &models.DomainSsIoaExclusionsV2{
 		ID:                  utils.Addr("ioa-id"),
-		Name:                "example",
-		Description:         "example description",
-		PatternID:           "12345",
-		PatternName:         "Example Pattern",
-		ClRegex:             ".*--child.*",
-		IfnRegex:            ".*child\\.exe",
-		ParentClRegex:       ".*--parent.*",
-		ParentIfnRegex:      ".*parent\\.exe",
-		GrandparentClRegex:  ".*--grandparent.*",
-		GrandparentIfnRegex: ".*grandparent\\.exe",
+		Name:                utils.Addr("example"),
+		Description:         utils.Addr("example description"),
+		PatternID:           utils.Addr("12345"),
+		PatternName:         utils.Addr("Example Pattern"),
+		ClRegex:             utils.Addr(".*--child.*"),
+		IfnRegex:            utils.Addr(".*child\\.exe"),
+		ParentClRegex:       utils.Addr(".*--parent.*"),
+		ParentIfnRegex:      utils.Addr(".*parent\\.exe"),
+		GrandparentClRegex:  utils.Addr(".*--grandparent.*"),
+		GrandparentIfnRegex: utils.Addr(".*grandparent\\.exe"),
 		HostGroups:          []string{"host-group-id"},
-		Comment:             "returned comment",
-		AppliedGlobally:     false,
-		CreatedBy:           "creator",
-		CreatedOn:           now,
-		ModifiedBy:          "modifier",
-		LastModified:        now,
+		Comment:             utils.Addr("returned comment"),
+		AppliedGlobally:     utils.Addr(false),
+		CreatedBy:           utils.Addr("creator"),
+		CreatedOn:           &now,
+		ModifiedBy:          utils.Addr("modifier"),
+		LastModified:        &now,
 	}
 
 	diags := model.wrap(ctx, exclusion)
@@ -319,11 +319,11 @@ func TestWrapNormalizesGlobalAndOmittedProcessTreeFields(t *testing.T) {
 	model := IOAExclusionResourceModel{}
 	exclusion := &models.DomainSsIoaExclusionsV2{
 		ID:              utils.Addr("ioa-id"),
-		Name:            "example",
-		PatternID:       "12345",
-		ClRegex:         ".*",
-		IfnRegex:        ".*",
-		AppliedGlobally: true,
+		Name:            utils.Addr("example"),
+		PatternID:       utils.Addr("12345"),
+		ClRegex:         utils.Addr(".*"),
+		IfnRegex:        utils.Addr(".*"),
+		AppliedGlobally: utils.Addr(true),
 	}
 
 	diags := model.wrap(ctx, exclusion)
