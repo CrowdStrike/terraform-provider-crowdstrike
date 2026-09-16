@@ -147,7 +147,7 @@ type cloudGoogleRegistrationResourceModel struct {
 	WifProviderName             types.String `tfsdk:"wif_provider_name"`
 	WifIdentitySource           types.String `tfsdk:"wif_identity_source"`
 	ExistingWifPoolID           types.String `tfsdk:"existing_wif_pool_id"`
-	WifPullRegistrationID       types.String `tfsdk:"wif_pool_registration_id"`
+	WifPoolRegistrationID       types.String `tfsdk:"wif_pool_registration_id"`
 }
 
 func (m *cloudGoogleRegistrationResourceModel) getEntityIDs(ctx context.Context) ([]string, diag.Diagnostics) {
@@ -270,7 +270,13 @@ func (m *cloudGoogleRegistrationResourceModel) wrap(
 	m.WifProviderID = flex.StringValueToFramework(wifProviderID)
 	m.WifProviderName = flex.StringValueToFramework(wifProviderName)
 	m.WifIdentitySource = flex.StringValueToFramework(wifIdentitySource)
-	m.WifPullRegistrationID = flex.StringValueToFramework(registration.WifPoolRegistrationID)
+	m.WifPoolRegistrationID = flex.StringValueToFramework(registration.WifPoolRegistrationID)
+
+	if registration.WifPoolRegistrationID != "" {
+		m.ExistingWifPoolID = flex.StringValueToFramework(wifPoolID)
+	} else {
+		m.ExistingWifPoolID = types.StringNull()
+	}
 
 	hasIOA := false
 	hasDSPM := false
@@ -512,7 +518,12 @@ func (r *cloudGoogleRegistrationResource) Schema(
 			},
 			"existing_wif_pool_id": schema.StringAttribute{
 				Optional:    true,
+				Computed:    true,
 				Description: "The ID of an existing GCP Workload Identity Pool, owned by another registration under the same CID, to attach this registration to instead of creating a new pool. Only valid for project-scoped registrations with no real-time visibility, DSPM, or vulnerability scanning enabled",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
+				},
 				Validators: []validator.String{
 					validators.StringNotWhitespace(),
 				},
@@ -767,7 +778,6 @@ func (r *cloudGoogleRegistrationResource) Create(
 	deploymentMethod := plan.DeploymentMethod.ValueString()
 	registrationName := plan.Name.ValueString()
 	infraProjectID := plan.InfraProjectID.ValueString()
-	wifProjectID := plan.WifProjectID.ValueString()
 
 	createReq := &models.DtoCreateGCPRegistrationRequest{
 		DeploymentMethod:  &deploymentMethod,
@@ -776,7 +786,11 @@ func (r *cloudGoogleRegistrationResource) Create(
 		InfraProjectID:    &infraProjectID,
 		RegistrationName:  &registrationName,
 		RegistrationScope: &registrationScope,
-		WifProjectID:      &wifProjectID,
+	}
+
+	if plan.ExistingWifPoolID.IsNull() {
+		wifProjectID := plan.WifProjectID.ValueString()
+		createReq.WifProjectID = &wifProjectID
 	}
 
 	if !plan.InfrastructureManagerRegion.IsNull() {
@@ -785,7 +799,9 @@ func (r *cloudGoogleRegistrationResource) Create(
 
 	createReq.ResourceNameSuffix = flex.FrameworkToStringPointer(plan.ResourceNameSuffix)
 	createReq.ResourceNamePrefix = flex.FrameworkToStringPointer(plan.ResourceNamePrefix)
-	createReq.ExistingWifPoolID = flex.FrameworkToStringPointer(plan.ExistingWifPoolID)
+	if !plan.ExistingWifPoolID.IsNull() {
+		createReq.ExistingWifPoolID = flex.FrameworkToStringPointer(plan.ExistingWifPoolID)
+	}
 
 	patterns := []string{}
 	if !plan.ExcludedProjectPatterns.IsNull() {
@@ -857,7 +873,7 @@ func (r *cloudGoogleRegistrationResource) Create(
 		&cspmProductFeatures,
 	}
 
-	if !plan.WifProjectNumber.IsNull() {
+	if plan.ExistingWifPoolID.IsNull() && !plan.WifProjectNumber.IsNull() {
 		createReq.WifProjectNumber = plan.WifProjectNumber.ValueString()
 	}
 
@@ -962,9 +978,12 @@ func (r *cloudGoogleRegistrationResource) Update(
 		RegistrationScope: plan.getRegistrationScope(),
 		RegistrationName:  plan.Name.ValueString(),
 		InfraProjectID:    plan.InfraProjectID.ValueString(),
-		WifProjectID:      plan.WifProjectID.ValueString(),
-		WifProjectNumber:  plan.WifProjectNumber.ValueString(),
 		FalconClientKeyID: r.clientId,
+	}
+
+	if plan.ExistingWifPoolID.IsNull() {
+		updateReq.WifProjectID = plan.WifProjectID.ValueString()
+		updateReq.WifProjectNumber = plan.WifProjectNumber.ValueString()
 	}
 
 	if !plan.InfrastructureManagerRegion.IsNull() {
@@ -1138,30 +1157,6 @@ func (r *cloudGoogleRegistrationResource) ModifyPlan(ctx context.Context, req re
 
 	if scopeChanged {
 		resp.RequiresReplace = append(resp.RequiresReplace, path.Root("organization"), path.Root("folders"), path.Root("projects"))
-	}
-
-	var stateExistingWifPoolID, planExistingWifPoolID types.String
-	req.State.GetAttribute(ctx, path.Root("existing_wif_pool_id"), &stateExistingWifPoolID)
-	req.Plan.GetAttribute(ctx, path.Root("existing_wif_pool_id"), &planExistingWifPoolID)
-
-	stateHasExistingWifPoolID := utils.IsKnown(stateExistingWifPoolID)
-	planHasExistingWifPoolID := utils.IsKnown(planExistingWifPoolID)
-
-	existingWifPoolIDChanged := false
-	switch {
-	case stateHasExistingWifPoolID != planHasExistingWifPoolID:
-		existingWifPoolIDChanged = true
-	case stateHasExistingWifPoolID && planHasExistingWifPoolID && stateExistingWifPoolID.ValueString() != planExistingWifPoolID.ValueString():
-		existingWifPoolIDChanged = true
-	}
-
-	if existingWifPoolIDChanged {
-		resp.RequiresReplace = append(
-			resp.RequiresReplace,
-			path.Root("existing_wif_pool_id"),
-			path.Root("wif_project"),
-			path.Root("wif_project_number"),
-		)
 	}
 }
 

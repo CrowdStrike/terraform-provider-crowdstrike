@@ -924,6 +924,11 @@ func TestAccCloudGoogleRegistrationResource_ExistingWifPoolIDRequiresReplace(t *
 				Config:             testAccCloudGoogleRegistrationConfig_existingWifPoolID(rName, projectID, infraProjectID),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionReplace),
+					},
+				},
 			},
 		},
 	})
@@ -958,20 +963,39 @@ func TestAccCloudGoogleRegistrationResource_ExistingWifPoolIDAttach(t *testing.T
 	})
 }
 
-func TestAccCloudGoogleRegistrationResource_ExistingWifPoolIDInvalidPassthrough(t *testing.T) {
+func TestAccCloudGoogleRegistrationResource_ExistingWifPoolIDDetachRequiresReplace(t *testing.T) {
 	t.Skip("requires cloudregistration backend support for existing_wif_pool_id — not available in sandbox; local gofalcon patch only adds the Go struct fields")
 
-	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	rNameOwner := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	rNameAttached := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	projectID := generateGoogleCloudProjectID()
+	projectID2 := generateGoogleCloudProjectID()
 	infraProjectID := generateGoogleCloudProjectID()
+	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
+	attachedWifProjectID := generateGoogleCloudProjectID()
+	attachedWifProjectNumber := generateGoogleCloudProjectNumber()
+	attachedResourceName := "crowdstrike_cloud_google_registration.attached"
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
 			{
-				Config:      testAccCloudGoogleRegistrationConfig_existingWifPoolID(rName, projectID, infraProjectID),
-				ExpectError: regexp.MustCompile(`(?s).*`),
+				Config: testAccCloudGoogleRegistrationConfig_existingWifPoolIDAttach(rNameOwner, rNameAttached, projectID, projectID2, infraProjectID, wifProjectID, wifProjectNumber),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(attachedResourceName, tfjsonpath.New("existing_wif_pool_id"), knownvalue.NotNull()),
+				},
+			},
+			{
+				Config:             testAccCloudGoogleRegistrationConfig_existingWifPoolIDDetach(rNameOwner, rNameAttached, projectID, projectID2, infraProjectID, wifProjectID, wifProjectNumber, attachedWifProjectID, attachedWifProjectNumber),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PostApplyPreRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(attachedResourceName, plancheck.ResourceActionReplace),
+					},
+				},
 			},
 		},
 	})
@@ -1043,4 +1067,24 @@ resource "crowdstrike_cloud_google_registration" "attached" {
   existing_wif_pool_id = crowdstrike_cloud_google_registration.owner.wif_pool_id
 }
 `, rNameOwner, rNameAttached, projectID, projectID2, infraProjectID, wifProjectID, wifProjectNumber)
+}
+
+func testAccCloudGoogleRegistrationConfig_existingWifPoolIDDetach(rNameOwner, rNameAttached, projectID, projectID2, infraProjectID, wifProjectID, wifProjectNumber, attachedWifProjectID, attachedWifProjectNumber string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_cloud_google_registration" "owner" {
+  name               = %[1]q
+  projects           = [%[3]q]
+  infra_project      = %[5]q
+  wif_project        = %[6]q
+  wif_project_number = %[7]q
+}
+
+resource "crowdstrike_cloud_google_registration" "attached" {
+  name               = %[2]q
+  projects           = [%[4]q]
+  infra_project      = %[5]q
+  wif_project        = %[8]q
+  wif_project_number = %[9]q
+}
+`, rNameOwner, rNameAttached, projectID, projectID2, infraProjectID, wifProjectID, wifProjectNumber, attachedWifProjectID, attachedWifProjectNumber)
 }

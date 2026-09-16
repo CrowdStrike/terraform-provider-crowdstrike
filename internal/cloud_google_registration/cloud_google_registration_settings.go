@@ -207,19 +207,15 @@ func (r *cloudGoogleRegistrationSettingsResource) Schema(
 				},
 			},
 			"wif_pool_name": schema.StringAttribute{
-				Optional: true,
-				Computed: true,
-				Description: "The Workload Identity Federation (WIF) pool name. When attached to " +
-					"another registration's WIF pool, this is resolved to that pool's name automatically.",
+				Optional:    true,
+				Description: "The Workload Identity Federation (WIF) pool name.",
 				Validators: []validator.String{
 					validators.StringNotWhitespace(),
 				},
 			},
 			"wif_provider_name": schema.StringAttribute{
-				Optional: true,
-				Computed: true,
-				Description: "The Workload Identity Federation (WIF) provider name. When attached to " +
-					"another registration's WIF pool, this is resolved to that pool's provider name automatically.",
+				Optional:    true,
+				Description: "The Workload Identity Federation (WIF) provider name.",
 				Validators: []validator.String{
 					validators.StringNotWhitespace(),
 				},
@@ -368,13 +364,21 @@ func (m *cloudGoogleRegistrationSettingsModel) wrap(
 	m.LogIngestionTopicID = flex.StringValueToFramework(topicID)
 	m.LogIngestionSubscriptionName = flex.StringValueToFramework(subscriptionID)
 
-	var wifPoolName, wifProviderName string
-	if registration.WifProperties != nil {
-		wifPoolName = registration.WifProperties.PoolName
-		wifProviderName = registration.WifProperties.ProviderName
+	// Registrations attached to another registration's WIF pool don't own their WIF
+	// properties - the backend mirrors the owner's values into every GET response, so
+	// leave these null rather than reflecting a value this registration doesn't own.
+	if registration.WifPoolRegistrationID == "" {
+		var wifPoolName, wifProviderName string
+		if registration.WifProperties != nil {
+			wifPoolName = registration.WifProperties.PoolName
+			wifProviderName = registration.WifProperties.ProviderName
+		}
+		m.WifPoolName = flex.StringValueToFramework(wifPoolName)
+		m.WifProviderName = flex.StringValueToFramework(wifProviderName)
+	} else {
+		m.WifPoolName = types.StringNull()
+		m.WifProviderName = types.StringNull()
 	}
-	m.WifPoolName = flex.StringValueToFramework(wifPoolName)
-	m.WifProviderName = flex.StringValueToFramework(wifProviderName)
 
 	// Both features share the same infra — read from whichever is set
 	agentlessSettings := registration.DspmSettings
@@ -492,7 +496,14 @@ func (r *cloudGoogleRegistrationSettingsResource) Create(
 		return
 	}
 
-	registration, diags := r.updateRegistration(ctx, &data)
+	current, diags := r.getRegistration(ctx, data.RegistrationID.ValueString())
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	attachedToAnotherPool := current.WifPoolRegistrationID != ""
+
+	registration, diags := r.updateRegistration(ctx, &data, attachedToAnotherPool)
 	resp.Diagnostics.Append(diags...)
 
 	if resp.Diagnostics.HasError() {
@@ -578,7 +589,14 @@ func (r *cloudGoogleRegistrationSettingsResource) Update(
 		return
 	}
 
-	registration, diags := r.updateRegistration(ctx, &data)
+	current, diags := r.getRegistration(ctx, data.RegistrationID.ValueString())
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	attachedToAnotherPool := current.WifPoolRegistrationID != ""
+
+	registration, diags := r.updateRegistration(ctx, &data, attachedToAnotherPool)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -630,10 +648,10 @@ func (r *cloudGoogleRegistrationSettingsResource) Delete(
 	}
 
 	current, diags := r.getRegistration(ctx, data.RegistrationID.ValueString())
-	resp.Diagnostics.Append(diags...)
-	if tferrors.HasNotFoundError(resp.Diagnostics) {
+	if tferrors.HasNotFoundError(diags) {
 		return
 	}
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -655,7 +673,7 @@ func (r *cloudGoogleRegistrationSettingsResource) Delete(
 	}
 	data.AgentlessScanningSettings = types.ObjectNull((&agentlessScanningSettingsModel{}).AttributeTypes())
 
-	registration, err := r.updateRegistration(ctx, &data)
+	registration, err := r.updateRegistration(ctx, &data, attachedToAnotherPool)
 	resp.Diagnostics.Append(err...)
 
 	if tferrors.HasNotFoundError(resp.Diagnostics) {
@@ -833,9 +851,12 @@ func (r *cloudGoogleRegistrationSettingsResource) getRegistration(
 }
 
 // updateRegistration sends settings (WIF, log ingestion, agentless scanning) to the BE.
+// attachedToAnotherPool must reflect the registration's current WifPoolRegistrationID
+// (via getRegistration) - it is not derivable from data alone.
 func (r *cloudGoogleRegistrationSettingsResource) updateRegistration(
 	ctx context.Context,
 	data *cloudGoogleRegistrationSettingsModel,
+	attachedToAnotherPool bool,
 ) (*models.DtoGCPRegistration, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
@@ -845,13 +866,17 @@ func (r *cloudGoogleRegistrationSettingsResource) updateRegistration(
 		LogIngestionSubscriptionName: flex.FrameworkToStringPointer(data.LogIngestionSubscriptionName),
 	}
 
-	// FrameworkToStringPointer turns null/unknown into a pointer to "", which the backend treats
-	// as "WIF properties provided" (even though empty) and rejects for registrations attached to
-	// another registration's WIF pool.
-	if !data.WifPoolName.IsNull() && !data.WifPoolName.IsUnknown() {
+	// A registration attached to another registration's WIF pool doesn't own these
+	// properties, and the backend rejects update requests that include them at all - so
+	// they must never be sent, regardless of what's in config/state.
+	//
+	// For a registration that owns its own pool, the fields must always be sent (even when
+	// null), because FrameworkToStringPointer maps null to "" and the backend only clears a
+	// field when it receives an explicit empty string - omitting it leaves the prior value
+	// untouched. Gating on attachment (not nullness) is what lets a plain unset-via-omission
+	// actually reach the backend as a clear.
+	if !attachedToAnotherPool {
 		updateReq.WifPoolName = flex.FrameworkToStringPointer(data.WifPoolName)
-	}
-	if !data.WifProviderName.IsNull() && !data.WifProviderName.IsUnknown() {
 		updateReq.WifProviderName = flex.FrameworkToStringPointer(data.WifProviderName)
 	}
 
