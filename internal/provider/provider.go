@@ -366,6 +366,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 
 func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
+		mlfilepathexclusion.NewMLFilePathExclusionDataSource,
 		sensorupdatepolicy.NewSensorUpdateBuildsDataSource,
 		sensorupdatepolicy.NewSensorUpdatePoliciesDataSource,
 		sensorvisibilityexclusion.NewSensorVisibilityExclusionsDataSource,
