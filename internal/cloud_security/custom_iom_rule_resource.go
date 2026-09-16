@@ -285,13 +285,21 @@ func (r *cloudSecurityIomCustomRuleResource) Create(
 		return
 	}
 
-	plan.CloudPlatform = plan.CloudProvider
-
 	rule, diags := r.createCloudPolicyRule(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
+
+	// Record the id as soon as the API reports one, before checking for errors and
+	// before any follow-up call. The rule exists at this point, so a later failure
+	// must still leave a resource Terraform can refresh and destroy.
 	if rule != nil && rule.UUID != nil {
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), types.StringPointerValue(rule.UUID))...)
 	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	rule, diags = r.clearInheritedInfo(ctx, &plan, rule)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -337,8 +345,6 @@ func (r *cloudSecurityIomCustomRuleResource) Update(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	plan.CloudPlatform = plan.CloudProvider
 
 	rule, diags := r.updateCloudPolicyRule(ctx, &plan)
 	if diags.HasError() {
@@ -533,9 +539,12 @@ func (r *cloudSecurityIomCustomRuleResource) createCloudPolicyRule(ctx context.C
 	isDuplicateRule := !plan.ParentRuleId.IsNull()
 
 	body := &models.CommonCreateRuleRequest{
-		Description:  plan.Description.ValueStringPointer(),
-		Name:         plan.Name.ValueStringPointer(),
-		Platform:     plan.CloudPlatform.ValueStringPointer(),
+		Description: plan.Description.ValueStringPointer(),
+		Name:        plan.Name.ValueStringPointer(),
+		// The API requires platform and provider to carry the same value. Never send
+		// cloud_platform here: for a rule inherited from a default parent the API
+		// reports it as "Cloud", which it then refuses to accept back.
+		Platform:     plan.CloudProvider.ValueStringPointer(),
 		Provider:     plan.CloudProvider.ValueStringPointer(),
 		ResourceType: plan.ResourceType.ValueStringPointer(),
 		Domain:       utils.Addr(IomRuleDefaultDomain),
@@ -620,28 +629,54 @@ func (r *cloudSecurityIomCustomRuleResource) createCloudPolicyRule(ctx context.C
 		return nil, diags
 	}
 
-	// Duplicate rules can only set remediation_info and alert_info
-	// to empty during an update, not on initial creation
-	if isDuplicateRule {
-		configRemdiationInfo := plan.RemediationInfo
-		configAlertInfo := plan.AlertInfo
-		diags = plan.wrap(ctx, newRule)
-		if diags.HasError() {
-			return nil, diags
-		}
+	return newRule, diags
+}
 
-		if !plan.RemediationInfo.Equal(configRemdiationInfo) || !plan.AlertInfo.Equal(configAlertInfo) {
-			plan.RemediationInfo = configRemdiationInfo
-			plan.AlertInfo = configAlertInfo
-			rule, diags := r.updateCloudPolicyRule(ctx, plan)
-			if diags.HasError() {
-				return nil, diags
-			}
-			newRule = rule
-		}
+// clearInheritedInfo empties alert_info and remediation_info on a rule created from a
+// parent rule. The create API ignores empty values for those fields on inherited rules,
+// so clearing them requires a follow-up update after the rule exists.
+func (r *cloudSecurityIomCustomRuleResource) clearInheritedInfo(
+	ctx context.Context,
+	plan *cloudSecurityIomCustomRuleResourceModel,
+	newRule *models.ApimodelsRule,
+) (*models.ApimodelsRule, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if plan.ParentRuleId.IsNull() {
+		return newRule, diags
 	}
 
-	return newRule, diags
+	configRemediationInfo := plan.RemediationInfo
+	configAlertInfo := plan.AlertInfo
+
+	diags.Append(plan.wrap(ctx, newRule)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	if plan.RemediationInfo.Equal(configRemediationInfo) && plan.AlertInfo.Equal(configAlertInfo) {
+		return newRule, diags
+	}
+
+	plan.RemediationInfo = configRemediationInfo
+	plan.AlertInfo = configAlertInfo
+
+	rule, updateDiags := r.updateCloudPolicyRule(ctx, plan)
+	diags.Append(updateDiags...)
+	if diags.HasError() {
+		diags.AddWarning(
+			"Rule created but not fully configured",
+			fmt.Sprintf(
+				"Rule %q was created in Falcon with id %s, but clearing its inherited alert_info and remediation_info failed. "+
+					"The id has been saved to state, so the rule is tracked by Terraform and will be replaced on the next apply.",
+				plan.Name.ValueString(),
+				plan.ID.ValueString(),
+			),
+		)
+		return nil, diags
+	}
+
+	return rule, diags
 }
 
 func (r *cloudSecurityIomCustomRuleResource) getCloudPolicyRule(ctx context.Context, id string) (*models.ApimodelsRule, diag.Diagnostics) {
@@ -705,7 +740,10 @@ func (r *cloudSecurityIomCustomRuleResource) updateCloudPolicyRule(ctx context.C
 	body.AlertInfo = &alertInfo
 
 	ruleLogic := &models.ApimodelsRuleLogic{
-		Platform:        plan.CloudPlatform.ValueStringPointer(),
+		// The API only accepts AWS, Azure, GCP, or OCI here. A rule inherited from a
+		// default parent reports its platform as "Cloud", so echoing cloud_platform
+		// back would fail with "Cloud is not a supported platform for SubDomain IOM".
+		Platform:        plan.CloudProvider.ValueStringPointer(),
 		RemediationInfo: &remediationInfo,
 	}
 
