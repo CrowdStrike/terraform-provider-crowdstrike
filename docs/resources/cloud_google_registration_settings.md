@@ -75,8 +75,8 @@ output "log_ingestion_settings" {
 - `log_ingestion_sink_name` (String) The name of the log sink for ingestion.
 - `log_ingestion_subscription_name` (String) The Pub/Sub subscription name for log ingestion.
 - `log_ingestion_topic_id` (String) The Pub/Sub topic ID for log ingestion.
-- `wif_pool_name` (String) The Workload Identity Federation (WIF) pool name. When attached to another registration's WIF pool, this is resolved to that pool's name automatically.
-- `wif_provider_name` (String) The Workload Identity Federation (WIF) provider name. When attached to another registration's WIF pool, this is resolved to that pool's provider name automatically.
+- `wif_pool_name` (String) The Workload Identity Federation (WIF) pool name.
+- `wif_provider_name` (String) The Workload Identity Federation (WIF) provider name.
 
 <a id="nestedatt--agentless_scanning_settings"></a>
 ### Nested Schema for `agentless_scanning_settings`
