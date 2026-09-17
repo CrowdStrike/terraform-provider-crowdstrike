@@ -788,7 +788,7 @@ func (r *cloudGoogleRegistrationResource) Create(
 		RegistrationScope: &registrationScope,
 	}
 
-	if plan.ExistingWifPoolID.IsNull() {
+	if !utils.IsKnown(plan.ExistingWifPoolID) {
 		wifProjectID := plan.WifProjectID.ValueString()
 		createReq.WifProjectID = &wifProjectID
 	}
@@ -799,7 +799,7 @@ func (r *cloudGoogleRegistrationResource) Create(
 
 	createReq.ResourceNameSuffix = flex.FrameworkToStringPointer(plan.ResourceNameSuffix)
 	createReq.ResourceNamePrefix = flex.FrameworkToStringPointer(plan.ResourceNamePrefix)
-	if !plan.ExistingWifPoolID.IsNull() {
+	if utils.IsKnown(plan.ExistingWifPoolID) {
 		createReq.ExistingWifPoolID = flex.FrameworkToStringPointer(plan.ExistingWifPoolID)
 	}
 
@@ -873,7 +873,7 @@ func (r *cloudGoogleRegistrationResource) Create(
 		&cspmProductFeatures,
 	}
 
-	if plan.ExistingWifPoolID.IsNull() && !plan.WifProjectNumber.IsNull() {
+	if !utils.IsKnown(plan.ExistingWifPoolID) && !plan.WifProjectNumber.IsNull() {
 		createReq.WifProjectNumber = plan.WifProjectNumber.ValueString()
 	}
 
