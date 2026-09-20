@@ -83,3 +83,15 @@ resource "crowdstrike_cloud_google_registration" "example_infrastructure_manager
     enabled = true
   }
 }
+
+# Attach to an existing WIF pool owned by another registration under the same CID,
+# instead of minting a new pool. Only valid for project-scoped registrations with
+# no real-time visibility, DSPM, or vulnerability scanning enabled.
+resource "crowdstrike_cloud_google_registration" "example_attach_existing_wif" {
+  name                 = "my-byo-wif-registration"
+  projects             = ["project-4"]
+  infra_project        = "my-infra-project"
+  deployment_method    = "terraform-native"
+  existing_wif_pool_id = crowdstrike_cloud_google_registration.example_project.wif_pool_id
+}
+
