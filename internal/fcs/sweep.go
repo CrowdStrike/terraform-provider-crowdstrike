@@ -20,7 +20,7 @@ func sweepCloudAWSAccounts(ctx context.Context, client *client.CrowdStrikeAPISpe
 	params := cspm_registration.NewGetCSPMAwsAccountParams()
 	params.WithContext(ctx)
 
-	resp, _, err := client.CspmRegistration.GetCSPMAwsAccount(params)
+	resp, _, err := client.CspmRegistration.GetCSPMAwsAccount(params) //nolint:staticcheck // SA1019: migrating off deprecated endpoints is tracked separately.
 	if sweep.SkipSweepError(err) {
 		sweep.Warn("Skipping AWS Cloud Account sweep: %s", err)
 		return nil, nil
@@ -81,7 +81,7 @@ func deleteCloudAWSAccount(ctx context.Context, client *client.CrowdStrikeAPISpe
 		}
 	}
 
-	_, _, err := client.CspmRegistration.DeleteCSPMAwsAccount(params)
+	_, _, err := client.CspmRegistration.DeleteCSPMAwsAccount(params) //nolint:staticcheck // SA1019: migrating off deprecated endpoints is tracked separately.
 	if err != nil {
 		if sweep.ShouldIgnoreError(err) {
 			sweep.Debug("Ignoring error for AWS account %s: %s", accountID, err)

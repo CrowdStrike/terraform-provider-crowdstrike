@@ -2,10 +2,8 @@ module github.com/crowdstrike/terraform-provider-crowdstrike
 
 go 1.24.3
 
-replace github.com/crowdstrike/gofalcon => github.com/gpontejos-cs/gofalcon v0.0.0-20260914192609-7993b1ba0337
-
 require (
-	github.com/crowdstrike/gofalcon v0.21.1-0.20260714161657-21b34ca8aee1
+	github.com/crowdstrike/gofalcon v0.22.1-0.20260924000851-4fa3655a800d
 	github.com/go-openapi/errors v0.22.0
 	github.com/go-openapi/runtime v0.27.1
 	github.com/go-openapi/strfmt v0.23.0

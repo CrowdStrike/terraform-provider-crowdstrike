@@ -7,6 +7,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/ml_exclusions"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/clientoverrides"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
@@ -21,7 +22,7 @@ func getMLFilePathExclusion(
 	params := ml_exclusions.NewGetMLExclusionsV1ParamsWithContext(ctx)
 	params.SetIds([]string{exclusionID})
 
-	getResp, err := client.MlExclusions.GetMLExclusionsV1(params)
+	getResp, err := client.MlExclusions.GetMLExclusionsV1(params, clientoverrides.DecodeExclusionsGroups)
 	if err != nil {
 		diags.Append(tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, mlFilePathExclusionRequiredScopes))
 		return nil, diags

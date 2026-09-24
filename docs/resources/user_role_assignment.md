@@ -7,6 +7,8 @@ description: |-
   Omitting role_ids leaves the user with no directly-assigned roles.
   The roles in role_ids are granted to the user in the CID set by cid. Use the crowdstrike_cid data source to get the CID for the authenticating credentials.
   Roles a user inherits through a user group or CID group (Falcon Flight Control), and temporary roles (granted with an expiration), are not shown or managed by this resource and are left untouched.
+  Custom roles
+  Unlike default roles, custom roles are specific to the CID in which they are created. For Flight Control multi-CID environments, custom roles must be created and assigned in the home CID of the user. You can't assign a custom role to a user in a CID that is not their home CID.
   API Scopes
   The following API scopes are required:
   User management | Read & Write
@@ -23,6 +25,10 @@ Omitting `role_ids` leaves the user with no directly-assigned roles.
 The roles in `role_ids` are granted to the user in the CID set by `cid`. Use the `crowdstrike_cid` data source to get the CID for the authenticating credentials.
 
 Roles a user inherits through a user group or CID group (Falcon Flight Control), and temporary roles (granted with an expiration), are not shown or managed by this resource and are left untouched.
+
+## Custom roles
+
+Unlike default roles, custom roles are specific to the CID in which they are created. For Flight Control multi-CID environments, custom roles must be created and assigned in the home CID of the user. You can't assign a custom role to a user in a CID that is not their home CID.
 
 ## API Scopes
 
