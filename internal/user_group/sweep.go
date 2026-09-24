@@ -38,7 +38,7 @@ func sweepUserGroups(ctx context.Context, client *client.CrowdStrikeAPISpecifica
 	getParams.WithContext(ctx)
 	getParams.UserGroupIds = queryResp.Payload.Resources
 
-	getResp, _, err := client.Mssp.GetUserGroupsByID(getParams)
+	getResp, _, err := client.Mssp.GetUserGroupsByID(getParams) //nolint:staticcheck // SA1019: migrating off deprecated endpoints is tracked separately.
 	if err != nil {
 		if sweep.SkipSweepError(err) {
 			sweep.Warn("Skipping user group sweep: %s", err)
@@ -81,7 +81,7 @@ func deleteUserGroup(ctx context.Context, client *client.CrowdStrikeAPISpecifica
 	getMembersParams.WithContext(ctx)
 	getMembersParams.UserGroupIds = []string{id}
 
-	membersResp, _, err := client.Mssp.GetUserGroupMembersByID(getMembersParams)
+	membersResp, _, err := client.Mssp.GetUserGroupMembersByID(getMembersParams) //nolint:staticcheck // SA1019: migrating off deprecated endpoints is tracked separately.
 	if err != nil && !sweep.ShouldIgnoreError(err) {
 		return fmt.Errorf("error getting user group members: %w", err)
 	}

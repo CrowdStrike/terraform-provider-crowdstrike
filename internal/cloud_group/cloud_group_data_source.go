@@ -348,8 +348,9 @@ const notFoundPayloadErrorCode = "NotFound"
 
 // diagnosticFromPayloadErrors mirrors tferrors.NewDiagnosticFromPayloadErrors for the
 // assetgroupmanager v1 error shape returned by the cloud group lookup APIs, which
-// carries a string Code rather than the numeric Code used by models.MsaAPIError, so
-// it cannot go through the shared helper directly. A NotFound code becomes a not found
+// carries a string-backed Code (numeric gateway codes decode into it too) rather than
+// the numeric Code used by models.MsaAPIError, so it cannot go through the shared
+// helper directly. A NotFound code becomes a not found
 // error described by notFoundDetail. Returns nil when there are no payload errors.
 func diagnosticFromPayloadErrors(
 	operation tferrors.Operation,
@@ -372,7 +373,7 @@ func diagnosticFromPayloadErrors(
 		msg := apiErr.Message
 		switch {
 		case msg == "":
-			msg = apiErr.Code
+			msg = string(apiErr.Code)
 		case apiErr.Code != "":
 			msg = fmt.Sprintf("%s (%s)", msg, apiErr.Code)
 		}
