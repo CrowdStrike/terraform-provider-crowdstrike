@@ -48,7 +48,7 @@ var (
 	iomRuleResourceMarkdownDescription string = "This resource manages custom cloud security IOM rules. " +
 		"These rules can be created either by inheriting properties from a parent rule with minimal customization, or by fully customizing all attributes for maximum flexibility. " +
 		"To create a rule based on a parent rule, utilize the `crowdstrike_cloud_security_rules` data source to gather parent rule information to use in the new custom rule. " +
-		"The `crowdstrike_cloud_compliance_framework_controls` data source can be used to query Falcon for compliance benchmark controls to associate with custom rules created with this resource. "
+		"The `crowdstrike_cloud_compliance_framework_controls` data source can be used to query Falcon for custom compliance framework controls to associate with custom rules created with this resource. "
 	iomRuleRequiredScopes []scopes.Scope = cloudSecurityRuleScopes
 )
 
@@ -146,7 +146,7 @@ func (r *cloudSecurityIomCustomRuleResource) Schema(
 			},
 			"controls": schema.SetNestedAttribute{
 				Optional:            true,
-				MarkdownDescription: "Custom compliance controls to associate with this rule. Only custom controls (authority `Custom`) are supported. Utilize the `crowdstrike_cloud_compliance_framework_controls` data source to obtain control codes from a custom framework.",
+				MarkdownDescription: "Custom compliance controls to associate with this rule. Only custom controls (authority `Custom`) are supported. Utilize the `crowdstrike_cloud_compliance_framework_controls` data source to obtain control codes from a custom framework. Controls are not inherited from `parent_rule_id`.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"authority": schema.StringAttribute{
@@ -204,7 +204,7 @@ func (r *cloudSecurityIomCustomRuleResource) Schema(
 			},
 			"parent_rule_id": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "Id of the parent rule to inherit properties from. The `crowdstrike_cloud_security_rules` data source can be used to query Falcon for parent rule information to use in this field. Required if `logic` is not specified.",
+				MarkdownDescription: "Id of the parent rule to copy. The rule uses the parent rule's Rego logic and `attack_types`, and inherits `alert_info` and `remediation_info` when they are not defined. `severity` and `controls` are not inherited. The `crowdstrike_cloud_security_rules` data source can be used to query Falcon for parent rule information to use in this field. Required if `logic` is not specified.",
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(
 						regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`),
@@ -262,7 +262,7 @@ func (r *cloudSecurityIomCustomRuleResource) Schema(
 				Optional:            true,
 				Computed:            true,
 				Default:             stringdefault.StaticString(IomRuleDefaultSeverity),
-				MarkdownDescription: "Severity of the rule. Valid values are `critical`, `high`, `medium`, `informational`.",
+				MarkdownDescription: "Severity of the rule. Valid values are `critical`, `high`, `medium`, `informational`. Defaults to `critical`, including for rules created from `parent_rule_id`.",
 				Validators: []validator.String{
 					stringvalidator.OneOf("critical", "high", "medium", "informational"),
 				},
