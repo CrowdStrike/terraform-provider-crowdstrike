@@ -521,9 +521,10 @@ func (m *cloudSecurityIomCustomRuleResourceModel) wrap(
 		return diags
 	}
 
-	if len(rule.RuleLogicList) > 0 {
-		m.CloudPlatform = types.StringPointerValue(rule.RuleLogicList[0].Platform)
-	}
+	// TODO: cloud_platform mirrors cloud_provider and adds nothing. Either remove the
+	// attribute or report the API value (rule_logic_list[0].platform), which is "Cloud"
+	// for rules created from a parent rule. Requests never send cloud_platform, so the
+	// API value is safe to store.
 	m.CloudPlatform = m.CloudProvider
 
 	if len(rule.ResourceTypes) > 0 {
