@@ -10,6 +10,18 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
+# Only controls from a custom compliance framework (authority "Custom") can be
+# assigned to custom rules. Look up the control codes by control name.
+data "crowdstrike_cloud_compliance_framework_controls" "custom" {
+  fql = "compliance_control_authority:'Custom'+compliance_control_benchmark_name:'Example Custom Framework'"
+}
+
+locals {
+  custom_control_codes = {
+    for control in data.crowdstrike_cloud_compliance_framework_controls.custom.controls : control.name => control.code
+  }
+}
+
 # Custom IOM rule derived from a parent rule with specific modifications
 resource "crowdstrike_cloud_security_iom_custom_rule" "copy_rule" {
   resource_type  = "AWS::EC2::Instance"
@@ -28,12 +40,12 @@ resource "crowdstrike_cloud_security_iom_custom_rule" "copy_rule" {
   ]
   controls = [
     {
-      authority = "CIS",
-      code      = "89"
+      authority = "Custom",
+      code      = local.custom_control_codes["Restrict instance network access"]
     },
     {
-      authority = "CIS",
-      code      = "791"
+      authority = "Custom",
+      code      = local.custom_control_codes["Require approved instance images"]
     }
   ]
   parent_rule_id = "190c2d3d-8b0e-4838-bf11-4c6e044b9cb1"
@@ -76,12 +88,12 @@ EOF
   ]
   controls = [
     {
-      authority = "CIS",
-      code      = "89"
+      authority = "Custom",
+      code      = local.custom_control_codes["Restrict instance network access"]
     },
     {
-      authority = "CIS",
-      code      = "791"
+      authority = "Custom",
+      code      = local.custom_control_codes["Require approved instance images"]
     },
   ]
 }
@@ -109,8 +121,8 @@ resource "crowdstrike_cloud_security_iom_custom_rule" "custom_rule_from_file" {
   ]
   controls = [
     {
-      authority = "CIS",
-      code      = "2.1.1"
+      authority = "Custom",
+      code      = local.custom_control_codes["Encrypt storage at rest"]
     },
   ]
 }

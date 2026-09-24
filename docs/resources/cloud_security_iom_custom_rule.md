@@ -2,7 +2,7 @@
 page_title: "crowdstrike_cloud_security_iom_custom_rule Resource - crowdstrike"
 subcategory: "Falcon Cloud Security"
 description: |-
-  This resource manages custom cloud security IOM rules. These rules can be created either by inheriting properties from a parent rule with minimal customization, or by fully customizing all attributes for maximum flexibility. To create a rule based on a parent rule, utilize the crowdstrike_cloud_security_rules data source to gather parent rule information to use in the new custom rule. The crowdstrike_cloud_compliance_framework_controls data source can be used to query Falcon for compliance benchmark controls to associate with custom rules created with this resource.
+  This resource manages custom cloud security IOM rules. These rules can be created either by inheriting properties from a parent rule with minimal customization, or by fully customizing all attributes for maximum flexibility. To create a rule based on a parent rule, utilize the crowdstrike_cloud_security_rules data source to gather parent rule information to use in the new custom rule. The crowdstrike_cloud_compliance_framework_controls data source can be used to query Falcon for custom compliance framework controls to associate with custom rules created with this resource.
   API Scopes
   The following API scopes are required:
   Cloud Security Policies | Read & Write
@@ -10,7 +10,7 @@ description: |-
 
 # crowdstrike_cloud_security_iom_custom_rule (Resource)
 
-This resource manages custom cloud security IOM rules. These rules can be created either by inheriting properties from a parent rule with minimal customization, or by fully customizing all attributes for maximum flexibility. To create a rule based on a parent rule, utilize the `crowdstrike_cloud_security_rules` data source to gather parent rule information to use in the new custom rule. The `crowdstrike_cloud_compliance_framework_controls` data source can be used to query Falcon for compliance benchmark controls to associate with custom rules created with this resource. 
+This resource manages custom cloud security IOM rules. These rules can be created either by inheriting properties from a parent rule with minimal customization, or by fully customizing all attributes for maximum flexibility. To create a rule based on a parent rule, utilize the `crowdstrike_cloud_security_rules` data source to gather parent rule information to use in the new custom rule. The `crowdstrike_cloud_compliance_framework_controls` data source can be used to query Falcon for custom compliance framework controls to associate with custom rules created with this resource. 
 
 ## API Scopes
 
@@ -34,6 +34,18 @@ provider "crowdstrike" {
   cloud = "us-2"
 }
 
+# Only controls from a custom compliance framework (authority "Custom") can be
+# assigned to custom rules. Look up the control codes by control name.
+data "crowdstrike_cloud_compliance_framework_controls" "custom" {
+  fql = "compliance_control_authority:'Custom'+compliance_control_benchmark_name:'Example Custom Framework'"
+}
+
+locals {
+  custom_control_codes = {
+    for control in data.crowdstrike_cloud_compliance_framework_controls.custom.controls : control.name => control.code
+  }
+}
+
 # Custom IOM rule derived from a parent rule with specific modifications
 resource "crowdstrike_cloud_security_iom_custom_rule" "copy_rule" {
   resource_type  = "AWS::EC2::Instance"
@@ -52,12 +64,12 @@ resource "crowdstrike_cloud_security_iom_custom_rule" "copy_rule" {
   ]
   controls = [
     {
-      authority = "CIS",
-      code      = "89"
+      authority = "Custom",
+      code      = local.custom_control_codes["Restrict instance network access"]
     },
     {
-      authority = "CIS",
-      code      = "791"
+      authority = "Custom",
+      code      = local.custom_control_codes["Require approved instance images"]
     }
   ]
   parent_rule_id = "190c2d3d-8b0e-4838-bf11-4c6e044b9cb1"
@@ -100,12 +112,12 @@ EOF
   ]
   controls = [
     {
-      authority = "CIS",
-      code      = "89"
+      authority = "Custom",
+      code      = local.custom_control_codes["Restrict instance network access"]
     },
     {
-      authority = "CIS",
-      code      = "791"
+      authority = "Custom",
+      code      = local.custom_control_codes["Require approved instance images"]
     },
   ]
 }
@@ -133,8 +145,8 @@ resource "crowdstrike_cloud_security_iom_custom_rule" "custom_rule_from_file" {
   ]
   controls = [
     {
-      authority = "CIS",
-      code      = "2.1.1"
+      authority = "Custom",
+      code      = local.custom_control_codes["Encrypt storage at rest"]
     },
   ]
 }
@@ -154,11 +166,11 @@ resource "crowdstrike_cloud_security_iom_custom_rule" "custom_rule_from_file" {
 
 - `alert_info` (List of String) A list of the alert logic and detection criteria for rule violations. Do not include numbering within this list. The Falcon console will automatically add numbering. When `alert_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `alert_info`.
 - `attack_types` (Set of String) Specific attack types associated with the rule. If `parent_rule_id` is defined, `attack_types` will be inherited from the parent rule and cannot be specified using this field.
-- `controls` (Attributes Set) Security framework and compliance rule information. Utilize the `crowdstrike_cloud_compliance_framework_controls` data source to obtain this information. When `controls` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `controls`. (see [below for nested schema](#nestedatt--controls))
+- `controls` (Attributes Set) Custom compliance controls to associate with this rule. Only custom controls (authority `Custom`) are supported. Utilize the `crowdstrike_cloud_compliance_framework_controls` data source to obtain control codes from a custom framework. Controls are not inherited from `parent_rule_id`. (see [below for nested schema](#nestedatt--controls))
 - `logic` (String) Rego logic for the rule. Either `logic` or `parent_rule_id` must be defined. When `parent_rule_id` is set, the rule inherits the Rego logic from the parent rule. Note: The API does not return Rego logic for rules created from a parent rule, so this field will not appear in state when using `parent_rule_id`.
-- `parent_rule_id` (String) Id of the parent rule to inherit properties from. The `crowdstrike_cloud_security_rules` data source can be used to query Falcon for parent rule information to use in this field. Required if `logic` is not specified.
+- `parent_rule_id` (String) Id of the parent rule to copy. The rule uses the parent rule's Rego logic and `attack_types`, and inherits `alert_info` and `remediation_info` when they are not defined. `severity` and `controls` are not inherited. The `crowdstrike_cloud_security_rules` data source can be used to query Falcon for parent rule information to use in this field. Required if `logic` is not specified.
 - `remediation_info` (List of String) Information about how to remediate issues detected by this rule. Do not include numbering within this list. The Falcon console will automatically add numbering. When `remediation_info` is not defined and `parent_rule_id` is defined, this field will inherit the parent rule's `remediation_info`.
-- `severity` (String) Severity of the rule. Valid values are `critical`, `high`, `medium`, `informational`.
+- `severity` (String) Severity of the rule. Valid values are `critical`, `high`, `medium`, `informational`. Defaults to `critical`, including for rules created from `parent_rule_id`.
 
 ### Read-Only
 
@@ -168,10 +180,10 @@ resource "crowdstrike_cloud_security_iom_custom_rule" "custom_rule_from_file" {
 <a id="nestedatt--controls"></a>
 ### Nested Schema for `controls`
 
-Optional:
+Required:
 
-- `authority` (String) The compliance framework
-- `code` (String) The compliance framework rule code
+- `authority` (String) The compliance framework authority. Must be 'Custom'.
+- `code` (String) The control code from the custom compliance framework.
 
 ## Import
 

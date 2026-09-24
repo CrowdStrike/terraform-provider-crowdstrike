@@ -197,6 +197,10 @@ func (r *cloudSecurityKacCustomRuleResource) Create(
 
 	rule, diags := r.createCloudPolicyRule(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
+
+	// Record the id as soon as the API reports one, before checking for errors. The
+	// rule exists at this point, so an error must still leave a resource Terraform
+	// can refresh and destroy.
 	if rule != nil && rule.UUID != nil {
 		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), types.StringPointerValue(rule.UUID))...)
 	}
