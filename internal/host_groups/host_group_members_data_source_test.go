@@ -160,7 +160,7 @@ func TestAccHostGroupMembersDataSource_InvalidFilter(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccHostGroupMembersDataSourceConfigInvalidFilter(rName),
-				ExpectError: regexp.MustCompile("Invalid filter expression supplied"),
+				ExpectError: regexp.MustCompile(`Invalid\s+filter\s+expression\s+supplied`),
 			},
 		},
 	})

@@ -1210,7 +1210,7 @@ func TestCloudSecuritySuppressionRuleResource_ExpirationDateValidationBehavior(t
 			// Test 3: Update operation should fail when trying to set expired date
 			{
 				Config:      testSuppressionRuleExpirationValidationConfig(randomSuffix, expiredDate),
-				ExpectError: regexp.MustCompile("suppression_expiration_date value: must be in the future"),
+				ExpectError: regexp.MustCompile(`must\s+be\s+in\s+the\s+future`),
 			},
 			// Test 4: Import state should succeed even with expired date (simulates Read behavior)
 			{
