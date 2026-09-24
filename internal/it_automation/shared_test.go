@@ -215,7 +215,7 @@ func createUser(
 		Context: t.Context(),
 	}
 
-	_, err = falconClient.UserManagement.GrantUserRoleIds(grantParams)
+	_, err = falconClient.UserManagement.GrantUserRoleIds(grantParams) //nolint:staticcheck // SA1019: migrating off deprecated endpoints is tracked separately.
 	if err != nil {
 		_ = deleteUser(t, falconClient, userUUID)
 		return "", fmt.Errorf("GrantUserRoleIds failed: %w", err)

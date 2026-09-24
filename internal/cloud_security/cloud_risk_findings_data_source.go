@@ -7,6 +7,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_security"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/clientoverrides"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
@@ -314,7 +315,7 @@ func (r *cloudRiskFindingsDataSource) getAllRisks(
 			"filter": config.Filter.ValueString(),
 		})
 
-		response, err := r.client.CloudSecurity.CombinedCloudRisks(params)
+		response, err := r.client.CloudSecurity.CombinedCloudRisks(params, clientoverrides.DecodeCloudRisks)
 		if err != nil {
 			diags.Append(tferrors.NewOperationError(tferrors.Read, err))
 			break

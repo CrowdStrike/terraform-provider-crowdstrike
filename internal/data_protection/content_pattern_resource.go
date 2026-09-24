@@ -314,7 +314,7 @@ func (r *dataProtectionContentPatternResource) Delete(
 		WithContext(ctx).
 		WithIds([]string{state.ID.ValueString()})
 
-	_, err := r.client.DataProtectionConfiguration.EntitiesContentPatternDelete(params)
+	_, multi, err := r.client.DataProtectionConfiguration.EntitiesContentPatternDelete(params)
 	if err != nil {
 		diag := tferrors.NewDiagnosticFromAPIError(
 			tferrors.Delete,
@@ -326,6 +326,18 @@ func (r *dataProtectionContentPatternResource) Delete(
 		}
 		resp.Diagnostics.Append(diag)
 		return
+	}
+
+	if multi != nil {
+		diag := tferrors.NewDiagnosticFromAPIError(
+			tferrors.Delete,
+			multi,
+			contentPatternResourceRequiredScopes,
+		)
+		if diag == nil || diag.Summary() == tferrors.NotFoundErrorSummary {
+			return
+		}
+		resp.Diagnostics.Append(diag)
 	}
 }
 

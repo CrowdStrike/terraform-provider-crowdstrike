@@ -401,7 +401,7 @@ func (r *userGroupResource) getUserGroupByID(ctx context.Context, userGroupID st
 	getParams.Context = ctx
 	getParams.UserGroupIds = []string{userGroupID}
 
-	res, multi, err := r.client.Mssp.GetUserGroupsByID(getParams)
+	res, multi, err := r.client.Mssp.GetUserGroupsByID(getParams) //nolint:staticcheck // SA1019: migrating off deprecated endpoints is tracked separately.
 	if err != nil {
 		return nil, tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopes)
 	}
@@ -426,7 +426,7 @@ func (r *userGroupResource) getUserGroupMembers(ctx context.Context, userGroupID
 	getMembersParams.Context = ctx
 	getMembersParams.UserGroupIds = []string{userGroupID}
 
-	res, multi, err := r.client.Mssp.GetUserGroupMembersByID(getMembersParams)
+	res, multi, err := r.client.Mssp.GetUserGroupMembersByID(getMembersParams) //nolint:staticcheck // SA1019: migrating off deprecated endpoints is tracked separately.
 	if err != nil {
 		diag := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopes)
 		if diag != nil && diag.Summary() != tferrors.NotFoundErrorSummary {

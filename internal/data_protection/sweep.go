@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/data_protection_configuration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
@@ -55,13 +56,17 @@ func deleteDataProtectionContentPattern(ctx context.Context, client *client.Crow
 	params.WithContext(ctx)
 	params.Ids = []string{id}
 
-	_, err := client.DataProtectionConfiguration.EntitiesContentPatternDelete(params)
+	_, multi, err := client.DataProtectionConfiguration.EntitiesContentPatternDelete(params)
 	if err != nil {
 		if sweep.ShouldIgnoreError(err) {
 			sweep.Debug("Ignoring error for data protection content pattern %s: %s", id, err)
 			return nil
 		}
 		return err
+	}
+
+	if multi != nil && multi.Payload != nil {
+		return falcon.AssertNoError(multi.Payload.Errors)
 	}
 
 	return nil
@@ -103,13 +108,17 @@ func deleteDataProtectionSensitivityLabel(ctx context.Context, client *client.Cr
 	params.WithContext(ctx)
 	params.Ids = []string{id}
 
-	_, err := client.DataProtectionConfiguration.EntitiesSensitivityLabelDeleteV2(params)
+	_, multi, err := client.DataProtectionConfiguration.EntitiesSensitivityLabelDeleteV2(params)
 	if err != nil {
 		if sweep.ShouldIgnoreError(err) {
 			sweep.Debug("Ignoring error for data protection sensitivity label %s: %s", id, err)
 			return nil
 		}
 		return err
+	}
+
+	if multi != nil && multi.Payload != nil {
+		return falcon.AssertNoError(multi.Payload.Errors)
 	}
 
 	return nil

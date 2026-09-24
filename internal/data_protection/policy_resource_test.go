@@ -2665,6 +2665,11 @@ func TestExpandPolicyPropertiesSendsEveryDefaultedSetting(t *testing.T) {
 		"evidence_storage_max_size":                     float64(1),
 		"enable_network_inspection":                     false,
 		"network_inspection_files_exceeding_size_limit": "allow",
+
+		// The provider does not manage this list, and gofalcon's model always sends it.
+		// The API treats null as "leave unchanged", so a list set in the console
+		// survives every write.
+		"network_inspection_exclude_list_v2": nil,
 	}
 
 	for key, value := range want {
