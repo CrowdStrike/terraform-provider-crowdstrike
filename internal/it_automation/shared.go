@@ -21,6 +21,8 @@ const (
 	TaskTypeQuery       = "query"
 	TaskTypeAction      = "action"
 	TaskTypeRemediation = "remediation"
+	ParamsTypeOption    = "option"
+	ParamsTypeDropdown  = "dropdown"
 )
 
 // idsDiff performs the diff on a list of planned and current IDs and returns two string slices of IDs to remove and add.
