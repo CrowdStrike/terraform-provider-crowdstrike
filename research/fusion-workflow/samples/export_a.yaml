@@ -1,0 +1,19 @@
+# This is an exported workflow. Editing this file is not recommended.
+
+name: tf-research-a-renamed
+description: terraform research updated via yaml
+trigger:
+    next:
+        - CreatePythonScript
+    name: On demand
+    type: On demand
+actions:
+    CreatePythonScript:
+        id: 7fb9eb10b23943efaf1e6082b0ac0338
+        default_name: Create Python script
+        class: Inline.Python
+        name: Create Python script
+        properties:
+            runtime: py0313general
+            script: print("yaml", end='')
+        version_constraint: ~1

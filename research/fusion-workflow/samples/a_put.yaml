@@ -1,0 +1,17 @@
+name: tf-research-a
+description: terraform research updated via yaml
+id: 92fcc17b69f54439a3fe001c1f220fcf
+trigger:
+  next:
+    - CreatePythonScript
+  name: On demand
+  type: On demand
+actions:
+  CreatePythonScript:
+    id: 7fb9eb10b23943efaf1e6082b0ac0338
+    class: Inline.Python
+    name: Create Python script
+    properties:
+      runtime: py0313general
+      script: print("yaml", end='')
+    version_constraint: ~1

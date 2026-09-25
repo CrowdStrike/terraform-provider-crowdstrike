@@ -15,6 +15,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/firewall"
+	fusionsoar "github.com/crowdstrike/terraform-provider-crowdstrike/internal/fusion_soar"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	installtoken "github.com/crowdstrike/terraform-provider-crowdstrike/internal/install_token"
 	ioaexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_exclusion"
@@ -52,6 +53,7 @@ func registerSweepers() {
 	fcs.RegisterSweepers()
 	fim.RegisterSweepers()
 	firewall.RegisterSweepers()
+	fusionsoar.RegisterSweepers()
 	hostgroups.RegisterSweepers()
 	installtoken.RegisterSweepers()
 	ioaexclusion.RegisterSweepers()

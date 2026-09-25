@@ -1,0 +1,26 @@
+# This is an exported workflow. Editing this file is not recommended.
+
+name: tf-research-b
+description: email sanitize test
+trigger:
+    next:
+        - send_email
+    name: On demand
+    parameters:
+        properties:
+            hostname:
+                type: string
+        required:
+            - hostname
+        type: object
+    type: On demand
+actions:
+    send_email:
+        id: 07413ef9ba7c47bf5a242799f59902cc
+        default_name: Send email
+        name: Send email
+        properties:
+            msg: hello from tf research
+            subject: research ${hostname}
+            to:
+                - placeholder@crowdstrike.com

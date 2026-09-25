@@ -1,0 +1,20 @@
+name: tf-example-on-demand-workflow
+description: Pauses for one minute when run on demand.
+trigger:
+  next:
+    - Sleep
+  name: On demand
+  type: On demand
+  parameters:
+    type: object
+    properties:
+      reason:
+        type: string
+    required:
+      - reason
+actions:
+  Sleep:
+    id: 4f1af1ae4c13dc1e3bcd725f8dc0f63b
+    properties:
+      sleep_time: 1m
+    version_constraint: ~1
