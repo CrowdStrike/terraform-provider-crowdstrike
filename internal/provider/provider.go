@@ -10,6 +10,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/cid"
 	cidgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cid_group"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/clientoverrides"
 	cloudcompliance "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_compliance"
 	cloudgoogleregistration "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_google_registration"
 	cloudgroup "github.com/crowdstrike/terraform-provider-crowdstrike/internal/cloud_group"
@@ -23,6 +24,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fcs"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/fim"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/firewall"
+	fusionsoar "github.com/crowdstrike/terraform-provider-crowdstrike/internal/fusion_soar"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	installtoken "github.com/crowdstrike/terraform-provider-crowdstrike/internal/install_token"
 	ioaexclusion "github.com/crowdstrike/terraform-provider-crowdstrike/internal/ioa_exclusion"
@@ -280,6 +282,7 @@ func (p *CrowdStrikeProvider) Configure(
 			)
 			return
 		}
+		clientoverrides.RegisterYAMLProducer(falconClient)
 	}
 
 	providerConfig := config.ProviderConfig{
@@ -296,6 +299,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 	return []func() resource.Resource{
 		cidgroup.NewCIDGroupResource,
 		correlationrules.NewCorrelationRuleResource,
+		fusionsoar.NewFusionWorkflowResource,
 		sensorupdatepolicy.NewSensorUpdatePolicyResource,
 		sensorupdatepolicy.NewDefaultSensorUpdatePolicyResource,
 		sensorupdatepolicy.NewSensorUpdatePolicyHostGroupAttachmentResource,

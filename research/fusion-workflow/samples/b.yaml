@@ -1,0 +1,22 @@
+name: tf-research-b
+description: email sanitize test
+trigger:
+  next:
+    - send_email
+  name: On demand
+  type: On demand
+  parameters:
+    type: object
+    properties:
+      hostname:
+        type: string
+    required:
+      - hostname
+actions:
+  send_email:
+    id: 07413ef9ba7c47bf5a242799f59902cc
+    properties:
+      to:
+        - placeholder@crowdstrike.com
+      subject: research ${hostname}
+      msg: hello from tf research
