@@ -8,9 +8,11 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/gofalcon/falcon/client/containment_allowlist_rules"
+	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
 	networkcontainment "github.com/crowdstrike/terraform-provider-crowdstrike/internal/network_containment"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	tfjson "github.com/hashicorp/terraform-json"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -21,14 +23,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
-const allowlistRuleResourceType = "crowdstrike_network_containment_allowlist_rule"
-
 func TestAccNetworkContainmentAllowlistRule_basic(t *testing.T) {
 	rName := acctest.RandomResourceName()
-	updatedName := rName + "-updated"
-	resourceName := allowlistRuleResourceType + ".test"
+	resourceName := "crowdstrike_network_containment_allowlist_rule.test"
 	ipv4 := randomTestIPv4(t)
-	ipv6CIDR := randomTestIPv6CIDR()
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
@@ -40,16 +38,30 @@ func TestAccNetworkContainmentAllowlistRule_basic(t *testing.T) {
 				ConfigStateChecks: []statecheck.StateCheck{
 					testAccCheckAllowlistRuleExists(resourceName),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.StringExact("containment|"+ipv4)),
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("ip_range")),
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule"), knownvalue.StringExact(ipv4)),
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("allow_subdomains"), knownvalue.Bool(false)),
 				},
 			},
 			{
 				ResourceName:      resourceName,
 				ImportState:       true,
 				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func TestAccNetworkContainmentAllowlistRule_update(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	updatedName := rName + "-updated"
+	resourceName := "crowdstrike_network_containment_allowlist_rule.test"
+	ipv4 := randomTestIPv4(t)
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckAllowlistRuleDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccAllowlistRuleConfig_basic(rName, "ip_range", ipv4),
 			},
 			{
 				// The name is the only attribute that updates in place.
@@ -65,7 +77,30 @@ func TestAccNetworkContainmentAllowlistRule_basic(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccAllowlistRuleConfig_basic(updatedName, "ip_range", ipv6CIDR),
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func TestAccNetworkContainmentAllowlistRule_replaceRule(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	resourceName := "crowdstrike_network_containment_allowlist_rule.test"
+	ipv4 := randomTestIPv4(t)
+	ipv6CIDR := randomTestIPv6CIDR()
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckAllowlistRuleDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccAllowlistRuleConfig_basic(rName, "ip_range", ipv4),
+			},
+			{
+				Config: testAccAllowlistRuleConfig_basic(rName, "ip_range", ipv6CIDR),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionDestroyBeforeCreate),
@@ -73,6 +108,7 @@ func TestAccNetworkContainmentAllowlistRule_basic(t *testing.T) {
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
 					testAccCheckAllowlistRuleExists(resourceName),
+					testAccCheckAllowlistRuleIDGone("containment|" + ipv4),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.StringExact("containment|"+ipv6CIDR)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule"), knownvalue.StringExact(ipv6CIDR)),
 				},
@@ -82,11 +118,105 @@ func TestAccNetworkContainmentAllowlistRule_basic(t *testing.T) {
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
+		},
+	})
+}
+
+// TestAccNetworkContainmentAllowlistRule_replaceType covers the only change
+// that alters the shape of the ID, since ip_dns IDs carry a dns| segment.
+func TestAccNetworkContainmentAllowlistRule_replaceType(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	resourceName := "crowdstrike_network_containment_allowlist_rule.test"
+	ipv4 := randomTestIPv4(t)
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckAllowlistRuleDestroy,
+		Steps: []resource.TestStep{
 			{
-				ResourceName:  resourceName,
-				ImportState:   true,
-				ImportStateId: ipv6CIDR,
-				ExpectError:   regexp.MustCompile(`Invalid import ID`),
+				Config: testAccAllowlistRuleConfig_basic(rName, "ip_range", ipv4),
+			},
+			{
+				Config: testAccAllowlistRuleConfig_basic(rName, "ip_dns", ipv4),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionDestroyBeforeCreate),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					testAccCheckAllowlistRuleExists(resourceName),
+					testAccCheckAllowlistRuleIDGone("containment|" + ipv4),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("id"), knownvalue.StringExact("containment|dns|"+ipv4)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("ip_dns")),
+				},
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+// TestAccNetworkContainmentAllowlistRule_ruleRoundTrip proves the API returns
+// non-canonical rule values that validateRule accepts exactly as given.
+func TestAccNetworkContainmentAllowlistRule_ruleRoundTrip(t *testing.T) {
+	tests := []struct {
+		name string
+		rule string
+	}{
+		{"cidr with host bits", randomTestIPv4(t) + "/24"},
+		{"uncompressed uppercase ipv6", fmt.Sprintf("2001:DB8:%X:0:0:0:0:1", sdkacctest.RandIntRange(1, 0xffff))},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rName := acctest.RandomResourceName()
+			resourceName := "crowdstrike_network_containment_allowlist_rule.test"
+
+			resource.ParallelTest(t, resource.TestCase{
+				PreCheck:                 func() { acctest.PreCheck(t) },
+				ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+				CheckDestroy:             testAccCheckAllowlistRuleDestroy,
+				Steps: []resource.TestStep{
+					{
+						Config: testAccAllowlistRuleConfig_basic(rName, "ip_range", tt.rule),
+						ConfigStateChecks: []statecheck.StateCheck{
+							statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rule"), knownvalue.StringExact(tt.rule)),
+						},
+					},
+				},
+			})
+		})
+	}
+}
+
+func TestAccNetworkContainmentAllowlistRule_nameDrift(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	resourceName := "crowdstrike_network_containment_allowlist_rule.test"
+	ipv4 := randomTestIPv4(t)
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckAllowlistRuleDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccAllowlistRuleConfig_basic(rName, "ip_range", ipv4),
+			},
+			{
+				PreConfig: func() { renameAllowlistRule(t, ipv4, rName+"-drifted") },
+				Config:    testAccAllowlistRuleConfig_basic(rName, "ip_range", ipv4),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
+				},
 			},
 		},
 	})
@@ -96,8 +226,8 @@ func TestAccNetworkContainmentAllowlistRule_basic(t *testing.T) {
 // types together, since an fqdn rule cannot exist without an ip_dns rule.
 func TestAccNetworkContainmentAllowlistRule_fqdn(t *testing.T) {
 	rName := acctest.RandomResourceName()
-	dnsName := allowlistRuleResourceType + ".dns"
-	fqdnName := allowlistRuleResourceType + ".test"
+	dnsName := "crowdstrike_network_containment_allowlist_rule.dns"
+	fqdnName := "crowdstrike_network_containment_allowlist_rule.test"
 	dnsServer := randomTestIPv4(t)
 	// Mixed case proves the API stores the domain exactly as given.
 	domain := rName + ".Example.COM"
@@ -131,8 +261,27 @@ func TestAccNetworkContainmentAllowlistRule_fqdn(t *testing.T) {
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
+		},
+	})
+}
+
+func TestAccNetworkContainmentAllowlistRule_replaceAllowSubdomains(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	dnsName := "crowdstrike_network_containment_allowlist_rule.dns"
+	fqdnName := "crowdstrike_network_containment_allowlist_rule.test"
+	dnsServer := randomTestIPv4(t)
+	domain := rName + ".example.com"
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckAllowlistRuleDestroy,
+		Steps: []resource.TestStep{
 			{
-				// allow_subdomains cannot change after creation.
+				Config: testAccAllowlistRuleConfig_fqdn(rName, dnsServer, domain, true),
+			},
+			{
+				// The ID does not include allow_subdomains, so the replacement keeps it.
 				Config: testAccAllowlistRuleConfig_fqdn(rName, dnsServer, domain, false),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
@@ -145,13 +294,18 @@ func TestAccNetworkContainmentAllowlistRule_fqdn(t *testing.T) {
 					statecheck.ExpectKnownValue(fqdnName, tfjsonpath.New("allow_subdomains"), knownvalue.Bool(false)),
 				},
 			},
+			{
+				ResourceName:      fqdnName,
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
 		},
 	})
 }
 
 func TestAccNetworkContainmentAllowlistRule_disappears(t *testing.T) {
 	rName := acctest.RandomResourceName()
-	resourceName := allowlistRuleResourceType + ".test"
+	resourceName := "crowdstrike_network_containment_allowlist_rule.test"
 	ipv4 := randomTestIPv4(t)
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -163,6 +317,11 @@ func TestAccNetworkContainmentAllowlistRule_disappears(t *testing.T) {
 				Config: testAccAllowlistRuleConfig_basic(rName, "ip_range", ipv4),
 				ConfigStateChecks: []statecheck.StateCheck{
 					testAccCheckAllowlistRuleDisappears(resourceName),
+				},
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PostApplyPostRefresh: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionCreate),
+					},
 				},
 				ExpectNonEmptyPlan: true,
 			},
@@ -207,6 +366,13 @@ resource "crowdstrike_network_containment_allowlist_rule" "test" {
 }
 `, rName),
 				ExpectError: regexp.MustCompile(`allow_subdomains can only be true for "fqdn" rules`),
+			},
+			{
+				Config:        testAccAllowlistRuleConfig_basic(rName, "ip_range", "192.0.2.1"),
+				ResourceName:  "crowdstrike_network_containment_allowlist_rule.test",
+				ImportState:   true,
+				ImportStateId: "192.0.2.1",
+				ExpectError:   regexp.MustCompile(`Invalid import ID`),
 			},
 		},
 	})
@@ -276,28 +442,21 @@ func randomTestIPv6CIDR() string {
 	return fmt.Sprintf("2001:db8:%x:%x::/64", sdkacctest.RandIntRange(1, 0xffff), sdkacctest.RandIntRange(1, 0xffff))
 }
 
-func stateResourceAtAddress(state *tfjson.State, address string) (*tfjson.StateResource, error) {
-	if state == nil || state.Values == nil || state.Values.RootModule == nil {
-		return nil, fmt.Errorf("no state available")
-	}
-	for _, r := range state.Values.RootModule.Resources {
-		if r.Address == address {
-			return r, nil
-		}
-	}
-	return nil, fmt.Errorf("not found in state: %s", address)
-}
-
 func stateResourceID(state *tfjson.State, address string) (string, error) {
-	rs, err := stateResourceAtAddress(state, address)
-	if err != nil {
-		return "", err
+	if state == nil || state.Values == nil || state.Values.RootModule == nil {
+		return "", fmt.Errorf("no state available")
 	}
-	id, ok := rs.AttributeValues["id"].(string)
-	if !ok || id == "" {
-		return "", fmt.Errorf("%s: no id in state", address)
+	for _, rs := range state.Values.RootModule.Resources {
+		if rs.Address != address {
+			continue
+		}
+		id, ok := rs.AttributeValues["id"].(string)
+		if !ok || id == "" {
+			return "", fmt.Errorf("%s: no id in state", address)
+		}
+		return id, nil
 	}
-	return id, nil
+	return "", fmt.Errorf("not found in state: %s", address)
 }
 
 // allowlistRuleExists reports whether the API still holds the rule. The API
@@ -361,9 +520,49 @@ func testAccCheckAllowlistRuleDisappears(resourceAddress string) statecheck.Stat
 	return allowlistRuleDisappearsCheck{resourceAddress: resourceAddress}
 }
 
+type allowlistRuleIDGoneCheck struct {
+	id string
+}
+
+func (c allowlistRuleIDGoneCheck) CheckState(ctx context.Context, _ statecheck.CheckStateRequest, resp *statecheck.CheckStateResponse) {
+	exists, err := allowlistRuleExists(ctx, c.id)
+	if err != nil {
+		resp.Error = fmt.Errorf("checking allowlist rule %s: %w", c.id, err)
+		return
+	}
+	if exists {
+		resp.Error = fmt.Errorf("replaced allowlist rule %s still exists", c.id)
+	}
+}
+
+// testAccCheckAllowlistRuleIDGone verifies a replaced rule was removed from the API.
+func testAccCheckAllowlistRuleIDGone(id string) statecheck.StateCheck {
+	return allowlistRuleIDGoneCheck{id: id}
+}
+
+// renameAllowlistRule changes the label of an ip_range rule out of band.
+func renameAllowlistRule(t *testing.T, rule, label string) {
+	t.Helper()
+
+	params := containment_allowlist_rules.NewUpdateContainmentAllowlistRulesParamsWithContext(context.Background()).
+		WithBody(&models.IpwhitelistAllowlistRequest{
+			Rules: []*models.IpwhitelistinteractorAllowlistRule{{
+				ID:      "containment|" + rule,
+				Context: utils.Addr("containment"),
+				Type:    utils.Addr("ip_range"),
+				Rule:    &rule,
+				Label:   &label,
+			}},
+		})
+
+	if _, err := testconfig.GetTestClient().ContainmentAllowlistRules.UpdateContainmentAllowlistRules(params); err != nil {
+		t.Fatalf("renaming allowlist rule out of band: %s", err)
+	}
+}
+
 func testAccCheckAllowlistRuleDestroy(s *terraform.State) error {
 	for _, rs := range s.RootModule().Resources {
-		if rs.Type != allowlistRuleResourceType {
+		if rs.Type != "crowdstrike_network_containment_allowlist_rule" {
 			continue
 		}
 
