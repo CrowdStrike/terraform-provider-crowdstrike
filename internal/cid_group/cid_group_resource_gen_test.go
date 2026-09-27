@@ -28,7 +28,9 @@ func TestAccCIDGroupResource_disappears(t *testing.T) {
 				ConfigVariables: config.Variables{
 					"name": config.StringVariable(rName),
 				},
-				Check:              acctest.CheckResourceDisappears(cidgroup.NewCIDGroupResource, resourceName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					acctest.ResourceDisappears(cidgroup.NewCIDGroupResource, resourceName),
+				},
 				ExpectNonEmptyPlan: true,
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PostApplyPostRefresh: []plancheck.PlanCheck{

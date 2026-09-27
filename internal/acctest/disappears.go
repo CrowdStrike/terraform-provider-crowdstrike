@@ -2,99 +2,86 @@ package acctest
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
-	"math/big"
-	"os"
-	"strconv"
 
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
-	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
-	"github.com/hashicorp/terraform-plugin-go/tftypes"
-	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 )
 
-// CheckResourceDisappears deletes a resource outside of Terraform by calling
-// its own Delete with the shared test client, so the next refresh sees it as
-// gone. Delete gets a state holding the resource's top-level primitive
-// attributes, such as its ID and enabled flag, copied from Terraform state;
-// nested attributes and collections are null.
-func CheckResourceDisappears(newResource func() fwresource.Resource, resourceName string) resource.TestCheckFunc {
-	return func(s *terraform.State) error {
-		rs, ok := s.RootModule().Resources[resourceName]
-		if !ok {
-			return fmt.Errorf("resource not found in state: %s", resourceName)
-		}
-		client := testconfig.GetTestClient()
-		if client == nil {
-			return errors.New("test client is not initialized; the test must call acctest.PreCheck")
-		}
-
-		ctx := context.Background()
-		res := newResource()
-		if rc, ok := res.(fwresource.ResourceWithConfigure); ok {
-			var resp fwresource.ConfigureResponse
-			rc.Configure(ctx, fwresource.ConfigureRequest{ProviderData: config.ProviderConfig{
-				ClientId: os.Getenv("FALCON_CLIENT_ID"),
-				Client:   client,
-			}}, &resp)
-			if err := diagErr("configure", resp.Diagnostics); err != nil {
-				return err
-			}
-		}
-
-		var sr fwresource.SchemaResponse
-		res.Schema(ctx, fwresource.SchemaRequest{}, &sr)
-		state := tfsdk.State{Schema: sr.Schema, Raw: tftypes.NewValue(sr.Schema.Type().TerraformType(ctx), nil)}
-		for name, attr := range sr.Schema.Attributes {
-			// Only top-level primitives have a flatmap key equal to their name.
-			raw, ok := rs.Primary.Attributes[name]
-			if !ok {
-				continue
-			}
-			v, err := typedValue(attr.GetType().TerraformType(ctx), raw)
-			if err == nil {
-				err = diagErr("set", state.SetAttribute(ctx, path.Root(name), v))
-			}
-			if err != nil {
-				log.Printf("[WARN] CheckResourceDisappears: %s = %q not copied to Delete state: %s", name, raw, err)
-			}
-		}
-
-		var resp fwresource.DeleteResponse
-		res.Delete(ctx, fwresource.DeleteRequest{State: state}, &resp)
-		return diagErr("delete", resp.Diagnostics)
-	}
+// ResourceDisappears returns a state check that deletes a resource outside of
+// Terraform by calling its own Delete with the shared configured provider
+// data, so the next refresh sees it as gone. Delete gets the resource's full
+// state as Terraform recorded it after apply.
+func ResourceDisappears(newResource func() fwresource.Resource, resourceName string) statecheck.StateCheck {
+	return resourceDisappears{newResource: newResource, resourceName: resourceName}
 }
 
-// typedValue converts a flatmap string into the Go value SetAttribute
-// accepts for a primitive attribute type.
-func typedValue(t tftypes.Type, raw string) (any, error) {
-	switch {
-	case t.Is(tftypes.String):
-		return raw, nil
-	case t.Is(tftypes.Bool):
-		return strconv.ParseBool(raw)
-	case t.Is(tftypes.Number):
-		f, _, err := big.ParseFloat(raw, 10, 512, big.ToNearestEven)
-		return f, err
+type resourceDisappears struct {
+	newResource  func() fwresource.Resource
+	resourceName string
+}
+
+func (d resourceDisappears) CheckState(ctx context.Context, req statecheck.CheckStateRequest, resp *statecheck.CheckStateResponse) {
+	resp.Error = d.deleteResource(ctx, req)
+}
+
+func (d resourceDisappears) deleteResource(ctx context.Context, req statecheck.CheckStateRequest) error {
+	if req.State == nil || req.State.Values == nil || req.State.Values.RootModule == nil {
+		return errors.New("state is empty")
 	}
-	return nil, fmt.Errorf("type %s is not a primitive", t)
+	var attrs map[string]any
+	for _, r := range req.State.Values.RootModule.Resources {
+		if r.Address == d.resourceName {
+			attrs = r.AttributeValues
+			break
+		}
+	}
+	if attrs == nil {
+		return fmt.Errorf("resource not found in state: %s", d.resourceName)
+	}
+
+	providerData, err := configuredProvider()
+	if err != nil {
+		return fmt.Errorf("configure provider: %w", err)
+	}
+
+	res := d.newResource()
+	if rc, ok := res.(fwresource.ResourceWithConfigure); ok {
+		var resp fwresource.ConfigureResponse
+		rc.Configure(ctx, fwresource.ConfigureRequest{ProviderData: providerData}, &resp)
+		if err := diagErr("configure", resp.Diagnostics); err != nil {
+			return err
+		}
+	}
+
+	var sr fwresource.SchemaResponse
+	res.Schema(ctx, fwresource.SchemaRequest{}, &sr)
+	b, err := json.Marshal(attrs)
+	if err != nil {
+		return fmt.Errorf("marshal state: %w", err)
+	}
+	raw, err := tfprotov6.RawState{JSON: b}.Unmarshal(sr.Schema.Type().TerraformType(ctx))
+	if err != nil {
+		return fmt.Errorf("decode state: %w", err)
+	}
+
+	var resp fwresource.DeleteResponse
+	res.Delete(ctx, fwresource.DeleteRequest{State: tfsdk.State{Schema: sr.Schema, Raw: raw}}, &resp)
+	return diagErr("delete", resp.Diagnostics)
 }
 
 func diagErr(op string, diags diag.Diagnostics) error {
+	if !diags.HasError() {
+		return nil
+	}
 	var errs []error
 	for _, d := range diags.Errors() {
 		errs = append(errs, fmt.Errorf("%s: %s", d.Summary(), d.Detail()))
 	}
-	if len(errs) > 0 {
-		return fmt.Errorf("%s: %w", op, errors.Join(errs...))
-	}
-	return nil
+	return fmt.Errorf("%s: %w", op, errors.Join(errs...))
 }

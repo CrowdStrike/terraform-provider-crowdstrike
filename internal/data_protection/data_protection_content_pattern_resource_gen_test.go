@@ -30,7 +30,9 @@ func TestAccDataProtectionContentPatternResource_disappears(t *testing.T) {
 					"name":                config.StringVariable(rName),
 					"regex":               config.StringVariable("\\b\\d{3}-\\d{2}-\\d{4}\\b"),
 				},
-				Check:              acctest.CheckResourceDisappears(dataprotection.NewDataProtectionContentPatternResource, resourceName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					acctest.ResourceDisappears(dataprotection.NewDataProtectionContentPatternResource, resourceName),
+				},
 				ExpectNonEmptyPlan: true,
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PostApplyPostRefresh: []plancheck.PlanCheck{

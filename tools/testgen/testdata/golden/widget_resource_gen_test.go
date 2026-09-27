@@ -63,7 +63,9 @@ func TestAccWidgetResource_disappears(t *testing.T) {
 					"name":     config.StringVariable(rName),
 					"platform": config.StringVariable("Windows"),
 				},
-				Check:              acctest.CheckResourceDisappears(widget.NewWidgetResource, resourceName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					acctest.ResourceDisappears(widget.NewWidgetResource, resourceName),
+				},
 				ExpectNonEmptyPlan: true,
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PostApplyPostRefresh: []plancheck.PlanCheck{

@@ -64,7 +64,9 @@ func TestAccDataProtectionPolicyResource_disappears(t *testing.T) {
 					"name":          config.StringVariable(rName),
 					"platform_name": config.StringVariable("Windows"),
 				},
-				Check:              acctest.CheckResourceDisappears(dataprotection.NewDataProtectionPolicyResource, resourceName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					acctest.ResourceDisappears(dataprotection.NewDataProtectionPolicyResource, resourceName),
+				},
 				ExpectNonEmptyPlan: true,
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PostApplyPostRefresh: []plancheck.PlanCheck{

@@ -129,7 +129,10 @@ func renderGo(r *resourceInfo, cases []testCase) ([]byte, error) {
 			if s.disappears {
 				used["plancheck"] = true
 				used["self"] = true
-				fmt.Fprintf(&body, "\t\t\t\tCheck:              acctest.CheckResourceDisappears(%s.%s, resourceName),\n", r.pkgName, r.constructor)
+				used["statecheck"] = true
+				body.WriteString("\t\t\t\tConfigStateChecks: []statecheck.StateCheck{\n")
+				fmt.Fprintf(&body, "\t\t\t\t\tacctest.ResourceDisappears(%s.%s, resourceName),\n", r.pkgName, r.constructor)
+				body.WriteString("\t\t\t\t},\n")
 				body.WriteString("\t\t\t\tExpectNonEmptyPlan: true,\n")
 				body.WriteString("\t\t\t\tConfigPlanChecks: resource.ConfigPlanChecks{\n")
 				body.WriteString("\t\t\t\t\tPostApplyPostRefresh: []plancheck.PlanCheck{\n")

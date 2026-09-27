@@ -63,7 +63,9 @@ func TestAccResponsePolicyResource_disappears(t *testing.T) {
 					"name":          config.StringVariable(rName),
 					"platform_name": config.StringVariable("Windows"),
 				},
-				Check:              acctest.CheckResourceDisappears(responsepolicy.NewResponsePolicyResource, resourceName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					acctest.ResourceDisappears(responsepolicy.NewResponsePolicyResource, resourceName),
+				},
 				ExpectNonEmptyPlan: true,
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PostApplyPostRefresh: []plancheck.PlanCheck{

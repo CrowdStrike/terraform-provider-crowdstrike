@@ -8,13 +8,17 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/provider"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/sweep"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
+	fwprovider "github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 )
 
@@ -121,4 +125,38 @@ func PreCheck(t *testing.T, optionalEnvVars ...OptionalEnvVar) {
 	if err := testconfig.InitializeTestClient(ctx, cloud, clientId, clientSecret); err != nil {
 		t.Fatalf("failed to configure Falcon client: %s", err)
 	}
+
+	if _, err := configuredProvider(); err != nil {
+		t.Fatalf("failed to configure provider: %s", err)
+	}
+}
+
+// configuredProvider returns the provider data from a single Configure run
+// shared by every test in the binary.
+var configuredProvider = sync.OnceValues(func() (any, error) {
+	return configureProvider(context.Background())
+})
+
+// configureProvider runs the real provider Configure with an empty
+// provider "crowdstrike" {} block, so it reads the same env vars and reuses
+// the cached test client.
+func configureProvider(ctx context.Context) (any, error) {
+	p := provider.New("test")()
+	var sr fwprovider.SchemaResponse
+	p.Schema(ctx, fwprovider.SchemaRequest{}, &sr)
+
+	attrs := make(map[string]tftypes.Value, len(sr.Schema.Attributes))
+	for name, attr := range sr.Schema.Attributes {
+		attrs[name] = tftypes.NewValue(attr.GetType().TerraformType(ctx), nil)
+	}
+	raw := tftypes.NewValue(sr.Schema.Type().TerraformType(ctx), attrs)
+
+	var resp fwprovider.ConfigureResponse
+	p.Configure(ctx, fwprovider.ConfigureRequest{
+		Config: tfsdk.Config{Schema: sr.Schema, Raw: raw},
+	}, &resp)
+	if err := diagErr("configure provider", resp.Diagnostics); err != nil {
+		return nil, err
+	}
+	return resp.ResourceData, nil
 }

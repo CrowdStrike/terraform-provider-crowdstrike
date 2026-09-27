@@ -69,7 +69,9 @@ func TestAccHostGroupResource_disappears(t *testing.T) {
 					"name":            config.StringVariable(rName),
 					"type":            config.StringVariable("dynamic"),
 				},
-				Check:              acctest.CheckResourceDisappears(hostgroups.NewHostGroupResource, resourceName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					acctest.ResourceDisappears(hostgroups.NewHostGroupResource, resourceName),
+				},
 				ExpectNonEmptyPlan: true,
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PostApplyPostRefresh: []plancheck.PlanCheck{

@@ -75,7 +75,9 @@ func TestAccContentPolicyResource_disappears(t *testing.T) {
 					"system_critical":          config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"vulnerability_management": config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 				},
-				Check:              acctest.CheckResourceDisappears(contentupdatepolicy.NewContentPolicyResource, resourceName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					acctest.ResourceDisappears(contentupdatepolicy.NewContentPolicyResource, resourceName),
+				},
 				ExpectNonEmptyPlan: true,
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PostApplyPostRefresh: []plancheck.PlanCheck{
