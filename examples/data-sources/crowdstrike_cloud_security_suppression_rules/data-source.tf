@@ -24,3 +24,8 @@ data "crowdstrike_cloud_security_suppression_rules" "combined" {
   reason = "compensating-control"
   name   = "Security Exception*"
 }
+
+# Query Cloud Risk suppressions by API subdomain
+data "crowdstrike_cloud_security_suppression_rules" "cloud_risk" {
+  type = "CloudRisk"
+}
