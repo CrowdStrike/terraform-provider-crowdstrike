@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -51,6 +52,7 @@ func fixtureSchema() map[string]schema.Attribute {
 			Optional:   true,
 			Validators: []validator.Float64{float64validator.Between(0, 1), float64validator.NoneOf(0)},
 		},
+		"retries": schema.Int64Attribute{Optional: true},
 		"tags": schema.SetAttribute{
 			Optional:    true,
 			ElementType: types.StringType,
@@ -111,8 +113,8 @@ func (acceptAll) ValidateResourceConfig(context.Context, *tfprotov6.ValidateReso
 
 var fixtureSpec = testgen.Resource{
 	Attributes: map[string]testgen.Attribute{
-		"tags":  {Values: []any{"a", "b", "c"}},
-		"steps": {Values: []any{"first", "second", "third"}},
+		"retries": {Values: []any{1, 2}},
+		"steps":   {Values: []any{"first", "second", "third"}},
 	},
 	Skip:         map[string]string{"labels": "testgen: maps are not supported yet"},
 	ImportIgnore: []string{"last_updated"},
@@ -151,8 +153,21 @@ func TestGenerateGolden(t *testing.T) {
 func TestGenerateReportsMissingValues(t *testing.T) {
 	r := fixtureResource(t, testgen.Resource{})
 	_, err := generateResource(context.Background(), acceptAll{}, r)
-	if err == nil || !strings.Contains(err.Error(), "no test values for [steps tags]") {
-		t.Fatalf("want missing-values error for steps and tags, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "no test values for [retries]") {
+		t.Fatalf("want missing-values error for retries, got %v", err)
+	}
+}
+
+func TestSweepAttribute(t *testing.T) {
+	r := fixtureResource(t, testgen.Resource{SweepAttribute: "description"})
+	p := newPools(r)
+	desc, err := p.pool(r.attrs["description"])
+	if err != nil || len(desc) == 0 || !desc[0].rName {
+		t.Fatalf("want description to get the random name, got %v %v", desc, err)
+	}
+	name, err := p.pool(r.attrs["name"])
+	if err != nil || len(name) == 0 || name[0].rName || name[0].str != "testgen name 1" {
+		t.Fatalf("want name to get a placeholder, got %v %v", name, err)
 	}
 }
 
@@ -169,6 +184,58 @@ func TestGenerateRejectsUnknownSpecEntries(t *testing.T) {
 			r := fixtureResource(t, spec)
 			if _, err := generateResource(context.Background(), acceptAll{}, r); err == nil || !strings.Contains(err.Error(), "nope") {
 				t.Fatalf("want error naming %q, got %v", "nope", err)
+			}
+		})
+	}
+}
+
+func TestRequiresResolvesValues(t *testing.T) {
+	spec := fixtureSpec
+	spec.Attributes = mergeAttrs(fixtureSpec.Attributes, map[string]testgen.Attribute{
+		"description": {Requires: []string{"limit", "steps", "tags"}},
+	})
+	spec.Base = map[string]any{"limit": 7}
+	cases, err := buildCases(fixtureResource(t, spec))
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(cases, func(c testCase) bool { return c.suffix == "description" })
+	if i < 0 {
+		t.Fatal("no description case")
+	}
+	for n, s := range cases[i].steps {
+		if s.importState {
+			continue
+		}
+		if got := s.values["limit"]; got.prim != int64(7) {
+			t.Errorf("step %d: limit = %v, want the Base value 7", n+1, got.prim)
+		}
+		if got := s.values["steps"]; len(got.elems) != 1 || got.elems[0].str != "first" {
+			t.Errorf("step %d: steps = %v, want the first spec value", n+1, got.elems)
+		}
+		if got := s.values["tags"]; len(got.elems) != 1 || got.elems[0].str != "testgen tags 1" {
+			t.Errorf("step %d: tags = %v, want the first placeholder", n+1, got.elems)
+		}
+	}
+}
+
+func TestRequiresRejectsInvalidEntries(t *testing.T) {
+	tests := map[string]struct {
+		attr testgen.Attribute
+		want string
+	}{
+		"self":         {testgen.Attribute{Requires: []string{"description"}}, "names the attribute itself"},
+		"self set":     {testgen.Attribute{Set: map[string]any{"description": "x"}}, "names the attribute itself"},
+		"unknown":      {testgen.Attribute{Requires: []string{"nope"}}, `unknown or unsettable attribute "nope"`},
+		"computed":     {testgen.Attribute{Requires: []string{"id"}}, `unknown or unsettable attribute "id"`},
+		"requires+set": {testgen.Attribute{Requires: []string{"limit"}, Set: map[string]any{"limit": 2}}, `"limit" in both Requires and Set`},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			spec := fixtureSpec
+			spec.Attributes = mergeAttrs(fixtureSpec.Attributes, map[string]testgen.Attribute{"description": tt.attr})
+			if _, err := buildCases(fixtureResource(t, spec)); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("want error containing %q, got %v", tt.want, err)
 			}
 		})
 	}

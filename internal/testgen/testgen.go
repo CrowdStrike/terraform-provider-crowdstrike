@@ -40,6 +40,10 @@ type Resource struct {
 	// printed by the skipped test.
 	Skip map[string]string
 
+	// SweepAttribute is the string attribute set to the random, prefixed test
+	// name that sweepers match on. Defaults to "name".
+	SweepAttribute string
+
 	// ImportIgnore lists attributes the import step must not verify because
 	// the provider sets them outside Read, such as last_updated.
 	ImportIgnore []string
@@ -64,12 +68,18 @@ type Attribute struct {
 	// Collections need at least two values; three enable every lifecycle step.
 	Values []any
 
-	// Requires sets other top-level attributes in this attribute's own test,
-	// for attributes that are only valid alongside others (for example a
-	// threshold that requires its feature to be enabled). Keys are attribute
-	// names; values use the same forms as Values entries. A nil value unsets
-	// an attribute that Base would otherwise set.
-	Requires map[string]any
+	// Requires names other top-level attributes that must be set in this
+	// attribute's own test, for attributes that are only valid alongside
+	// others. Each one keeps its Base value if it has one, and otherwise takes
+	// its first value from its Values or from the values the generator derives.
+	Requires []string
+
+	// Set assigns specific values to other top-level attributes in this
+	// attribute's own test (for example a threshold that requires its feature
+	// to be enabled). Keys are attribute names; values use the same forms as
+	// Values entries. A nil value unsets an attribute that Base would
+	// otherwise set.
+	Set map[string]any
 }
 
 var registry = map[string]Resource{}

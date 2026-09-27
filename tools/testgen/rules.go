@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 )
 
@@ -48,9 +49,9 @@ type step struct {
 
 // buildCases returns every test case for a resource.
 func buildCases(r *resourceInfo) ([]testCase, error) {
-	p := newPools(r.spec.Attributes)
+	p := newPools(r)
 
-	base, err := requiredValues(r, p, "")
+	base, err := requiredValues(r, p)
 	if err != nil {
 		return nil, err
 	}
@@ -68,8 +69,8 @@ func buildCases(r *resourceInfo) ([]testCase, error) {
 		known[sub.suffix] = true
 		// Skipped cases never resolve values, so a Skip entry is enough for
 		// attributes the generator cannot handle yet.
-		if _, ok := r.spec.Skip[sub.suffix]; ok {
-			cases = append(cases, testCase{name: r.testPrefix + "_" + sub.suffix, suffix: sub.suffix})
+		if reason, ok := r.spec.Skip[sub.suffix]; ok {
+			cases = append(cases, testCase{name: r.testPrefix + "_" + sub.suffix, suffix: sub.suffix, skip: reason})
 			continue
 		}
 		c, err := attributeCase(r, p, base, sub)
@@ -83,8 +84,9 @@ func buildCases(r *resourceInfo) ([]testCase, error) {
 		if !known[suffix] {
 			return nil, fmt.Errorf("%s: Skip names unknown test suffix %q", r.typeName, suffix)
 		}
+		// basic and disappears are built before Skip is consulted.
 		for i := range cases {
-			if cases[i].suffix == suffix {
+			if cases[i].suffix == suffix && cases[i].skip == "" {
 				cases[i] = testCase{name: cases[i].name, suffix: suffix, skip: reason}
 			}
 		}
@@ -96,40 +98,39 @@ func buildCases(r *resourceInfo) ([]testCase, error) {
 	return cases, nil
 }
 
-func topLevel(attrs map[string]*attribute) []*attribute {
-	out := make([]*attribute, 0, len(attrs))
-	for _, a := range attrs {
-		out = append(out, a)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].name < out[j].name })
-	return out
-}
-
-// requiredValues picks the first value of every required attribute except
-// the one named by exclude.
-func requiredValues(r *resourceInfo, p *pools, exclude string) (map[string]value, error) {
+// requiredValues picks the first value of every required attribute.
+func requiredValues(r *resourceInfo, p *pools) (map[string]value, error) {
 	out := map[string]value{}
-	for _, a := range topLevel(r.attrs) {
-		if !a.required || a.name == exclude {
+	for _, a := range sortedAttrs(r.attrs) {
+		if !a.required {
 			continue
 		}
 		if a.kind == kindUnsupported {
 			return nil, fmt.Errorf("%s: required attribute %s: %s", r.typeName, a.name, a.unsupported)
 		}
-		pool, err := p.pool(a)
+		v, ok, err := firstValue(p, a)
 		if err != nil {
 			return nil, err
 		}
-		if len(pool) == 0 {
-			continue
-		}
-		if a.kind == kindList || a.kind == kindSet {
-			out[a.name] = collectionOf(a, pool)
-		} else {
-			out[a.name] = pool[0]
+		if ok {
+			out[a.name] = v
 		}
 	}
 	return out, nil
+}
+
+// firstValue returns the first value from an attribute's pool, as a
+// collection for lists and sets. ok is false when the pool is empty, which
+// the pools record as missing.
+func firstValue(p *pools, a *attribute) (value, bool, error) {
+	pool, err := p.pool(a)
+	if err != nil || len(pool) == 0 {
+		return value{}, false, err
+	}
+	if a.kind == kindList || a.kind == kindSet {
+		return collectionOf(a, pool), true, nil
+	}
+	return pool[0], true, nil
 }
 
 // basicCase sets only required attributes, checks every computed-only
@@ -137,14 +138,14 @@ func requiredValues(r *resourceInfo, p *pools, exclude string) (map[string]value
 func basicCase(r *resourceInfo, base map[string]value) testCase {
 	c := testCase{name: r.testPrefix + "_basic", suffix: "basic", vars: varsFor(r, base)}
 	first := step{values: base}
-	for _, a := range topLevel(r.attrs) {
+	for _, a := range sortedAttrs(r.attrs) {
 		if a.computedOnly() {
 			first.checks = append(first.checks, check{attr: a, kind: checkNotNull})
 		}
 	}
 	c.steps = append(c.steps, first)
 	if r.importable {
-		c.steps = append(c.steps, step{values: base, importState: true})
+		c.steps = append(c.steps, step{importState: true})
 	}
 	return c
 }
@@ -194,7 +195,7 @@ func (s subject) wrap(v *value) *value {
 // subjects returns every attribute that gets its own test, in name order.
 func subjects(r *resourceInfo, p *pools, base map[string]value) []subject {
 	var out []subject
-	for _, a := range topLevel(r.attrs) {
+	for _, a := range sortedAttrs(r.attrs) {
 		if !a.settable() || a.deprecated {
 			continue
 		}
@@ -260,11 +261,11 @@ func attributeCase(r *resourceInfo, p *pools, base map[string]value, sub subject
 			others[k] = v
 		}
 	}
-	requires := r.spec.Attributes[a.dotted()].Requires
-	if _, ok := requires[sub.top.name]; ok {
-		return c, fmt.Errorf("%s: %s Requires names the attribute itself", r.typeName, a.dotted())
+	spec := r.spec.Attributes[a.dotted()]
+	if err := applyRequires(r, p, a, sub.top.name, others); err != nil {
+		return c, err
 	}
-	if err := applySpecValues(r, a.dotted()+" Requires", requires, others); err != nil {
+	if err := applySpecValues(r, a.dotted()+" Set", spec.Set, others); err != nil {
 		return c, err
 	}
 	with := func(v *value) map[string]value {
@@ -291,11 +292,7 @@ func attributeCase(r *resourceInfo, p *pools, base map[string]value, sub subject
 		return change(sub.top, *pt, *nt)
 	}
 
-	allVars := map[string]value{sub.top.name: {}}
-	for k, v := range others {
-		allVars[k] = v
-	}
-	c.vars = varsFor(r, allVars)
+	c.vars = varsFor(r, with(&value{}))
 
 	var prev *value
 	for i := range seq {
@@ -338,10 +335,39 @@ func attributeCase(r *resourceInfo, p *pools, base map[string]value, sub subject
 	}
 
 	if r.importable {
-		last := c.steps[len(c.steps)-1]
-		c.steps = append(c.steps, step{values: last.values, importState: true})
+		c.steps = append(c.steps, step{importState: true})
 	}
 	return c, nil
+}
+
+// applyRequires adds the first derived value of each attribute a's spec
+// Requires to others, unless others already sets it. self is the top-level
+// attribute under test.
+func applyRequires(r *resourceInfo, p *pools, a *attribute, self string, others map[string]value) error {
+	spec := r.spec.Attributes[a.dotted()]
+	if _, ok := spec.Set[self]; ok || slices.Contains(spec.Requires, self) {
+		return fmt.Errorf("%s: %s Requires or Set names the attribute itself", r.typeName, a.dotted())
+	}
+	for _, name := range spec.Requires {
+		ra, ok := r.attrs[name]
+		if !ok || !ra.settable() {
+			return fmt.Errorf("%s: %s Requires names unknown or unsettable attribute %q", r.typeName, a.dotted(), name)
+		}
+		if _, ok := spec.Set[name]; ok {
+			return fmt.Errorf("%s: %s names %q in both Requires and Set", r.typeName, a.dotted(), name)
+		}
+		if _, ok := others[name]; ok {
+			continue
+		}
+		v, ok, err := firstValue(p, ra)
+		if err != nil {
+			return err
+		}
+		if ok {
+			others[name] = v
+		}
+	}
+	return nil
 }
 
 // applySpecValues converts spec-supplied attribute values into into. A nil

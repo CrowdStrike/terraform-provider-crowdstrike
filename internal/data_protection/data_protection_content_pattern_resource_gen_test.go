@@ -28,7 +28,7 @@ func TestAccDataProtectionContentPatternResource_disappears(t *testing.T) {
 				ConfigVariables: config.Variables{
 					"min_match_threshold": config.IntegerVariable(1),
 					"name":                config.StringVariable(rName),
-					"regex":               config.StringVariable("\\b\\d{3}-\\d{2}-\\d{4}\\b"),
+					"regex":               config.StringVariable("testgen regex 1"),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
 					acctest.ResourceDisappears(dataprotection.NewDataProtectionContentPatternResource, resourceName),
@@ -55,25 +55,25 @@ func TestAccDataProtectionContentPatternResource_description(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_content_pattern"),
 				ConfigVariables: config.Variables{
-					"description":         config.StringVariable(rName),
+					"description":         config.StringVariable("testgen description 1"),
 					"min_match_threshold": config.IntegerVariable(1),
 					"name":                config.StringVariable(rName),
-					"regex":               config.StringVariable("\\b\\d{3}-\\d{2}-\\d{4}\\b"),
+					"regex":               config.StringVariable("testgen regex 1"),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("testgen description 1")),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_content_pattern"),
 				ConfigVariables: config.Variables{
-					"description":         config.StringVariable(rName + "-updated"),
+					"description":         config.StringVariable("testgen description 2"),
 					"min_match_threshold": config.IntegerVariable(1),
 					"name":                config.StringVariable(rName),
-					"regex":               config.StringVariable("\\b\\d{3}-\\d{2}-\\d{4}\\b"),
+					"regex":               config.StringVariable("testgen regex 1"),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(rName+"-updated")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("testgen description 2")),
 				},
 			},
 			{
@@ -81,7 +81,7 @@ func TestAccDataProtectionContentPatternResource_description(t *testing.T) {
 				ConfigVariables: config.Variables{
 					"min_match_threshold": config.IntegerVariable(1),
 					"name":                config.StringVariable(rName),
-					"regex":               config.StringVariable("\\b\\d{3}-\\d{2}-\\d{4}\\b"),
+					"regex":               config.StringVariable("testgen regex 1"),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.Null()),
@@ -92,7 +92,7 @@ func TestAccDataProtectionContentPatternResource_description(t *testing.T) {
 				ConfigVariables: config.Variables{
 					"min_match_threshold": config.IntegerVariable(1),
 					"name":                config.StringVariable(rName),
-					"regex":               config.StringVariable("\\b\\d{3}-\\d{2}-\\d{4}\\b"),
+					"regex":               config.StringVariable("testgen regex 1"),
 				},
 				ResourceName:            resourceName,
 				ImportState:             true,
@@ -116,7 +116,7 @@ func TestAccDataProtectionContentPatternResource_minMatchThreshold(t *testing.T)
 				ConfigVariables: config.Variables{
 					"min_match_threshold": config.IntegerVariable(1),
 					"name":                config.StringVariable(rName),
-					"regex":               config.StringVariable("\\b\\d{3}-\\d{2}-\\d{4}\\b"),
+					"regex":               config.StringVariable("testgen regex 1"),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("min_match_threshold"), knownvalue.Int32Exact(1)),
@@ -127,7 +127,7 @@ func TestAccDataProtectionContentPatternResource_minMatchThreshold(t *testing.T)
 				ConfigVariables: config.Variables{
 					"min_match_threshold": config.IntegerVariable(2),
 					"name":                config.StringVariable(rName),
-					"regex":               config.StringVariable("\\b\\d{3}-\\d{2}-\\d{4}\\b"),
+					"regex":               config.StringVariable("testgen regex 1"),
 				},
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
@@ -143,7 +143,7 @@ func TestAccDataProtectionContentPatternResource_minMatchThreshold(t *testing.T)
 				ConfigVariables: config.Variables{
 					"min_match_threshold": config.IntegerVariable(2),
 					"name":                config.StringVariable(rName),
-					"regex":               config.StringVariable("\\b\\d{3}-\\d{2}-\\d{4}\\b"),
+					"regex":               config.StringVariable("testgen regex 1"),
 				},
 				ResourceName:            resourceName,
 				ImportState:             true,
@@ -167,7 +167,7 @@ func TestAccDataProtectionContentPatternResource_name(t *testing.T) {
 				ConfigVariables: config.Variables{
 					"min_match_threshold": config.IntegerVariable(1),
 					"name":                config.StringVariable(rName),
-					"regex":               config.StringVariable("\\b\\d{3}-\\d{2}-\\d{4}\\b"),
+					"regex":               config.StringVariable("testgen regex 1"),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rName)),
@@ -178,7 +178,7 @@ func TestAccDataProtectionContentPatternResource_name(t *testing.T) {
 				ConfigVariables: config.Variables{
 					"min_match_threshold": config.IntegerVariable(1),
 					"name":                config.StringVariable(rName + "-updated"),
-					"regex":               config.StringVariable("\\b\\d{3}-\\d{2}-\\d{4}\\b"),
+					"regex":               config.StringVariable("testgen regex 1"),
 				},
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
@@ -194,7 +194,7 @@ func TestAccDataProtectionContentPatternResource_name(t *testing.T) {
 				ConfigVariables: config.Variables{
 					"min_match_threshold": config.IntegerVariable(1),
 					"name":                config.StringVariable(rName + "-updated"),
-					"regex":               config.StringVariable("\\b\\d{3}-\\d{2}-\\d{4}\\b"),
+					"regex":               config.StringVariable("testgen regex 1"),
 				},
 				ResourceName:            resourceName,
 				ImportState:             true,
@@ -218,10 +218,10 @@ func TestAccDataProtectionContentPatternResource_regex(t *testing.T) {
 				ConfigVariables: config.Variables{
 					"min_match_threshold": config.IntegerVariable(1),
 					"name":                config.StringVariable(rName),
-					"regex":               config.StringVariable("\\b\\d{3}-\\d{2}-\\d{4}\\b"),
+					"regex":               config.StringVariable("testgen regex 1"),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("regex"), knownvalue.StringExact("\\b\\d{3}-\\d{2}-\\d{4}\\b")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("regex"), knownvalue.StringExact("testgen regex 1")),
 				},
 			},
 			{
@@ -229,7 +229,7 @@ func TestAccDataProtectionContentPatternResource_regex(t *testing.T) {
 				ConfigVariables: config.Variables{
 					"min_match_threshold": config.IntegerVariable(1),
 					"name":                config.StringVariable(rName),
-					"regex":               config.StringVariable("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b"),
+					"regex":               config.StringVariable("testgen regex 2"),
 				},
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
@@ -237,7 +237,7 @@ func TestAccDataProtectionContentPatternResource_regex(t *testing.T) {
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("regex"), knownvalue.StringExact("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("regex"), knownvalue.StringExact("testgen regex 2")),
 				},
 			},
 			{
@@ -245,7 +245,7 @@ func TestAccDataProtectionContentPatternResource_regex(t *testing.T) {
 				ConfigVariables: config.Variables{
 					"min_match_threshold": config.IntegerVariable(1),
 					"name":                config.StringVariable(rName),
-					"regex":               config.StringVariable("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b"),
+					"regex":               config.StringVariable("testgen regex 2"),
 				},
 				ResourceName:            resourceName,
 				ImportState:             true,

@@ -14,10 +14,7 @@ func init() {
 		},
 		Attributes: map[string]testgen.Attribute{
 			"assignment_rule": {Values: []any{"hostname:'tf-acc-test-a'", "hostname:'tf-acc-test-b'"}},
-			"hostnames": {
-				Values:   []any{"TF-ACC-HOST-1", "TF-ACC-HOST-2", "TF-ACC-HOST-3"},
-				Requires: map[string]any{"type": "static", "assignment_rule": nil},
-			},
+			"hostnames":       {Set: map[string]any{"type": "static", "assignment_rule": nil}},
 		},
 		ImportIgnore: []string{"last_updated"},
 		Skip: map[string]string{

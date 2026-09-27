@@ -88,18 +88,18 @@ func TestAccWidgetResource_description(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/widget"),
 				ConfigVariables: config.Variables{
-					"description": config.StringVariable(rName),
+					"description": config.StringVariable("testgen description 1"),
 					"name":        config.StringVariable(rName),
 					"platform":    config.StringVariable("Windows"),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("testgen description 1")),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/widget"),
 				ConfigVariables: config.Variables{
-					"description": config.StringVariable(rName + "-updated"),
+					"description": config.StringVariable("testgen description 2"),
 					"name":        config.StringVariable(rName),
 					"platform":    config.StringVariable("Windows"),
 				},
@@ -109,7 +109,7 @@ func TestAccWidgetResource_description(t *testing.T) {
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(rName+"-updated")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("testgen description 2")),
 				},
 			},
 			{
@@ -421,6 +421,71 @@ func TestAccWidgetResource_ratio(t *testing.T) {
 	})
 }
 
+func TestAccWidgetResource_retries(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	resourceName := "crowdstrike_widget.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				ConfigDirectory: config.StaticDirectory("testdata/widget"),
+				ConfigVariables: config.Variables{
+					"name":     config.StringVariable(rName),
+					"platform": config.StringVariable("Windows"),
+					"retries":  config.IntegerVariable(1),
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("retries"), knownvalue.Int64Exact(1)),
+				},
+			},
+			{
+				ConfigDirectory: config.StaticDirectory("testdata/widget"),
+				ConfigVariables: config.Variables{
+					"name":     config.StringVariable(rName),
+					"platform": config.StringVariable("Windows"),
+					"retries":  config.IntegerVariable(2),
+				},
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("retries"), knownvalue.Int64Exact(2)),
+				},
+			},
+			{
+				ConfigDirectory: config.StaticDirectory("testdata/widget"),
+				ConfigVariables: config.Variables{
+					"name":     config.StringVariable(rName),
+					"platform": config.StringVariable("Windows"),
+				},
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("retries"), knownvalue.Null()),
+				},
+			},
+			{
+				ConfigDirectory: config.StaticDirectory("testdata/widget"),
+				ConfigVariables: config.Variables{
+					"name":     config.StringVariable(rName),
+					"platform": config.StringVariable("Windows"),
+				},
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"last_updated"},
+			},
+		},
+	})
+}
+
 func TestAccWidgetResource_schedule(t *testing.T) {
 	rName := acctest.RandomResourceName()
 	resourceName := "crowdstrike_widget.test"
@@ -663,10 +728,10 @@ func TestAccWidgetResource_tags(t *testing.T) {
 				ConfigVariables: config.Variables{
 					"name":     config.StringVariable(rName),
 					"platform": config.StringVariable("Windows"),
-					"tags":     config.SetVariable(config.StringVariable("a"), config.StringVariable("b")),
+					"tags":     config.SetVariable(config.StringVariable("testgen tags 1"), config.StringVariable("testgen tags 2")),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact("a"), knownvalue.StringExact("b")})),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact("testgen tags 1"), knownvalue.StringExact("testgen tags 2")})),
 				},
 			},
 			{
@@ -674,7 +739,7 @@ func TestAccWidgetResource_tags(t *testing.T) {
 				ConfigVariables: config.Variables{
 					"name":     config.StringVariable(rName),
 					"platform": config.StringVariable("Windows"),
-					"tags":     config.SetVariable(config.StringVariable("a"), config.StringVariable("b"), config.StringVariable("c")),
+					"tags":     config.SetVariable(config.StringVariable("testgen tags 1"), config.StringVariable("testgen tags 2"), config.StringVariable("testgen tags 3")),
 				},
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
@@ -682,7 +747,7 @@ func TestAccWidgetResource_tags(t *testing.T) {
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact("a"), knownvalue.StringExact("b"), knownvalue.StringExact("c")})),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact("testgen tags 1"), knownvalue.StringExact("testgen tags 2"), knownvalue.StringExact("testgen tags 3")})),
 				},
 			},
 			{
@@ -690,7 +755,7 @@ func TestAccWidgetResource_tags(t *testing.T) {
 				ConfigVariables: config.Variables{
 					"name":     config.StringVariable(rName),
 					"platform": config.StringVariable("Windows"),
-					"tags":     config.SetVariable(config.StringVariable("c"), config.StringVariable("a"), config.StringVariable("b")),
+					"tags":     config.SetVariable(config.StringVariable("testgen tags 3"), config.StringVariable("testgen tags 1"), config.StringVariable("testgen tags 2")),
 				},
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
@@ -698,7 +763,7 @@ func TestAccWidgetResource_tags(t *testing.T) {
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact("c"), knownvalue.StringExact("a"), knownvalue.StringExact("b")})),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact("testgen tags 3"), knownvalue.StringExact("testgen tags 1"), knownvalue.StringExact("testgen tags 2")})),
 				},
 			},
 			{
@@ -706,7 +771,7 @@ func TestAccWidgetResource_tags(t *testing.T) {
 				ConfigVariables: config.Variables{
 					"name":     config.StringVariable(rName),
 					"platform": config.StringVariable("Windows"),
-					"tags":     config.SetVariable(config.StringVariable("c"), config.StringVariable("b")),
+					"tags":     config.SetVariable(config.StringVariable("testgen tags 3"), config.StringVariable("testgen tags 2")),
 				},
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
@@ -714,7 +779,7 @@ func TestAccWidgetResource_tags(t *testing.T) {
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact("c"), knownvalue.StringExact("b")})),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("tags"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact("testgen tags 3"), knownvalue.StringExact("testgen tags 2")})),
 				},
 			},
 			{

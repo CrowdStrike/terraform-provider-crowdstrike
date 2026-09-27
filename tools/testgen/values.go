@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testgen"
@@ -26,22 +27,22 @@ var rNameValues = []value{{rName: true}, {rName: true, str: "-updated"}}
 // falling back to what the schema implies.
 type pools struct {
 	spec    map[string]testgen.Attribute
+	sweep   string // dotted path of the attribute that gets the random test name
 	missing map[string]bool
 }
 
-func newPools(spec map[string]testgen.Attribute) *pools {
-	return &pools{spec: spec, missing: map[string]bool{}}
+func newPools(r *resourceInfo) *pools {
+	sweep := r.spec.SweepAttribute
+	if sweep == "" {
+		sweep = "name"
+	}
+	return &pools{spec: r.spec.Attributes, sweep: sweep, missing: map[string]bool{}}
 }
 
 // missingPaths lists the attributes that needed values the generator could
 // not derive and the spec did not supply.
 func (p *pools) missingPaths() []string {
-	out := make([]string, 0, len(p.missing))
-	for k := range p.missing {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
+	return slices.Sorted(maps.Keys(p.missing))
 }
 
 // pool returns the values an attribute draws from. For lists and sets it
@@ -73,9 +74,10 @@ func (p *pools) pool(a *attribute) ([]value, error) {
 				out[i] = value{str: e}
 			}
 			return out, nil
-		case a.name == "name" || a.name == "description":
+		case a.dotted() == p.sweep:
 			return rNameValues, nil
 		}
+		return placeholders(a, 2), nil
 	case kindBool:
 		return []value{{prim: true}, {prim: false}}, nil
 	case kindInt64, kindInt32:
@@ -94,12 +96,26 @@ func (p *pools) pool(a *attribute) ([]value, error) {
 			return dedupe(a, []value{{prim: lo}, {prim: hi}}), nil
 		}
 	case kindList, kindSet:
+		if a.elem.kind == kindString && len(a.elem.enum) == 0 {
+			return placeholders(a.elem, 3), nil
+		}
 		return p.pool(a.elem)
 	case kindObject:
 		return p.objectPool(a)
 	}
 	p.missing[a.dotted()] = true
 	return nil, nil
+}
+
+// placeholders returns n stable strings for an unconstrained string. Provider
+// validation at generation time rejects them when the attribute needs real
+// values, and the spec then supplies them.
+func placeholders(a *attribute, n int) []value {
+	out := make([]value, n)
+	for i := range out {
+		out[i] = value{str: fmt.Sprintf("testgen %s %d", a.dotted(), i+1)}
+	}
+	return out
 }
 
 // bounds returns two values inside the attribute's numeric range. With only
@@ -126,26 +142,20 @@ func bounds(a *attribute, step float64) (float64, float64, bool) {
 	return lo, hi, !excluded(a, lo)
 }
 
-func excluded(a *attribute, f float64) bool {
-	for _, e := range a.exclude {
-		if e == f {
-			return true
-		}
-	}
-	return false
-}
+func excluded(a *attribute, f float64) bool { return slices.Contains(a.exclude, f) }
 
 // objectPool builds object values from the object's required children, or
 // from its first settable child when none are required.
 func (p *pools) objectPool(a *attribute) ([]value, error) {
+	children := a.sortedChildren()
 	var chosen []*attribute
-	for _, c := range a.sortedChildren() {
+	for _, c := range children {
 		if c.required {
 			chosen = append(chosen, c)
 		}
 	}
 	if len(chosen) == 0 {
-		for _, c := range a.sortedChildren() {
+		for _, c := range children {
 			if c.optional && c.kind != kindUnsupported && !c.deprecated && !c.writeOnly {
 				chosen = append(chosen, c)
 				break
@@ -197,14 +207,7 @@ func collectionOf(a *attribute, pool []value) value {
 func dedupe(a *attribute, vs []value) []value {
 	var out []value
 	for _, v := range vs {
-		seen := false
-		for _, o := range out {
-			if equal(a, v, o) {
-				seen = true
-				break
-			}
-		}
-		if !seen {
+		if !slices.ContainsFunc(out, func(o value) bool { return equal(a, v, o) }) {
 			out = append(out, v)
 		}
 	}
@@ -322,21 +325,21 @@ func equal(a *attribute, x, y value) bool {
 			keys[k] = true
 		}
 		for k := range keys {
-			xv, xok := x.fields[k]
-			yv, yok := y.fields[k]
-			if !xok {
-				xv = value{null: true}
-			}
-			if !yok {
-				yv = value{null: true}
-			}
-			if !equal(a.children[k], xv, yv) {
+			if !equal(a.children[k], x.field(k), y.field(k)) {
 				return false
 			}
 		}
 		return true
 	}
 	return x.prim == y.prim
+}
+
+// field returns an object field; an absent field is null.
+func (v value) field(k string) value {
+	if f, ok := v.fields[k]; ok {
+		return f
+	}
+	return value{null: true}
 }
 
 type action int
@@ -367,15 +370,7 @@ func change(a *attribute, x, y value) action {
 		}
 		out := actionUpdate
 		for name, c := range a.children {
-			xv, ok := x.fields[name]
-			if !ok {
-				xv = value{null: true}
-			}
-			yv, ok := y.fields[name]
-			if !ok {
-				yv = value{null: true}
-			}
-			if ch := change(c, xv, yv); ch != actionNone {
+			if ch := change(c, x.field(name), y.field(name)); ch != actionNone {
 				out = worst(out, ch)
 			}
 		}

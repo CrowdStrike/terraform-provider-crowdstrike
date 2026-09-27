@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"go/format"
+	"maps"
 	"path"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -38,7 +40,7 @@ func renderHCL(r *resourceInfo) []byte {
 // configurable returns the top-level attributes a generated test can set.
 func configurable(r *resourceInfo) []*attribute {
 	var out []*attribute
-	for _, a := range topLevel(r.attrs) {
+	for _, a := range sortedAttrs(r.attrs) {
 		if a.settable() && a.kind != kindUnsupported && !a.deprecated && !a.writeOnly {
 			out = append(out, a)
 		}
@@ -390,11 +392,4 @@ func goStrings(ss []string) string {
 	return "[]string{" + strings.Join(q, ", ") + "}"
 }
 
-func sortedKeys(m map[string]value) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
-}
+func sortedKeys(m map[string]value) []string { return slices.Sorted(maps.Keys(m)) }

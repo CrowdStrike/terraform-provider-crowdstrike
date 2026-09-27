@@ -29,7 +29,7 @@ tools/testgen/      # the generator program
 
 1. **Load.** Call `provider.New("test")().Resources()`, then `Metadata` and `Schema` on each. Keep only resources registered through `testgen.Register`. Reading schemas at runtime keeps validators and plan modifiers, which `terraform providers schema -json` drops.
 2. **Model** (`model.go`). Convert each attribute to its type, Required/Optional/Computed flags, Default, facts parsed from validators (OneOf values, size and length bounds, NoneOf exclusions), RequiresReplace, and whether the resource supports import.
-3. **Values** (`values.go`). Use the spec's pool if one exists. Otherwise use heuristics: `name`/`description` get the random test name and variants; OneOf gets the listed values; bool gets true/false; numbers get range bounds that skip excluded values. If neither applies, generation fails and names the attribute and the `testgen.go` file to edit.
+3. **Values** (`values.go`). Use the spec's pool if one exists. Otherwise use heuristics: the sweeper attribute (`SweepAttribute`, default `name`) gets the random prefixed test name and an `-updated` variant; OneOf gets the listed values; other strings get stable placeholders (`testgen <path> 1`, `2`, and `3` for collections); bool gets true/false; numbers get range bounds that skip excluded values. If no heuristic applies, generation fails and names the attribute and the `testgen.go` file to edit. Placeholders are not checked against validators the generator does not parse; provider validation of every generated step rejects them, and the error points at `testgen.go`. Placeholders the API rejects fail the acceptance test, and the fix is the same: supply `Values`.
 4. **Rules** (`rules.go`). Turn the model into test cases: a name, steps with config variables, state checks, and plan checks.
 5. **Validate** (`validate.go`). Run every generated step config through the provider's own `ValidateResourceConfig` RPC. That applies attribute validators, `ConfigValidators`, and imperative `ValidateConfig`, exactly like `terraform validate`, with no API call and no configured provider.
 6. **Overrides** (`resources.go`). Parse the package's hand-written `_test.go` files with `go/parser` and drop generated cases whose function name already exists (case-insensitive).
@@ -73,7 +73,7 @@ If the provider's own validation rejects an omit step, the step is dropped and a
 
 - **`_basic`.** Required attributes only (plus `Base`). Asserts `knownvalue.NotNull()` on every Computed-only attribute. Adds an import step if the resource implements `ResourceWithImportState`. Does not assert Required values, since Terraform already fails with "inconsistent result after apply" and import verify catches a Read that does not populate them. No update or replace steps.
 - **`_disappears`.** Applies the `_basic` config, then the `acctest.ResourceDisappears` state check deletes the resource outside Terraform, and the refreshed plan must be a create. The generated test passes the resource's constructor, such as `hostgroups.NewHostGroupResource`. The helper (`internal/acctest/disappears.go`) builds the resource, configures it with the shared provider data from `acctest.PreCheck`, and calls its `Delete` with the resource's full state decoded from Terraform's JSON state against the resource schema. Generated for every resource unless `NoDisappears` is set.
-- **Per attribute (`_<camelName>`).** The `_basic` config plus one attribute (and its `Requires`).
+- **Per attribute (`_<camelName>`).** The `_basic` config plus one attribute (and its `Requires` and `Set`).
   - Primitives: set value 1, update to value 2 (plan expects `DestroyBeforeCreate` if RequiresReplace, otherwise `Update`), omit per the table above, then import. Enums step through every OneOf value.
   - Lists and sets: create `[a, b]`, add `[a, b, c]`, reorder, remove a middle element, `[]` when allowed, then omit. Size validators cap and shape the steps.
   - Nested objects: pools of objects built from the nested schema. Optional children of single nested objects get their own tests (for example `_rapidResponseDelayHours`).
@@ -82,8 +82,10 @@ If the provider's own validation rejects an omit step, the step is dropped and a
 
 Defined in `internal/testgen/testgen.go`.
 
-- `Attributes[name].Values`: pool of values when the generator cannot derive them (for example a regex). Collections need at least two values; three enable every lifecycle step. Nested paths use dots.
-- `Attributes[name].Requires`: other attributes to set in this attribute's test, for example `minimum_similarity_threshold` requires `similarity_detection = true`. `nil` unsets a `Base` attribute.
+- `SweepAttribute`: the string attribute sweepers match on, set to the random prefixed test name. Defaults to `name`.
+- `Attributes[name].Values`: pool of values when the generated ones are not valid (for example a regex, or a URL glob the API checks). Collections need at least two values; three enable every lifecycle step. Nested paths use dots.
+- `Attributes[name].Requires`: other attributes that must be present in this attribute's test. Each keeps its `Base` value, or takes its first value from its `Values` or the generated values.
+- `Attributes[name].Set`: specific values for other attributes in this attribute's test, for example `minimum_similarity_threshold` sets `similarity_detection = true`. `nil` unsets a `Base` attribute.
 - `Base`: attributes set in every config, for resources where no Required-only config validates (host group's `type` makes a different attribute required).
 - `NoDisappears`: leaves out `_disappears` for resources whose Delete does not remove the remote object, such as default policies.
 - `Skip`, `ImportIgnore`, `Serial`: see Decisions.

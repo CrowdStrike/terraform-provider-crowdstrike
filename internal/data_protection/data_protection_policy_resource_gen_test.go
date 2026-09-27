@@ -89,18 +89,18 @@ func TestAccDataProtectionPolicyResource_beCustomSplashMessage(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"be_custom_splash_message": config.StringVariable("Checking this file"),
+					"be_custom_splash_message": config.StringVariable("testgen be_custom_splash_message 1"),
 					"name":                     config.StringVariable(rName),
 					"platform_name":            config.StringVariable("Windows"),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("be_custom_splash_message"), knownvalue.StringExact("Checking this file")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("be_custom_splash_message"), knownvalue.StringExact("testgen be_custom_splash_message 1")),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"be_custom_splash_message": config.StringVariable("Still checking this file"),
+					"be_custom_splash_message": config.StringVariable("testgen be_custom_splash_message 2"),
 					"name":                     config.StringVariable(rName),
 					"platform_name":            config.StringVariable("Windows"),
 				},
@@ -110,7 +110,7 @@ func TestAccDataProtectionPolicyResource_beCustomSplashMessage(t *testing.T) {
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("be_custom_splash_message"), knownvalue.StringExact("Still checking this file")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("be_custom_splash_message"), knownvalue.StringExact("testgen be_custom_splash_message 2")),
 				},
 			},
 			{
@@ -1252,18 +1252,18 @@ func TestAccDataProtectionPolicyResource_customAllowedActionNotification(t *test
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"custom_allowed_action_notification": config.StringVariable("This action was logged"),
+					"custom_allowed_action_notification": config.StringVariable("testgen custom_allowed_action_notification 1"),
 					"name":                               config.StringVariable(rName),
 					"platform_name":                      config.StringVariable("Windows"),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("custom_allowed_action_notification"), knownvalue.StringExact("This action was logged")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("custom_allowed_action_notification"), knownvalue.StringExact("testgen custom_allowed_action_notification 1")),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"custom_allowed_action_notification": config.StringVariable("This action was recorded"),
+					"custom_allowed_action_notification": config.StringVariable("testgen custom_allowed_action_notification 2"),
 					"name":                               config.StringVariable(rName),
 					"platform_name":                      config.StringVariable("Windows"),
 				},
@@ -1273,7 +1273,7 @@ func TestAccDataProtectionPolicyResource_customAllowedActionNotification(t *test
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("custom_allowed_action_notification"), knownvalue.StringExact("This action was recorded")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("custom_allowed_action_notification"), knownvalue.StringExact("testgen custom_allowed_action_notification 2")),
 				},
 			},
 			{
@@ -1316,18 +1316,18 @@ func TestAccDataProtectionPolicyResource_customBlockedActionNotification(t *test
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"custom_blocked_action_notification": config.StringVariable("This action was blocked"),
+					"custom_blocked_action_notification": config.StringVariable("testgen custom_blocked_action_notification 1"),
 					"name":                               config.StringVariable(rName),
 					"platform_name":                      config.StringVariable("Windows"),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("custom_blocked_action_notification"), knownvalue.StringExact("This action was blocked")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("custom_blocked_action_notification"), knownvalue.StringExact("testgen custom_blocked_action_notification 1")),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"custom_blocked_action_notification": config.StringVariable("This action was stopped"),
+					"custom_blocked_action_notification": config.StringVariable("testgen custom_blocked_action_notification 2"),
 					"name":                               config.StringVariable(rName),
 					"platform_name":                      config.StringVariable("Windows"),
 				},
@@ -1337,7 +1337,7 @@ func TestAccDataProtectionPolicyResource_customBlockedActionNotification(t *test
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("custom_blocked_action_notification"), knownvalue.StringExact("This action was stopped")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("custom_blocked_action_notification"), knownvalue.StringExact("testgen custom_blocked_action_notification 2")),
 				},
 			},
 			{
@@ -1380,18 +1380,18 @@ func TestAccDataProtectionPolicyResource_description(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"description":   config.StringVariable(rName),
+					"description":   config.StringVariable("testgen description 1"),
 					"name":          config.StringVariable(rName),
 					"platform_name": config.StringVariable("Windows"),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("testgen description 1")),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"description":   config.StringVariable(rName + "-updated"),
+					"description":   config.StringVariable("testgen description 2"),
 					"name":          config.StringVariable(rName),
 					"platform_name": config.StringVariable("Windows"),
 				},
@@ -1401,7 +1401,7 @@ func TestAccDataProtectionPolicyResource_description(t *testing.T) {
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(rName+"-updated")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("testgen description 2")),
 				},
 			},
 			{
@@ -1612,7 +1612,7 @@ func TestAccDataProtectionPolicyResource_eujBusinessPurposesEnabled(t *testing.T
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
 					"euj_business_purposes_enabled": config.BoolVariable(true),
-					"euj_custom_dropdown_options":   config.ListVariable(config.StringVariable("Legal review"), config.StringVariable("Audit")),
+					"euj_custom_dropdown_options":   config.ListVariable(config.StringVariable("testgen euj_custom_dropdown_options 1")),
 					"name":                          config.StringVariable(rName),
 					"platform_name":                 config.StringVariable("Windows"),
 				},
@@ -1624,7 +1624,7 @@ func TestAccDataProtectionPolicyResource_eujBusinessPurposesEnabled(t *testing.T
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
 					"euj_business_purposes_enabled": config.BoolVariable(false),
-					"euj_custom_dropdown_options":   config.ListVariable(config.StringVariable("Legal review"), config.StringVariable("Audit")),
+					"euj_custom_dropdown_options":   config.ListVariable(config.StringVariable("testgen euj_custom_dropdown_options 1")),
 					"name":                          config.StringVariable(rName),
 					"platform_name":                 config.StringVariable("Windows"),
 				},
@@ -1640,7 +1640,7 @@ func TestAccDataProtectionPolicyResource_eujBusinessPurposesEnabled(t *testing.T
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("Legal review"), config.StringVariable("Audit")),
+					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("testgen euj_custom_dropdown_options 1")),
 					"name":                        config.StringVariable(rName),
 					"platform_name":               config.StringVariable("Windows"),
 				},
@@ -1656,7 +1656,7 @@ func TestAccDataProtectionPolicyResource_eujBusinessPurposesEnabled(t *testing.T
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("Legal review"), config.StringVariable("Audit")),
+					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("testgen euj_custom_dropdown_options 1")),
 					"name":                        config.StringVariable(rName),
 					"platform_name":               config.StringVariable("Windows"),
 				},
@@ -1743,18 +1743,18 @@ func TestAccDataProtectionPolicyResource_eujCustomDropdownOptions(t *testing.T) 
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("Legal review")),
+					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("testgen euj_custom_dropdown_options 1")),
 					"name":                        config.StringVariable(rName),
 					"platform_name":               config.StringVariable("Windows"),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("euj_custom_dropdown_options"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact("Legal review")})),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("euj_custom_dropdown_options"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact("testgen euj_custom_dropdown_options 1")})),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("Legal review"), config.StringVariable("Customer request")),
+					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("testgen euj_custom_dropdown_options 1"), config.StringVariable("testgen euj_custom_dropdown_options 2")),
 					"name":                        config.StringVariable(rName),
 					"platform_name":               config.StringVariable("Windows"),
 				},
@@ -1764,13 +1764,13 @@ func TestAccDataProtectionPolicyResource_eujCustomDropdownOptions(t *testing.T) 
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("euj_custom_dropdown_options"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact("Legal review"), knownvalue.StringExact("Customer request")})),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("euj_custom_dropdown_options"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact("testgen euj_custom_dropdown_options 1"), knownvalue.StringExact("testgen euj_custom_dropdown_options 2")})),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("Customer request"), config.StringVariable("Legal review")),
+					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("testgen euj_custom_dropdown_options 2"), config.StringVariable("testgen euj_custom_dropdown_options 1")),
 					"name":                        config.StringVariable(rName),
 					"platform_name":               config.StringVariable("Windows"),
 				},
@@ -1780,13 +1780,13 @@ func TestAccDataProtectionPolicyResource_eujCustomDropdownOptions(t *testing.T) 
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("euj_custom_dropdown_options"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact("Customer request"), knownvalue.StringExact("Legal review")})),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("euj_custom_dropdown_options"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact("testgen euj_custom_dropdown_options 2"), knownvalue.StringExact("testgen euj_custom_dropdown_options 1")})),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("Customer request")),
+					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("testgen euj_custom_dropdown_options 2")),
 					"name":                        config.StringVariable(rName),
 					"platform_name":               config.StringVariable("Windows"),
 				},
@@ -1796,7 +1796,7 @@ func TestAccDataProtectionPolicyResource_eujCustomDropdownOptions(t *testing.T) 
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("euj_custom_dropdown_options"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact("Customer request")})),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("euj_custom_dropdown_options"), knownvalue.ListExact([]knownvalue.Check{knownvalue.StringExact("testgen euj_custom_dropdown_options 2")})),
 				},
 			},
 			{
@@ -1839,18 +1839,18 @@ func TestAccDataProtectionPolicyResource_eujCustomHeaderText(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"euj_custom_header_text": config.StringVariable("Explain why you need this file."),
+					"euj_custom_header_text": config.StringVariable("testgen euj_custom_header_text 1"),
 					"name":                   config.StringVariable(rName),
 					"platform_name":          config.StringVariable("Windows"),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("euj_custom_header_text"), knownvalue.StringExact("Explain why you need this file.")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("euj_custom_header_text"), knownvalue.StringExact("testgen euj_custom_header_text 1")),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"euj_custom_header_text": config.StringVariable("Tell us why you need this file."),
+					"euj_custom_header_text": config.StringVariable("testgen euj_custom_header_text 2"),
 					"name":                   config.StringVariable(rName),
 					"platform_name":          config.StringVariable("Windows"),
 				},
@@ -1860,7 +1860,7 @@ func TestAccDataProtectionPolicyResource_eujCustomHeaderText(t *testing.T) {
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("euj_custom_header_text"), knownvalue.StringExact("Tell us why you need this file.")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("euj_custom_header_text"), knownvalue.StringExact("testgen euj_custom_header_text 2")),
 				},
 			},
 			{
@@ -1967,7 +1967,7 @@ func TestAccDataProtectionPolicyResource_eujPersonalUseEnabled(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("Legal review"), config.StringVariable("Audit")),
+					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("testgen euj_custom_dropdown_options 1")),
 					"euj_personal_use_enabled":    config.BoolVariable(true),
 					"name":                        config.StringVariable(rName),
 					"platform_name":               config.StringVariable("Windows"),
@@ -1979,7 +1979,7 @@ func TestAccDataProtectionPolicyResource_eujPersonalUseEnabled(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("Legal review"), config.StringVariable("Audit")),
+					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("testgen euj_custom_dropdown_options 1")),
 					"euj_personal_use_enabled":    config.BoolVariable(false),
 					"name":                        config.StringVariable(rName),
 					"platform_name":               config.StringVariable("Windows"),
@@ -1996,7 +1996,7 @@ func TestAccDataProtectionPolicyResource_eujPersonalUseEnabled(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("Legal review"), config.StringVariable("Audit")),
+					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("testgen euj_custom_dropdown_options 1")),
 					"name":                        config.StringVariable(rName),
 					"platform_name":               config.StringVariable("Windows"),
 				},
@@ -2012,7 +2012,7 @@ func TestAccDataProtectionPolicyResource_eujPersonalUseEnabled(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/data_protection_policy"),
 				ConfigVariables: config.Variables{
-					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("Legal review"), config.StringVariable("Audit")),
+					"euj_custom_dropdown_options": config.ListVariable(config.StringVariable("testgen euj_custom_dropdown_options 1")),
 					"name":                        config.StringVariable(rName),
 					"platform_name":               config.StringVariable("Windows"),
 				},

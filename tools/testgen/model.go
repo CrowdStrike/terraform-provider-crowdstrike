@@ -1,11 +1,13 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"maps"
 	"reflect"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -76,13 +78,11 @@ func (a *attribute) computedOnly() bool { return a.computed && !a.optional && !a
 func (a *attribute) dotted() string { return strings.Join(a.path, ".") }
 
 // sortedChildren returns object children ordered by name.
-func (a *attribute) sortedChildren() []*attribute {
-	out := make([]*attribute, 0, len(a.children))
-	for _, c := range a.children {
-		out = append(out, c)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].name < out[j].name })
-	return out
+func (a *attribute) sortedChildren() []*attribute { return sortedAttrs(a.children) }
+
+// sortedAttrs returns attributes ordered by name.
+func sortedAttrs(attrs map[string]*attribute) []*attribute {
+	return slices.SortedFunc(maps.Values(attrs), func(x, y *attribute) int { return cmp.Compare(x.name, y.name) })
 }
 
 func buildAttributes(ctx context.Context, attrs map[string]schema.Attribute, parent []string) (map[string]*attribute, error) {

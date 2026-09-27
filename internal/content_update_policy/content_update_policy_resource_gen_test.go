@@ -26,7 +26,7 @@ func TestAccContentPolicyResource_basic(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -41,7 +41,7 @@ func TestAccContentPolicyResource_basic(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -68,7 +68,7 @@ func TestAccContentPolicyResource_disappears(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -100,7 +100,7 @@ func TestAccContentPolicyResource_description(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -108,13 +108,13 @@ func TestAccContentPolicyResource_description(t *testing.T) {
 					"vulnerability_management": config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("testgen description 1")),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName + "-updated"),
+					"description":              config.StringVariable("testgen description 2"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -127,13 +127,13 @@ func TestAccContentPolicyResource_description(t *testing.T) {
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(rName+"-updated")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("testgen description 2")),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName + "-updated"),
+					"description":              config.StringVariable("testgen description 2"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -160,7 +160,7 @@ func TestAccContentPolicyResource_enabled(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"enabled":                  config.BoolVariable(true),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -175,7 +175,7 @@ func TestAccContentPolicyResource_enabled(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"enabled":                  config.BoolVariable(false),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -195,7 +195,7 @@ func TestAccContentPolicyResource_enabled(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -214,7 +214,7 @@ func TestAccContentPolicyResource_enabled(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -245,7 +245,7 @@ func TestAccContentPolicyResource_name(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -259,7 +259,7 @@ func TestAccContentPolicyResource_name(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName + "-updated"),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -278,7 +278,7 @@ func TestAccContentPolicyResource_name(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName + "-updated"),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -305,7 +305,7 @@ func TestAccContentPolicyResource_rapidResponse(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -319,7 +319,7 @@ func TestAccContentPolicyResource_rapidResponse(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ea")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -338,7 +338,7 @@ func TestAccContentPolicyResource_rapidResponse(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("pause")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -357,7 +357,7 @@ func TestAccContentPolicyResource_rapidResponse(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("pause")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -384,7 +384,7 @@ func TestAccContentPolicyResource_rapidResponseDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(0), "ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -398,7 +398,7 @@ func TestAccContentPolicyResource_rapidResponseDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(1), "ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -417,7 +417,7 @@ func TestAccContentPolicyResource_rapidResponseDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(2), "ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -436,7 +436,7 @@ func TestAccContentPolicyResource_rapidResponseDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(4), "ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -455,7 +455,7 @@ func TestAccContentPolicyResource_rapidResponseDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(8), "ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -474,7 +474,7 @@ func TestAccContentPolicyResource_rapidResponseDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(12), "ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -493,7 +493,7 @@ func TestAccContentPolicyResource_rapidResponseDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(24), "ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -512,7 +512,7 @@ func TestAccContentPolicyResource_rapidResponseDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(48), "ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -531,7 +531,7 @@ func TestAccContentPolicyResource_rapidResponseDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(72), "ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -550,7 +550,7 @@ func TestAccContentPolicyResource_rapidResponseDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -569,7 +569,7 @@ func TestAccContentPolicyResource_rapidResponseDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -600,7 +600,7 @@ func TestAccContentPolicyResource_sensorOperations(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -614,7 +614,7 @@ func TestAccContentPolicyResource_sensorOperations(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ea")}),
@@ -633,7 +633,7 @@ func TestAccContentPolicyResource_sensorOperations(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("pause")}),
@@ -652,7 +652,7 @@ func TestAccContentPolicyResource_sensorOperations(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("pause")}),
@@ -679,7 +679,7 @@ func TestAccContentPolicyResource_sensorOperationsDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(0), "ring_assignment": config.StringVariable("ga")}),
@@ -693,7 +693,7 @@ func TestAccContentPolicyResource_sensorOperationsDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(1), "ring_assignment": config.StringVariable("ga")}),
@@ -712,7 +712,7 @@ func TestAccContentPolicyResource_sensorOperationsDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(2), "ring_assignment": config.StringVariable("ga")}),
@@ -731,7 +731,7 @@ func TestAccContentPolicyResource_sensorOperationsDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(4), "ring_assignment": config.StringVariable("ga")}),
@@ -750,7 +750,7 @@ func TestAccContentPolicyResource_sensorOperationsDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(8), "ring_assignment": config.StringVariable("ga")}),
@@ -769,7 +769,7 @@ func TestAccContentPolicyResource_sensorOperationsDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(12), "ring_assignment": config.StringVariable("ga")}),
@@ -788,7 +788,7 @@ func TestAccContentPolicyResource_sensorOperationsDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(24), "ring_assignment": config.StringVariable("ga")}),
@@ -807,7 +807,7 @@ func TestAccContentPolicyResource_sensorOperationsDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(48), "ring_assignment": config.StringVariable("ga")}),
@@ -826,7 +826,7 @@ func TestAccContentPolicyResource_sensorOperationsDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"delay_hours": config.IntegerVariable(72), "ring_assignment": config.StringVariable("ga")}),
@@ -845,7 +845,7 @@ func TestAccContentPolicyResource_sensorOperationsDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -864,7 +864,7 @@ func TestAccContentPolicyResource_sensorOperationsDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -895,7 +895,7 @@ func TestAccContentPolicyResource_systemCritical(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -909,7 +909,7 @@ func TestAccContentPolicyResource_systemCritical(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -928,7 +928,7 @@ func TestAccContentPolicyResource_systemCritical(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -955,7 +955,7 @@ func TestAccContentPolicyResource_systemCriticalDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -969,7 +969,7 @@ func TestAccContentPolicyResource_systemCriticalDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -988,7 +988,7 @@ func TestAccContentPolicyResource_systemCriticalDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1007,7 +1007,7 @@ func TestAccContentPolicyResource_systemCriticalDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1026,7 +1026,7 @@ func TestAccContentPolicyResource_systemCriticalDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1045,7 +1045,7 @@ func TestAccContentPolicyResource_systemCriticalDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1064,7 +1064,7 @@ func TestAccContentPolicyResource_systemCriticalDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1083,7 +1083,7 @@ func TestAccContentPolicyResource_systemCriticalDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1102,7 +1102,7 @@ func TestAccContentPolicyResource_systemCriticalDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1121,7 +1121,7 @@ func TestAccContentPolicyResource_systemCriticalDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1140,7 +1140,7 @@ func TestAccContentPolicyResource_systemCriticalDelayHours(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1171,7 +1171,7 @@ func TestAccContentPolicyResource_vulnerabilityManagement(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1185,7 +1185,7 @@ func TestAccContentPolicyResource_vulnerabilityManagement(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1204,7 +1204,7 @@ func TestAccContentPolicyResource_vulnerabilityManagement(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1223,7 +1223,7 @@ func TestAccContentPolicyResource_vulnerabilityManagement(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1250,7 +1250,7 @@ func TestAccContentPolicyResource_vulnerabilityManagementDelayHours(t *testing.T
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1264,7 +1264,7 @@ func TestAccContentPolicyResource_vulnerabilityManagementDelayHours(t *testing.T
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1283,7 +1283,7 @@ func TestAccContentPolicyResource_vulnerabilityManagementDelayHours(t *testing.T
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1302,7 +1302,7 @@ func TestAccContentPolicyResource_vulnerabilityManagementDelayHours(t *testing.T
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1321,7 +1321,7 @@ func TestAccContentPolicyResource_vulnerabilityManagementDelayHours(t *testing.T
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1340,7 +1340,7 @@ func TestAccContentPolicyResource_vulnerabilityManagementDelayHours(t *testing.T
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1359,7 +1359,7 @@ func TestAccContentPolicyResource_vulnerabilityManagementDelayHours(t *testing.T
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1378,7 +1378,7 @@ func TestAccContentPolicyResource_vulnerabilityManagementDelayHours(t *testing.T
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1397,7 +1397,7 @@ func TestAccContentPolicyResource_vulnerabilityManagementDelayHours(t *testing.T
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1416,7 +1416,7 @@ func TestAccContentPolicyResource_vulnerabilityManagementDelayHours(t *testing.T
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
@@ -1435,7 +1435,7 @@ func TestAccContentPolicyResource_vulnerabilityManagementDelayHours(t *testing.T
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/content_update_policy"),
 				ConfigVariables: config.Variables{
-					"description":              config.StringVariable(rName),
+					"description":              config.StringVariable("testgen description 1"),
 					"name":                     config.StringVariable(rName),
 					"rapid_response":           config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),
 					"sensor_operations":        config.ObjectVariable(map[string]config.Variable{"ring_assignment": config.StringVariable("ga")}),

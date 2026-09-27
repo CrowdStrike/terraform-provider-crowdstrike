@@ -47,8 +47,17 @@ type resourceInfo struct {
 
 func loadResources(ctx context.Context, p fwprovider.Provider, root string) (map[string]*resourceInfo, error) {
 	out := map[string]*resourceInfo{}
+	scans := map[string]*scan{}
 	for _, newResource := range p.Resources(ctx) {
-		r, err := describeResource(ctx, newResource, root)
+		res := newResource()
+		var md resource.MetadataResponse
+		res.Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "crowdstrike"}, &md)
+		// Unregistered resources only need a name for registration checks.
+		if _, ok := testgen.Lookup(md.TypeName); !ok {
+			out[md.TypeName] = &resourceInfo{typeName: md.TypeName}
+			continue
+		}
+		r, err := describeResource(ctx, newResource, res, md, root, scans)
 		if err != nil {
 			return nil, err
 		}
@@ -57,10 +66,13 @@ func loadResources(ctx context.Context, p fwprovider.Provider, root string) (map
 	return out, nil
 }
 
-func describeResource(ctx context.Context, newResource func() resource.Resource, root string) (*resourceInfo, error) {
-	res := newResource()
-	var md resource.MetadataResponse
-	res.Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "crowdstrike"}, &md)
+// scan is the cached result of scanPackage for one directory.
+type scan struct {
+	pkg         string
+	handWritten map[string]bool
+}
+
+func describeResource(ctx context.Context, newResource func() resource.Resource, res resource.Resource, md resource.MetadataResponse, root string, scans map[string]*scan) (*resourceInfo, error) {
 	var sr resource.SchemaResponse
 	res.Schema(ctx, resource.SchemaRequest{}, &sr)
 	if sr.Diagnostics.HasError() {
@@ -94,13 +106,18 @@ func describeResource(ctx context.Context, newResource func() resource.Resource,
 	r.constructor = name
 	r.dir = strings.TrimPrefix(pkgPath, modulePath+"/")
 
-	pkg, handWritten, err := scanPackage(filepath.Join(root, r.dir))
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", md.TypeName, err)
+	sc, ok := scans[r.dir]
+	if !ok {
+		pkg, handWritten, err := scanPackage(filepath.Join(root, r.dir))
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", md.TypeName, err)
+		}
+		sc = &scan{pkg: pkg, handWritten: handWritten}
+		scans[r.dir] = sc
 	}
-	r.pkgName = pkg
-	r.testPackage = pkg + "_test"
-	r.handWritten = handWritten
+	r.pkgName = sc.pkg
+	r.testPackage = sc.pkg + "_test"
+	r.handWritten = sc.handWritten
 	return r, nil
 }
 
@@ -240,7 +257,7 @@ func validateCase(ctx context.Context, srv validatorServer, r *resourceInfo, c t
 		case s.omit:
 			c.note = fmt.Sprintf("%s has no omit step because provider validation rejects omitting %s in this configuration: %v", c.name, c.attr, err)
 		default:
-			errs = append(errs, fmt.Errorf("%s step %d: generated config is invalid: %w", c.name, i+1, err))
+			errs = append(errs, fmt.Errorf("%s step %d: generated config is invalid; set Attributes values in %s/testgen.go: %w", c.name, i+1, r.dir, err))
 		}
 	}
 	c.steps = steps
@@ -262,6 +279,11 @@ func checkSpec(r *resourceInfo) error {
 	for _, name := range r.spec.ImportIgnore {
 		if _, ok := r.attrs[name]; !ok {
 			errs = append(errs, fmt.Errorf("%s: ImportIgnore names unknown attribute %q", r.typeName, name))
+		}
+	}
+	if s := r.spec.SweepAttribute; s != "" {
+		if a := lookupPath(r.attrs, s); a == nil || a.kind != kindString {
+			errs = append(errs, fmt.Errorf("%s: SweepAttribute %q is not a string attribute", r.typeName, s))
 		}
 	}
 	if len(r.spec.ImportIgnore) > 0 && !r.importable {
@@ -342,7 +364,7 @@ func writeFiles(root string, files map[string][]byte) error {
 		if err := os.Remove(path); err != nil {
 			return err
 		}
-		// Remove the per-test testdata directory when it is now empty.
+		// Remove the resource testdata directory when it is now empty.
 		if filepath.Base(path) == "main.tf" {
 			_ = os.Remove(filepath.Dir(path))
 		}

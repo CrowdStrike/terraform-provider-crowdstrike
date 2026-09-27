@@ -57,17 +57,17 @@ func TestAccCIDGroupResource_description(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/cid_group"),
 				ConfigVariables: config.Variables{
-					"description": config.StringVariable(rName),
+					"description": config.StringVariable("testgen description 1"),
 					"name":        config.StringVariable(rName),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("testgen description 1")),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/cid_group"),
 				ConfigVariables: config.Variables{
-					"description": config.StringVariable(rName + "-updated"),
+					"description": config.StringVariable("testgen description 2"),
 					"name":        config.StringVariable(rName),
 				},
 				ConfigPlanChecks: resource.ConfigPlanChecks{
@@ -76,7 +76,7 @@ func TestAccCIDGroupResource_description(t *testing.T) {
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(rName+"-updated")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("testgen description 2")),
 				},
 			},
 			{

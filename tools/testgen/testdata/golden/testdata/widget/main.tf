@@ -30,6 +30,11 @@ variable "ratio" {
   default = null
 }
 
+variable "retries" {
+  type    = number
+  default = null
+}
+
 variable "schedule" {
   type = object({
     interval = optional(string)
@@ -55,6 +60,7 @@ resource "crowdstrike_widget" "test" {
   name        = var.name
   platform    = var.platform
   ratio       = var.ratio
+  retries     = var.retries
   schedule    = var.schedule
   steps       = var.steps
   tags        = var.tags

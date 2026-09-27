@@ -27,7 +27,7 @@ func TestAccHostGroupResource_basic(t *testing.T) {
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
 					"assignment_rule": config.StringVariable("hostname:'tf-acc-test-a'"),
-					"description":     config.StringVariable(rName),
+					"description":     config.StringVariable("testgen description 1"),
 					"name":            config.StringVariable(rName),
 					"type":            config.StringVariable("dynamic"),
 				},
@@ -40,7 +40,7 @@ func TestAccHostGroupResource_basic(t *testing.T) {
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
 					"assignment_rule": config.StringVariable("hostname:'tf-acc-test-a'"),
-					"description":     config.StringVariable(rName),
+					"description":     config.StringVariable("testgen description 1"),
 					"name":            config.StringVariable(rName),
 					"type":            config.StringVariable("dynamic"),
 				},
@@ -65,7 +65,7 @@ func TestAccHostGroupResource_disappears(t *testing.T) {
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
 					"assignment_rule": config.StringVariable("hostname:'tf-acc-test-a'"),
-					"description":     config.StringVariable(rName),
+					"description":     config.StringVariable("testgen description 1"),
 					"name":            config.StringVariable(rName),
 					"type":            config.StringVariable("dynamic"),
 				},
@@ -96,7 +96,7 @@ func TestAccHostGroupResource_assignmentRule(t *testing.T) {
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
 					"assignment_rule": config.StringVariable("hostname:'tf-acc-test-a'"),
-					"description":     config.StringVariable(rName),
+					"description":     config.StringVariable("testgen description 1"),
 					"name":            config.StringVariable(rName),
 					"type":            config.StringVariable("dynamic"),
 				},
@@ -108,7 +108,7 @@ func TestAccHostGroupResource_assignmentRule(t *testing.T) {
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
 					"assignment_rule": config.StringVariable("hostname:'tf-acc-test-b'"),
-					"description":     config.StringVariable(rName),
+					"description":     config.StringVariable("testgen description 1"),
 					"name":            config.StringVariable(rName),
 					"type":            config.StringVariable("dynamic"),
 				},
@@ -125,7 +125,7 @@ func TestAccHostGroupResource_assignmentRule(t *testing.T) {
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
 					"assignment_rule": config.StringVariable("hostname:'tf-acc-test-b'"),
-					"description":     config.StringVariable(rName),
+					"description":     config.StringVariable("testgen description 1"),
 					"name":            config.StringVariable(rName),
 					"type":            config.StringVariable("dynamic"),
 				},
@@ -150,19 +150,19 @@ func TestAccHostGroupResource_description(t *testing.T) {
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
 					"assignment_rule": config.StringVariable("hostname:'tf-acc-test-a'"),
-					"description":     config.StringVariable(rName),
+					"description":     config.StringVariable("testgen description 1"),
 					"name":            config.StringVariable(rName),
 					"type":            config.StringVariable("dynamic"),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(rName)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("testgen description 1")),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
 					"assignment_rule": config.StringVariable("hostname:'tf-acc-test-a'"),
-					"description":     config.StringVariable(rName + "-updated"),
+					"description":     config.StringVariable("testgen description 2"),
 					"name":            config.StringVariable(rName),
 					"type":            config.StringVariable("dynamic"),
 				},
@@ -172,14 +172,14 @@ func TestAccHostGroupResource_description(t *testing.T) {
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact(rName+"-updated")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("description"), knownvalue.StringExact("testgen description 2")),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
 					"assignment_rule": config.StringVariable("hostname:'tf-acc-test-a'"),
-					"description":     config.StringVariable(rName + "-updated"),
+					"description":     config.StringVariable("testgen description 2"),
 					"name":            config.StringVariable(rName),
 					"type":            config.StringVariable("dynamic"),
 				},
@@ -208,20 +208,20 @@ func TestAccHostGroupResource_hostnames(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
-					"description": config.StringVariable(rName),
-					"hostnames":   config.SetVariable(config.StringVariable("TF-ACC-HOST-1"), config.StringVariable("TF-ACC-HOST-2")),
+					"description": config.StringVariable("testgen description 1"),
+					"hostnames":   config.SetVariable(config.StringVariable("testgen hostnames 1"), config.StringVariable("testgen hostnames 2")),
 					"name":        config.StringVariable(rName),
 					"type":        config.StringVariable("static"),
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("hostnames"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact("TF-ACC-HOST-1"), knownvalue.StringExact("TF-ACC-HOST-2")})),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("hostnames"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact("testgen hostnames 1"), knownvalue.StringExact("testgen hostnames 2")})),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
-					"description": config.StringVariable(rName),
-					"hostnames":   config.SetVariable(config.StringVariable("TF-ACC-HOST-1"), config.StringVariable("TF-ACC-HOST-2"), config.StringVariable("TF-ACC-HOST-3")),
+					"description": config.StringVariable("testgen description 1"),
+					"hostnames":   config.SetVariable(config.StringVariable("testgen hostnames 1"), config.StringVariable("testgen hostnames 2"), config.StringVariable("testgen hostnames 3")),
 					"name":        config.StringVariable(rName),
 					"type":        config.StringVariable("static"),
 				},
@@ -231,14 +231,14 @@ func TestAccHostGroupResource_hostnames(t *testing.T) {
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("hostnames"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact("TF-ACC-HOST-1"), knownvalue.StringExact("TF-ACC-HOST-2"), knownvalue.StringExact("TF-ACC-HOST-3")})),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("hostnames"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact("testgen hostnames 1"), knownvalue.StringExact("testgen hostnames 2"), knownvalue.StringExact("testgen hostnames 3")})),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
-					"description": config.StringVariable(rName),
-					"hostnames":   config.SetVariable(config.StringVariable("TF-ACC-HOST-3"), config.StringVariable("TF-ACC-HOST-1"), config.StringVariable("TF-ACC-HOST-2")),
+					"description": config.StringVariable("testgen description 1"),
+					"hostnames":   config.SetVariable(config.StringVariable("testgen hostnames 3"), config.StringVariable("testgen hostnames 1"), config.StringVariable("testgen hostnames 2")),
 					"name":        config.StringVariable(rName),
 					"type":        config.StringVariable("static"),
 				},
@@ -248,14 +248,14 @@ func TestAccHostGroupResource_hostnames(t *testing.T) {
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("hostnames"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact("TF-ACC-HOST-3"), knownvalue.StringExact("TF-ACC-HOST-1"), knownvalue.StringExact("TF-ACC-HOST-2")})),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("hostnames"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact("testgen hostnames 3"), knownvalue.StringExact("testgen hostnames 1"), knownvalue.StringExact("testgen hostnames 2")})),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
-					"description": config.StringVariable(rName),
-					"hostnames":   config.SetVariable(config.StringVariable("TF-ACC-HOST-3"), config.StringVariable("TF-ACC-HOST-2")),
+					"description": config.StringVariable("testgen description 1"),
+					"hostnames":   config.SetVariable(config.StringVariable("testgen hostnames 3"), config.StringVariable("testgen hostnames 2")),
 					"name":        config.StringVariable(rName),
 					"type":        config.StringVariable("static"),
 				},
@@ -265,13 +265,13 @@ func TestAccHostGroupResource_hostnames(t *testing.T) {
 					},
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("hostnames"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact("TF-ACC-HOST-3"), knownvalue.StringExact("TF-ACC-HOST-2")})),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("hostnames"), knownvalue.SetExact([]knownvalue.Check{knownvalue.StringExact("testgen hostnames 3"), knownvalue.StringExact("testgen hostnames 2")})),
 				},
 			},
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
-					"description": config.StringVariable(rName),
+					"description": config.StringVariable("testgen description 1"),
 					"hostnames":   config.SetVariable([]config.Variable{}...),
 					"name":        config.StringVariable(rName),
 					"type":        config.StringVariable("static"),
@@ -288,7 +288,7 @@ func TestAccHostGroupResource_hostnames(t *testing.T) {
 			{
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
-					"description": config.StringVariable(rName),
+					"description": config.StringVariable("testgen description 1"),
 					"hostnames":   config.SetVariable([]config.Variable{}...),
 					"name":        config.StringVariable(rName),
 					"type":        config.StringVariable("static"),
@@ -314,7 +314,7 @@ func TestAccHostGroupResource_name(t *testing.T) {
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
 					"assignment_rule": config.StringVariable("hostname:'tf-acc-test-a'"),
-					"description":     config.StringVariable(rName),
+					"description":     config.StringVariable("testgen description 1"),
 					"name":            config.StringVariable(rName),
 					"type":            config.StringVariable("dynamic"),
 				},
@@ -326,7 +326,7 @@ func TestAccHostGroupResource_name(t *testing.T) {
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
 					"assignment_rule": config.StringVariable("hostname:'tf-acc-test-a'"),
-					"description":     config.StringVariable(rName),
+					"description":     config.StringVariable("testgen description 1"),
 					"name":            config.StringVariable(rName + "-updated"),
 					"type":            config.StringVariable("dynamic"),
 				},
@@ -343,7 +343,7 @@ func TestAccHostGroupResource_name(t *testing.T) {
 				ConfigDirectory: config.StaticDirectory("testdata/host_group"),
 				ConfigVariables: config.Variables{
 					"assignment_rule": config.StringVariable("hostname:'tf-acc-test-a'"),
-					"description":     config.StringVariable(rName),
+					"description":     config.StringVariable("testgen description 1"),
 					"name":            config.StringVariable(rName + "-updated"),
 					"type":            config.StringVariable("dynamic"),
 				},
