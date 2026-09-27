@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testgen"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // value is a test value for an attribute. How it is read depends on the
@@ -304,28 +306,14 @@ func equal(a *attribute, x, y value) bool {
 			return false
 		}
 		for _, xe := range x.elems {
-			found := false
-			for _, ye := range y.elems {
-				if equal(a.elem, xe, ye) {
-					found = true
-					break
-				}
-			}
-			if !found {
+			if !slices.ContainsFunc(y.elems, func(ye value) bool { return equal(a.elem, xe, ye) }) {
 				return false
 			}
 		}
 		return true
 	case kindObject:
-		keys := map[string]bool{}
-		for k := range x.fields {
-			keys[k] = true
-		}
-		for k := range y.fields {
-			keys[k] = true
-		}
-		for k := range keys {
-			if !equal(a.children[k], x.field(k), y.field(k)) {
+		for k, c := range a.children {
+			if !equal(c, x.field(k), y.field(k)) {
 				return false
 			}
 		}
@@ -408,10 +396,9 @@ func worst(x, y action) action {
 // camel converts an attribute name to the test suffix form: host_groups -> hostGroups.
 func camel(name string) string {
 	parts := strings.Split(name, "_")
+	title := cases.Title(language.Und, cases.NoLower)
 	for i := 1; i < len(parts); i++ {
-		if parts[i] != "" {
-			parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
-		}
+		parts[i] = title.String(parts[i])
 	}
 	return strings.Join(parts, "")
 }

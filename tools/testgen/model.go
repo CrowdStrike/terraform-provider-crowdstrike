@@ -5,11 +5,12 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"path"
 	"reflect"
-	"regexp"
+	"runtime"
 	"slices"
-	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -41,11 +42,6 @@ const (
 	// generator cannot evaluate, so plan actions on this attribute are not asserted.
 	replaceConditional
 )
-
-// requiresReplaceDescription is the description of the unconditional
-// RequiresReplace plan modifier in every *planmodifier package. RequiresReplaceIf
-// shares its concrete type, so the description is what tells them apart.
-const requiresReplaceDescription = "If the value of this attribute changes, Terraform will destroy and recreate the resource."
 
 // attribute is the generator's view of one schema attribute.
 type attribute struct {
@@ -159,10 +155,14 @@ func buildAttribute(ctx context.Context, name string, a schema.Attribute, parent
 	}
 
 	for _, v := range sliceField(a, "Validators") {
-		applyValidator(ctx, m, v)
+		if err := applyValidator(m, v); err != nil {
+			return nil, fmt.Errorf("%s: %w", m.dotted(), err)
+		}
 	}
 	for _, pm := range sliceField(a, "PlanModifiers") {
-		applyPlanModifier(ctx, m, pm)
+		if err := applyPlanModifier(m, pm); err != nil {
+			return nil, fmt.Errorf("%s: %w", m.dotted(), err)
+		}
 	}
 	if m.kind != kindUnsupported {
 		d, err := defaultValue(ctx, m, a)
@@ -224,108 +224,164 @@ func sliceField(a any, name string) []any {
 	return out
 }
 
-type describer interface {
-	Description(context.Context) string
-}
-
-var (
-	quotedRE     = regexp.MustCompile(`"(?:[^"\\]|\\.)*"`)
-	oneOfRE      = regexp.MustCompile(`value must be one of: \[([^\]]*)\]`)
-	noneOfRE     = regexp.MustCompile(`value must be none of: \[([^\]]*)\]`)
-	betweenRE    = regexp.MustCompile(`^value must be between (\S+) and (\S+)$`)
-	atLeastRE    = regexp.MustCompile(`^value must be at least (\S+)$`)
-	atMostRE     = regexp.MustCompile(`^value must be at most (\S+)$`)
-	sizeAtLeast  = regexp.MustCompile(`must contain at least (\d+) elements`)
-	sizeAtMostRE = regexp.MustCompile(`at most (\d+) elements`)
+const (
+	validatorsPkg    = "github.com/hashicorp/terraform-plugin-framework-validators/"
+	planModifiersPkg = "github.com/hashicorp/terraform-plugin-framework/resource/schema/"
 )
 
-// applyValidator records the facts the generator needs from a validator.
-// Validators are identified by concrete type; their values come from the
-// description because the fields holding them are unexported.
-func applyValidator(ctx context.Context, m *attribute, v any) {
-	d, ok := v.(describer)
-	if !ok {
-		return
-	}
-	desc := d.Description(ctx)
-	typ := fmt.Sprintf("%T", v)
-
-	switch {
-	case typ == "stringvalidator.oneOfValidator" || typ == "stringvalidator.oneOfCaseInsensitiveValidator":
-		m.enum = parseQuoted(desc)
-	case typ == "int64validator.oneOfValidator" || typ == "int32validator.oneOfValidator":
-		for _, s := range parseQuoted(desc) {
-			if n, err := strconv.ParseInt(s, 10, 64); err == nil {
-				m.intEnum = append(m.intEnum, n)
-			}
-		}
-	case strings.HasSuffix(typ, "validator.noneOfValidator") && typ != "stringvalidator.noneOfValidator":
-		if g := noneOfRE.FindStringSubmatch(desc); g != nil {
-			for _, q := range parseQuoted(g[0]) {
-				if f := parseFloat(q); f != nil {
-					m.exclude = append(m.exclude, *f)
-				}
-			}
-		}
-	case strings.HasSuffix(typ, "validator.betweenValidator"):
-		if g := betweenRE.FindStringSubmatch(desc); g != nil {
-			m.lo, m.hi = parseFloat(g[1]), parseFloat(g[2])
-		}
-	case strings.HasSuffix(typ, "validator.atLeastValidator"):
-		if g := atLeastRE.FindStringSubmatch(desc); g != nil {
-			m.lo = parseFloat(g[1])
-		}
-	case strings.HasSuffix(typ, "validator.atMostValidator"):
-		if g := atMostRE.FindStringSubmatch(desc); g != nil {
-			m.hi = parseFloat(g[1])
-		}
-	case strings.HasSuffix(typ, "validator.sizeAtLeastValidator"),
-		strings.HasSuffix(typ, "validator.sizeAtMostValidator"),
-		strings.HasSuffix(typ, "validator.sizeBetweenValidator"):
-		if g := sizeAtLeast.FindStringSubmatch(desc); g != nil {
-			m.minSize, _ = strconv.Atoi(g[1])
-		}
-		if g := sizeAtMostRE.FindStringSubmatch(desc); g != nil {
-			m.maxSize, _ = strconv.Atoi(g[1])
-		}
-	case strings.HasSuffix(typ, "validator.valueStringsAreValidator"):
-		if m.elem != nil {
-			if g := oneOfRE.FindStringSubmatch(desc); g != nil {
-				m.elem.enum = parseQuoted(g[0])
-			}
-		}
-	}
-}
-
-func applyPlanModifier(ctx context.Context, m *attribute, pm any) {
-	if !strings.HasSuffix(fmt.Sprintf("%T", pm), "planmodifier.requiresReplaceIfModifier") {
-		return
-	}
-	mode := replaceConditional
-	if d, ok := pm.(describer); ok && d.Description(ctx) == requiresReplaceDescription {
-		mode = replaceAlways
-	}
-	if mode > m.replace {
-		m.replace = mode
-	}
-}
-
-func parseQuoted(s string) []string {
-	var out []string
-	for _, q := range quotedRE.FindAllString(s, -1) {
-		if u, err := strconv.Unquote(q); err == nil {
-			out = append(out, u)
-		}
-	}
-	return out
-}
-
-func parseFloat(s string) *float64 {
-	f, err := strconv.ParseFloat(s, 64)
-	if err != nil {
+// applyValidator records the facts the generator needs from a
+// terraform-plugin-framework-validators validator. Validators are identified
+// by concrete type and their values are read from the unexported struct
+// fields, so a library change that renames a field fails loudly.
+func applyValidator(m *attribute, v any) error {
+	t := reflect.TypeOf(v)
+	if !strings.HasPrefix(t.PkgPath(), validatorsPkg) {
 		return nil
 	}
-	return &f
+	name := t.Name()
+	pkg := path.Base(t.PkgPath())
+	num := func(field string) (*float64, error) {
+		f, err := readField(v, field)
+		if err != nil {
+			return nil, err
+		}
+		n, ok := toFloat(f)
+		if !ok {
+			return nil, fmt.Errorf("%s.%s.%s is %T, not a number", pkg, name, field, f)
+		}
+		return &n, nil
+	}
+	size := func(field string, dst *int) error {
+		n, err := num(field)
+		if err == nil {
+			*dst = int(*n)
+		}
+		return err
+	}
+
+	var err error
+	switch {
+	case name == "oneOfValidator" || name == "oneOfCaseInsensitiveValidator":
+		var f any
+		if f, err = readField(v, "values"); err != nil {
+			return err
+		}
+		switch vals := f.(type) {
+		case []types.String:
+			for _, s := range vals {
+				m.enum = append(m.enum, s.ValueString())
+			}
+		case []types.Int64:
+			for _, n := range vals {
+				m.intEnum = append(m.intEnum, n.ValueInt64())
+			}
+		case []types.Int32:
+			for _, n := range vals {
+				m.intEnum = append(m.intEnum, int64(n.ValueInt32()))
+			}
+		}
+	case name == "noneOfValidator" && pkg != "stringvalidator":
+		var f any
+		if f, err = readField(v, "values"); err != nil {
+			return err
+		}
+		rv := reflect.ValueOf(f)
+		for i := range rv.Len() {
+			if n, ok := toFloat(rv.Index(i).Interface()); ok {
+				m.exclude = append(m.exclude, n)
+			}
+		}
+	case name == "betweenValidator":
+		if m.lo, err = num("min"); err != nil {
+			return err
+		}
+		m.hi, err = num("max")
+	case name == "atLeastValidator":
+		m.lo, err = num("min")
+	case name == "atMostValidator":
+		m.hi, err = num("max")
+	case name == "sizeAtLeastValidator":
+		err = size("min", &m.minSize)
+	case name == "sizeAtMostValidator":
+		err = size("max", &m.maxSize)
+	case name == "sizeBetweenValidator":
+		if err = size("min", &m.minSize); err != nil {
+			return err
+		}
+		err = size("max", &m.maxSize)
+	case strings.HasPrefix(name, "value") && strings.HasSuffix(name, "sAreValidator"):
+		if m.elem == nil {
+			return nil
+		}
+		var f any
+		if f, err = readField(v, "elementValidators"); err != nil {
+			return err
+		}
+		rv := reflect.ValueOf(f)
+		for i := range rv.Len() {
+			if err := applyValidator(m.elem, rv.Index(i).Interface()); err != nil {
+				return err
+			}
+		}
+	}
+	return err
+}
+
+// applyPlanModifier records whether a plan modifier forces replacement.
+// RequiresReplace is RequiresReplaceIf with a closure that always returns
+// true, so the closure's symbol name is what tells them apart.
+func applyPlanModifier(m *attribute, pm any) error {
+	t := reflect.TypeOf(pm)
+	if !strings.HasPrefix(t.PkgPath(), planModifiersPkg) || t.Name() != "requiresReplaceIfModifier" {
+		return nil
+	}
+	f, err := readField(pm, "ifFunc")
+	if err != nil {
+		return err
+	}
+	fn := runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
+	mode := replaceConditional
+	if strings.HasPrefix(fn, t.PkgPath()+".RequiresReplace.func") {
+		mode = replaceAlways
+	}
+	m.replace = max(m.replace, mode)
+	return nil
+}
+
+// readField returns the value of a struct field, exported or not.
+func readField(v any, field string) (any, error) {
+	rv := reflect.ValueOf(v)
+	c := reflect.New(rv.Type()).Elem()
+	c.Set(rv)
+	f := c.FieldByName(field)
+	if !f.IsValid() {
+		return nil, fmt.Errorf("%s has no field %q; update testgen for this library version", rv.Type(), field)
+	}
+	return reflect.NewAt(f.Type(), unsafe.Pointer(f.UnsafeAddr())).Elem().Interface(), nil //nolint:gosec // reading unexported validator fields
+}
+
+func toFloat(v any) (float64, bool) {
+	switch n := v.(type) {
+	case int:
+		return float64(n), true
+	case int32:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case float32:
+		return float64(n), true
+	case float64:
+		return n, true
+	case types.Int32:
+		return float64(n.ValueInt32()), true
+	case types.Int64:
+		return float64(n.ValueInt64()), true
+	case types.Float32:
+		return float64(n.ValueFloat32()), true
+	case types.Float64:
+		return n.ValueFloat64(), true
+	}
+	return 0, false
 }
 
 // defaultValue evaluates the attribute's Default, if any. Every defaults.X

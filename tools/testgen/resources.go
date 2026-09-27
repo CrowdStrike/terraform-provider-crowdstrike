@@ -9,10 +9,13 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"runtime/debug"
+	"slices"
 	"sort"
 	"strings"
 
@@ -23,7 +26,15 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
 
-const modulePath = "github.com/crowdstrike/terraform-provider-crowdstrike"
+// modulePath is the provider's module path, read from the build info so it
+// always matches go.mod.
+var modulePath = func() string {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		panic("testgen: no build info")
+	}
+	return bi.Main.Path
+}()
 
 type validatorServer interface {
 	ValidateResourceConfig(context.Context, *tfprotov6.ValidateResourceConfigRequest) (*tfprotov6.ValidateResourceConfigResponse, error)
@@ -35,33 +46,51 @@ type resourceInfo struct {
 	testPrefix  string // TestAccCIDGroupResource
 	dir         string // internal/cid_group, relative to the module root
 	pkgName     string // cidgroup
-	testPackage string // cidgroup_test
 	constructor string // NewCIDGroupResource
 	importable  bool
 	attrs       map[string]*attribute
 	schemaType  tftypes.Object
 	handWritten map[string]bool // lowercased test function names in hand-written test files
-	loadErr     error
 	spec        testgen.Resource
 }
 
-func loadResources(ctx context.Context, p fwprovider.Provider, root string) (map[string]*resourceInfo, error) {
-	out := map[string]*resourceInfo{}
+// loadResources returns the registered resources, in name order, with their
+// specs attached. It returns every error found rather than stopping at the
+// first one.
+func loadResources(ctx context.Context, p fwprovider.Provider, root string) ([]*resourceInfo, error) {
+	specs := map[string]testgen.Resource{}
+	for _, name := range testgen.Registered() {
+		specs[name], _ = testgen.Lookup(name)
+	}
+	byName := map[string]*resourceInfo{}
 	scans := map[string]*scan{}
+	var errs []error
 	for _, newResource := range p.Resources(ctx) {
 		res := newResource()
 		var md resource.MetadataResponse
 		res.Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "crowdstrike"}, &md)
-		// Unregistered resources only need a name for registration checks.
-		if _, ok := testgen.Lookup(md.TypeName); !ok {
-			out[md.TypeName] = &resourceInfo{typeName: md.TypeName}
+		spec, ok := specs[md.TypeName]
+		if !ok {
 			continue
 		}
+		delete(specs, md.TypeName)
 		r, err := describeResource(ctx, newResource, res, md, root, scans)
 		if err != nil {
-			return nil, err
+			errs = append(errs, err)
+			continue
 		}
-		out[r.typeName] = r
+		r.spec = spec
+		byName[r.typeName] = r
+	}
+	for name := range specs {
+		errs = append(errs, fmt.Errorf("%s is registered but is not a provider resource", name))
+	}
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+	out := make([]*resourceInfo, 0, len(byName))
+	for _, name := range slices.Sorted(maps.Keys(byName)) {
+		out = append(out, byName[name])
 	}
 	return out, nil
 }
@@ -82,8 +111,7 @@ func describeResource(ctx context.Context, newResource func() resource.Resource,
 
 	r := &resourceInfo{typeName: md.TypeName, importable: importable}
 	if len(sr.Schema.Blocks) > 0 {
-		r.loadErr = fmt.Errorf("%s: schemas with blocks are not supported", md.TypeName)
-		return r, nil
+		return nil, fmt.Errorf("%s: schemas with blocks are not supported", md.TypeName)
 	}
 
 	attrs, err := buildAttributes(ctx, sr.Schema.Attributes, nil)
@@ -99,8 +127,7 @@ func describeResource(ctx context.Context, newResource func() resource.Resource,
 	i := strings.LastIndex(fn, ".")
 	pkgPath, name := fn[:i], fn[i+1:]
 	if !strings.HasPrefix(name, "New") || !strings.HasPrefix(pkgPath, modulePath+"/") {
-		r.loadErr = fmt.Errorf("%s: constructor %s must be a package-level New* function", md.TypeName, fn)
-		return r, nil
+		return nil, fmt.Errorf("%s: constructor %s must be a package-level New* function", md.TypeName, fn)
 	}
 	r.testPrefix = "TestAcc" + strings.TrimPrefix(name, "New")
 	r.constructor = name
@@ -116,7 +143,6 @@ func describeResource(ctx context.Context, newResource func() resource.Resource,
 		scans[r.dir] = sc
 	}
 	r.pkgName = sc.pkg
-	r.testPackage = sc.pkg + "_test"
 	r.handWritten = sc.handWritten
 	return r, nil
 }
@@ -165,26 +191,6 @@ func scanPackage(dir string) (string, map[string]bool, error) {
 
 func isGenerated(src []byte, header string) bool {
 	return bytes.HasPrefix(src, []byte(header+"\n"))
-}
-
-// registered returns the resources registered for generation, in name order,
-// with their specs attached.
-func registered(resources map[string]*resourceInfo, errs *[]error) []*resourceInfo {
-	var out []*resourceInfo
-	for _, name := range testgen.Registered() {
-		r, ok := resources[name]
-		if !ok {
-			*errs = append(*errs, fmt.Errorf("%s is registered but is not a provider resource", name))
-			continue
-		}
-		if r.loadErr != nil {
-			*errs = append(*errs, r.loadErr)
-			continue
-		}
-		r.spec, _ = testgen.Lookup(name)
-		out = append(out, r)
-	}
-	return out
 }
 
 // generateResource returns the generated files for one resource, keyed by

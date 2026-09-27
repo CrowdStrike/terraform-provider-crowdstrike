@@ -96,7 +96,7 @@ func renderGo(r *resourceInfo, cases []testCase) ([]byte, error) {
 		for _, k := range []string{"acctest", "config", "resource"} {
 			used[k] = true
 		}
-		if usesRName(c) {
+		if usesRName(r, c) {
 			body.WriteString("\trName := acctest.RandomResourceName()\n")
 		}
 		fmt.Fprintf(&body, "\tresourceName := %q\n\n", r.typeName+".test")
@@ -196,7 +196,7 @@ func renderGo(r *resourceInfo, cases []testCase) ([]byte, error) {
 
 	var out strings.Builder
 	out.WriteString(goHeader + "\n\n")
-	fmt.Fprintf(&out, "package %s\n\nimport (\n\t\"testing\"\n\n", r.testPackage)
+	fmt.Fprintf(&out, "package %s\n\nimport (\n\t\"testing\"\n\n", r.pkgName+"_test")
 	for _, spec := range specs {
 		fmt.Fprintf(&out, "\t%s\n", spec)
 	}
@@ -225,24 +225,15 @@ func planCheck(stepIndex int, a action) string {
 	return ""
 }
 
-func usesRName(c testCase) bool {
+func usesRName(r *resourceInfo, c testCase) bool {
 	for _, s := range c.steps {
 		for name, v := range s.values {
-			if valueUsesRName(attrByName(c, name), v) {
+			if valueUsesRName(r.attrs[name], v) {
 				return true
 			}
 		}
 	}
 	return false
-}
-
-func attrByName(c testCase, name string) *attribute {
-	for _, a := range c.vars {
-		if a.name == name {
-			return a
-		}
-	}
-	panic("attrByName: no variable " + name)
 }
 
 func valueUsesRName(a *attribute, v value) bool {

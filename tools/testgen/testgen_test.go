@@ -94,7 +94,6 @@ func fixtureResource(t *testing.T, spec testgen.Resource) *resourceInfo {
 		testPrefix:  "TestAccWidgetResource",
 		dir:         "internal/widget",
 		pkgName:     "widget",
-		testPackage: "widget_test",
 		constructor: "NewWidgetResource",
 		importable:  true,
 		attrs:       attrs,

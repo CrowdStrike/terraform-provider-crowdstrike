@@ -124,10 +124,11 @@ Every failure is a provider bug the tests found. None are fixed or hidden behind
 
 ## Known limitations
 
-- **Plan modifier and validator detection** relies on concrete types and description text. A framework upgrade that changes either breaks detection; the unit tests pin this so it fails loudly.
+- **Plan modifier and validator detection** reads unexported struct fields by reflection, and tells `RequiresReplace` from `RequiresReplaceIf` by the symbol name of its closure. A library upgrade that renames a field returns an error; one that renames the closure is caught by the unit tests. `RequiresReplaceIf` logic is not evaluated, so plan actions on those attributes are not asserted.
 - **Environment-dependent values** (`cid_group.cids`, pinned content versions) are Skip entries. There is no way yet to source values from environment variables.
 - **Linked values** (such as `custom_ioc` where `value` depends on `type`) have no spec support yet.
 - **Map attributes** are skipped with a reason.
+- **List/set lifecycle steps** are fixed index patterns sized for pools of 2 or 3 elements (`lifecycle` in `rules.go`). A `minSize` above 1 drops steps instead of producing a sequence that respects the bounds.
 - **List/set nested objects** are tested as whole elements; their children do not get their own tests.
 - **Editors.** gopls needs `-tags=testgen` in `buildFlags` to analyze `testgen.go` files. golangci-lint has the tag configured in `.golangci.yml`.
 
@@ -139,4 +140,5 @@ Every failure is a provider bug the tests found. None are fixed or hidden behind
 4. Environment-sourced values, linked value sets, map attributes, and per-child tests for list/set nested objects.
 5. Move imperative `ValidateConfig` rules to declarative validators (`ExactlyOneOf`, `AtLeastOneOf`) where possible, so the model can read them instead of relying only on the validation RPC.
 6. Opt in more resources and delete the hand-written tests the generated ones replace.
-7. Update the `terraform-provider-testing` skill (it lives in a plugin, not this repo) so AI edits `testgen.go` instead of writing tests.
+7. Render the Go test file with `text/template` and `golang.org/x/tools/imports` instead of string building and hand-tracked imports, and build `main.tf` with the `hclwrite` builder API instead of `Fprintf`.
+8. Update the `terraform-provider-testing` skill (it lives in a plugin, not this repo) so AI edits `testgen.go` instead of writing tests.

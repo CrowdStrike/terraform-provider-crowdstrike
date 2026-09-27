@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 )
@@ -269,10 +270,7 @@ func attributeCase(r *resourceInfo, p *pools, base map[string]value, sub subject
 		return c, err
 	}
 	with := func(v *value) map[string]value {
-		out := map[string]value{}
-		for k, ov := range others {
-			out[k] = ov
-		}
+		out := maps.Clone(others)
 		if tv := sub.wrap(v); tv != nil {
 			out[sub.top.name] = *tv
 		}

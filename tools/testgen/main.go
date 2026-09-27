@@ -50,12 +50,12 @@ func run(ctx context.Context, root string) error {
 	return writeFiles(root, files)
 }
 
-// generate builds the generated files for every registered resource. It
+// generate builds the generated files for every loaded resource. It
 // returns every error found rather than stopping at the first one.
-func generate(ctx context.Context, srv validatorServer, resources map[string]*resourceInfo) (map[string][]byte, error) {
+func generate(ctx context.Context, srv validatorServer, resources []*resourceInfo) (map[string][]byte, error) {
 	files := map[string][]byte{}
 	var errs []error
-	for _, r := range registered(resources, &errs) {
+	for _, r := range resources {
 		out, err := generateResource(ctx, srv, r)
 		if err != nil {
 			errs = append(errs, err)

@@ -8,11 +8,9 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
-)
 
-// sampleRName stands in for acctest.RandomResourceName when validating
-// generated configs. It has the same prefix and maximum length.
-const sampleRName = "tf-acc-test-1234567890123456789"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+)
 
 // validateConfig runs the provider's own ValidateResourceConfig RPC on a
 // generated config, which applies attribute validators, ConfigValidators,
@@ -65,7 +63,7 @@ func toTF(a *attribute, v value, t tftypes.Type) tftypes.Value {
 	case kindString:
 		s := v.str
 		if v.rName {
-			s = sampleRName + s
+			s = acctest.RandomResourceName() + s
 		}
 		return tftypes.NewValue(t, s)
 	case kindBool:
