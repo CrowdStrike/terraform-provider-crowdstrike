@@ -22,6 +22,9 @@ import (
 // can be customized.
 //go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs generate -provider-name crowdstrike
 
+// Generate acceptance tests for resources registered in their package's testgen.go.
+//go:generate go run -tags testgen ./tools/testgen
+
 // these will be set by the goreleaser configuration
 // to appropriate values for the compiled binary.
 var version string = "dev"

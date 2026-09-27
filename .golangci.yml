@@ -1,4 +1,8 @@
 version: "2"
+run:
+  # Include the testgen.go spec files, which only build under this tag.
+  build-tags:
+    - testgen
 linters:
   enable:
     - contextcheck

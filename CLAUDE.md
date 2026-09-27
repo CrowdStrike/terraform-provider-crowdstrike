@@ -11,7 +11,7 @@ PKG=host_groups make acctest  # Test a specific package
 TESTARGS="-run TestAccHostGroupResource" PKG=host_groups make acctest
 make test                   # Unit tests only (no TF_ACC)
 make fmt                    # Fix formatting and linting
-make gen                    # Regenerate docs (never edit docs/ manually)
+make gen                    # Regenerate docs and generated tests (never edit docs/ or *_gen_test.go manually)
 make lint                   # Run golangci-lint
 make fmt-check              # Check formatting without changing files
 make sweep                  # Clean up test resources (dev accounts only)
@@ -67,7 +67,7 @@ You MUST read the relevant section(s) of CONTRIBUTING.md before doing the corres
 | Adding logging                         | "Logging with tflog"                                    |
 | Writing diagnostics                    | "Single-line Diagnostics with Ellipsis"                 |
 | Setting state in Create                | "Early State Updates"                                   |
-| Writing or modifying tests             | "Testing"                                               |
+| Writing or modifying tests             | "Testing", "Generated Acceptance Tests"                 |
 | Deciding where to put new files        | "File Structure"                                        |
 
 ## Scaffolding New Resources and Data Sources

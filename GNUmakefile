@@ -50,7 +50,7 @@ gen: ## Generate provider documentation
 test: ## Run unit tests (TESTARGS: additional go test flags)
 	@branch=$$(git rev-parse --abbrev-ref HEAD); \
 	printf "Running unit tests on branch: %s\n" "$$branch"
-	unset TF_ACC && go test ./internal/... -v $(TESTARGS) -timeout 15m
+	unset TF_ACC && go test ./internal/... ./tools/testgen/... -v $(TESTARGS) -timeout 15m
 
 .PHONY: testacc
 testacc: fmt ## Run all acceptance tests (TESTARGS: additional go test flags)

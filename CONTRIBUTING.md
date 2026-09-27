@@ -30,6 +30,7 @@ This guide covers both the practical aspects of setting up and contributing to t
     - [Error Handling](#error-handling)
     - [Logging with tflog](#logging-with-tflog)
   - [Testing](#testing)
+    - [Generated Acceptance Tests](#generated-acceptance-tests)
   - [Debugging](#debugging)
   - [Code Patterns](#code-patterns)
     - [Model Wrapping with .wrap Method](#model-wrapping-with-wrap-method)
@@ -216,8 +217,8 @@ Follow these steps to add a new Terraform resource to the provider:
    - Register your new resource in `internal/provider/provider.go`.
 
 3. **Add Acceptance Tests**
-   - Create a test file in the appropriate internal package (e.g., `internal/<resource>/<resource>_resource_test.go`).
-   - Ensure tests cover the full resource lifecycle: create, update, destroy, and attribute checks.
+   - The scaffolder registers the resource in its package's `testgen.go`. Run `make gen` to generate its acceptance tests from the schema; see [Generated Acceptance Tests](#generated-acceptance-tests).
+   - Add values to `testgen.go` for attributes the generator asks about, and write hand-written tests only for behavior the generator does not cover.
 
 4. **Add Example and Import Script**
    - Add a usage example in `examples/resources/<resource>/resource.tf`.
@@ -234,7 +235,8 @@ Follow these steps to add a new Terraform resource to the provider:
 ### File Structure
 
 - **Resource Implementation:** `internal/<resource>/<resource>_resource.go`
-- **Acceptance Tests:** `internal/<resource>/<resource>_resource_test.go`
+- **Acceptance Tests:** `internal/<resource>/<resource>_resource_test.go` (hand-written)
+- **Generated Acceptance Tests:** `internal/<resource>/<resource>_resource_gen_test.go` and `internal/<resource>/testdata/<resource>/main.tf`, produced from `internal/<resource>/testgen.go`
 - **Examples:** `examples/resources/<resource>/`
 - **Docs:** Auto-generated in `docs/resources/` from schema and examples.
 
@@ -405,6 +407,70 @@ The Terraform Plugin Framework provides a structured logging system called `tflo
 
 - Follow the patterns in the [Terraform Testing documentation](https://developer.hashicorp.com/terraform/plugin/testing/testing-patterns).
 - Ensure tests cover the full resource lifecycle and verify all attributes work as expected.
+
+### Generated Acceptance Tests
+
+`tools/testgen` generates acceptance tests from each resource's schema. It runs as part of `make gen`, and CI fails if the generated files are out of date.
+
+**What it generates.** For every registered resource:
+
+- `_basic`: only Required attributes. Checks that every Computed-only attribute is set, then verifies import.
+- `_disappears`: applies the `_basic` config, deletes the resource outside Terraform through its own `Delete`, and expects the refreshed plan to recreate it. `Delete` gets a state holding the top-level primitive attributes, such as the ID and `enabled`; nested attributes and collections are null.
+- One test per settable attribute, named after it (`_description`, `_hostGroups`), plus one per optional child of a single nested attribute (`_scheduleTimezone`). Each test adds that attribute to the basic config and walks it through its lifecycle:
+  - Primitives: set, update (every value of a `OneOf` enum), then omit.
+  - Lists and sets: create, add an element, reorder, remove a middle element, set `[]` when no `SizeAtLeast` validator forbids it, then omit. A list reorder must plan an update; a set reorder must plan nothing.
+  - Nested objects: set, update, then omit, with values built from the object's children.
+  - Omitting expects null, or the schema `Default`. The omit step is skipped for Optional+Computed attributes without a default and for Required attributes.
+  - Updates assert the plan action: `DestroyBeforeCreate` for `RequiresReplace`, otherwise `Update`. `RequiresReplaceIf` has conditions the generator cannot evaluate, so it gets no plan check.
+
+The tests assert the schema's contract under Terraform's desired-state model. A generated test that fails because the API behaves differently has found a bug in the resource. Fix the resource; do not work around it in `testgen.go`.
+
+**Opting in.** A resource gets generated tests once its package's `testgen.go` registers it. The file builds only under the `testgen` build tag, so it never ships in the provider:
+
+```go
+//go:build testgen
+
+package hostgroups
+
+import "github.com/crowdstrike/terraform-provider-crowdstrike/internal/testgen"
+
+func init() {
+	testgen.Register("crowdstrike_host_group", testgen.Resource{
+		// Provider validation requires a membership attribute for every type.
+		Base: map[string]any{"type": "dynamic", "assignment_rule": "hostname:'tf-acc-test-a'"},
+		Attributes: map[string]testgen.Attribute{
+			"hostnames": {
+				Values:   []any{"TF-ACC-HOST-1", "TF-ACC-HOST-2", "TF-ACC-HOST-3"},
+				Requires: map[string]any{"type": "static", "assignment_rule": nil},
+			},
+		},
+		ImportIgnore: []string{"last_updated"},
+		Skip: map[string]string{
+			"hostIds": "testgen: host IDs must reference real hosts in the tenant",
+		},
+	})
+}
+```
+
+| Field | Use it when |
+|---|---|
+| `Attributes[name].Values` | The generator cannot pick values itself. It derives values for `name`, `description`, `OneOf` enums, bools, and bounded numbers; everything else needs values. Lists and sets need at least three elements for every lifecycle step. Nested children use dotted names (`"schedule.interval"`). |
+| `Attributes[name].Requires` | An attribute is only valid alongside others, such as a threshold that requires its feature to be enabled. A `nil` value unsets a `Base` attribute for that test. |
+| `Base` | Provider validation needs more than the Required attributes in every config. |
+| `ImportIgnore` | The provider sets an attribute outside Read, such as `last_updated`. |
+| `Skip` | The generator cannot handle a test yet. The test is still emitted and calls `t.Skip` with the reason. |
+| `Serial` | The resource is a singleton, such as a default policy, so its tests cannot run in parallel. |
+| `NoDisappears` | The resource's `Delete` does not remove the remote object, such as a default policy whose `Delete` only removes it from state. |
+
+`make gen` reports every attribute that needs values and every spec entry that does not match the schema.
+
+**Validation at generation time.** Every generated step config goes through the provider's own `ValidateResourceConfig`, so attribute validators, `ConfigValidators`, and `ValidateConfig` all run during `make gen`. An invalid config fails generation with the provider's diagnostic, which usually names the `Requires` or `Base` entry needed. The one exception is an omit step the provider rejects: that step is dropped, and a comment on the generated test says why.
+
+**Generated files.** `<resource>_resource_gen_test.go` holds the tests. `testdata/<resource>/main.tf` declares every settable attribute as a variable defaulting to null, and each test step sets attributes by passing variables. Both files start with a `DO NOT EDIT` header. The generator deletes files with that header that it no longer produces, and never touches other files.
+
+**Overriding a generated test.** Write a test with the same name in a hand-written `_test.go` file. The generator skips any test whose name matches a hand-written one, ignoring case.
+
+**Editor setup.** gopls ignores `testgen.go` unless it builds with the tag. Add `-tags=testgen` to gopls `buildFlags` (in VS Code, `"gopls": {"buildFlags": ["-tags=testgen"]}`). golangci-lint is already configured with the tag.
 
 ## Debugging
 

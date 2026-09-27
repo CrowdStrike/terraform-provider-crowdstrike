@@ -93,12 +93,19 @@ func generateResource(data templateData, dir string) error {
 		return err
 	}
 
-	tpl, err = template.ParseFiles(filepath.Join(tplDir, "resource_test.tpl"))
-	if err != nil {
-		return fmt.Errorf("error loading resource test template: %w", err)
-	}
-	if err := generateFile(tpl, fmt.Sprintf("./internal/%s/%s_test.go", goDir, data.SnakeCaseName), data); err != nil {
-		return err
+	// Acceptance tests are generated from the schema by tools/testgen once the
+	// resource is registered in its package's testgen.go.
+	testgenPath := fmt.Sprintf("./internal/%s/testgen.go", goDir)
+	if _, err := os.Stat(testgenPath); os.IsNotExist(err) {
+		tpl, err = template.ParseFiles(filepath.Join(tplDir, "testgen.tpl"))
+		if err != nil {
+			return fmt.Errorf("error loading testgen template: %w", err)
+		}
+		if err := generateFile(tpl, testgenPath, data); err != nil {
+			return err
+		}
+	} else {
+		fmt.Printf("Skipped:   %s (already exists); add testgen.Register(\"crowdstrike_%s\", testgen.Resource{}) to it\n", testgenPath, data.SnakeCaseName)
 	}
 
 	sweepPath := fmt.Sprintf("./internal/%s/sweep.go", goDir)
