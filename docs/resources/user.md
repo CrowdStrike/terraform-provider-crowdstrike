@@ -95,7 +95,9 @@ resource "crowdstrike_user" "invite" {
 
 ### Optional
 
-- `password_wo` (String, Sensitive) The user's initial password. This is a write-only argument: it is never stored in Terraform state. Because the Falcon API has no in-place password-change endpoint, changing the password requires replacing the user; use `password_wo_version` to trigger that replacement. If omitted, the user is created without a password. When SSO is not enabled, CrowdStrike sends the user an automated email prompting them to create a password and configure MFA. Must be set together with `password_wo_version`.
+> **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
+
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) The user's initial password. This is a write-only argument: it is never stored in Terraform state. Because the Falcon API has no in-place password-change endpoint, changing the password requires replacing the user; use `password_wo_version` to trigger that replacement. If omitted, the user is created without a password. When SSO is not enabled, CrowdStrike sends the user an automated email prompting them to create a password and configure MFA. Must be set together with `password_wo_version`.
 - `password_wo_version` (Number) The version of `password_wo`. Increment this value to apply a new password. Because there is no in-place password-change API, changing this forces the user to be replaced (deleted and recreated), which mints a new UUID and drops any role assignments attached to the old UUID. Must be set together with `password_wo`.
 
 ### Read-Only
