@@ -181,10 +181,13 @@ func (r *cloudSecuritySuppressionRuleResource) Schema(
 				},
 			},
 			"type": schema.StringAttribute{
-				Description: "Type of suppression rule. One of: IOM.",
+				Description: "Type of suppression rule (API subdomain). One of: IOM, CloudRisk. Both use the CSPM domain. Changing this value requires replacement.",
 				Required:    true,
 				Validators: []validator.String{
-					stringvalidator.OneOf(suppressionRuleSubdomainDefault),
+					stringvalidator.OneOf(suppressionRuleSubdomainValues...),
+				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"description": schema.StringAttribute{
