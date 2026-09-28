@@ -8,6 +8,7 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon"
 	"github.com/crowdstrike/gofalcon/falcon/client"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/clientoverrides"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/logging"
 )
@@ -47,6 +48,7 @@ func InitializeTestClient(ctx context.Context, cloud, clientId, clientSecret str
 			return
 		}
 
+		clientoverrides.RegisterYAMLProducer(client)
 		cachedClient = client
 		tflog.Info(ctx, "Test client created successfully")
 	})
