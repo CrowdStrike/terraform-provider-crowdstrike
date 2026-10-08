@@ -1,9 +1,11 @@
 package cloudsecurity
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon"
@@ -46,7 +48,7 @@ type cloudSecurityRulesDataSourceModel struct {
 	Framework     types.String `tfsdk:"framework"`
 	Service       types.String `tfsdk:"service"`
 	FQL           types.String `tfsdk:"fql"`
-	Rules         types.Set    `tfsdk:"rules"`
+	Rules         types.List   `tfsdk:"rules"`
 }
 
 type cloudSecurityRulesDataSourceRuleModel struct {
@@ -212,7 +214,7 @@ func (r *cloudSecurityRulesDataSource) Schema(
 				Optional:            true,
 				MarkdownDescription: "Falcon Query Language (FQL) filter for advanced control searches. FQL filter, allowed props: `rule_origin`, `rule_parent_uuid`, `rule_name`, `rule_description`, `rule_domain`, `rule_status`, `rule_severity`, `rule_short_code`, `rule_service`, `rule_resource_type`, `rule_provider`, `rule_subdomain`, `rule_auto_remediable`, `rule_control_requirement`, `rule_control_section`, `rule_compliance_benchmark`, `rule_compliance_framework`, `rule_mitre_tactic`, `rule_mitre_technique`, `rule_created_at`, `rule_updated_at`, `rule_updated_by`",
 			},
-			"rules": schema.SetNestedAttribute{
+			"rules": schema.ListNestedAttribute{
 				Computed:    true,
 				Description: "List of cloud security rules",
 				NestedObject: schema.NestedAttributeObject{
@@ -394,18 +396,22 @@ func (r *cloudSecurityRulesDataSource) getRules(
 	ctx context.Context,
 	fql string,
 	fqlFilters []fqlFilters,
-) (types.Set, diag.Diagnostics) {
-	var rules []cloudSecurityRulesDataSourceRuleModel
+) (types.List, diag.Diagnostics) {
+	rules := []cloudSecurityRulesDataSourceRuleModel{}
+	seenRuleIDs := make(map[string]struct{})
 	var diags diag.Diagnostics
 	var filter string
 	limit := int64(500)
 	offset := int64(0)
-	defaultResponse := types.SetValueMust(types.ObjectType{AttrTypes: cloudSecurityRulesDataSourceRuleModel{}.AttributeTypes()}, []attr.Value{})
+	sort := "rule_name|asc"
+	ruleObjType := types.ObjectType{AttrTypes: cloudSecurityRulesDataSourceRuleModel{}.AttributeTypes()}
+	defaultResponse := types.ListValueMust(ruleObjType, []attr.Value{})
 
 	queryParams := &cloud_policies.QueryRuleParams{
 		Context: ctx,
 		Limit:   &limit,
 		Offset:  &offset,
+		Sort:    &sort,
 	}
 
 	if fql == "" {
@@ -478,6 +484,11 @@ func (r *cloudSecurityRulesDataSource) getRules(
 		}
 
 		for _, resource := range getRulesPayload.Resources {
+			if _, ok := seenRuleIDs[*resource.UUID]; ok {
+				continue
+			}
+			seenRuleIDs[*resource.UUID] = struct{}{}
+
 			rule := cloudSecurityRulesDataSourceRuleModel{
 				ID:             types.StringValue(*resource.UUID),
 				Description:    types.StringPointerValue(resource.Description),
@@ -521,11 +532,13 @@ func (r *cloudSecurityRulesDataSource) getRules(
 				return defaultResponse, diags
 			}
 
-			if len(resource.RuleLogicList) > 0 {
-				rule.RemediationInfo, diags = flex.FlattenStringValueList(ctx, convertAlertRemediationInfoToTerraformState(resource.RuleLogicList[0].RemediationInfo))
-				if diags.HasError() {
-					return defaultResponse, diags
-				}
+			var remediationInfo *string
+			if len(resource.RuleLogicList) > 0 && resource.RuleLogicList[0] != nil {
+				remediationInfo = resource.RuleLogicList[0].RemediationInfo
+			}
+			rule.RemediationInfo, diags = flex.FlattenStringValueList(ctx, convertAlertRemediationInfoToTerraformState(remediationInfo))
+			if diags.HasError() {
+				return defaultResponse, diags
 			}
 
 			rule.AlertInfo, diags = flex.FlattenStringValueList(ctx, convertAlertRemediationInfoToTerraformState(resource.AlertInfo))
@@ -568,14 +581,15 @@ func (r *cloudSecurityRulesDataSource) getRules(
 		offset += limit
 	}
 
-	rulesSet, diags := types.SetValueFrom(
-		ctx,
-		types.ObjectType{AttrTypes: cloudSecurityRulesDataSourceRuleModel{}.AttributeTypes()},
-		rules,
-	)
+	// GetRule does not guarantee response order, so sort by ID to keep the list stable across reads.
+	slices.SortFunc(rules, func(a, b cloudSecurityRulesDataSourceRuleModel) int {
+		return cmp.Compare(a.ID.ValueString(), b.ID.ValueString())
+	})
+
+	rulesList, diags := types.ListValueFrom(ctx, ruleObjType, rules)
 	if diags.HasError() {
 		return defaultResponse, diags
 	}
 
-	return rulesSet, diags
+	return rulesList, diags
 }

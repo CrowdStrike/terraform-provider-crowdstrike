@@ -405,7 +405,7 @@ data "crowdstrike_cloud_security_rules" "empty" {
 }
 			`,
 			ConfigStateChecks: []statecheck.StateCheck{
-				statecheck.ExpectKnownValue("data.crowdstrike_cloud_security_rules.empty", tfjsonpath.New("rules"), knownvalue.Null()),
+				statecheck.ExpectKnownValue("data.crowdstrike_cloud_security_rules.empty", tfjsonpath.New("rules"), knownvalue.ListExact([]knownvalue.Check{})),
 			},
 		},
 	}

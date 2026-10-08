@@ -74,7 +74,7 @@ data "crowdstrike_cloud_security_rules" "original" {
 
 ### Read-Only
 
-- `rules` (Attributes Set) List of cloud security rules (see [below for nested schema](#nestedatt--rules))
+- `rules` (Attributes List) List of cloud security rules (see [below for nested schema](#nestedatt--rules))
 
 <a id="nestedatt--rules"></a>
 ### Nested Schema for `rules`
