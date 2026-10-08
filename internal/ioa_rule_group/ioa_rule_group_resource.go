@@ -3,6 +3,7 @@ package ioarulegroup
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
@@ -37,6 +38,7 @@ var (
 	_ resource.ResourceWithConfigure      = &ioaRuleGroupResource{}
 	_ resource.ResourceWithImportState    = &ioaRuleGroupResource{}
 	_ resource.ResourceWithValidateConfig = &ioaRuleGroupResource{}
+	_ resource.ResourceWithModifyPlan     = &ioaRuleGroupResource{}
 )
 
 func invertMap[K, V comparable](m map[K]V) map[V]K {
@@ -203,6 +205,7 @@ type ioaRuleGroupResourceModel struct {
 
 type ioaRuleModel struct {
 	InstanceID               types.String `tfsdk:"instance_id"`
+	LocalKey                 types.String `tfsdk:"local_key"`
 	Name                     types.String `tfsdk:"name"`
 	Description              types.String `tfsdk:"description"`
 	Comment                  types.String `tfsdk:"comment"`
@@ -267,30 +270,35 @@ func (r ioaRuleModel) excludableFields() []namedObjectField {
 	}
 }
 
-func (r ioaRuleModel) hasNonWildcardInclude(ctx context.Context, diags *diag.Diagnostics) bool {
+// hasNonWildcardInclude reports whether the rule matches something specific.
+// An unknown value counts, because it may resolve to a specific pattern, and
+// ValidateConfig runs again during apply with every value known.
+func (r ioaRuleModel) hasNonWildcardInclude(ctx context.Context) (bool, diag.Diagnostics) {
 	for _, f := range r.excludableFields() {
-		if !utils.IsKnown(f.value) {
+		if f.value.IsNull() {
 			continue
 		}
+		if f.value.IsUnknown() {
+			return true, nil
+		}
 		var ef excludableField
-		diags.Append(f.value.As(ctx, &ef, basetypes.ObjectAsOptions{})...)
-		if diags.HasError() {
-			return false
+		if d := f.value.As(ctx, &ef, basetypes.ObjectAsOptions{}); d.HasError() {
+			return false, d
 		}
 
 		include := ef.Include.ValueString()
-		if include != "" && include != ".*" {
-			return true
+		if ef.Include.IsUnknown() || (include != "" && include != ".*") {
+			return true, nil
 		}
 	}
 
 	for _, sf := range []types.Set{r.FileType, r.ConnectionType} {
-		if utils.IsKnown(sf) && len(sf.Elements()) > 0 {
-			return true
+		if sf.IsUnknown() || len(sf.Elements()) > 0 {
+			return true, nil
 		}
 	}
 
-	return false
+	return false, nil
 }
 
 func (r *ioaRuleGroupResource) Configure(
@@ -443,18 +451,23 @@ func (r *ioaRuleGroupResource) Schema(
 				},
 			},
 			"rules": schema.ListNestedAttribute{
-				Optional:    true,
-				Description: "Ordered list of IOA rules within this rule group.",
+				Optional:            true,
+				MarkdownDescription: "IOA rules within this rule group. Rules are evaluated independently, so list order does not affect detection. Without `local_key`, rules are matched to the existing rules by list position, so inserting, removing, or reordering rules can move instance IDs between rules. To insert or reorder rules safely, set `local_key` on every rule. A rule's type cannot be updated. Changing the type deletes the rule and creates a new one.",
 				Validators: []validator.List{
 					listvalidator.SizeAtLeast(1),
+					validators.ListObjectUniqueString("local_key"),
 				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"instance_id": schema.StringAttribute{
 							Computed:    true,
 							Description: "The unique instance ID of the rule.",
-							PlanModifiers: []planmodifier.String{
-								stringplanmodifier.UseNonNullStateForUnknown(),
+						},
+						"local_key": schema.StringAttribute{
+							Optional:            true,
+							MarkdownDescription: "A stable identifier for the rule, unique within the rule group. Rules with a key are matched to the existing rules by key instead of list position. Keys are all or nothing: set `local_key` on every rule or on none. Keys are stored only in Terraform state and are not sent to Falcon, so imported rules have no keys. To start using keys on an existing or imported rule group, add keys to every rule in one apply, keeping the rules in the same order and with the same values as the current state. After that, rules can be added, removed, renamed, and reordered freely. Changing a rule's key deletes the rule and creates a new one with a new `instance_id`. Removing every key returns to matching by list position.",
+							Validators: []validator.String{
+								validators.StringNotWhitespace(),
 							},
 						},
 						"name": schema.StringAttribute{
@@ -542,9 +555,18 @@ func (r *ioaRuleGroupResource) Schema(
 	}
 }
 
+// trackedRule carries values the API does not store from the plan or prior
+// state into the new state, keyed by instance ID.
 type trackedRule struct {
 	instanceID string
+	key        types.String
 	comment    types.String
+}
+
+// newTrackedRule tracks the values of rule that the API does not store under
+// the rule's instance ID.
+func newTrackedRule(instanceID string, rule ioaRuleModel) trackedRule {
+	return trackedRule{instanceID: instanceID, key: rule.LocalKey, comment: rule.Comment}
 }
 
 func (m *ioaRuleGroupResourceModel) wrap(
@@ -600,14 +622,14 @@ func wrapRules(
 		return types.ListNull(types.ObjectType{AttrTypes: ruleAttrTypes}), diags
 	}
 
-	priorComments := make(map[string]types.String, len(trackedRules))
+	tracked := make(map[string]trackedRule, len(trackedRules))
 	ruleOrder := make([]string, 0, len(trackedRules))
 	for _, t := range trackedRules {
 		if t.instanceID == "" {
 			continue
 		}
 		ruleOrder = append(ruleOrder, t.instanceID)
-		priorComments[t.instanceID] = t.comment
+		tracked[t.instanceID] = t
 	}
 
 	if len(ruleOrder) > 0 {
@@ -639,14 +661,17 @@ func wrapRules(
 		}
 
 		commentVal := flex.StringPointerToFramework(apiRule.Comment)
+		keyVal := types.StringNull()
 		if apiRule.InstanceID != nil {
-			if prior, ok := priorComments[*apiRule.InstanceID]; ok {
-				commentVal = prior
+			if t, ok := tracked[*apiRule.InstanceID]; ok {
+				commentVal = t.comment
+				keyVal = t.key
 			}
 		}
 
 		ruleAttrs := map[string]attr.Value{
 			"instance_id":      types.StringPointerValue(apiRule.InstanceID),
+			"local_key":        keyVal,
 			"name":             types.StringPointerValue(apiRule.Name),
 			"description":      types.StringPointerValue(apiRule.Description),
 			"comment":          commentVal,
@@ -701,6 +726,7 @@ func wrapRules(
 func ruleObjectAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"instance_id":                types.StringType,
+		"local_key":                  types.StringType,
 		"name":                       types.StringType,
 		"description":                types.StringType,
 		"comment":                    types.StringType,
@@ -1009,7 +1035,7 @@ func (r *ioaRuleGroupResource) Create(
 			}
 			version = newVersion
 			if instanceID != "" {
-				trackedRules = append(trackedRules, trackedRule{instanceID: instanceID, comment: rule.Comment})
+				trackedRules = append(trackedRules, newTrackedRule(instanceID, rule))
 			}
 		}
 	}
@@ -1050,7 +1076,7 @@ func (r *ioaRuleGroupResource) Read(
 	}
 	for _, r := range stateRules {
 		if !r.InstanceID.IsNull() {
-			trackedRules = append(trackedRules, trackedRule{instanceID: r.InstanceID.ValueString(), comment: r.Comment})
+			trackedRules = append(trackedRules, newTrackedRule(r.InstanceID.ValueString(), r))
 		}
 	}
 
@@ -1074,8 +1100,9 @@ func (r *ioaRuleGroupResource) Update(
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	var plan ioaRuleGroupResourceModel
+	var plan, state ioaRuleGroupResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -1134,14 +1161,33 @@ func (r *ioaRuleGroupResource) Update(
 	existingRules := indexRulesByInstanceID(currentGroup.Rules)
 
 	planRules := utils.ListTypeAs[ioaRuleModel](ctx, plan.Rules, &resp.Diagnostics)
+	priorRules := utils.ListTypeAs[ioaRuleModel](ctx, state.Rules, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	planInstanceIDs := make(map[string]bool)
-	for _, rule := range planRules {
+	// ruleIDs[i] is the instance ID of planRules[i] once that rule exists, and
+	// the first applied plan rules have been updated or created.
+	ruleIDs := make([]string, len(planRules))
+	for i, rule := range planRules {
 		if utils.IsKnown(rule.InstanceID) {
-			planInstanceIDs[rule.InstanceID.ValueString()] = true
+			ruleIDs[i] = rule.InstanceID.ValueString()
+		}
+	}
+	applied := 0
+
+	// The group has changed, so a failure from here on saves the rules as
+	// they now exist instead of keeping the prior state.
+	defer func() {
+		if resp.Diagnostics.HasError() {
+			r.savePartialState(ctx, groupID, state, partialTrackedRules(planRules, priorRules, ruleIDs, applied), resp)
+		}
+	}()
+
+	planInstanceIDs := make(map[string]bool, len(ruleIDs))
+	for _, id := range ruleIDs {
+		if id != "" {
+			planInstanceIDs[id] = true
 		}
 	}
 
@@ -1184,33 +1230,28 @@ func (r *ioaRuleGroupResource) Update(
 		existingRules = indexRulesByInstanceID(refreshedGroup.Rules)
 	}
 
-	var trackedRules []trackedRule
-
-	for _, planRule := range planRules {
+	for i, planRule := range planRules {
 		var existingRule *models.APIRuleV1
 		if utils.IsKnown(planRule.InstanceID) {
 			existingRule = existingRules[planRule.InstanceID.ValueString()]
 		}
 
+		var instanceID string
+		var newVersion int64
+		var d diag.Diagnostics
 		if existingRule != nil {
-			newVersion, d := r.updateRule(ctx, groupID, planRule, existingRule, version)
-			resp.Diagnostics.Append(d...)
-			if resp.Diagnostics.HasError() {
-				return
-			}
-			version = newVersion
-			trackedRules = append(trackedRules, trackedRule{instanceID: *existingRule.InstanceID, comment: planRule.Comment})
+			instanceID = *existingRule.InstanceID
+			newVersion, d = r.updateRule(ctx, groupID, planRule, existingRule, version)
 		} else {
-			instanceID, newVersion, d := r.createRule(ctx, groupID, planRule, platform, version)
-			resp.Diagnostics.Append(d...)
-			if resp.Diagnostics.HasError() {
-				return
-			}
-			version = newVersion
-			if instanceID != "" {
-				trackedRules = append(trackedRules, trackedRule{instanceID: instanceID, comment: planRule.Comment})
-			}
+			instanceID, newVersion, d = r.createRule(ctx, groupID, planRule, platform, version)
 		}
+		ruleIDs[i] = instanceID
+		resp.Diagnostics.Append(d...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		applied++
+		version = newVersion
 	}
 
 	group, d := r.readRuleGroup(ctx, groupID)
@@ -1219,8 +1260,69 @@ func (r *ioaRuleGroupResource) Update(
 		return
 	}
 
-	resp.Diagnostics.Append(plan.wrap(ctx, group, trackedRules)...)
+	resp.Diagnostics.Append(plan.wrap(ctx, group, partialTrackedRules(planRules, nil, ruleIDs, applied))...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+}
+
+// partialTrackedRules returns the tracked rules of an update that failed
+// after applying the first applied planned rules. ids[i] is the instance ID of
+// planned[i], or "" when that rule does not exist. Every existing planned rule
+// keeps its planned key, because the plan already paired it with that key,
+// but only a rule the update created or applied takes its planned comment.
+// Prior rules the plan does not keep follow with their prior values, in case
+// deleting them failed.
+func partialTrackedRules(planned, prior []ioaRuleModel, ids []string, applied int) []trackedRule {
+	priorByID := make(map[string]ioaRuleModel, len(prior))
+	for _, p := range prior {
+		if utils.IsKnown(p.InstanceID) {
+			priorByID[p.InstanceID.ValueString()] = p
+		}
+	}
+
+	tracked := make([]trackedRule, 0, len(planned)+len(prior))
+	seen := make(map[string]bool, len(planned))
+	for i, rule := range planned {
+		if ids[i] == "" {
+			continue
+		}
+		t := newTrackedRule(ids[i], rule)
+		if p, ok := priorByID[ids[i]]; ok && i >= applied {
+			t.comment = p.Comment
+		}
+		tracked = append(tracked, t)
+		seen[ids[i]] = true
+	}
+	for _, p := range prior {
+		if id := p.InstanceID.ValueString(); utils.IsKnown(p.InstanceID) && !seen[id] {
+			tracked = append(tracked, newTrackedRule(id, p))
+		}
+	}
+	return tracked
+}
+
+// savePartialState sets the state to the rule group as it exists after a
+// failed update, so the next plan pairs the configured rules with the rules
+// that exist. If the group cannot be read, the prior state is kept.
+func (r *ioaRuleGroupResource) savePartialState(
+	ctx context.Context,
+	groupID string,
+	state ioaRuleGroupResourceModel,
+	trackedRules []trackedRule,
+	resp *resource.UpdateResponse,
+) {
+	group, d := r.readRuleGroup(ctx, groupID)
+	if d.HasError() {
+		tflog.Warn(ctx, "Keeping the prior state of the IOA rule group after a failed update: the group could not be read", map[string]any{
+			"id": groupID,
+		})
+		return
+	}
+
+	if d = state.wrap(ctx, group, trackedRules); d.HasError() {
+		resp.Diagnostics.Append(d...)
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
 }
 
 func (r *ioaRuleGroupResource) Delete(
@@ -1262,6 +1364,72 @@ func (r *ioaRuleGroupResource) ImportState(
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
+// ModifyPlan plans each rule's instance ID by pairing it with the existing
+// rule it updates, by list position or by key. See pairRules.
+func (r *ioaRuleGroupResource) ModifyPlan(
+	ctx context.Context,
+	req resource.ModifyPlanRequest,
+	resp *resource.ModifyPlanResponse,
+) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan, state ioaRuleGroupResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if !plan.Platform.Equal(state.Platform) {
+		// Changing the platform replaces the rule group. Terraform plans the
+		// replacement again with no prior state, where every rule is new.
+		return
+	}
+
+	if !utils.IsKnown(plan.Rules) || slices.ContainsFunc(plan.Rules.Elements(), attr.Value.IsUnknown) {
+		// A null list has no rules to pair. An unknown list leaves every
+		// instance ID unknown; Terraform plans again during apply once every
+		// value is known, and the rules are paired then. The framework
+		// rejects a rule that is unknown as a whole while validating the
+		// schema, so checking for one is only a safety net.
+		return
+	}
+
+	planRules := utils.ListTypeAs[ioaRuleModel](ctx, plan.Rules, &resp.Diagnostics)
+	priorRules := utils.ListTypeAs[ioaRuleModel](ctx, state.Rules, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	instanceIDs, d := pairRules(planRules, priorRules)
+	resp.Diagnostics.Append(d...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	for i, id := range instanceIDs {
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("rules").AtListIndex(i).AtName("instance_id"), id)...)
+	}
+}
+
+// ruleElements decodes each rule in rules, leaving nil for a rule that is
+// unknown at plan time.
+func ruleElements(ctx context.Context, rules types.List, diags *diag.Diagnostics) []*ioaRuleModel {
+	objects := utils.ListTypeAs[types.Object](ctx, rules, diags)
+	elems := make([]*ioaRuleModel, len(objects))
+	for i, obj := range objects {
+		if obj.IsUnknown() {
+			continue
+		}
+		var model ioaRuleModel
+		diags.Append(obj.As(ctx, &model, basetypes.ObjectAsOptions{})...)
+		elems[i] = &model
+	}
+	return elems
+}
+
 func (r *ioaRuleGroupResource) ValidateConfig(
 	ctx context.Context,
 	req resource.ValidateConfigRequest,
@@ -1277,12 +1445,28 @@ func (r *ioaRuleGroupResource) ValidateConfig(
 		return
 	}
 
-	rules := utils.ListTypeAs[ioaRuleModel](ctx, config.Rules, &resp.Diagnostics)
+	rules := ruleElements(ctx, config.Rules, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	for _, rule := range rules {
+	// A rule that is unknown at plan time is validated during apply. So is an
+	// unknown key, which may resolve to null or to a value. Duplicate keys
+	// are rejected by the rules list validator.
+	anyKey := slices.ContainsFunc(rules, func(r *ioaRuleModel) bool { return r != nil && utils.IsKnown(r.LocalKey) })
+	for i, rule := range rules {
+		if rule == nil {
+			continue
+		}
+
+		if anyKey && rule.LocalKey.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("rules").AtListIndex(i),
+				"Missing rule key",
+				fmt.Sprintf("Rule %q has no local_key. When any rule sets local_key, every rule must set local_key.", rule.Name.ValueString()),
+			)
+		}
+
 		ruleType := rule.Type.ValueString()
 		if ruleType == "" {
 			continue
@@ -1313,8 +1497,9 @@ func (r *ioaRuleGroupResource) ValidateConfig(
 			}
 		}
 
-		hasNonWildcardInclude := rule.hasNonWildcardInclude(ctx, &resp.Diagnostics)
-		if resp.Diagnostics.HasError() {
+		hasNonWildcardInclude, d := rule.hasNonWildcardInclude(ctx)
+		resp.Diagnostics.Append(d...)
+		if d.HasError() {
 			return
 		}
 
@@ -1467,17 +1652,16 @@ func (r *ioaRuleGroupResource) createRule(
 	}
 
 	createdRule := ruleRes.Payload.Resources[0]
+	if createdRule.InstanceID != nil {
+		instanceID = *createdRule.InstanceID
+	}
 
 	refreshedGroup, d := r.readRuleGroup(ctx, groupID)
 	diags.Append(d...)
 	if diags.HasError() {
-		return "", version, diags
+		return instanceID, version, diags
 	}
 	version = *refreshedGroup.Version
-
-	if createdRule.InstanceID != nil {
-		instanceID = *createdRule.InstanceID
-	}
 
 	if rule.Enabled.ValueBool() && (createdRule.Enabled == nil || !*createdRule.Enabled) {
 		version, d = r.enableRule(ctx, groupID, createdRule, version)

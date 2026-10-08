@@ -42,6 +42,7 @@ resource "crowdstrike_ioa_rule_group" "linux_monitoring" {
 
   rules = [
     {
+      local_key        = "suspicious-network-connection"
       name             = "Suspicious Network Connection"
       description      = "Monitors for suspicious outbound network connections"
       comment          = "Managed by Terraform"
@@ -67,6 +68,7 @@ resource "crowdstrike_ioa_rule_group" "linux_monitoring" {
       connection_type = ["TCP", "UDP"]
     },
     {
+      local_key        = "unauthorized-process-creation"
       name             = "Unauthorized Process Creation"
       description      = "Detects unauthorized process creation"
       comment          = "Kill unauthorized processes immediately"
@@ -104,7 +106,7 @@ resource "crowdstrike_ioa_rule_group" "linux_monitoring" {
 - `comment` (String) The comment stored in audit logs when making changes to the IOA rule group.
 - `description` (String) The description of the IOA rule group.
 - `enabled` (Boolean) Whether the IOA rule group is enabled.
-- `rules` (Attributes List) Ordered list of IOA rules within this rule group. (see [below for nested schema](#nestedatt--rules))
+- `rules` (Attributes List) IOA rules within this rule group. Rules are evaluated independently, so list order does not affect detection. Without `local_key`, rules are matched to the existing rules by list position, so inserting, removing, or reordering rules can move instance IDs between rules. To insert or reorder rules safely, set `local_key` on every rule. A rule's type cannot be updated. Changing the type deletes the rule and creates a new one. (see [below for nested schema](#nestedatt--rules))
 
 ### Read-Only
 
@@ -140,6 +142,7 @@ Optional:
 - `grandparent_command_line` (Attributes) Grandparent command line match criteria. (see [below for nested schema](#nestedatt--rules--grandparent_command_line))
 - `grandparent_image_filename` (Attributes) Grandparent image filename match criteria. (see [below for nested schema](#nestedatt--rules--grandparent_image_filename))
 - `image_filename` (Attributes) Image filename match criteria. (see [below for nested schema](#nestedatt--rules--image_filename))
+- `local_key` (String) A stable identifier for the rule, unique within the rule group. Rules with a key are matched to the existing rules by key instead of list position. Keys are all or nothing: set `local_key` on every rule or on none. Keys are stored only in Terraform state and are not sent to Falcon, so imported rules have no keys. To start using keys on an existing or imported rule group, add keys to every rule in one apply, keeping the rules in the same order and with the same values as the current state. After that, rules can be added, removed, renamed, and reordered freely. Changing a rule's key deletes the rule and creates a new one with a new `instance_id`. Removing every key returns to matching by list position.
 - `parent_command_line` (Attributes) Parent command line match criteria. (see [below for nested schema](#nestedatt--rules--parent_command_line))
 - `parent_image_filename` (Attributes) Parent image filename match criteria. (see [below for nested schema](#nestedatt--rules--parent_image_filename))
 - `remote_ip_address` (Attributes) Remote IP address match criteria. Only valid for Network Connection rules. (see [below for nested schema](#nestedatt--rules--remote_ip_address))
