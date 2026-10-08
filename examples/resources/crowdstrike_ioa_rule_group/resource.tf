@@ -18,6 +18,7 @@ resource "crowdstrike_ioa_rule_group" "linux_monitoring" {
 
   rules = [
     {
+      local_key        = "suspicious-network-connection"
       name             = "Suspicious Network Connection"
       description      = "Monitors for suspicious outbound network connections"
       comment          = "Managed by Terraform"
@@ -43,6 +44,7 @@ resource "crowdstrike_ioa_rule_group" "linux_monitoring" {
       connection_type = ["TCP", "UDP"]
     },
     {
+      local_key        = "unauthorized-process-creation"
       name             = "Unauthorized Process Creation"
       description      = "Detects unauthorized process creation"
       comment          = "Kill unauthorized processes immediately"

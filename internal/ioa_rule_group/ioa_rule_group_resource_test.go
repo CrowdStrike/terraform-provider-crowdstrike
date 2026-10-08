@@ -6,8 +6,11 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	"github.com/hashicorp/terraform-plugin-testing/compare"
+	"github.com/hashicorp/terraform-plugin-testing/config"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
@@ -1572,4 +1575,1158 @@ func ruleCommentLine(comment string) string {
 		return ""
 	}
 	return fmt.Sprintf("      comment          = %q", comment)
+}
+
+func ruleAttr(i int, name string) tfjsonpath.Path {
+	return tfjsonpath.New("rules").AtSliceIndex(i).AtMapKey(name)
+}
+
+func ruleID(i int) tfjsonpath.Path {
+	return ruleAttr(i, "instance_id")
+}
+
+var ruleGroupDir = config.StaticDirectory("testdata/rule_group")
+
+// ruleGroup holds the variables of testdata/rule_group. Each field sets the
+// variable of the same name.
+type ruleGroup struct {
+	rules        []string
+	keys         map[string]string
+	unknownKeys  []string
+	unknown      bool
+	unknownRules bool
+}
+
+func (g ruleGroup) vars(name string) config.Variables {
+	keys := make(map[string]config.Variable, len(g.keys))
+	for id, key := range g.keys {
+		keys[id] = config.StringVariable(key)
+	}
+	return config.Variables{
+		"rule_group_name": config.StringVariable(name),
+		"rules":           stringList(g.rules),
+		"keys":            config.MapVariable(keys),
+		"unknown_keys":    stringList(g.unknownKeys),
+		"unknown":         config.BoolVariable(g.unknown),
+		"unknown_rules":   config.BoolVariable(g.unknownRules),
+	}
+}
+
+func stringList(values []string) config.Variable {
+	list := make([]config.Variable, len(values))
+	for i, v := range values {
+		list[i] = config.StringVariable(v)
+	}
+	return config.ListVariable(list...)
+}
+
+// TestAccIOARuleGroupResource_RulesMatchByPosition checks that rules without
+// keys take the instance ID of the existing rule at the same list position,
+// unless that rule has a different type, in which case it is recreated.
+func TestAccIOARuleGroupResource_RulesMatchByPosition(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	firstID := statecheck.CompareValue(compare.ValuesSame())
+	secondID := statecheck.CompareValue(compare.ValuesSame())
+	thirdID := statecheck.CompareValue(compare.ValuesSame())
+	firstIDChanges := statecheck.CompareValue(compare.ValuesDiffer())
+	firstNewID := statecheck.CompareValue(compare.ValuesSame())
+	thirdIDChanges := statecheck.CompareValue(compare.ValuesDiffer())
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{rules: []string{"a", "b"}}.vars(rName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					firstID.AddStateValue(resourceName, ruleID(0)),
+					secondID.AddStateValue(resourceName, ruleID(1)),
+				},
+			},
+			{
+				// Insert a rule of the same type at the front.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{rules: []string{"n", "a", "b"}}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+						plancheck.ExpectKnownValue(resourceName, ruleID(0), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(resourceName, ruleID(1), knownvalue.NotNull()),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(2)),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					firstID.AddStateValue(resourceName, ruleID(0)),
+					secondID.AddStateValue(resourceName, ruleID(1)),
+					thirdID.AddStateValue(resourceName, ruleID(2)),
+					firstIDChanges.AddStateValue(resourceName, ruleID(0)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(0, "name"), knownvalue.StringExact("rule-n")),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(1, "name"), knownvalue.StringExact("rule-a")),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(2, "name"), knownvalue.StringExact("rule-b")),
+				},
+			},
+			{
+				// Insert a Domain Name rule at the front. The existing rule at
+				// index 0 is a Process Creation rule, so it is recreated.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{rules: []string{"d", "n", "a", "b"}}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectUnknownValue(resourceName, ruleID(0)),
+						plancheck.ExpectKnownValue(resourceName, ruleID(1), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(resourceName, ruleID(2), knownvalue.NotNull()),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(3)),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					firstIDChanges.AddStateValue(resourceName, ruleID(0)),
+					firstNewID.AddStateValue(resourceName, ruleID(0)),
+					secondID.AddStateValue(resourceName, ruleID(1)),
+					thirdID.AddStateValue(resourceName, ruleID(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules"), knownvalue.ListSizeExact(4)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(0, "type"), knownvalue.StringExact("Domain Name")),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(1, "name"), knownvalue.StringExact("rule-n")),
+				},
+			},
+			{
+				// Remove rule-a. The remaining rules take IDs by position and
+				// the last existing rule is deleted.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{rules: []string{"d", "n", "b"}}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue(resourceName, ruleID(0), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(resourceName, ruleID(1), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(resourceName, ruleID(2), knownvalue.NotNull()),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					firstNewID.AddStateValue(resourceName, ruleID(0)),
+					secondID.AddStateValue(resourceName, ruleID(1)),
+					thirdID.AddStateValue(resourceName, ruleID(2)),
+					thirdIDChanges.AddStateValue(resourceName, ruleID(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules"), knownvalue.ListSizeExact(3)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(2, "name"), knownvalue.StringExact("rule-b")),
+				},
+			},
+			{
+				// Change rule-b's type in place.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{rules: []string{"d", "n", "b_domain"}}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue(resourceName, ruleID(0), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(resourceName, ruleID(1), knownvalue.NotNull()),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(2)),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					firstNewID.AddStateValue(resourceName, ruleID(0)),
+					secondID.AddStateValue(resourceName, ruleID(1)),
+					thirdIDChanges.AddStateValue(resourceName, ruleID(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules"), knownvalue.ListSizeExact(3)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(2, "type"), knownvalue.StringExact("Domain Name")),
+				},
+			},
+		},
+	})
+}
+
+// TestAccIOARuleGroupResource_RuleKeys adds keyed rules to a group with no
+// rules, then inserts, reorders, removes, edits, retypes, and rekeys them.
+func TestAccIOARuleGroupResource_RuleKeys(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	aID := statecheck.CompareValue(compare.ValuesSame())
+	bID := statecheck.CompareValue(compare.ValuesSame())
+	nID := statecheck.CompareValue(compare.ValuesSame())
+	bIDChanges := statecheck.CompareValue(compare.ValuesDiffer())
+	bNewID := statecheck.CompareValue(compare.ValuesSame())
+	aIDChanges := statecheck.CompareValue(compare.ValuesDiffer())
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{}.vars(rName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules"), knownvalue.Null()),
+				},
+			},
+			{
+				// Add keyed rules to a group that had none.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"a", "b"},
+					keys:  map[string]string{"a": "a", "b": "b"},
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(0)),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(1)),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, ruleID(0), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, ruleID(1), knownvalue.NotNull()),
+					aID.AddStateValue(resourceName, ruleID(0)),
+					bID.AddStateValue(resourceName, ruleID(1)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(0, "local_key"), knownvalue.StringExact("a")),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(1, "local_key"), knownvalue.StringExact("b")),
+				},
+			},
+			{
+				// Insert a rule at the front.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"n", "a", "b"},
+					keys:  map[string]string{"n": "n", "a": "a", "b": "b"},
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectUnknownValue(resourceName, ruleID(0)),
+						plancheck.ExpectKnownValue(resourceName, ruleID(1), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(resourceName, ruleID(2), knownvalue.NotNull()),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					nID.AddStateValue(resourceName, ruleID(0)),
+					aID.AddStateValue(resourceName, ruleID(1)),
+					bID.AddStateValue(resourceName, ruleID(2)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(0, "name"), knownvalue.StringExact("rule-n")),
+				},
+			},
+			{
+				// Reorder the rules.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"b", "n", "a"},
+					keys:  map[string]string{"b": "b", "n": "n", "a": "a"},
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue(resourceName, ruleID(0), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(resourceName, ruleID(1), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(resourceName, ruleID(2), knownvalue.NotNull()),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					bID.AddStateValue(resourceName, ruleID(0)),
+					nID.AddStateValue(resourceName, ruleID(1)),
+					aID.AddStateValue(resourceName, ruleID(2)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(0, "name"), knownvalue.StringExact("rule-b")),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(2, "name"), knownvalue.StringExact("rule-a")),
+				},
+			},
+			{
+				// Remove rule-n from the middle.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"b", "a"},
+					keys:  map[string]string{"b": "b", "a": "a"},
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue(resourceName, ruleID(0), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(resourceName, ruleID(1), knownvalue.NotNull()),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					bID.AddStateValue(resourceName, ruleID(0)),
+					aID.AddStateValue(resourceName, ruleID(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules"), knownvalue.ListSizeExact(2)),
+				},
+			},
+			{
+				// Edit rule-b's description and rename rule-a.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"b_edited", "a_renamed"},
+					keys:  map[string]string{"b_edited": "b", "a_renamed": "a"},
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue(resourceName, ruleID(0), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(resourceName, ruleID(1), knownvalue.NotNull()),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					bID.AddStateValue(resourceName, ruleID(0)),
+					aID.AddStateValue(resourceName, ruleID(1)),
+					bIDChanges.AddStateValue(resourceName, ruleID(0)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(0, "description"), knownvalue.StringExact("rule-b edited")),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(1, "name"), knownvalue.StringExact("rule-a-renamed")),
+				},
+			},
+			{
+				// Change rule-b's type.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"b_domain", "a_renamed"},
+					keys:  map[string]string{"b_domain": "b", "a_renamed": "a"},
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectUnknownValue(resourceName, ruleID(0)),
+						plancheck.ExpectKnownValue(resourceName, ruleID(1), knownvalue.NotNull()),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					bIDChanges.AddStateValue(resourceName, ruleID(0)),
+					bNewID.AddStateValue(resourceName, ruleID(0)),
+					aID.AddStateValue(resourceName, ruleID(1)),
+					aIDChanges.AddStateValue(resourceName, ruleID(1)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(0, "type"), knownvalue.StringExact("Domain Name")),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(0, "local_key"), knownvalue.StringExact("b")),
+				},
+			},
+			{
+				// Change rule-a's key.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"b_domain", "a_renamed"},
+					keys:  map[string]string{"b_domain": "b", "a_renamed": "a2"},
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue(resourceName, ruleID(0), knownvalue.NotNull()),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(1)),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					bNewID.AddStateValue(resourceName, ruleID(0)),
+					aIDChanges.AddStateValue(resourceName, ruleID(1)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(1, "local_key"), knownvalue.StringExact("a2")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules"), knownvalue.ListSizeExact(2)),
+				},
+			},
+		},
+	})
+}
+
+// TestAccIOARuleGroupResource_RemoveRuleKeys removes every key from a keyed
+// group, which returns to matching rules by list position.
+func TestAccIOARuleGroupResource_RemoveRuleKeys(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	firstID := statecheck.CompareValue(compare.ValuesSame())
+	secondID := statecheck.CompareValue(compare.ValuesSame())
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"a", "b"},
+					keys:  map[string]string{"a": "a", "b": "b"},
+				}.vars(rName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					firstID.AddStateValue(resourceName, ruleID(0)),
+					secondID.AddStateValue(resourceName, ruleID(1)),
+				},
+			},
+			{
+				// Remove the keys and swap the rules.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{rules: []string{"b", "a"}}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue(resourceName, ruleID(0), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(resourceName, ruleID(1), knownvalue.NotNull()),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					firstID.AddStateValue(resourceName, ruleID(0)),
+					secondID.AddStateValue(resourceName, ruleID(1)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(0, "name"), knownvalue.StringExact("rule-b")),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(0, "local_key"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(1, "local_key"), knownvalue.Null()),
+				},
+			},
+		},
+	})
+}
+
+// TestAccIOARuleGroupResource_AdoptRuleKeys adds keys to rules that have
+// none. Keys must be added on their own, so adding them together with a
+// rename, a new rule, or a reorder fails at plan time.
+func TestAccIOARuleGroupResource_AdoptRuleKeys(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	firstID := statecheck.CompareValue(compare.ValuesSame())
+	secondID := statecheck.CompareValue(compare.ValuesSame())
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{rules: []string{"a", "b"}}.vars(rName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					firstID.AddStateValue(resourceName, ruleID(0)),
+					secondID.AddStateValue(resourceName, ruleID(1)),
+				},
+			},
+			{
+				// Add keys and rename rule-a.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"a_renamed", "b"},
+					keys:  map[string]string{"a_renamed": "a", "b": "b"},
+				}.vars(rName),
+				ExpectError: regexp.MustCompile(`Rule keys added with other rule changes(.|\n)*"rule-a-renamed"`),
+			},
+			{
+				// Add keys and a new rule.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"a", "b", "c"},
+					keys:  map[string]string{"a": "a", "b": "b", "c": "c"},
+				}.vars(rName),
+				ExpectError: regexp.MustCompile(`Rule keys added with other rule changes(.|\n)*"rule-c"`),
+			},
+			{
+				// Add keys and swap the rules.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"b", "a"},
+					keys:  map[string]string{"b": "b", "a": "a"},
+				}.vars(rName),
+				ExpectError: regexp.MustCompile(`Rule keys added with other rule changes(.|\n)*"rule-b"`),
+			},
+			{
+				// Add keys only.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"a", "b"},
+					keys:  map[string]string{"a": "a", "b": "b"},
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+						plancheck.ExpectKnownValue(resourceName, ruleID(0), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(resourceName, ruleID(1), knownvalue.NotNull()),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					firstID.AddStateValue(resourceName, ruleID(0)),
+					secondID.AddStateValue(resourceName, ruleID(1)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(0, "local_key"), knownvalue.StringExact("a")),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(1, "local_key"), knownvalue.StringExact("b")),
+				},
+			},
+		},
+	})
+}
+
+// TestAccIOARuleGroupResource_UnknownName_AdoptKeys adds keys while a
+// rule's name is unknown at plan time. The check that the rules are unchanged
+// runs again during apply, which either matches the rules by index or fails,
+// so the plan already shows each rule's instance ID.
+func TestAccIOARuleGroupResource_UnknownName_AdoptKeys(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	firstID := statecheck.CompareValue(compare.ValuesSame())
+	secondID := statecheck.CompareValue(compare.ValuesSame())
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{rules: []string{"a", "b"}}.vars(rName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					firstID.AddStateValue(resourceName, ruleID(0)),
+					secondID.AddStateValue(resourceName, ruleID(1)),
+				},
+			},
+			{
+				// Add keys while rule-b's name is unknown at plan time. The name
+				// resolves to its current value.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules:   []string{"a", "b_unknown_name"},
+					keys:    map[string]string{"a": "a", "b_unknown_name": "b"},
+					unknown: true,
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectUnknownValue(resourceName, ruleAttr(1, "name")),
+						plancheck.ExpectKnownValue(resourceName, ruleID(0), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(resourceName, ruleID(1), knownvalue.NotNull()),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					firstID.AddStateValue(resourceName, ruleID(0)),
+					secondID.AddStateValue(resourceName, ruleID(1)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(1, "name"), knownvalue.StringExact("rule-b")),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(1, "local_key"), knownvalue.StringExact("b")),
+				},
+			},
+		},
+	})
+}
+
+// TestAccIOARuleGroupResource_AdoptRuleKeys_Imported imports a rule group, whose
+// rules have no keys, into a configuration that adds keys to the rules in
+// state order, then reorders the rules by key.
+func TestAccIOARuleGroupResource_AdoptRuleKeys_Imported(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	importedName := "crowdstrike_ioa_rule_group.imported"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{rules: []string{"a", "b", "c"}}.vars(rName),
+			},
+			{
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{rules: []string{"a", "b", "c"}}.vars(rName),
+				ResourceName:    resourceName,
+				ImportState:     true,
+				// ImportStateVerify fails if the API lists imported rules in a
+				// different order than they were created.
+				ImportStateVerify: true,
+			},
+			{
+				// Import the rule group into a second resource whose rules have
+				// keys, in state order.
+				ConfigDirectory: config.StaticDirectory("testdata/imported_rule_group"),
+				ConfigVariables: config.Variables{
+					"rule_group_name": config.StringVariable(rName),
+					"imported_rules":  config.ListVariable(config.StringVariable("a"), config.StringVariable("b"), config.StringVariable("c")),
+				},
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue(importedName, ruleID(0), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(importedName, ruleID(1), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(importedName, ruleID(2), knownvalue.NotNull()),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.CompareValuePairs(resourceName, ruleID(0), importedName, ruleID(0), compare.ValuesSame()),
+					statecheck.CompareValuePairs(resourceName, ruleID(1), importedName, ruleID(1), compare.ValuesSame()),
+					statecheck.CompareValuePairs(resourceName, ruleID(2), importedName, ruleID(2), compare.ValuesSame()),
+					statecheck.ExpectKnownValue(importedName, ruleAttr(0, "local_key"), knownvalue.StringExact("a")),
+					statecheck.ExpectKnownValue(importedName, ruleAttr(2, "local_key"), knownvalue.StringExact("c")),
+				},
+			},
+			{
+				// Reorder the imported rules by key.
+				ConfigDirectory: config.StaticDirectory("testdata/imported_rule_group"),
+				ConfigVariables: config.Variables{
+					"rule_group_name": config.StringVariable(rName),
+					"imported_rules":  config.ListVariable(config.StringVariable("c"), config.StringVariable("a"), config.StringVariable("b")),
+				},
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue(importedName, ruleID(0), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(importedName, ruleID(1), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(importedName, ruleID(2), knownvalue.NotNull()),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.CompareValuePairs(resourceName, ruleID(2), importedName, ruleID(0), compare.ValuesSame()),
+					statecheck.CompareValuePairs(resourceName, ruleID(0), importedName, ruleID(1), compare.ValuesSame()),
+					statecheck.CompareValuePairs(resourceName, ruleID(1), importedName, ruleID(2), compare.ValuesSame()),
+					statecheck.ExpectKnownValue(importedName, ruleAttr(0, "name"), knownvalue.StringExact("rule-c")),
+				},
+			},
+		},
+	})
+}
+
+// TestAccIOARuleGroupResource_Validation_MixedRuleKeys checks that keys are all or
+// nothing.
+func TestAccIOARuleGroupResource_Validation_MixedRuleKeys(t *testing.T) {
+	rName := acctest.RandomResourceName()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"a", "b", "c"},
+					keys:  map[string]string{"a": "a"},
+				}.vars(rName),
+				ExpectError: regexp.MustCompile(`Missing rule key(.|\n)*"rule-b"(.|\n)*Missing rule key(.|\n)*"rule-c"`),
+			},
+		},
+	})
+}
+
+// TestAccIOARuleGroupResource_UnknownKey_ByPosition makes one rule's key
+// unknown at plan time while the other rule has none. Every instance ID is
+// unknown at plan. A key that resolves to null keeps the rules matched by
+// position, and apply rejects a key that resolves to a value.
+func TestAccIOARuleGroupResource_UnknownKey_ByPosition(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	aID := statecheck.CompareValue(compare.ValuesSame())
+	bID := statecheck.CompareValue(compare.ValuesSame())
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{rules: []string{"a", "b"}}.vars(rName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					aID.AddStateValue(resourceName, ruleID(0)),
+					bID.AddStateValue(resourceName, ruleID(1)),
+				},
+			},
+			{
+				// rule-b's key is unknown at plan time and resolves to null.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules:       []string{"a", "b"},
+					unknownKeys: []string{"b"},
+					unknown:     true,
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectUnknownValue(resourceName, ruleAttr(1, "local_key")),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(0)),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(1)),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					aID.AddStateValue(resourceName, ruleID(0)),
+					bID.AddStateValue(resourceName, ruleID(1)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(1, "local_key"), knownvalue.Null()),
+				},
+			},
+			{
+				// rule-b's key is unknown at plan time and resolves to "b", so
+				// apply rejects the mix of keyed and unkeyed rules.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules:       []string{"a", "b"},
+					keys:        map[string]string{"b": "b"},
+					unknownKeys: []string{"b"},
+					unknown:     true,
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectUnknownValue(resourceName, ruleAttr(1, "local_key")),
+					},
+				},
+				ExpectError: regexp.MustCompile(`Error running apply(.|\n)*Missing rule key(.|\n)*"rule-a"`),
+			},
+		},
+	})
+}
+
+// TestAccIOARuleGroupResource_UnknownAllKeys_ByIndex makes every key unknown
+// at plan time while the existing rules have none. Every instance ID is
+// unknown at plan. Whether the keys resolve to null or to values, the rules
+// match by index during apply, and a rename while the keys resolve to null is
+// not rejected.
+func TestAccIOARuleGroupResource_UnknownAllKeys_ByIndex(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	aID := statecheck.CompareValue(compare.ValuesSame())
+	bID := statecheck.CompareValue(compare.ValuesSame())
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{rules: []string{"a", "b"}}.vars(rName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					aID.AddStateValue(resourceName, ruleID(0)),
+					bID.AddStateValue(resourceName, ruleID(1)),
+				},
+			},
+			{
+				// Rename rule-a while both keys are unknown at plan time. Both
+				// keys resolve to null.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules:       []string{"a_renamed", "b"},
+					unknownKeys: []string{"a_renamed", "b"},
+					unknown:     true,
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectUnknownValue(resourceName, ruleAttr(0, "local_key")),
+						plancheck.ExpectUnknownValue(resourceName, ruleAttr(1, "local_key")),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(0)),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(1)),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					aID.AddStateValue(resourceName, ruleID(0)),
+					bID.AddStateValue(resourceName, ruleID(1)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(0, "name"), knownvalue.StringExact("rule-a-renamed")),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(0, "local_key"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(1, "local_key"), knownvalue.Null()),
+				},
+			},
+			{
+				// Both keys are unknown at plan time and resolve to "a" and "b".
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules:       []string{"a_renamed", "b"},
+					keys:        map[string]string{"a_renamed": "a", "b": "b"},
+					unknownKeys: []string{"a_renamed", "b"},
+					unknown:     true,
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectUnknownValue(resourceName, ruleAttr(0, "local_key")),
+						plancheck.ExpectUnknownValue(resourceName, ruleAttr(1, "local_key")),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(0)),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(1)),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					aID.AddStateValue(resourceName, ruleID(0)),
+					bID.AddStateValue(resourceName, ruleID(1)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(0, "local_key"), knownvalue.StringExact("a")),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(1, "local_key"), knownvalue.StringExact("b")),
+				},
+			},
+		},
+	})
+}
+
+// TestAccIOARuleGroupResource_UnknownAllKeys_KeyedPrior reorders keyed
+// rules while every key is unknown at plan time, so every instance ID is
+// unknown at plan and the rules match by key during apply.
+func TestAccIOARuleGroupResource_UnknownAllKeys_KeyedPrior(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	aID := statecheck.CompareValue(compare.ValuesSame())
+	bID := statecheck.CompareValue(compare.ValuesSame())
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"a", "b"},
+					keys:  map[string]string{"a": "a", "b": "b"},
+				}.vars(rName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					aID.AddStateValue(resourceName, ruleID(0)),
+					bID.AddStateValue(resourceName, ruleID(1)),
+				},
+			},
+			{
+				// Both keys are unknown at plan time and resolve to "b" and "a".
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules:       []string{"b", "a"},
+					keys:        map[string]string{"a": "a", "b": "b"},
+					unknownKeys: []string{"b", "a"},
+					unknown:     true,
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectUnknownValue(resourceName, ruleID(0)),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(1)),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					bID.AddStateValue(resourceName, ruleID(0)),
+					aID.AddStateValue(resourceName, ruleID(1)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(0, "local_key"), knownvalue.StringExact("b")),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(1, "local_key"), knownvalue.StringExact("a")),
+				},
+			},
+		},
+	})
+}
+
+// TestAccIOARuleGroupResource_Validation_DuplicateRuleKeys checks the duplicate key error
+// points at the rules attribute, so Terraform shows the offending rules.
+func TestAccIOARuleGroupResource_Validation_DuplicateRuleKeys(t *testing.T) {
+	rName := acctest.RandomResourceName()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"a", "b"},
+					keys:  map[string]string{"a": "same", "b": "same"},
+				}.vars(rName),
+				ExpectError: regexp.MustCompile(`Duplicate local_key Values(.|\n)*\d+:\s+rules = \(`),
+			},
+		},
+	})
+}
+
+// TestAccIOARuleGroupResource_RulePairingUpgrade checks that state written by
+// the last release plans no changes with this provider. It uses Config rather
+// than ConfigDirectory because ExternalProviders requires it.
+func TestAccIOARuleGroupResource_RulePairingUpgrade(t *testing.T) {
+	rName := acctest.RandomResourceName()
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck: func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ExternalProviders: map[string]resource.ExternalProvider{
+					"crowdstrike": {
+						Source:            "crowdstrike/crowdstrike",
+						VersionConstraint: "1.1.0",
+					},
+				},
+				Config: testAccIOARuleGroupConfigUpgrade(rName),
+			},
+			{
+				ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+				Config:                   testAccIOARuleGroupConfigUpgrade(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+		},
+	})
+}
+
+func testAccIOARuleGroupConfigUpgrade(rName string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_ioa_rule_group" "test" {
+  name     = %[1]q
+  platform = "Mac"
+  enabled  = true
+
+  rules = [
+    {
+      name             = "rule-d"
+      description      = "rule-d description"
+      pattern_severity = "high"
+      type             = "Domain Name"
+      action           = "Detect"
+      enabled          = true
+
+      image_filename = {
+        include = ".*"
+      }
+
+      domain_name = {
+        include = ".*rule-d\\.example\\.com.*"
+      }
+    },
+    {
+      name             = "rule-a"
+      description      = "rule-a description"
+      pattern_severity = "high"
+      type             = "Process Creation"
+      action           = "Detect"
+      enabled          = true
+
+      image_filename = {
+        include = ".*rule-a.*"
+      }
+
+      command_line = {
+        include = ".*"
+      }
+    },
+    {
+      name             = "rule-b"
+      description      = "rule-b description"
+      pattern_severity = "high"
+      type             = "Process Creation"
+      action           = "Detect"
+      enabled          = true
+
+      image_filename = {
+        include = ".*rule-b.*"
+      }
+
+      command_line = {
+        include = ".*"
+      }
+    },
+  ]
+}
+`, rName)
+}
+
+// TestAccIOARuleGroupResource_UnknownName_ByKey inserts a keyed rule while
+// another keyed rule's name is unknown at plan time. Keys alone pair the
+// rules, so the plan already knows every existing instance ID.
+func TestAccIOARuleGroupResource_UnknownName_ByKey(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	aID := statecheck.CompareValue(compare.ValuesSame())
+	bID := statecheck.CompareValue(compare.ValuesSame())
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"a", "b"},
+					keys:  map[string]string{"a": "a", "b": "b"},
+				}.vars(rName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					aID.AddStateValue(resourceName, ruleID(0)),
+					bID.AddStateValue(resourceName, ruleID(1)),
+				},
+			},
+			{
+				// Insert rule-n at the front while rule-b's name is unknown at
+				// plan time. The name resolves to its current value.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules:   []string{"n", "a", "b_unknown_name"},
+					keys:    map[string]string{"n": "n", "a": "a", "b_unknown_name": "b"},
+					unknown: true,
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectUnknownValue(resourceName, ruleAttr(2, "name")),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(0)),
+						plancheck.ExpectKnownValue(resourceName, ruleID(1), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(resourceName, ruleID(2), knownvalue.NotNull()),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					aID.AddStateValue(resourceName, ruleID(1)),
+					bID.AddStateValue(resourceName, ruleID(2)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(2, "name"), knownvalue.StringExact("rule-b")),
+				},
+			},
+		},
+	})
+}
+
+// TestAccIOARuleGroupResource_UnknownKey_ByKey makes one keyed rule's key
+// unknown at plan time, so every instance ID is unknown at plan. A key that
+// resolves to the rule's existing key keeps its instance ID, and a new rule
+// whose key resolves to a new key is created.
+func TestAccIOARuleGroupResource_UnknownKey_ByKey(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	aID := statecheck.CompareValue(compare.ValuesSame())
+	bID := statecheck.CompareValue(compare.ValuesSame())
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"a", "b"},
+					keys:  map[string]string{"a": "a", "b": "b"},
+				}.vars(rName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					aID.AddStateValue(resourceName, ruleID(0)),
+					bID.AddStateValue(resourceName, ruleID(1)),
+				},
+			},
+			{
+				// rule-b's key is unknown at plan time and resolves to "b".
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules:       []string{"a", "b"},
+					keys:        map[string]string{"a": "a", "b": "b"},
+					unknownKeys: []string{"b"},
+					unknown:     true,
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectUnknownValue(resourceName, ruleAttr(1, "local_key")),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(0)),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(1)),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					aID.AddStateValue(resourceName, ruleID(0)),
+					bID.AddStateValue(resourceName, ruleID(1)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(1, "local_key"), knownvalue.StringExact("b")),
+				},
+			},
+			{
+				// Add rule-n at the front. Its key is unknown at plan time and
+				// resolves to "n".
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules:       []string{"n", "a", "b"},
+					keys:        map[string]string{"n": "n", "a": "a", "b": "b"},
+					unknownKeys: []string{"n"},
+					unknown:     true,
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectUnknownValue(resourceName, ruleAttr(0, "local_key")),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(0)),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(1)),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(2)),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					aID.AddStateValue(resourceName, ruleID(1)),
+					bID.AddStateValue(resourceName, ruleID(2)),
+					statecheck.ExpectKnownValue(resourceName, ruleID(0), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(0, "local_key"), knownvalue.StringExact("n")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules"), knownvalue.ListSizeExact(3)),
+				},
+			},
+		},
+	})
+}
+
+// TestAccIOARuleGroupResource_UnknownType_ByKey makes a keyed rule's type
+// unknown at plan time. The plan cannot tell whether the rule must be
+// recreated, so its instance ID is unknown until apply.
+func TestAccIOARuleGroupResource_UnknownType_ByKey(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	aID := statecheck.CompareValue(compare.ValuesSame())
+	bID := statecheck.CompareValue(compare.ValuesSame())
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules: []string{"a", "b"},
+					keys:  map[string]string{"a": "a", "b": "b"},
+				}.vars(rName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					aID.AddStateValue(resourceName, ruleID(0)),
+					bID.AddStateValue(resourceName, ruleID(1)),
+				},
+			},
+			{
+				// rule-b's type is unknown at plan time and resolves to its
+				// current type.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules:   []string{"a", "b_unknown_type"},
+					keys:    map[string]string{"a": "a", "b_unknown_type": "b"},
+					unknown: true,
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectUnknownValue(resourceName, ruleAttr(1, "type")),
+						plancheck.ExpectKnownValue(resourceName, ruleID(0), knownvalue.NotNull()),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(1)),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					aID.AddStateValue(resourceName, ruleID(0)),
+					bID.AddStateValue(resourceName, ruleID(1)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(1, "type"), knownvalue.StringExact("Process Creation")),
+				},
+			},
+		},
+	})
+}
+
+// TestAccIOARuleGroupResource_UnknownRulesList inserts a rule while the whole
+// rules list is unknown at plan time. Once the list is known, the rules take
+// instance IDs by list position.
+func TestAccIOARuleGroupResource_UnknownRulesList(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	firstID := statecheck.CompareValue(compare.ValuesSame())
+	secondID := statecheck.CompareValue(compare.ValuesSame())
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{rules: []string{"a", "b"}}.vars(rName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					firstID.AddStateValue(resourceName, ruleID(0)),
+					secondID.AddStateValue(resourceName, ruleID(1)),
+				},
+			},
+			{
+				// Insert rule-n at the front while the whole rules list is
+				// unknown at plan time.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules:        []string{"n", "a", "b"},
+					unknown:      true,
+					unknownRules: true,
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectUnknownValue(resourceName, tfjsonpath.New("rules")),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					firstID.AddStateValue(resourceName, ruleID(0)),
+					secondID.AddStateValue(resourceName, ruleID(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("rules"), knownvalue.ListSizeExact(3)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(0, "name"), knownvalue.StringExact("rule-n")),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(2, "name"), knownvalue.StringExact("rule-b")),
+				},
+			},
+		},
+	})
+}
+
+// TestAccIOARuleGroupResource_UnknownName_ByPosition adds a rule ahead of an
+// existing rule whose name is unknown at plan time. No rule has a key.
+func TestAccIOARuleGroupResource_UnknownName_ByPosition(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	firstID := statecheck.CompareValue(compare.ValuesSame())
+	secondID := statecheck.CompareValue(compare.ValuesSame())
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{rules: []string{"a", "b"}}.vars(rName),
+				ConfigStateChecks: []statecheck.StateCheck{
+					firstID.AddStateValue(resourceName, ruleID(0)),
+					secondID.AddStateValue(resourceName, ruleID(1)),
+				},
+			},
+			{
+				// Insert rule-n at the front while rule-b's name is unknown at
+				// plan time. Rules pair by position, so the first two keep their
+				// IDs.
+				ConfigDirectory: ruleGroupDir,
+				ConfigVariables: ruleGroup{
+					rules:   []string{"n", "a", "b_unknown_name"},
+					unknown: true,
+				}.vars(rName),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectUnknownValue(resourceName, ruleAttr(2, "name")),
+						plancheck.ExpectKnownValue(resourceName, ruleID(0), knownvalue.NotNull()),
+						plancheck.ExpectKnownValue(resourceName, ruleID(1), knownvalue.NotNull()),
+						plancheck.ExpectUnknownValue(resourceName, ruleID(2)),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					firstID.AddStateValue(resourceName, ruleID(0)),
+					secondID.AddStateValue(resourceName, ruleID(1)),
+					statecheck.ExpectKnownValue(resourceName, ruleAttr(2, "name"), knownvalue.StringExact("rule-b")),
+				},
+			},
+		},
+	})
 }
