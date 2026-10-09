@@ -34,6 +34,54 @@ func TestCloudSecuritySuppressionRuleResource_Basic(t *testing.T) {
 	})
 }
 
+func TestCloudSecuritySuppressionRuleResource_CloudRisk(t *testing.T) {
+	rName := acctest.RandomResourceName()
+	resourceName := "crowdstrike_cloud_security_suppression_rule.cloud_risk_test"
+	dataSourceName := "data.crowdstrike_cloud_security_suppression_rules.cloud_risk_test"
+	cloudRiskConfig := fmt.Sprintf(`
+resource "crowdstrike_cloud_security_suppression_rule" "cloud_risk_test" {
+  name   = %[1]q
+  type   = "CloudRisk"
+  reason = "compensating-control"
+
+  rule_selection_filter = {
+    names = ["Unused identity with excessive permissions"]
+  }
+
+  asset_filter = {
+    resource_ids = ["terraform-provider-crowdstrike-test-nonexistent"]
+  }
+}
+
+data "crowdstrike_cloud_security_suppression_rules" "cloud_risk_test" {
+  type       = "CloudRisk"
+  name       = crowdstrike_cloud_security_suppression_rule.cloud_risk_test.name
+  depends_on = [crowdstrike_cloud_security_suppression_rule.cloud_risk_test]
+}
+`, rName)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: cloudRiskConfig,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(resourceName, "type", "CloudRisk"),
+					resource.TestCheckResourceAttr(dataSourceName, "type", "CloudRisk"),
+				),
+				ConfigStateChecks: compareSuppressionRuleToDataSource(resourceName, dataSourceName),
+			},
+			{
+				ResourceName:                         resourceName,
+				ImportState:                          true,
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "id",
+			},
+		},
+	})
+}
+
 func TestCloudSecuritySuppressionRuleResource_Defaults(t *testing.T) {
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
