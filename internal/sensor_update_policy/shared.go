@@ -9,6 +9,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/clientoverrides"
 	fwtypes "github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/types"
 	hostgroups "github.com/crowdstrike/terraform-provider-crowdstrike/internal/host_groups"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
@@ -428,4 +429,79 @@ func stripBuildPrefix(build string) string {
 		return build[i+1:]
 	}
 	return build
+}
+
+// policyBuilds holds the x86 and arm64 builds of a sensor update policy.
+type policyBuilds struct {
+	build      string
+	buildArm64 string
+}
+
+// newPolicyBuilds returns the builds held by a resource model's build and build_arm64.
+func newPolicyBuilds(build, buildArm64 types.String) policyBuilds {
+	return policyBuilds{build: build.ValueString(), buildArm64: buildArm64.ValueString()}
+}
+
+// apiPolicyBuilds returns the builds a policy currently has in the API.
+func apiPolicyBuilds(policy models.SensorUpdatePolicyV2) policyBuilds {
+	var builds policyBuilds
+	if policy.Settings == nil {
+		return builds
+	}
+
+	if policy.Settings.Build != nil {
+		builds.build = *policy.Settings.Build
+	}
+
+	for _, v := range policy.Settings.Variants {
+		if v != nil && v.Platform != nil && v.Build != nil &&
+			strings.EqualFold(*v.Platform, linuxArm64Varient) {
+			builds.buildArm64 = *v.Build
+		}
+	}
+
+	return builds
+}
+
+// buildChange describes a build update for a policy on platform.
+type buildChange struct {
+	platform string
+	planned  policyBuilds
+	current  policyBuilds
+}
+
+// changedBuildSettings returns update settings holding the planned builds, and the
+// client options that keep an unchanged x86 build out of the request. The API rejects
+// every build it receives that is no longer available, even one equal to the current
+// build, so resending an unchanged build would block all other changes to a policy
+// pinned to a retired build. Settings always carry the planned x86 build so that
+// sending them without the options resends it rather than disabling updates with an
+// empty build. Leaving variants nil keeps the current arm64 build, and only Linux
+// policies have one.
+func changedBuildSettings(
+	change buildChange,
+) (*models.SensorUpdateSettingsReqV2, []sensor_update_policies.ClientOption) {
+	build := stripBuildPrefix(change.planned.build)
+	settings := &models.SensorUpdateSettingsReqV2{Build: build}
+	var opts []sensor_update_policies.ClientOption
+
+	if build == stripBuildPrefix(change.current.build) {
+		opts = append(opts, clientoverrides.OmitSensorUpdateBuild)
+	}
+
+	if !strings.EqualFold(change.platform, "linux") {
+		return settings, opts
+	}
+
+	arm64Build := stripBuildPrefix(change.planned.buildArm64)
+	if arm64Build != stripBuildPrefix(change.current.buildArm64) {
+		settings.Variants = []*models.SensorUpdateBuildReqV1{
+			{
+				Build:    &arm64Build,
+				Platform: &linuxArm64Varient,
+			},
+		}
+	}
+
+	return settings, opts
 }

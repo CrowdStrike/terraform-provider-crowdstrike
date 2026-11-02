@@ -15,9 +15,13 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-testing/compare"
 	sdkacctest "github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
 // sensorUpdatePolicyConfig represents a complete policy configuration for testing.
@@ -765,6 +769,77 @@ func TestAccSensorUpdatePolicyResource_BuildTransitions(t *testing.T) {
 			}
 			return steps
 		}(),
+	})
+}
+
+func TestAccSensorUpdatePolicyResource_IndependentBuildUpdates(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	resourceName := "crowdstrike_sensor_update_policy.test"
+	buildsName := "data.crowdstrike_sensor_update_policy_builds.all"
+
+	config := func(enabled bool, build, buildArm64 string) string {
+		return acctest.ProviderConfig + fmt.Sprintf(`
+data "crowdstrike_sensor_update_policy_builds" "all" {}
+resource "crowdstrike_sensor_update_policy" "test" {
+  name                 = %[1]q
+  description          = "independent build updates"
+  enabled              = %[2]t
+  platform_name        = "Linux"
+  build                = data.crowdstrike_sensor_update_policy_builds.all.linux.%[3]s.build
+  build_arm64          = data.crowdstrike_sensor_update_policy_builds.all.linux_arm64.%[4]s.build
+  uninstall_protection = false
+  host_groups          = []
+  schedule = {
+    enabled = false
+  }
+}
+`, rName, enabled, build, buildArm64)
+	}
+
+	builds := func(build, buildArm64 string) []statecheck.StateCheck {
+		return []statecheck.StateCheck{
+			statecheck.CompareValuePairs(
+				resourceName, tfjsonpath.New("build"),
+				buildsName, tfjsonpath.New("linux").AtMapKey(build).AtMapKey("build"),
+				compare.ValuesSame(),
+			),
+			statecheck.CompareValuePairs(
+				resourceName, tfjsonpath.New("build_arm64"),
+				buildsName, tfjsonpath.New("linux_arm64").AtMapKey(buildArm64).AtMapKey("build"),
+				compare.ValuesSame(),
+			),
+		}
+	}
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:            config(true, "n1", "n1"),
+				ConfigStateChecks: builds("n1", "n1"),
+			},
+			{
+				Config:            config(true, "n1", "n2"),
+				ConfigStateChecks: builds("n1", "n2"),
+			},
+			{
+				Config:            config(true, "n2", "n2"),
+				ConfigStateChecks: builds("n2", "n2"),
+			},
+			{
+				Config: config(false, "n2", "n2"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+					},
+				},
+				ConfigStateChecks: append(
+					builds("n2", "n2"),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enabled"), knownvalue.Bool(false)),
+				),
+			},
+		},
 	})
 }
 

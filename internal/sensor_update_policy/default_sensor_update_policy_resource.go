@@ -366,7 +366,7 @@ func (r *defaultSensorUpdatePolicyResource) Create(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	policy, diags = r.updateDefaultPolicy(ctx, &plan)
+	policy, diags = r.updateDefaultPolicy(ctx, &plan, apiPolicyBuilds(*policy))
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -440,7 +440,13 @@ func (r *defaultSensorUpdatePolicyResource) Update(
 		return
 	}
 
-	policy, diags := r.updateDefaultPolicy(ctx, &plan)
+	var state defaultSensorUpdatePolicyResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	policy, diags := r.updateDefaultPolicy(ctx, &plan, newPolicyBuilds(state.Build, state.BuildArm64))
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -605,35 +611,31 @@ func (r *defaultSensorUpdatePolicyResource) ValidateConfig(
 	}
 }
 
+// updateDefaultPolicy applies config to the default policy, sending only the builds
+// that differ from current.
 func (r *defaultSensorUpdatePolicyResource) updateDefaultPolicy(
 	ctx context.Context,
 	config *defaultSensorUpdatePolicyResourceModel,
+	current policyBuilds,
 ) (*models.SensorUpdatePolicyV2, diag.Diagnostics) {
 	var diags diag.Diagnostics
+
+	settings, buildOpts := changedBuildSettings(buildChange{
+		platform: config.PlatformName.ValueString(),
+		planned:  newPolicyBuilds(config.Build, config.BuildArm64),
+		current:  current,
+	})
 
 	policyParams := sensor_update_policies.UpdateSensorUpdatePoliciesV2Params{
 		Context: ctx,
 		Body: &models.SensorUpdateUpdatePoliciesReqV2{
 			Resources: []*models.SensorUpdateUpdatePolicyReqV2{
 				{
-					ID: config.ID.ValueStringPointer(),
-					Settings: &models.SensorUpdateSettingsReqV2{
-						Build: stripBuildPrefix(config.Build.ValueString()),
-					},
+					ID:       config.ID.ValueStringPointer(),
+					Settings: settings,
 				},
 			},
 		},
-	}
-
-	if strings.ToLower(config.PlatformName.ValueString()) == "linux" {
-		arm64Build := stripBuildPrefix(config.BuildArm64.ValueString())
-		variants := []*models.SensorUpdateBuildReqV1{
-			{
-				Build:    &arm64Build,
-				Platform: &linuxArm64Varient,
-			},
-		}
-		policyParams.Body.Resources[0].Settings.Variants = variants
 	}
 
 	var uninstallProtection string
@@ -674,7 +676,7 @@ func (r *defaultSensorUpdatePolicyResource) updateDefaultPolicy(
 	}
 	policyParams.Body.Resources[0].Settings.Scheduler = &updateSchedular
 
-	res, err := r.client.SensorUpdatePolicies.UpdateSensorUpdatePoliciesV2(&policyParams)
+	res, err := r.client.SensorUpdatePolicies.UpdateSensorUpdatePoliciesV2(&policyParams, buildOpts...)
 	if err != nil {
 		diags.Append(newAPIError(tferrors.Update, err, apiScopesReadWrite))
 		return nil, diags

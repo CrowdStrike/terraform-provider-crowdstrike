@@ -43,7 +43,9 @@ resource "crowdstrike_default_sensor_update_policy" "default" {
     enabled = false
   }
 }`,
-				ExpectError: regexp.MustCompile("(?i)(?s).*invalid(?s).*build invalid.*"),
+				ExpectError: regexp.MustCompile(
+					"build value may be incorrect or no longer supported",
+				),
 			},
 		},
 	})

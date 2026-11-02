@@ -669,6 +669,12 @@ func (r *sensorUpdatePolicyResource) Update(
 		}
 	}
 
+	settings, buildOpts := changedBuildSettings(buildChange{
+		platform: plan.PlatformName.ValueString(),
+		planned:  newPolicyBuilds(plan.Build, plan.BuildArm64),
+		current:  newPolicyBuilds(state.Build, state.BuildArm64),
+	})
+
 	policyParams := sensor_update_policies.UpdateSensorUpdatePoliciesV2Params{
 		Context: ctx,
 		Body: &models.SensorUpdateUpdatePoliciesReqV2{
@@ -677,23 +683,10 @@ func (r *sensorUpdatePolicyResource) Update(
 					Name:        plan.Name.ValueString(),
 					ID:          plan.ID.ValueStringPointer(),
 					Description: plan.Description.ValueString(),
-					Settings: &models.SensorUpdateSettingsReqV2{
-						Build: stripBuildPrefix(plan.Build.ValueString()),
-					},
+					Settings:    settings,
 				},
 			},
 		},
-	}
-
-	if strings.ToLower(plan.PlatformName.ValueString()) == "linux" {
-		arm64Build := stripBuildPrefix(plan.BuildArm64.ValueString())
-		variants := []*models.SensorUpdateBuildReqV1{
-			{
-				Build:    &arm64Build,
-				Platform: &linuxArm64Varient,
-			},
-		}
-		policyParams.Body.Resources[0].Settings.Variants = variants
 	}
 
 	switch {
@@ -732,7 +725,7 @@ func (r *sensorUpdatePolicyResource) Update(
 	}
 	policyParams.Body.Resources[0].Settings.Scheduler = &updateSchedular
 
-	res, err := r.client.SensorUpdatePolicies.UpdateSensorUpdatePoliciesV2(&policyParams)
+	res, err := r.client.SensorUpdatePolicies.UpdateSensorUpdatePoliciesV2(&policyParams, buildOpts...)
 	if err != nil {
 		resp.Diagnostics.Append(newAPIError(tferrors.Update, err, apiScopesReadWrite))
 		return
