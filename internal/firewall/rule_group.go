@@ -437,7 +437,7 @@ func ruleSchemaAttributes() map[string]schema.Attribute {
 		"watch_mode": schema.BoolAttribute{
 			Optional:            true,
 			Computed:            true,
-			MarkdownDescription: "Enable watch mode (monitoring) for this rule instead of enforcing. Defaults to `false`.",
+			MarkdownDescription: "Enable watch mode for this rule. The rule is still enforced; watch mode additionally creates an event each time the rule matches, shown in Activity > Firewall in the Falcon console. To stop a policy from blocking traffic, use `monitor_mode` on `crowdstrike_firewall_policy` instead. Defaults to `false`.",
 			Default:             booldefault.StaticBool(false),
 		},
 	}

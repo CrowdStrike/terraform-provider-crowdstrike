@@ -304,7 +304,7 @@ func dataSourceRuleSchemaAttributes() map[string]schema.Attribute {
 		},
 		"watch_mode": schema.BoolAttribute{
 			Computed:            true,
-			MarkdownDescription: "Whether watch mode (monitoring) is enabled for this rule",
+			MarkdownDescription: "Whether watch mode is enabled for this rule. The rule is still enforced; watch mode additionally creates an event each time the rule matches.",
 		},
 	}
 }
