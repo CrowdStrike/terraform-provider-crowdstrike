@@ -3,6 +3,7 @@ page_title: "crowdstrike_default_prevention_policy_linux Resource - crowdstrike"
 subcategory: "Prevention Policy"
 description: |-
   This resource allows you to manage the default prevention policy for Linux hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts. Destruction of this resource will not delete the default prevention policy or remove any configured settings.
+  The following settings are not supported in US Government clouds (us-gov-1, us-gov-2) and must be omitted from the configuration when targeting them: cloud_data_protection_visibility, retrospective_detections, suspicious_file_analysis, upload_unknown_detection_related_executables, upload_unknown_executables.
   API Scopes
   The following API scopes are required:
   Prevention policies | Read & Write
@@ -11,6 +12,8 @@ description: |-
 # crowdstrike_default_prevention_policy_linux (Resource)
 
 This resource allows you to manage the default prevention policy for Linux hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts. Destruction of this resource *will not* delete the default prevention policy or remove any configured settings.
+
+The following settings are not supported in US Government clouds (`us-gov-1`, `us-gov-2`) and must be omitted from the configuration when targeting them: `cloud_data_protection_visibility`, `retrospective_detections`, `suspicious_file_analysis`, `upload_unknown_detection_related_executables`, `upload_unknown_executables`.
 
 ## API Scopes
 
@@ -90,7 +93,7 @@ output "default_prevention_policy_linux" {
 ### Optional
 
 - `cloud_anti_malware` (Attributes) Use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware for your online hosts. (see [below for nested schema](#nestedatt--cloud_anti_malware))
-- `cloud_data_protection_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor and analyze data flows for protection against data breaches and leaks, and to improve data-related detections. This setting requires an additional Data Protection subscription; refer to the official [CrowdStrike documentation](https://docs.crowdstrike.com/) for the required entitlements. If you do not have the required subscription, set this to `false` or omit the attribute to avoid a `Provider produced inconsistent result after apply` error.
+- `cloud_data_protection_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor and analyze data flows for protection against data breaches and leaks, and to improve data-related detections. This setting requires an additional Data Protection subscription; refer to the official [CrowdStrike documentation](https://docs.crowdstrike.com/) for the required entitlements. If you do not have the required subscription, set this to `false` or omit the attribute to avoid a `Provider produced inconsistent result after apply` error. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.
 - `custom_blocking` (Boolean) Whether to enable the setting. Block processes matching hashes that you add to IOC Management with the action set to "Block" or "Block, hide detection".
 - `dbus_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor local D-Bus traffic for malicious patterns and improved detections.
 - `description` (String) Description of the prevention policy.
@@ -111,15 +114,15 @@ output "default_prevention_policy_linux" {
 - `prevent_suspicious_processes` (Boolean) Whether to enable the setting. Block processes that CrowdStrike analysts classify as suspicious. These are focused on dynamic IOAs, such as malware, exploits and other threats.
 - `quarantine` (Boolean) Whether to enable the setting. Quarantine executable files after they’re prevented by NGAV. When this is enabled, we recommend setting anti-malware prevention levels to Moderate or higher and not using other antivirus solutions.
 - `quarantine_non_executables_on_write` (Boolean) Whether to enable the setting. Quarantine non-executable files, classified as malicious by CrowdStrike’s Intelligence analysts, when they are written to disk. Requires detect_non_executables_on_write and quarantine to be enabled.
-- `retrospective_detections` (Boolean) Whether to enable the setting. Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.
+- `retrospective_detections` (Boolean) Whether to enable the setting. Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.
 - `script_based_execution_monitoring` (Boolean) Whether to enable the setting. Provides visibility into suspicious scripts, including shell and other scripting languages.
 - `sensor_anti_malware` (Attributes) For offline and online hosts, use sensor-based machine learning to identify and analyze unknown executables as they run to detect and prevent malware. (see [below for nested schema](#nestedatt--sensor_anti_malware))
 - `sensor_tampering_protection` (Boolean) Whether to enable the setting. Block attempts to tamper with the sensor by protecting critical components and resources. If disabled, the sensor still creates detections for tampering attempts but will not prevent the activity from occurring. Disabling is not recommended.
 - `ssh_visibility` (Boolean) Whether to enable the setting. Enable monitoring of activities performed by SSH servers.
-- `suspicious_file_analysis` (Boolean) Whether to enable the setting. Upload suspicious files for advanced threat analysis with QuickScan Pro.
+- `suspicious_file_analysis` (Boolean) Whether to enable the setting. Upload suspicious files for advanced threat analysis with QuickScan Pro. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.
 - `tls_visibility` (Boolean) Whether to enable the setting. Allows the sensor to monitor TLS traffic for malicious patterns and improved detections.
-- `upload_unknown_detection_related_executables` (Boolean) Whether to enable the setting. Upload all unknown detection-related executables for advanced analysis in the cloud.
-- `upload_unknown_executables` (Boolean) Whether to enable the setting. Upload all unknown executables for advanced analysis in the cloud.
+- `upload_unknown_detection_related_executables` (Boolean) Whether to enable the setting. Upload all unknown detection-related executables for advanced analysis in the cloud. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.
+- `upload_unknown_executables` (Boolean) Whether to enable the setting. Upload all unknown executables for advanced analysis in the cloud. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.
 
 ### Read-Only
 

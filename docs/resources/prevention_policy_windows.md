@@ -3,6 +3,7 @@ page_title: "crowdstrike_prevention_policy_windows Resource - crowdstrike"
 subcategory: "Prevention Policy"
 description: |-
   This resource allows you to manage prevention policies for Windows hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.
+  The following settings are not supported in US Government clouds (us-gov-1, us-gov-2) and must be omitted from the configuration when targeting them: cloud_anti_malware_microsoft_office_files, cloud_based_anomalous_process_execution, microsoft_office_file_suspicious_macro_removal, retrospective_detections, suspicious_file_analysis, upload_unknown_detection_related_executables, upload_unknown_executables.
   API Scopes
   The following API scopes are required:
   Prevention policies | Read & Write
@@ -11,6 +12,8 @@ description: |-
 # crowdstrike_prevention_policy_windows (Resource)
 
 This resource allows you to manage prevention policies for Windows hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.
+
+The following settings are not supported in US Government clouds (`us-gov-1`, `us-gov-2`) and must be omitted from the configuration when targeting them: `cloud_anti_malware_microsoft_office_files`, `cloud_based_anomalous_process_execution`, `microsoft_office_file_suspicious_macro_removal`, `retrospective_detections`, `suspicious_file_analysis`, `upload_unknown_detection_related_executables`, `upload_unknown_executables`.
 
 ## API Scopes
 
@@ -160,9 +163,9 @@ output "prevention_policy_windows" {
 - `chopper_webshell` (Boolean) Whether to enable the setting. Execution of a command shell was blocked and is indicative of the system hosting a Chopper web page.
 - `cloud_adware_pup_user_initiated` (Attributes) For online hosts running on-demand scans initiated by end users, use cloud-based machine learning informed by global analysis of executables to detect and prevent known PUP and Adware. (see [below for nested schema](#nestedatt--cloud_adware_pup_user_initiated))
 - `cloud_anti_malware` (Attributes) Use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware for your online hosts. (see [below for nested schema](#nestedatt--cloud_anti_malware))
-- `cloud_anti_malware_microsoft_office_files` (Attributes) Identifies potentially malicious macros in Microsoft Office files and, if prevention is enabled, either quarantines the file or removes the malicious macros before releasing the file back to the host (see [below for nested schema](#nestedatt--cloud_anti_malware_microsoft_office_files))
+- `cloud_anti_malware_microsoft_office_files` (Attributes) Identifies potentially malicious macros in Microsoft Office files and, if prevention is enabled, either quarantines the file or removes the malicious macros before releasing the file back to the host. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them. (see [below for nested schema](#nestedatt--cloud_anti_malware_microsoft_office_files))
 - `cloud_anti_malware_user_initiated` (Attributes) For online hosts running on-demand scans initiated by end users, use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware. (see [below for nested schema](#nestedatt--cloud_anti_malware_user_initiated))
-- `cloud_based_anomalous_process_execution` (Attributes) Use AI-powered IOAs to identify and detect potentially malicious behaviors from Living Off the Land binaries (LOLbins) on your online hosts. (see [below for nested schema](#nestedatt--cloud_based_anomalous_process_execution))
+- `cloud_based_anomalous_process_execution` (Attributes) Use AI-powered IOAs to identify and detect potentially malicious behaviors from Living Off the Land binaries (LOLbins) on your online hosts. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them. (see [below for nested schema](#nestedatt--cloud_based_anomalous_process_execution))
 - `code_injection` (Boolean) Whether to enable the setting. Kill processes that unexpectedly injected code into another process. Requires additional_user_mode_data to be enabled.
 - `credential_dumping` (Boolean) Whether to enable the setting. Kill suspicious processes determined to be stealing logins and passwords. Requires additional_user_mode_data to be enabled.
 - `cryptowall` (Boolean) Whether to enable the setting. A process associated with Cryptowall was blocked.
@@ -192,7 +195,7 @@ output "prevention_policy_windows" {
 - `locky` (Boolean) Whether to enable the setting. A process determined to be associated with Locky was blocked.
 - `memory_scanning` (Boolean) Whether to enable the setting. Provides visibility into in-memory attacks by scanning for suspicious artifacts on hosts with the following: an integrated GPU and supporting OS libraries, Windows 10 v1607 (RS1) or later, and a Skylake or newer Intel CPU.
 - `memory_scanning_scan_with_cpu` (Boolean) Whether to enable the setting. Allows memory scanning to use the CPU or virtual CPU when an integrated GPU is not available. All Intel processors supported, requires Windows 8.1/2012 R2 or later.
-- `microsoft_office_file_suspicious_macro_removal` (Boolean) Whether to enable the setting. Identifies potentially malicious macros in Microsoft Office files and, if prevention is enabled, either quarantines the file or removes the malicious macros before releasing the file back to the host
+- `microsoft_office_file_suspicious_macro_removal` (Boolean) Whether to enable the setting. Identifies potentially malicious macros in Microsoft Office files and, if prevention is enabled, either quarantines the file or removes the malicious macros before releasing the file back to the host. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.
 - `notify_end_users` (Boolean) Whether to enable the setting. Show a pop-up notification to the end user when the Falcon sensor blocks, kills, or quarantines. These messages also show up in the Windows Event Viewer under Applications and Service Logs.
 - `null_page_allocation` (Boolean) Whether to enable the setting. Allocating memory to the NULL (0) memory page was detected and blocked. This may have been part of an attempted exploit. Requires additional_user_mode_data to be enabled.
 - `on_write_script_file_visibility` (Boolean) Whether to enable the setting. Provides improved visibility into various script files being written to disk in addition to clouding a portion of their content.
@@ -202,17 +205,17 @@ output "prevention_policy_windows" {
 - `quarantine_on_removable_media` (Boolean) Whether to enable the setting. Quarantine executable files after they’re prevented by NGAV.
 - `quarantine_on_write` (Boolean) Whether to enable the setting. Use machine learning to quarantine suspicious files when they're written to disk. To adjust quarantine sensitivity, change Anti-malware Prevention levels in Sensor Machine Learning and Cloud Machine Learning.
 - `redact_http_detection_details` (Boolean) Whether to enable the setting. Remove certain information from HTTP Detection events, including URL, raw HTTP header and POST bodies if they were present. This does not affect the generation of HTTP Detections, only additional details that would be included and may include personal information (depending on the malware in question). When disabled, the information is used to improve the response to detection events. Has no effect unless HTTP Detections is also enabled.
-- `retrospective_detections` (Boolean) Whether to enable the setting. Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.
+- `retrospective_detections` (Boolean) Whether to enable the setting. Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.
 - `script_based_execution_monitoring` (Boolean) Whether to enable the setting. For hosts running Windows 10 and Servers 2016 and later, provides visibility into suspicious scripts and VBA macros in Office documents. Requires Quarantine & Security Center Registration toggle to be enabled.
 - `seh_overwrite_protection` (Boolean) Whether to enable the setting. Overwriting a Structured Exception Handler (SEH) was detected and may have been blocked. This may have been part of an attempted exploit. Requires additional_user_mode_data to be enabled.
 - `sensor_anti_malware` (Attributes) For offline and online hosts, use sensor-based machine learning to identify and analyze unknown executables as they run to detect and prevent malware. (see [below for nested schema](#nestedatt--sensor_anti_malware))
 - `sensor_anti_malware_user_initiated` (Attributes) For offline and online hosts running on-demand scans initiated by end users, use sensor-based machine learning to identify and analyze unknown executables to detect and prevent malware. (see [below for nested schema](#nestedatt--sensor_anti_malware_user_initiated))
 - `sensor_tampering_protection` (Boolean) Whether to enable the setting. Blocks attempts to tamper with the sensor. If disabled, the sensor still creates detections for tampering attempts but doesn’t block them. Disabling not recommended.
-- `suspicious_file_analysis` (Boolean) Whether to enable the setting. Upload suspicious files for advanced threat analysis with QuickScan Pro.
+- `suspicious_file_analysis` (Boolean) Whether to enable the setting. Upload suspicious files for advanced threat analysis with QuickScan Pro. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.
 - `suspicious_registry_operations` (Boolean) Whether to enable the setting. Block registry operations that CrowdStrike analysts classify as suspicious. Focuses on dynamic IOAs, such as ASEPs and security config changes. The associated process may be killed.
 - `suspicious_scripts_and_commands` (Boolean) Whether to enable the setting. Block execution of scripts and commands that CrowdStrike analysts classify as suspicious. Requires Interpreter-Only and/or Script-Based Execution Monitoring.
-- `upload_unknown_detection_related_executables` (Boolean) Whether to enable the setting. Upload all unknown detection-related executables for advanced analysis in the cloud.
-- `upload_unknown_executables` (Boolean) Whether to enable the setting. Upload all unknown executables for advanced analysis in the cloud.
+- `upload_unknown_detection_related_executables` (Boolean) Whether to enable the setting. Upload all unknown detection-related executables for advanced analysis in the cloud. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.
+- `upload_unknown_executables` (Boolean) Whether to enable the setting. Upload all unknown executables for advanced analysis in the cloud. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.
 - `usb_insertion_triggered_scan` (Boolean) Whether to enable the setting. Start an on-demand scan when an end user inserts a USB device. To adjust detection sensitivity, change Anti-malware Detection levels in On-Demand Scans Machine Learning.
 - `volume_shadow_copy_audit` (Boolean) Whether to enable the setting. Create an alert when a suspicious process deletes volume shadow copies. Recommended: Use audit mode with a test group to try allowlisting trusted software before turning on Protect.
 - `volume_shadow_copy_protect` (Boolean) Whether to enable the setting. Prevent suspicious processes from deleting volume shadow copies. Requires volume_shadow_copy_audit.

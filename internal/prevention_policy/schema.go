@@ -225,14 +225,14 @@ func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 				},
 			},
 			"cloud_anti_malware_microsoft_office_files": mlSLiderAttribute(
-				"Identifies potentially malicious macros in Microsoft Office files and, if prevention is enabled, either quarantines the file or removes the malicious macros before releasing the file back to the host",
+				"Identifies potentially malicious macros in Microsoft Office files and, if prevention is enabled, either quarantines the file or removes the malicious macros before releasing the file back to the host. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.",
 			),
 			"extended_user_mode_data": mlSLiderAttribute(
 				"Allows the sensor to get more data from a user-mode component it loads into all eligible processes, which augments online machine learning and turns on additional detections. Recommend testing with critical applications before full deployment.",
 				withPrevention(false),
 			),
 			"cloud_based_anomalous_process_execution": mlSLiderAttribute(
-				"Use AI-powered IOAs to identify and detect potentially malicious behaviors from Living Off the Land binaries (LOLbins) on your online hosts.",
+				"Use AI-powered IOAs to identify and detect potentially malicious behaviors from Living Off the Land binaries (LOLbins) on your online hosts. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.",
 				withPrevention(false),
 			),
 			"cloud_anti_malware": mlSLiderAttribute(
@@ -263,10 +263,10 @@ func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 				"Show a pop-up notification to the end user when the Falcon sensor blocks, kills, or quarantines. These messages also show up in the Windows Event Viewer under Applications and Service Logs.",
 			),
 			"upload_unknown_detection_related_executables": toggleAttribute(
-				"Upload all unknown detection-related executables for advanced analysis in the cloud.",
+				"Upload all unknown detection-related executables for advanced analysis in the cloud. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.",
 			),
 			"upload_unknown_executables": toggleAttribute(
-				"Upload all unknown executables for advanced analysis in the cloud.",
+				"Upload all unknown executables for advanced analysis in the cloud. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.",
 			),
 			"sensor_tampering_protection": toggleAttribute(
 				"Blocks attempts to tamper with the sensor. If disabled, the sensor still creates detections for tampering attempts but doesn’t block them. Disabling not recommended.",
@@ -333,7 +333,7 @@ func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 				"Quarantine executable files after they’re prevented by NGAV.",
 			),
 			"microsoft_office_file_suspicious_macro_removal": toggleAttribute(
-				"Identifies potentially malicious macros in Microsoft Office files and, if prevention is enabled, either quarantines the file or removes the malicious macros before releasing the file back to the host",
+				"Identifies potentially malicious macros in Microsoft Office files and, if prevention is enabled, either quarantines the file or removes the malicious macros before releasing the file back to the host. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.",
 			),
 			"custom_blocking": toggleAttribute(
 				"Block processes matching hashes that you add to IOC Management with the action set to \"Block\" or \"Block, hide detection\".",
@@ -423,22 +423,22 @@ func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 				"Provides visibility into WSL2 distributions by enabling a Falcon sensor plugin.",
 			),
 			"suspicious_file_analysis": toggleAttribute(
-				"Upload suspicious files for advanced threat analysis with QuickScan Pro.",
+				"Upload suspicious files for advanced threat analysis with QuickScan Pro. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.",
 			),
 			"retrospective_detections": toggleAttribute(
-				"Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.",
+				"Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.",
 			),
 		},
 	}
 
 	if defaultPolicy {
 		windowsSchema.MarkdownDescription = fmt.Sprintf(
-			"Prevention Policy --- This resource allows you to manage the default prevention policy for Windows hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts. Destruction of this resource *will not* delete the default prevention policy or remove any configured settings.\n\n%s",
+			"Prevention Policy --- This resource allows you to manage the default prevention policy for Windows hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts. Destruction of this resource *will not* delete the default prevention policy or remove any configured settings.\n\nThe following settings are not supported in US Government clouds (`us-gov-1`, `us-gov-2`) and must be omitted from the configuration when targeting them: `cloud_anti_malware_microsoft_office_files`, `cloud_based_anomalous_process_execution`, `microsoft_office_file_suspicious_macro_removal`, `retrospective_detections`, `suspicious_file_analysis`, `upload_unknown_detection_related_executables`, `upload_unknown_executables`.\n\n%s",
 			scopes.GenerateScopeDescription(apiScopes),
 		)
 	} else {
 		windowsSchema.MarkdownDescription = fmt.Sprintf(
-			"Prevention Policy --- This resource allows you to manage prevention policies for Windows hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.\n\n%s",
+			"Prevention Policy --- This resource allows you to manage prevention policies for Windows hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.\n\nThe following settings are not supported in US Government clouds (`us-gov-1`, `us-gov-2`) and must be omitted from the configuration when targeting them: `cloud_anti_malware_microsoft_office_files`, `cloud_based_anomalous_process_execution`, `microsoft_office_file_suspicious_macro_removal`, `retrospective_detections`, `suspicious_file_analysis`, `upload_unknown_detection_related_executables`, `upload_unknown_executables`.\n\n%s",
 			scopes.GenerateScopeDescription(apiScopes),
 		)
 
@@ -507,10 +507,10 @@ func generateMacSchema(defaultPolicy bool) schema.Schema {
 				"Show a pop-up notification to the end user when the Falcon sensor blocks, kills, or quarantines. See these messages in Console.app by searching for Process: Falcon Notifications.",
 			),
 			"upload_unknown_detection_related_executables": toggleAttribute(
-				"Upload all unknown detection-related executables for advanced analysis in the cloud.",
+				"Upload all unknown detection-related executables for advanced analysis in the cloud. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.",
 			),
 			"upload_unknown_executables": toggleAttribute(
-				"Upload all unknown executables for advanced analysis in the cloud.",
+				"Upload all unknown executables for advanced analysis in the cloud. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.",
 			),
 			"sensor_tampering_protection": toggleAttribute(
 				"Blocks attempts to tamper with the sensor. If disabled, the sensor still creates detections for tampering attempts but doesn’t block them. Disabling not recommended.",
@@ -559,22 +559,22 @@ func generateMacSchema(defaultPolicy bool) schema.Schema {
 				"Provides enhanced visibility into network activities and detections.",
 			),
 			"suspicious_file_analysis": toggleAttribute(
-				"Upload suspicious files for advanced threat analysis with QuickScan Pro.",
+				"Upload suspicious files for advanced threat analysis with QuickScan Pro. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.",
 			),
 			"retrospective_detections": toggleAttribute(
-				"Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.",
+				"Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.",
 			),
 		},
 	}
 
 	if defaultPolicy {
 		macSchema.MarkdownDescription = fmt.Sprintf(
-			"Prevention Policy --- This resource allows you to manage the default prevention policy for Mac hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts. Destruction of this resource *will not* delete the default prevention policy or remove any configured settings.\n\n%s",
+			"Prevention Policy --- This resource allows you to manage the default prevention policy for Mac hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts. Destruction of this resource *will not* delete the default prevention policy or remove any configured settings.\n\nThe following settings are not supported in US Government clouds (`us-gov-1`, `us-gov-2`) and must be omitted from the configuration when targeting them: `retrospective_detections`, `suspicious_file_analysis`, `upload_unknown_detection_related_executables`, `upload_unknown_executables`.\n\n%s",
 			scopes.GenerateScopeDescription(apiScopes),
 		)
 	} else {
 		macSchema.MarkdownDescription = fmt.Sprintf(
-			"Prevention Policy --- This resource allows you to manage prevention policies for Mac hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.\n\n%s",
+			"Prevention Policy --- This resource allows you to manage prevention policies for Mac hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.\n\nThe following settings are not supported in US Government clouds (`us-gov-1`, `us-gov-2`) and must be omitted from the configuration when targeting them: `retrospective_detections`, `suspicious_file_analysis`, `upload_unknown_detection_related_executables`, `upload_unknown_executables`.\n\n%s",
 			scopes.GenerateScopeDescription(apiScopes),
 		)
 
@@ -637,10 +637,10 @@ func generateLinuxSchema(defaultPolicy bool) schema.Schema {
 				"Quarantine executable files after they’re prevented by NGAV. When this is enabled, we recommend setting anti-malware prevention levels to Moderate or higher and not using other antivirus solutions.",
 			),
 			"upload_unknown_detection_related_executables": toggleAttribute(
-				"Upload all unknown detection-related executables for advanced analysis in the cloud.",
+				"Upload all unknown detection-related executables for advanced analysis in the cloud. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.",
 			),
 			"upload_unknown_executables": toggleAttribute(
-				"Upload all unknown executables for advanced analysis in the cloud.",
+				"Upload all unknown executables for advanced analysis in the cloud. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.",
 			),
 			"script_based_execution_monitoring": toggleAttribute(
 				"Provides visibility into suspicious scripts, including shell and other scripting languages.",
@@ -700,10 +700,10 @@ func generateLinuxSchema(defaultPolicy bool) schema.Schema {
 				"Allows the sensor to monitor an extended set of changes to environment variables in order to enhance visibility.",
 			),
 			"suspicious_file_analysis": toggleAttribute(
-				"Upload suspicious files for advanced threat analysis with QuickScan Pro.",
+				"Upload suspicious files for advanced threat analysis with QuickScan Pro. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.",
 			),
 			"cloud_data_protection_visibility": toggleAttribute(
-				"Allows the sensor to monitor and analyze data flows for protection against data breaches and leaks, and to improve data-related detections. This setting requires an additional Data Protection subscription; refer to the official [CrowdStrike documentation](https://docs.crowdstrike.com/) for the required entitlements. If you do not have the required subscription, set this to `false` or omit the attribute to avoid a `Provider produced inconsistent result after apply` error.",
+				"Allows the sensor to monitor and analyze data flows for protection against data breaches and leaks, and to improve data-related detections. This setting requires an additional Data Protection subscription; refer to the official [CrowdStrike documentation](https://docs.crowdstrike.com/) for the required entitlements. If you do not have the required subscription, set this to `false` or omit the attribute to avoid a `Provider produced inconsistent result after apply` error. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.",
 			),
 			"ssh_visibility": toggleAttribute(
 				"Enable monitoring of activities performed by SSH servers.",
@@ -715,19 +715,19 @@ func generateLinuxSchema(defaultPolicy bool) schema.Schema {
 				"Mitigates high volume PHP script execution to only the first time it's seen by the server.",
 			),
 			"retrospective_detections": toggleAttribute(
-				"Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period.",
+				"Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.",
 			),
 		},
 	}
 
 	if defaultPolicy {
 		linuxSchema.MarkdownDescription = fmt.Sprintf(
-			"Prevention Policy --- This resource allows you to manage the default prevention policy for Linux hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts. Destruction of this resource *will not* delete the default prevention policy or remove any configured settings.\n\n%s",
+			"Prevention Policy --- This resource allows you to manage the default prevention policy for Linux hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts. Destruction of this resource *will not* delete the default prevention policy or remove any configured settings.\n\nThe following settings are not supported in US Government clouds (`us-gov-1`, `us-gov-2`) and must be omitted from the configuration when targeting them: `cloud_data_protection_visibility`, `retrospective_detections`, `suspicious_file_analysis`, `upload_unknown_detection_related_executables`, `upload_unknown_executables`.\n\n%s",
 			scopes.GenerateScopeDescription(apiScopes),
 		)
 	} else {
 		linuxSchema.MarkdownDescription = fmt.Sprintf(
-			"Prevention Policy --- This resource allows you to manage prevention policies for Linux hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.\n\n%s",
+			"Prevention Policy --- This resource allows you to manage prevention policies for Linux hosts. Prevention policies allow you to manage what activity will trigger detections and preventions on your hosts.\n\nThe following settings are not supported in US Government clouds (`us-gov-1`, `us-gov-2`) and must be omitted from the configuration when targeting them: `cloud_data_protection_visibility`, `retrospective_detections`, `suspicious_file_analysis`, `upload_unknown_detection_related_executables`, `upload_unknown_executables`.\n\n%s",
 			scopes.GenerateScopeDescription(apiScopes),
 		)
 
