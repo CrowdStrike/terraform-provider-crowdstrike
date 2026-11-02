@@ -110,6 +110,12 @@ const (
 	outcomeCase      = "case"
 )
 
+// statusDeleting is the status a rule reports while its asynchronous delete runs.
+const statusDeleting = "deleting"
+
+// ruleWaitTimeout bounds polling for a rule's asynchronous status changes.
+const ruleWaitTimeout = 2 * time.Minute
+
 // outcomeFromCreateCase maps the create_case bool to the wire outcome string.
 func outcomeFromCreateCase(createCase bool) string {
 	if createCase {
@@ -529,41 +535,19 @@ func (r *correlationRuleResource) Read(
 		return
 	}
 
-	ruleID := state.ID.ValueString()
-
-	res, err := r.client.CorrelationRules.EntitiesRulesGetV1(&correlation_rules.EntitiesRulesGetV1Params{
-		Context: ctx,
-		Ids:     []string{ruleID},
-	})
-	if err != nil {
-		d := tferrors.NewDiagnosticFromAPIError(tferrors.Read, err, apiScopes)
-		if d != nil && d.Summary() == tferrors.NotFoundErrorSummary {
-			resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
-			resp.State.RemoveResource(ctx)
-			return
-		}
+	rule, d := r.getRule(ctx, tferrors.Read, state.ID.ValueString())
+	if d != nil {
 		resp.Diagnostics.Append(d)
 		return
 	}
 
-	if res == nil || res.Payload == nil {
+	// Deletes are asynchronous; a rule mid-delete is already gone for Terraform.
+	if rule == nil || (rule.Status != nil && *rule.Status == statusDeleting) {
 		resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 		resp.State.RemoveResource(ctx)
 		return
 	}
 
-	if diag := tferrors.NewDiagnosticFromPayloadErrors(tferrors.Read, res.Payload.Errors); diag != nil {
-		resp.Diagnostics.Append(diag)
-		return
-	}
-
-	if len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil {
-		resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
-		resp.State.RemoveResource(ctx)
-		return
-	}
-
-	rule := res.Payload.Resources[0]
 	resp.Diagnostics.Append(state.wrap(ctx, rule, nil)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -699,18 +683,104 @@ func (r *correlationRuleResource) Delete(
 		return
 	}
 
+	ruleID := state.ID.ValueString()
+
 	_, err := r.client.CorrelationRules.EntitiesRulesDeleteV1(&correlation_rules.EntitiesRulesDeleteV1Params{
 		Context: ctx,
-		Ids:     []string{state.ID.ValueString()},
+		Ids:     []string{ruleID},
 	})
+	var conflictDiag diag.Diagnostic
 	if err != nil {
 		d := tferrors.NewDiagnosticFromAPIError(tferrors.Delete, err, apiScopes)
 		if d != nil && d.Summary() == tferrors.NotFoundErrorSummary {
 			return
 		}
-		resp.Diagnostics.Append(d)
-		return
+
+		// A rule already being deleted out of band rejects DELETE with a 409;
+		// wait for that delete to finish instead of failing.
+		if !tferrors.IsConflict(err) {
+			resp.Diagnostics.Append(d)
+			return
+		}
+		conflictDiag = d
 	}
+
+	if d := r.waitForDeletion(ctx, ruleID); d != nil {
+		// The 409 had another cause; surface the API's reason with the wait failure.
+		if conflictDiag != nil {
+			resp.Diagnostics.Append(conflictDiag)
+		}
+		resp.Diagnostics.Append(d)
+	}
+}
+
+// waitForDeletion polls the API until the asynchronous delete of the rule completes.
+func (r *correlationRuleResource) waitForDeletion(ctx context.Context, ruleID string) diag.Diagnostic {
+	var apiDiag diag.Diagnostic
+
+	err := retry.RetryContext(ctx, ruleWaitTimeout, func() *retry.RetryError {
+		rule, d := r.getRule(ctx, tferrors.Delete, ruleID)
+		if d != nil {
+			apiDiag = d
+			return retry.NonRetryableError(fmt.Errorf("%s", d.Detail()))
+		}
+
+		if rule == nil {
+			return nil
+		}
+
+		if rule.Status == nil {
+			return retry.RetryableError(fmt.Errorf("status is nil, waiting"))
+		}
+
+		if *rule.Status == statusDeleting {
+			return retry.RetryableError(fmt.Errorf("status is still '%s', waiting", statusDeleting))
+		}
+
+		return retry.NonRetryableError(fmt.Errorf("rule %s is not being deleted (status %q)", ruleID, *rule.Status))
+	})
+
+	if apiDiag != nil {
+		return apiDiag
+	}
+	if err != nil {
+		return tferrors.NewOperationError(tferrors.Delete, err)
+	}
+	return nil
+}
+
+// getRule fetches a rule by ID, returning a nil rule once the API reports it gone.
+func (r *correlationRuleResource) getRule(
+	ctx context.Context,
+	operation tferrors.Operation,
+	ruleID string,
+) (*models.CorrelationrulesapiRuleV1, diag.Diagnostic) {
+	res, err := r.client.CorrelationRules.EntitiesRulesGetV1(&correlation_rules.EntitiesRulesGetV1Params{
+		Context: ctx,
+		Ids:     []string{ruleID},
+	})
+	if err != nil {
+		d := tferrors.NewDiagnosticFromAPIError(operation, err, apiScopes)
+		if d != nil && d.Summary() == tferrors.NotFoundErrorSummary {
+			return nil, nil
+		}
+		return nil, d
+	}
+
+	// The API returns 200 with a 404 payload error once a rule is deleted.
+	if res == nil || res.Payload == nil || tferrors.HasNotFoundPayloadError(res.Payload.Errors) {
+		return nil, nil
+	}
+
+	if d := tferrors.NewDiagnosticFromPayloadErrors(operation, res.Payload.Errors); d != nil {
+		return nil, d
+	}
+
+	if len(res.Payload.Resources) == 0 {
+		return nil, nil
+	}
+
+	return res.Payload.Resources[0], nil
 }
 
 func (r *correlationRuleResource) ImportState(
@@ -924,7 +994,7 @@ func (r *correlationRuleResource) waitForStatus(
 ) (*models.CorrelationrulesapiRuleV1, error) {
 	var rule *models.CorrelationrulesapiRuleV1
 
-	err := retry.RetryContext(ctx, 2*time.Minute, func() *retry.RetryError {
+	err := retry.RetryContext(ctx, ruleWaitTimeout, func() *retry.RetryError {
 		res, err := r.client.CorrelationRules.EntitiesRulesGetV1(&correlation_rules.EntitiesRulesGetV1Params{
 			Context: ctx,
 			Ids:     []string{ruleID},

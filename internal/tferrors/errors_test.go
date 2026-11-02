@@ -2,6 +2,7 @@ package tferrors
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -360,6 +361,52 @@ func TestNewDiagnosticFromPayloadErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gotDiag := NewDiagnosticFromPayloadErrors(tt.operation, tt.payloadErrors)
 			assert.Equal(t, tt.wantDiag, gotDiag)
+		})
+	}
+}
+
+func TestIsConflict(t *testing.T) {
+	conflict := runtime.NewAPIError("delete-rule", &mockClientResponse{code: 409}, 409)
+
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil error", err: nil, want: false},
+		{name: "typed 409", err: d4c_registration.NewCreateDiscoverCloudAzureAccountConflict(), want: true},
+		{name: "untyped 409", err: conflict, want: true},
+		{name: "wrapped 409", err: fmt.Errorf("wrapped: %w", conflict), want: true},
+		{name: "404", err: host_group.NewGetHostGroupsNotFound(), want: false},
+		{name: "non-status error", err: errors.New("boom"), want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsConflict(tt.err))
+		})
+	}
+}
+
+func TestHasNotFoundPayloadError(t *testing.T) {
+	tests := []struct {
+		name          string
+		payloadErrors []*models.MsaAPIError
+		want          bool
+	}{
+		{name: "nil errors", payloadErrors: nil, want: false},
+		{name: "nil entry and nil code", payloadErrors: []*models.MsaAPIError{nil, {Code: nil}}, want: false},
+		{name: "non-404", payloadErrors: []*models.MsaAPIError{{Code: utils.Addr(int32(400))}}, want: false},
+		{
+			name:          "404 among others",
+			payloadErrors: []*models.MsaAPIError{{Code: utils.Addr(int32(400))}, {Code: utils.Addr(int32(404))}},
+			want:          true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, HasNotFoundPayloadError(tt.payloadErrors))
 		})
 	}
 }

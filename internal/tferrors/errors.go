@@ -65,6 +65,32 @@ func IsServerError(err error) bool {
 	return false
 }
 
+// IsConflict reports whether a gofalcon error carries a 409 status.
+func IsConflict(err error) bool {
+	var status runtime.ClientResponseStatus
+	if errors.As(err, &status) {
+		return status.IsCode(409)
+	}
+
+	return false
+}
+
+// HasNotFoundPayloadError reports whether any payload error has code 404. Some
+// APIs return 200 with a 404 payload error for a missing resource.
+func HasNotFoundPayloadError(payloadErrors []*models.MsaAPIError) bool {
+	return notFoundPayloadError(payloadErrors) != nil
+}
+
+// notFoundPayloadError returns the first payload error with code 404, or nil.
+func notFoundPayloadError(payloadErrors []*models.MsaAPIError) *models.MsaAPIError {
+	for _, apiErr := range payloadErrors {
+		if apiErr != nil && apiErr.Code != nil && *apiErr.Code == 404 {
+			return apiErr
+		}
+	}
+	return nil
+}
+
 // NewEmptyResponseError creates a diagnostic error for when an API returns no data.
 func NewEmptyResponseError(operation Operation) diag.ErrorDiagnostic {
 	return diag.NewErrorDiagnostic(
@@ -324,15 +350,12 @@ func handle207PayloadErrors(operation Operation, err error, cfg *errorConfig) di
 		return nil
 	}
 
-	// Check for 404 in payload errors
-	for _, apiErr := range payloadErrors {
-		if apiErr != nil && apiErr.Code != nil && *apiErr.Code == 404 {
-			detail := cfg.notFoundDetail
-			if detail == "" && apiErr.Message != nil {
-				detail = *apiErr.Message
-			}
-			return NewNotFoundError(detail)
+	if apiErr := notFoundPayloadError(payloadErrors); apiErr != nil {
+		detail := cfg.notFoundDetail
+		if detail == "" && apiErr.Message != nil {
+			detail = *apiErr.Message
 		}
+		return NewNotFoundError(detail)
 	}
 
 	// Other payload errors
