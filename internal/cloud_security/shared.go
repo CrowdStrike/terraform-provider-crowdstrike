@@ -54,9 +54,9 @@ var (
 		"2": SeverityMedium,
 		"3": SeverityInformational,
 	}
-	suppressionRuleSubdomainDefault = "IOM"
-	suppressionRuleDomainDefault    = "CSPM"
-	suppressionRuleReasonValues     = []string{
+	suppressionRuleSubdomainValues = []string{"IOM", "CloudRisk"}
+	suppressionRuleDomainDefault   = "CSPM"
+	suppressionRuleReasonValues    = []string{
 		"accept-risk",
 		"compensating-control",
 		"false-positive",
