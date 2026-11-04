@@ -942,17 +942,12 @@ func (r *cloudAWSAccountResource) Read(
 
 	cloudAccount, found, diags := r.getCloudAccount(ctx, state.AccountID.ValueString())
 	if tferrors.HasNotFoundError(diags) {
-		tflog.Warn(
-			ctx,
-			fmt.Sprintf("cloud account %s not found, removing from state", state.AccountID),
-		)
-		resp.State.RemoveResource(ctx)
-		return
-	}
-
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
+		found = false
+	} else {
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 
 	if !found {
@@ -960,6 +955,7 @@ func (r *cloudAWSAccountResource) Read(
 			ctx,
 			fmt.Sprintf("cloud account %s not found, removing from state", state.AccountID),
 		)
+		resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 		resp.State.RemoveResource(ctx)
 		return
 	}
@@ -1014,8 +1010,10 @@ func (r *cloudAWSAccountResource) getCloudAccount(
 		return nil, false, diags
 	}
 
-	if len(res.Payload.Resources) == 0 {
-		diags.Append(tferrors.NewEmptyResponseError(tferrors.Read))
+	// An account deregistered outside Terraform comes back as a successful response with no
+	// resources rather than a 404, so treat it as not found.
+	if res == nil || res.Payload == nil || len(res.Payload.Resources) == 0 ||
+		res.Payload.Resources[0] == nil {
 		return nil, false, diags
 	}
 
