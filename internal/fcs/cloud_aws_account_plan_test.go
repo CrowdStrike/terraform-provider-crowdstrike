@@ -96,8 +96,9 @@ func awsAccountConfigModel(dspm *fcs.DSPMOptions) fcs.CloudAWSAccountModel {
 }
 
 // planAWSAccount runs PlanResourceChange through the provider server and returns the planned model.
-// proposed is what Terraform proposes: the config, with the prior state for unset computed values.
-func planAWSAccount(t *testing.T, prior, config, proposed fcs.CloudAWSAccountModel) fcs.CloudAWSAccountModel {
+// A nil prior plans a create. proposed is what Terraform proposes: the config, with the prior state
+// for unset computed values.
+func planAWSAccount(t *testing.T, prior *fcs.CloudAWSAccountModel, config, proposed fcs.CloudAWSAccountModel) fcs.CloudAWSAccountModel {
 	t.Helper()
 	ctx := context.Background()
 
@@ -107,10 +108,12 @@ func planAWSAccount(t *testing.T, prior, config, proposed fcs.CloudAWSAccountMod
 	sch := schemaResp.Schema
 	tfType := sch.Type().TerraformType(ctx)
 
-	toDynamic := func(m fcs.CloudAWSAccountModel) *tfprotov6.DynamicValue {
+	toDynamic := func(m *fcs.CloudAWSAccountModel) *tfprotov6.DynamicValue {
 		state := tfsdk.State{Schema: sch, Raw: tftypes.NewValue(tfType, nil)}
-		diags := state.Set(ctx, &m)
-		require.False(t, diags.HasError(), "set: %v", diags)
+		if m != nil {
+			diags := state.Set(ctx, m)
+			require.False(t, diags.HasError(), "set: %v", diags)
+		}
 		dv, err := tfprotov6.NewDynamicValue(tfType, state.Raw)
 		require.NoError(t, err)
 		return &dv
@@ -122,8 +125,8 @@ func planAWSAccount(t *testing.T, prior, config, proposed fcs.CloudAWSAccountMod
 	resp, err := server.PlanResourceChange(ctx, &tfprotov6.PlanResourceChangeRequest{
 		TypeName:         "crowdstrike_cloud_aws_account",
 		PriorState:       toDynamic(prior),
-		Config:           toDynamic(config),
-		ProposedNewState: toDynamic(proposed),
+		Config:           toDynamic(&config),
+		ProposedNewState: toDynamic(&proposed),
 	})
 	require.NoError(t, err)
 	for _, d := range resp.Diagnostics {
@@ -141,7 +144,7 @@ func planAWSAccount(t *testing.T, prior, config, proposed fcs.CloudAWSAccountMod
 func TestCloudAWSAccountPlan_AgentlessRoles(t *testing.T) {
 	t.Run("absent dspm block keeps the stored legacy role", func(t *testing.T) {
 		prior := awsAccountStateModel(false, legacyAgentlessRole, false)
-		planned := planAWSAccount(t, prior, awsAccountConfigModel(nil), prior)
+		planned := planAWSAccount(t, &prior, awsAccountConfigModel(nil), prior)
 
 		assert.Equal(t, types.StringValue(legacyAgentlessRole), planned.DSPM.RoleName)
 		assert.Equal(t, types.StringValue(legacyAgentlessRole), planned.VulnerabilityScanning.RoleName)
@@ -156,7 +159,7 @@ func TestCloudAWSAccountPlan_AgentlessRoles(t *testing.T) {
 		prior := awsAccountStateModel(true, generated, true)
 		prior.AgentlessScanningScannerRoleName = types.StringValue("CSAgentlessScannerRole-abcd1234")
 		config := awsAccountConfigModel(&fcs.DSPMOptions{Enabled: types.BoolValue(true), RoleName: types.StringNull()})
-		planned := planAWSAccount(t, prior, config, prior)
+		planned := planAWSAccount(t, &prior, config, prior)
 
 		assert.Equal(t, types.StringValue(generated), planned.DSPM.RoleName)
 		assert.Equal(t, prior.DspmRoleArn, planned.DspmRoleArn)
@@ -170,7 +173,7 @@ func TestCloudAWSAccountPlan_AgentlessRoles(t *testing.T) {
 		config := awsAccountConfigModel(&fcs.DSPMOptions{Enabled: types.BoolValue(true), RoleName: types.StringNull()})
 		proposed := prior
 		proposed.DSPM = &fcs.DSPMOptions{Enabled: types.BoolValue(true), RoleName: prior.DSPM.RoleName}
-		planned := planAWSAccount(t, prior, config, proposed)
+		planned := planAWSAccount(t, &prior, config, proposed)
 
 		assert.True(t, planned.DSPM.RoleName.IsUnknown())
 		assert.True(t, planned.DspmRoleName.IsUnknown())
@@ -184,7 +187,7 @@ func TestCloudAWSAccountPlan_AgentlessRoles(t *testing.T) {
 		config := awsAccountConfigModel(&fcs.DSPMOptions{Enabled: types.BoolValue(true), RoleName: types.StringValue("custom-role")})
 		proposed := prior
 		proposed.DSPM = &fcs.DSPMOptions{Enabled: types.BoolValue(true), RoleName: types.StringValue("custom-role")}
-		planned := planAWSAccount(t, prior, config, proposed)
+		planned := planAWSAccount(t, &prior, config, proposed)
 
 		assert.Equal(t, types.StringValue("custom-role"), planned.DSPM.RoleName)
 		assert.True(t, planned.DspmRoleName.IsUnknown())
@@ -193,33 +196,7 @@ func TestCloudAWSAccountPlan_AgentlessRoles(t *testing.T) {
 
 	t.Run("create leaves unset roles unknown", func(t *testing.T) {
 		config := awsAccountConfigModel(&fcs.DSPMOptions{Enabled: types.BoolValue(true), RoleName: types.StringNull()})
-		ctx := context.Background()
-		var schemaResp resource.SchemaResponse
-		fcs.NewCloudAWSAccountResource().Schema(ctx, resource.SchemaRequest{}, &schemaResp)
-		tfType := schemaResp.Schema.Type().TerraformType(ctx)
-
-		server, err := providerserver.NewProtocol6WithError(provider.New("test")())()
-		require.NoError(t, err)
-		state := tfsdk.State{Schema: schemaResp.Schema, Raw: tftypes.NewValue(tfType, nil)}
-		require.False(t, state.Set(ctx, &config).HasError())
-		configValue, err := tfprotov6.NewDynamicValue(tfType, state.Raw)
-		require.NoError(t, err)
-		nullValue, err := tfprotov6.NewDynamicValue(tfType, tftypes.NewValue(tfType, nil))
-		require.NoError(t, err)
-
-		resp, err := server.PlanResourceChange(ctx, &tfprotov6.PlanResourceChangeRequest{
-			TypeName:         "crowdstrike_cloud_aws_account",
-			PriorState:       &nullValue,
-			Config:           &configValue,
-			ProposedNewState: &configValue,
-		})
-		require.NoError(t, err)
-		require.Empty(t, resp.Diagnostics)
-
-		planned, err := resp.PlannedState.Unmarshal(tfType)
-		require.NoError(t, err)
-		var model fcs.CloudAWSAccountModel
-		require.False(t, tfsdk.Plan{Schema: schemaResp.Schema, Raw: planned}.Get(ctx, &model).HasError())
+		model := planAWSAccount(t, nil, config, config)
 
 		assert.True(t, model.DSPM.RoleName.IsUnknown())
 		// The vulnerability_scanning default no longer carries the legacy role

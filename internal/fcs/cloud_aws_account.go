@@ -11,6 +11,7 @@ import (
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_aws_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/validators"
 	privatestate "github.com/crowdstrike/terraform-provider-crowdstrike/internal/private_state"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
@@ -111,7 +112,7 @@ type cloudAWSAccountModel struct {
 	VulnerabilityScanningRoleArn  types.String `tfsdk:"vulnerability_scanning_role_arn"`
 	VulnerabilityScanningRoleName types.String `tfsdk:"vulnerability_scanning_role_name"`
 	AgentlessScanningRoleName     types.String `tfsdk:"agentless_scanning_role_name"`
-	// Computed agentless scanning scanner role and new-flow marker
+	// Computed agentless scanning scanner role, and whether the agentless role names carry the resource affixes
 	AgentlessScanningScannerRoleName types.String `tfsdk:"agentless_scanning_scanner_role_name"`
 	AgentlessUseResourceAffixes      types.Bool   `tfsdk:"agentless_use_resource_affixes"`
 }
@@ -488,7 +489,10 @@ func (r *cloudAWSAccountResource) Schema(
 					"role_name": schema.StringAttribute{
 						Optional:    true,
 						Computed:    true,
-						Description: "Custom AWS IAM role name for Data Security Posture Management. When not set, CrowdStrike assigns the role name: a name generated from the resource name prefix/suffix for new registrations, or the stored name for existing ones.",
+						Description: "Custom AWS IAM role name for Data Security Posture Management. When not set, CrowdStrike assigns the role name: enabling DSPM or Vulnerability Scanning on a registration that had neither generates a name from the resource name prefix/suffix, otherwise the stored name is kept, including a previously configured one.",
+						Validators: []validator.String{
+							validators.StringNotWhitespace(),
+						},
 						PlanModifiers: []planmodifier.String{
 							dspmRoleStateModifier(),
 						},
@@ -522,7 +526,10 @@ func (r *cloudAWSAccountResource) Schema(
 					"role_name": schema.StringAttribute{
 						Optional:    true,
 						Computed:    true,
-						Description: "Custom AWS IAM role name for Vulnerability Scanning. When not set, CrowdStrike assigns the role name: a name generated from the resource name prefix/suffix for new registrations, or the stored name for existing ones.",
+						Description: "Custom AWS IAM role name for Vulnerability Scanning. When not set, CrowdStrike assigns the role name: enabling DSPM or Vulnerability Scanning on a registration that had neither generates a name from the resource name prefix/suffix, otherwise the stored name is kept, including a previously configured one.",
+						Validators: []validator.String{
+							validators.StringNotWhitespace(),
+						},
 						PlanModifiers: []planmodifier.String{
 							vulnScanningRoleStateModifier(),
 						},
@@ -639,7 +646,7 @@ func (r *cloudAWSAccountResource) Schema(
 			},
 			"agentless_use_resource_affixes": schema.BoolAttribute{
 				Computed:    true,
-				Description: "Whether the Agentless Scanning (DSPM/Vulnerability scanning) resource names of this registration carry the resource name prefix/suffix. CrowdStrike sets it for registrations that enable DSPM or Vulnerability Scanning for the first time; the value is passed to the agentless scanning resources of the registration module.",
+				Description: "Whether the Agentless Scanning (DSPM/Vulnerability scanning) resource names of this registration carry the resource name prefix/suffix. CrowdStrike sets it for registrations that enable DSPM or Vulnerability Scanning for the first time, and rebuilds the role names when the prefix/suffix changes.",
 				PlanModifiers: []planmodifier.Bool{
 					agentlessScanningRoleStateModifier(),
 				},

@@ -49,7 +49,7 @@ type cloudAWSAccountDataModel struct {
 	VulnerabilityScanningRoleArn  types.String `tfsdk:"vulnerability_scanning_role_arn"`
 	VulnerabilityScanningRoleName types.String `tfsdk:"vulnerability_scanning_role_name"`
 	AgentlessScanningRoleName     types.String `tfsdk:"agentless_scanning_role_name"`
-	// Agentless scanning scanner role and new-flow marker
+	// Agentless scanning scanner role, and whether the agentless role names carry the resource affixes
 	AgentlessScanningScannerRoleName types.String `tfsdk:"agentless_scanning_scanner_role_name"`
 	AgentlessUseResourceAffixes      types.Bool   `tfsdk:"agentless_use_resource_affixes"`
 	AssetInventoryEnabled            types.Bool   `tfsdk:"asset_inventory_enabled"`

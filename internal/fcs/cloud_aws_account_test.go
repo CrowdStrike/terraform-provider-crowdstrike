@@ -548,6 +548,11 @@ func TestAccCloudAwsAccountResourceRoleMismatchValidation(t *testing.T) {
 				Config:      testAccCloudAwsAccountConfig_roleMismatch(accountID),
 				ExpectError: regexp.MustCompile("Role Name Mismatch"),
 			},
+			// An empty role name isn't sent to the API, so it can't be planned
+			{
+				Config:      testAccCloudAwsAccountConfig_bothDSPMAndVulnScanning(accountID, " "),
+				ExpectError: regexp.MustCompile("must not be empty or contain only whitespace"),
+			},
 		},
 	})
 }
@@ -2015,11 +2020,11 @@ func TestWrapCloudAWSAccount_AgentlessRoles(t *testing.T) {
 }
 
 func TestNewAgentlessRoleChanges(t *testing.T) {
-	model := func(dspmEnabled, vulnEnabled bool, prefix string, useAffixes bool) fcs.CloudAWSAccountModel {
+	modelWithAffixes := func(dspmEnabled, vulnEnabled bool, prefix, suffix string, useAffixes types.Bool) fcs.CloudAWSAccountModel {
 		return fcs.CloudAWSAccountModel{
 			ResourceNamePrefix:          types.StringValue(prefix),
-			ResourceNameSuffix:          types.StringValue(""),
-			AgentlessUseResourceAffixes: types.BoolValue(useAffixes),
+			ResourceNameSuffix:          types.StringValue(suffix),
+			AgentlessUseResourceAffixes: useAffixes,
 			DSPM: &fcs.DSPMOptions{
 				Enabled:  types.BoolValue(dspmEnabled),
 				RoleName: types.StringValue("stored-role"),
@@ -2030,6 +2035,15 @@ func TestNewAgentlessRoleChanges(t *testing.T) {
 			},
 		}
 	}
+	model := func(dspmEnabled, vulnEnabled bool, prefix string, useAffixes bool) fcs.CloudAWSAccountModel {
+		return modelWithAffixes(dspmEnabled, vulnEnabled, prefix, "", types.BoolValue(useAffixes))
+	}
+	withoutFeatures := func(m fcs.CloudAWSAccountModel) fcs.CloudAWSAccountModel {
+		m.DSPM = nil
+		m.VulnerabilityScanning = nil
+		return m
+	}
+	allChanged := fcs.AgentlessRoleChanges{DSPM: true, VulnerabilityScanning: true, AgentlessScanning: true}
 
 	tests := []struct {
 		name           string
@@ -2095,6 +2109,54 @@ func TestNewAgentlessRoleChanges(t *testing.T) {
 			vulnConfigRole: types.StringNull(),
 			expected:       fcs.AgentlessRoleChanges{},
 		},
+		{
+			name:           "a suffix change rebuilds generated roles",
+			plan:           modelWithAffixes(true, false, "", "-new", types.BoolValue(true)),
+			state:          modelWithAffixes(true, false, "", "-old", types.BoolValue(true)),
+			dspmConfigRole: types.StringNull(),
+			vulnConfigRole: types.StringNull(),
+			expected:       allChanged,
+		},
+		{
+			name:           "a prefix change can rebuild roles when the marker isn't in state yet",
+			plan:           modelWithAffixes(true, false, "new-", "", types.BoolNull()),
+			state:          modelWithAffixes(true, false, "old-", "", types.BoolNull()),
+			dspmConfigRole: types.StringNull(),
+			vulnConfigRole: types.StringNull(),
+			expected:       allChanged,
+		},
+		{
+			name:           "disabling DSPM can change unset roles",
+			plan:           model(false, false, "", true),
+			state:          model(true, false, "", true),
+			dspmConfigRole: types.StringNull(),
+			vulnConfigRole: types.StringNull(),
+			expected:       allChanged,
+		},
+		{
+			name:           "enabling Vulnerability scanning can assign unset roles",
+			plan:           model(false, true, "", false),
+			state:          model(false, false, "", false),
+			dspmConfigRole: types.StringNull(),
+			vulnConfigRole: types.StringNull(),
+			expected:       allChanged,
+		},
+		{
+			name:           "missing feature blocks on both sides keep unset roles",
+			plan:           withoutFeatures(model(false, false, "", false)),
+			state:          withoutFeatures(model(false, false, "", false)),
+			dspmConfigRole: types.StringNull(),
+			vulnConfigRole: types.StringNull(),
+			expected:       fcs.AgentlessRoleChanges{},
+		},
+		{
+			name:           "a feature block missing from the state counts as a change",
+			plan:           model(true, false, "", false),
+			state:          withoutFeatures(model(false, false, "", false)),
+			dspmConfigRole: types.StringNull(),
+			vulnConfigRole: types.StringNull(),
+			expected:       allChanged,
+		},
 	}
 
 	for _, tt := range tests {
@@ -2103,6 +2165,25 @@ func TestNewAgentlessRoleChanges(t *testing.T) {
 			assert.Equal(t, tt.expected, changes)
 		})
 	}
+}
+
+// generatedIntegrationRole matches the agentless integration role name CrowdStrike generates.
+func generatedIntegrationRole(prefix string) *regexp.Regexp {
+	return regexp.MustCompile("^" + regexp.QuoteMeta(prefix) + "CSAgentlessIntegrationRole-[a-z0-9]{8}$")
+}
+
+// generatedScannerRole matches the agentless scanner role name CrowdStrike generates.
+func generatedScannerRole(prefix string) *regexp.Regexp {
+	return regexp.MustCompile("^" + regexp.QuoteMeta(prefix) + "CSAgentlessScannerRole-[a-z0-9]{8}$")
+}
+
+func testAccCloudAwsAccountConfig_agentlessDisabled(account, prefix string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_aws_account" "test" {
+  account_id           = %[1]q
+  resource_name_prefix = %[2]q
+}
+`, account, prefix)
 }
 
 func testAccCloudAwsAccountConfig_dspmNoRoleName(account, prefix string) string {
@@ -2132,10 +2213,11 @@ func TestAccCloudAwsAccountResourceDSPMNoRoleName(t *testing.T) {
 				Config: testAccCloudAwsAccountConfig_dspmNoRoleName(accountID, "tfacc-"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "dspm.role_name"),
+					resource.TestMatchResourceAttr(fullResourceName, "dspm.role_name", generatedIntegrationRole("tfacc-")),
 					resource.TestCheckResourceAttrPair(fullResourceName, "dspm.role_name", fullResourceName, "dspm_role_name"),
 					resource.TestCheckResourceAttrPair(fullResourceName, "dspm.role_name", fullResourceName, "agentless_scanning_role_name"),
-					resource.TestCheckResourceAttrSet(fullResourceName, "agentless_use_resource_affixes"),
+					resource.TestMatchResourceAttr(fullResourceName, "agentless_scanning_scanner_role_name", generatedScannerRole("tfacc-")),
+					resource.TestCheckResourceAttr(fullResourceName, "agentless_use_resource_affixes", "true"),
 				),
 			},
 			{
@@ -2151,16 +2233,59 @@ func TestAccCloudAwsAccountResourceDSPMNoRoleName(t *testing.T) {
 				Config: testAccCloudAwsAccountConfig_dspmNoRoleName(accountID, "tfacc2-"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "resource_name_prefix", "tfacc2-"),
+					resource.TestMatchResourceAttr(fullResourceName, "dspm.role_name", generatedIntegrationRole("tfacc2-")),
 					resource.TestCheckResourceAttrPair(fullResourceName, "dspm.role_name", fullResourceName, "agentless_scanning_role_name"),
+					resource.TestMatchResourceAttr(fullResourceName, "agentless_scanning_scanner_role_name", generatedScannerRole("tfacc2-")),
+					resource.TestCheckResourceAttr(fullResourceName, "agentless_use_resource_affixes", "true"),
 				),
 			},
 		},
 	})
 }
 
-// TestAccCloudAwsAccountResource_RoleNameDefaultUpgrade checks that state written by the
+// TestAccCloudAwsAccountResourceEnableDSPMNoRoleName checks that enabling DSPM on a registration
+// created without agentless scanning gets the role names CrowdStrike generates.
+func TestAccCloudAwsAccountResourceEnableDSPMNoRoleName(t *testing.T) {
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudAwsAccountConfig_agentlessDisabled(accountID, "tfacc-"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "false"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.enabled", "false"),
+				),
+			},
+			{
+				Config: testAccCloudAwsAccountConfig_dspmNoRoleName(accountID, "tfacc-"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
+					resource.TestMatchResourceAttr(fullResourceName, "dspm.role_name", generatedIntegrationRole("tfacc-")),
+					resource.TestCheckResourceAttrPair(fullResourceName, "dspm.role_name", fullResourceName, "agentless_scanning_role_name"),
+					resource.TestMatchResourceAttr(fullResourceName, "agentless_scanning_scanner_role_name", generatedScannerRole("tfacc-")),
+					resource.TestCheckResourceAttr(fullResourceName, "agentless_use_resource_affixes", "true"),
+				),
+			},
+			{
+				Config: testAccCloudAwsAccountConfig_dspmNoRoleName(accountID, "tfacc-"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+			},
+		},
+	})
+}
+
+// TestAccCloudAwsAccountResourceRoleNameDefaultUpgrade checks that state written by the
 // last release, which defaulted role_name to the legacy role, plans no changes with this provider.
-func TestAccCloudAwsAccountResource_RoleNameDefaultUpgrade(t *testing.T) {
+func TestAccCloudAwsAccountResourceRoleNameDefaultUpgrade(t *testing.T) {
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 	t.Logf("Using account_id=%s", accountID)
@@ -2188,6 +2313,53 @@ func TestAccCloudAwsAccountResource_RoleNameDefaultUpgrade(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "dspm.role_name", "CrowdStrikeAgentlessScanningIntegrationRole"),
 					resource.TestCheckResourceAttr(fullResourceName, "agentless_scanning_role_name", "CrowdStrikeAgentlessScanningIntegrationRole"),
+				),
+			},
+		},
+	})
+}
+
+// TestAccCloudAwsAccountResourceRoleNameDefaultUpgradeNoBlocks checks that state written by the last
+// release without the dspm/vulnerability_scanning blocks plans no changes with this provider, and that
+// enabling them afterwards gets the role names CrowdStrike generates.
+func TestAccCloudAwsAccountResourceRoleNameDefaultUpgradeNoBlocks(t *testing.T) {
+	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
+	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
+	t.Logf("Using account_id=%s", accountID)
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck: func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				ExternalProviders: map[string]resource.ExternalProvider{
+					"crowdstrike": {
+						Source:            "crowdstrike/crowdstrike",
+						VersionConstraint: "1.2.0",
+					},
+				},
+				Config: testAccCloudAwsAccountConfig_minimal(accountID),
+			},
+			{
+				ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+				Config:                   testAccCloudAwsAccountConfig_minimal(accountID),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(fullResourceName, "dspm.role_name", "CrowdStrikeAgentlessScanningIntegrationRole"),
+					resource.TestCheckResourceAttr(fullResourceName, "vulnerability_scanning.role_name", "CrowdStrikeAgentlessScanningIntegrationRole"),
+				),
+			},
+			{
+				ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+				Config:                   testAccCloudAwsAccountConfig_bothDSPMAndVulnEnabledNoRoles(accountID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestMatchResourceAttr(fullResourceName, "dspm.role_name", generatedIntegrationRole("")),
+					resource.TestCheckResourceAttrPair(fullResourceName, "dspm.role_name", fullResourceName, "vulnerability_scanning.role_name"),
+					resource.TestMatchResourceAttr(fullResourceName, "agentless_scanning_scanner_role_name", generatedScannerRole("")),
+					resource.TestCheckResourceAttr(fullResourceName, "agentless_use_resource_affixes", "true"),
 				),
 			},
 		},

@@ -19,6 +19,11 @@ const (
 	agentlessScanningField
 )
 
+var (
+	_ planmodifier.String = roleStateModifier{}
+	_ planmodifier.Bool   = roleStateModifier{}
+)
+
 // roleStateModifier keeps the state value of an agentless scanning (DSPM/Vulnerability scanning) role attribute,
 // and marks it unknown when the apply can change it. A configured value is left as planned.
 type roleStateModifier struct {
@@ -142,7 +147,9 @@ func newAgentlessRoleChanges(plan, state cloudAWSAccountModel, dspmConfigRole, v
 	}
 
 	enabledChanged := !planDSPM.Enabled.Equal(stateDSPM.Enabled) || !planVuln.Enabled.Equal(stateVuln.Enabled)
-	affixesChanged := state.AgentlessUseResourceAffixes.ValueBool() &&
+	// A null marker (state written before the attribute existed, not yet refreshed) may still be true.
+	mayUseAffixes := state.AgentlessUseResourceAffixes.IsNull() || state.AgentlessUseResourceAffixes.ValueBool()
+	affixesChanged := mayUseAffixes &&
 		(!plan.ResourceNamePrefix.Equal(state.ResourceNamePrefix) || !plan.ResourceNameSuffix.Equal(state.ResourceNameSuffix))
 	assignedRolesChanged := enabledChanged || affixesChanged
 

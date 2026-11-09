@@ -87,7 +87,7 @@ resource "crowdstrike_cloud_aws_account" "org" {
 
 - `agentless_scanning_role_name` (String) The name of the IAM role to be used by CrowdStrike Agentless Scanning (DSPM/Vulnerability scanning). If both are configured, the DSPM role takes precedence.
 - `agentless_scanning_scanner_role_name` (String) The name of the IAM role to be used by the CrowdStrike Agentless Scanning (DSPM/Vulnerability scanning) scanners. Empty when CrowdStrike doesn't assign the scanner role name. If both are configured, the DSPM role takes precedence.
-- `agentless_use_resource_affixes` (Boolean) Whether the Agentless Scanning (DSPM/Vulnerability scanning) resource names of this registration carry the resource name prefix/suffix. CrowdStrike sets it for registrations that enable DSPM or Vulnerability Scanning for the first time; the value is passed to the agentless scanning resources of the registration module.
+- `agentless_use_resource_affixes` (Boolean) Whether the Agentless Scanning (DSPM/Vulnerability scanning) resource names of this registration carry the resource name prefix/suffix. CrowdStrike sets it for registrations that enable DSPM or Vulnerability Scanning for the first time, and rebuilds the role names when the prefix/suffix changes.
 - `cloudtrail_bucket_name` (String) The name of the CloudTrail S3 bucket used for real-time visibility
 - `dspm_role_arn` (String) The ARN of the IAM role to be used by CrowdStrike Data Security Posture Management
 - `dspm_role_name` (String) The name of the IAM role to be used by CrowdStrike Data Security Posture Management
@@ -122,7 +122,7 @@ Required:
 
 Optional:
 
-- `role_name` (String) Custom AWS IAM role name for Data Security Posture Management. When not set, CrowdStrike assigns the role name: a name generated from the resource name prefix/suffix for new registrations, or the stored name for existing ones.
+- `role_name` (String) Custom AWS IAM role name for Data Security Posture Management. When not set, CrowdStrike assigns the role name: enabling DSPM or Vulnerability Scanning on a registration that had neither generates a name from the resource name prefix/suffix, otherwise the stored name is kept, including a previously configured one.
 
 
 <a id="nestedatt--idp"></a>
@@ -173,7 +173,7 @@ Required:
 
 Optional:
 
-- `role_name` (String) Custom AWS IAM role name for Vulnerability Scanning. When not set, CrowdStrike assigns the role name: a name generated from the resource name prefix/suffix for new registrations, or the stored name for existing ones.
+- `role_name` (String) Custom AWS IAM role name for Vulnerability Scanning. When not set, CrowdStrike assigns the role name: enabling DSPM or Vulnerability Scanning on a registration that had neither generates a name from the resource name prefix/suffix, otherwise the stored name is kept, including a previously configured one.
 
 ## Import
 
