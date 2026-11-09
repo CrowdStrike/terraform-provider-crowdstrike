@@ -4,155 +4,165 @@ import (
 	"context"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
+type agentlessRoleField int
+
 const (
-	roleTypeDSPM                  = "dspm"
-	roleTypeVulnerabilityScanning = "vulnerability_scanning"
+	dspmRoleField agentlessRoleField = iota
+	vulnerabilityScanningRoleField
+	agentlessScanningField
 )
 
-type roleArnStateModifier struct {
-	planmodifier.String
-	roleType string
+// roleStateModifier keeps the state value of an agentless scanning (DSPM/Vulnerability scanning) role attribute,
+// and marks it unknown when the apply can change it. A configured value is left as planned.
+type roleStateModifier struct {
+	field agentlessRoleField
 }
 
-func (m roleArnStateModifier) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
-	// Do nothing if there is no state value.
-	if req.StateValue.IsNull() {
+func (m roleStateModifier) mayChange(ctx context.Context, config tfsdk.Config, plan tfsdk.Plan, state tfsdk.State) (bool, diag.Diagnostics) {
+	changes, diags := getAgentlessRoleChanges(ctx, config, plan, state)
+	switch m.field {
+	case dspmRoleField:
+		return changes.DSPM, diags
+	case vulnerabilityScanningRoleField:
+		return changes.VulnerabilityScanning, diags
+	default:
+		return changes.AgentlessScanning, diags
+	}
+}
+
+func (m roleStateModifier) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	// Do nothing if there is no state value, or if the value is configured.
+	if req.StateValue.IsNull() || !req.ConfigValue.IsNull() {
 		return
 	}
 
-	// Do nothing if there is an unknown configuration value, otherwise interpolation gets messed up.
-	if req.ConfigValue.IsUnknown() {
-		return
-	}
-
-	// Get the plan to check role configuration
-	var plan cloudAWSAccountModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	mayChange, diags := m.mayChange(ctx, req.Config, req.Plan, req.State)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Get the state to compare
-	var state cloudAWSAccountModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Check if role_name has changed based on roleType
-	switch m.roleType {
-	case roleTypeDSPM:
-		if shouldInvalidateDSPMRoleField(plan, state) {
-			resp.PlanValue = types.StringUnknown()
-			return
-		}
-
-	case roleTypeVulnerabilityScanning:
-		if shouldInvalidateVulnerabilityScanningRoleField(plan, state) {
-			resp.PlanValue = types.StringUnknown()
-			return
-		}
-
-	}
-	resp.PlanValue = req.StateValue
-}
-
-func (m roleArnStateModifier) Description(ctx context.Context) string {
-	return "Marks the role ARN as unknown when the role name changes"
-}
-
-func (m roleArnStateModifier) MarkdownDescription(ctx context.Context) string {
-	return "Marks the role ARN as unknown when the role name changes"
-}
-
-func dspmARNStateModifier() roleArnStateModifier {
-	return roleArnStateModifier{roleType: roleTypeDSPM}
-}
-
-func vulnScanningArnStateModifier() roleArnStateModifier {
-	return roleArnStateModifier{roleType: roleTypeVulnerabilityScanning}
-}
-
-type agentlessScanningRoleNameModifier struct {
-	planmodifier.String
-}
-
-func (m agentlessScanningRoleNameModifier) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
-	// Do nothing if there is no state value.
-	if req.StateValue.IsNull() {
-		return
-	}
-
-	// Do nothing if there is an unknown configuration value, otherwise interpolation gets messed up.
-	if req.ConfigValue.IsUnknown() {
-		return
-	}
-
-	// Get the plan to check role configuration
-	var plan cloudAWSAccountModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Get the state to compare
-	var state cloudAWSAccountModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if shouldInvalidateAgentlessScanningRoleField(plan, state) {
+	if mayChange {
 		resp.PlanValue = types.StringUnknown()
 		return
 	}
-
 	resp.PlanValue = req.StateValue
 }
 
-func (m agentlessScanningRoleNameModifier) Description(ctx context.Context) string {
-	return "Marks the role Name as unknown when either DSPM/Vulnerability scanning role name changes"
-}
-
-func (m agentlessScanningRoleNameModifier) MarkdownDescription(ctx context.Context) string {
-	return "Marks the role Name as unknown when either DSPM/Vulnerability scanning role name changes"
-}
-
-func agentlessScanningRoleNameStateModifier() agentlessScanningRoleNameModifier {
-	return agentlessScanningRoleNameModifier{}
-}
-
-func shouldInvalidateDSPMRoleField(plan, state cloudAWSAccountModel) bool {
-	if plan.DSPM == nil && state.DSPM == nil {
-		return false
+func (m roleStateModifier) PlanModifyBool(ctx context.Context, req planmodifier.BoolRequest, resp *planmodifier.BoolResponse) {
+	// Do nothing if there is no state value, or if the value is configured.
+	if req.StateValue.IsNull() || !req.ConfigValue.IsNull() {
+		return
 	}
-	if plan.DSPM == nil || state.DSPM == nil {
+
+	mayChange, diags := m.mayChange(ctx, req.Config, req.Plan, req.State)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if mayChange {
+		resp.PlanValue = types.BoolUnknown()
+		return
+	}
+	resp.PlanValue = req.StateValue
+}
+
+func (m roleStateModifier) Description(ctx context.Context) string {
+	return "Uses the state value, or marks it as unknown when the DSPM/Vulnerability scanning roles can change"
+}
+
+func (m roleStateModifier) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func dspmRoleStateModifier() roleStateModifier {
+	return roleStateModifier{field: dspmRoleField}
+}
+
+func vulnScanningRoleStateModifier() roleStateModifier {
+	return roleStateModifier{field: vulnerabilityScanningRoleField}
+}
+
+func agentlessScanningRoleStateModifier() roleStateModifier {
+	return roleStateModifier{field: agentlessScanningField}
+}
+
+// agentlessRoleChanges tells which agentless scanning role values can change on apply.
+type agentlessRoleChanges struct {
+	DSPM                  bool
+	VulnerabilityScanning bool
+	// AgentlessScanning covers the values picked from both features: the agentless scanning role and scanner role
+	// names, and the resource affixes marker.
+	AgentlessScanning bool
+}
+
+func getAgentlessRoleChanges(ctx context.Context, config tfsdk.Config, plan tfsdk.Plan, state tfsdk.State) (agentlessRoleChanges, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	var planModel, stateModel cloudAWSAccountModel
+	diags.Append(plan.Get(ctx, &planModel)...)
+	diags.Append(state.Get(ctx, &stateModel)...)
+
+	// The role names are read by path: the plan holds unknown for the ones left unset.
+	var dspmConfigRole, vulnConfigRole types.String
+	diags.Append(config.GetAttribute(ctx, path.Root("dspm").AtName("role_name"), &dspmConfigRole)...)
+	diags.Append(config.GetAttribute(ctx, path.Root("vulnerability_scanning").AtName("role_name"), &vulnConfigRole)...)
+	if diags.HasError() {
+		return agentlessRoleChanges{}, diags
+	}
+
+	return newAgentlessRoleChanges(planModel, stateModel, dspmConfigRole, vulnConfigRole), diags
+}
+
+// newAgentlessRoleChanges compares the plan to the state. CrowdStrike assigns the roles that aren't configured:
+// it generates new names when DSPM and/or Vulnerability scanning is enabled on an account that had neither, and
+// rebuilds them when the resource name prefix/suffix of a registration with generated names changes.
+func newAgentlessRoleChanges(plan, state cloudAWSAccountModel, dspmConfigRole, vulnConfigRole types.String) agentlessRoleChanges {
+	var planDSPM, stateDSPM dspmOptions
+	if plan.DSPM != nil {
+		planDSPM = *plan.DSPM
+	}
+	if state.DSPM != nil {
+		stateDSPM = *state.DSPM
+	}
+	var planVuln, stateVuln vulnerabilityScanningOptions
+	if plan.VulnerabilityScanning != nil {
+		planVuln = *plan.VulnerabilityScanning
+	}
+	if state.VulnerabilityScanning != nil {
+		stateVuln = *state.VulnerabilityScanning
+	}
+
+	enabledChanged := !planDSPM.Enabled.Equal(stateDSPM.Enabled) || !planVuln.Enabled.Equal(stateVuln.Enabled)
+	affixesChanged := state.AgentlessUseResourceAffixes.ValueBool() &&
+		(!plan.ResourceNamePrefix.Equal(state.ResourceNamePrefix) || !plan.ResourceNameSuffix.Equal(state.ResourceNameSuffix))
+	assignedRolesChanged := enabledChanged || affixesChanged
+
+	changes := agentlessRoleChanges{
+		DSPM:                  roleNameMayChange(dspmConfigRole, stateDSPM.RoleName, assignedRolesChanged),
+		VulnerabilityScanning: roleNameMayChange(vulnConfigRole, stateVuln.RoleName, assignedRolesChanged),
+	}
+	changes.AgentlessScanning = changes.DSPM || changes.VulnerabilityScanning || assignedRolesChanged
+	return changes
+}
+
+// roleNameMayChange reports whether a role name can differ from its state value after apply.
+func roleNameMayChange(configRole, stateRole types.String, assignedRolesChanged bool) bool {
+	if configRole.IsUnknown() {
 		return true
 	}
-	return !plan.DSPM.RoleName.Equal(state.DSPM.RoleName)
-}
-
-func shouldInvalidateVulnerabilityScanningRoleField(plan, state cloudAWSAccountModel) bool {
-	if plan.VulnerabilityScanning == nil && state.VulnerabilityScanning == nil {
-		return false
+	if configRole.IsNull() {
+		return assignedRolesChanged
 	}
-	if plan.VulnerabilityScanning == nil || state.VulnerabilityScanning == nil {
-		return true
-	}
-	return !plan.VulnerabilityScanning.RoleName.Equal(state.VulnerabilityScanning.RoleName)
-}
-
-func shouldInvalidateAgentlessScanningRoleField(plan, state cloudAWSAccountModel) bool {
-	if shouldInvalidateDSPMRoleField(plan, state) || shouldInvalidateVulnerabilityScanningRoleField(plan, state) {
-		return true
-	}
-	return !plan.DSPM.Enabled.Equal(state.DSPM.Enabled) ||
-		!plan.VulnerabilityScanning.Enabled.Equal(state.VulnerabilityScanning.Enabled)
+	return configRole.ValueString() != stateRole.ValueString()
 }
 
 // cloudtrailRegionDefault is a plan modifier that sets the default cloudtrail_region based on account_type.

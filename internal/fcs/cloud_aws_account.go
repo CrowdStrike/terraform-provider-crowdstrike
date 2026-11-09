@@ -111,6 +111,9 @@ type cloudAWSAccountModel struct {
 	VulnerabilityScanningRoleArn  types.String `tfsdk:"vulnerability_scanning_role_arn"`
 	VulnerabilityScanningRoleName types.String `tfsdk:"vulnerability_scanning_role_name"`
 	AgentlessScanningRoleName     types.String `tfsdk:"agentless_scanning_role_name"`
+	// Computed agentless scanning scanner role and new-flow marker
+	AgentlessScanningScannerRoleName types.String `tfsdk:"agentless_scanning_scanner_role_name"`
+	AgentlessUseResourceAffixes      types.Bool   `tfsdk:"agentless_use_resource_affixes"`
 }
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -485,8 +488,10 @@ func (r *cloudAWSAccountResource) Schema(
 					"role_name": schema.StringAttribute{
 						Optional:    true,
 						Computed:    true,
-						Description: "Custom AWS IAM role name for Data Security Posture Management",
-						Default:     stringdefault.StaticString("CrowdStrikeAgentlessScanningIntegrationRole"),
+						Description: "Custom AWS IAM role name for Data Security Posture Management. When not set, CrowdStrike assigns the role name: a name generated from the resource name prefix/suffix for new registrations, or the stored name for existing ones.",
+						PlanModifiers: []planmodifier.String{
+							dspmRoleStateModifier(),
+						},
 					},
 				},
 				Default: objectdefault.StaticValue(
@@ -497,7 +502,7 @@ func (r *cloudAWSAccountResource) Schema(
 						},
 						map[string]attr.Value{
 							"enabled":   types.BoolValue(false),
-							"role_name": types.StringValue("CrowdStrikeAgentlessScanningIntegrationRole"),
+							"role_name": types.StringNull(),
 						},
 					),
 				),
@@ -517,8 +522,10 @@ func (r *cloudAWSAccountResource) Schema(
 					"role_name": schema.StringAttribute{
 						Optional:    true,
 						Computed:    true,
-						Description: "Custom AWS IAM role name for Vulnerability Scanning",
-						Default:     stringdefault.StaticString("CrowdStrikeAgentlessScanningIntegrationRole"),
+						Description: "Custom AWS IAM role name for Vulnerability Scanning. When not set, CrowdStrike assigns the role name: a name generated from the resource name prefix/suffix for new registrations, or the stored name for existing ones.",
+						PlanModifiers: []planmodifier.String{
+							vulnScanningRoleStateModifier(),
+						},
 					},
 				},
 				Default: objectdefault.StaticValue(
@@ -529,7 +536,7 @@ func (r *cloudAWSAccountResource) Schema(
 						},
 						map[string]attr.Value{
 							"enabled":   types.BoolValue(false),
-							"role_name": types.StringValue("CrowdStrikeAgentlessScanningIntegrationRole"),
+							"role_name": types.StringNull(),
 						},
 					),
 				),
@@ -592,35 +599,49 @@ func (r *cloudAWSAccountResource) Schema(
 				Computed:    true,
 				Description: "The ARN of the IAM role to be used by CrowdStrike Data Security Posture Management",
 				PlanModifiers: []planmodifier.String{
-					dspmARNStateModifier(),
+					dspmRoleStateModifier(),
 				},
 			},
 			"dspm_role_name": schema.StringAttribute{
 				Computed:    true,
 				Description: "The name of the IAM role to be used by CrowdStrike Data Security Posture Management",
 				PlanModifiers: []planmodifier.String{
-					dspmARNStateModifier(),
+					dspmRoleStateModifier(),
 				},
 			},
 			"vulnerability_scanning_role_arn": schema.StringAttribute{
 				Computed:    true,
 				Description: "The ARN of the IAM role to be used by CrowdStrike Vulnerability Scanning",
 				PlanModifiers: []planmodifier.String{
-					vulnScanningArnStateModifier(),
+					vulnScanningRoleStateModifier(),
 				},
 			},
 			"vulnerability_scanning_role_name": schema.StringAttribute{
 				Computed:    true,
 				Description: "The name of the IAM role to be used by CrowdStrike Vulnerability Scanning",
 				PlanModifiers: []planmodifier.String{
-					vulnScanningArnStateModifier(),
+					vulnScanningRoleStateModifier(),
 				},
 			},
 			"agentless_scanning_role_name": schema.StringAttribute{
 				Computed:    true,
 				Description: "The name of the IAM role to be used by CrowdStrike Agentless Scanning (DSPM/Vulnerability scanning). If both are configured, the DSPM role takes precedence.",
 				PlanModifiers: []planmodifier.String{
-					agentlessScanningRoleNameStateModifier(),
+					agentlessScanningRoleStateModifier(),
+				},
+			},
+			"agentless_scanning_scanner_role_name": schema.StringAttribute{
+				Computed:    true,
+				Description: "The name of the IAM role to be used by the CrowdStrike Agentless Scanning (DSPM/Vulnerability scanning) scanners. Empty when CrowdStrike doesn't assign the scanner role name. If both are configured, the DSPM role takes precedence.",
+				PlanModifiers: []planmodifier.String{
+					agentlessScanningRoleStateModifier(),
+				},
+			},
+			"agentless_use_resource_affixes": schema.BoolAttribute{
+				Computed:    true,
+				Description: "Whether the Agentless Scanning (DSPM/Vulnerability scanning) resource names of this registration carry the resource name prefix/suffix. CrowdStrike sets it for registrations that enable DSPM or Vulnerability Scanning for the first time; the value is passed to the agentless scanning resources of the registration module.",
+				PlanModifiers: []planmodifier.Bool{
+					agentlessScanningRoleStateModifier(),
 				},
 			},
 		},
@@ -1117,15 +1138,20 @@ func (m *cloudAWSAccountModel) wrap(ctx context.Context, cloudAccount *models.Do
 		m.VulnerabilityScanning.RoleName = types.StringValue(vulnScanningRoleName)
 	}
 
+	updateFeatureStatesFromProducts(ctx, m, cloudAccount.Products, cloudAccount)
+
+	// The DSPM roles take precedence, unless only vulnerability scanning is enabled.
 	agentlessScanningRoleName := dspmRoleName
+	agentlessScanningScannerRoleName := getRoleNameFromArn(settings.DSPMScannerRoleName.ValueString())
 	if m.DSPM != nil && m.VulnerabilityScanning != nil {
 		if !m.DSPM.Enabled.ValueBool() && m.VulnerabilityScanning.Enabled.ValueBool() {
 			agentlessScanningRoleName = vulnScanningRoleName
+			agentlessScanningScannerRoleName = getRoleNameFromArn(settings.VulnerabilityScanningScannerRoleName.ValueString())
 		}
 	}
 	m.AgentlessScanningRoleName = types.StringValue(agentlessScanningRoleName)
-
-	updateFeatureStatesFromProducts(ctx, m, cloudAccount.Products, cloudAccount)
+	m.AgentlessScanningScannerRoleName = types.StringValue(agentlessScanningScannerRoleName)
+	m.AgentlessUseResourceAffixes = types.BoolValue(settings.AgentlessUseResourceAffixes.ValueBool())
 
 	if m.RealtimeVisibility != nil {
 		m.RealtimeVisibility.Regions = settings.RTVDRegions
@@ -1154,8 +1180,14 @@ func (r *cloudAWSAccountResource) Update(
 		return
 	}
 
+	var config cloudAWSAccountModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	// Update Cloud Registration account (replacing both CSPM and Cloud calls)
-	cloudAccount, diags := r.updateCloudAccount(ctx, plan)
+	cloudAccount, diags := r.updateCloudAccount(ctx, plan, config)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -1241,9 +1273,11 @@ func buildUpdateProducts(model cloudAWSAccountModel) ([]*models.RestAccountProdu
 }
 
 // buildPatchAccount constructs the patch request body from the model state.
+// The config tells which values the user set.
 func buildPatchAccount(
 	ctx context.Context,
 	model cloudAWSAccountModel,
+	config cloudAWSAccountModel,
 ) (*models.RestAWSAccountPatchExtV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	var targetOUs []string
@@ -1261,11 +1295,13 @@ func buildPatchAccount(
 		TargetOus:          targetOUs,
 	}
 
-	if model.DSPM != nil {
+	// Send the DSPM and vulnerability scanning roles only when the user set them:
+	// otherwise CrowdStrike keeps the stored roles, or assigns new ones.
+	if model.DSPM != nil && config.DSPM != nil && !config.DSPM.RoleName.IsNull() {
 		patchAccount.DspmRole = model.DSPM.RoleName.ValueString()
 	}
 
-	if model.VulnerabilityScanning != nil {
+	if model.VulnerabilityScanning != nil && config.VulnerabilityScanning != nil && !config.VulnerabilityScanning.RoleName.IsNull() {
 		patchAccount.VulnerabilityScanningRole = model.VulnerabilityScanning.RoleName.ValueString()
 	}
 
@@ -1307,10 +1343,11 @@ func buildPatchAccount(
 func (r *cloudAWSAccountResource) updateCloudAccount(
 	ctx context.Context,
 	model cloudAWSAccountModel,
+	config cloudAWSAccountModel,
 ) (*models.DomainCloudAWSAccountV1, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	patchAccount, patchDiags := buildPatchAccount(ctx, model)
+	patchAccount, patchDiags := buildPatchAccount(ctx, model, config)
 	diags.Append(patchDiags...)
 	if diags.HasError() {
 		return nil, diags
@@ -1483,7 +1520,7 @@ func (r *cloudAWSAccountResource) ImportState(
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("dspm"), &dspmOptions{
 		Enabled:  types.BoolValue(false),
-		RoleName: types.StringValue("CrowdStrikeAgentlessScanningIntegrationRole"),
+		RoleName: types.StringNull(),
 	})...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -1491,7 +1528,7 @@ func (r *cloudAWSAccountResource) ImportState(
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("vulnerability_scanning"), &vulnerabilityScanningOptions{
 		Enabled:  types.BoolValue(false),
-		RoleName: types.StringValue("CrowdStrikeAgentlessScanningIntegrationRole"),
+		RoleName: types.StringNull(),
 	})...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -1538,6 +1575,7 @@ func (r *cloudAWSAccountResource) ValidateConfig(
 
 	// Validate DSPM and vulnerability scanning role name consistency
 	if config.DSPM != nil && config.DSPM.Enabled.ValueBool() && config.VulnerabilityScanning != nil && config.VulnerabilityScanning.Enabled.ValueBool() {
+		// Unset role names are both assigned by CrowdStrike; a set one would give each feature its own role.
 		if config.DSPM.RoleName.IsUnknown() || config.VulnerabilityScanning.RoleName.IsUnknown() {
 			return
 		}
