@@ -135,3 +135,82 @@ func TestNewSettingsConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestNewSettingsConfig_AgentlessScanning(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	tests := []struct {
+		name                   string
+		settings               any
+		wantDSPMScannerRole    types.String
+		wantVulnScannerRole    types.String
+		wantUseResourceAffixes types.Bool
+		wantDSPMRoleName       types.String
+	}{
+		{
+			name: "new flow registration",
+			settings: map[string]any{
+				"dspm.role":                           "arn:aws:iam::123456789012:role/CSAgentlessIntegrationRole-abcd1234",
+				"dspm.scanner.role":                   "arn:aws:iam::123456789012:role/CSAgentlessScannerRole-abcd1234",
+				"vulnerability_scanning.scanner.role": "arn:aws:iam::123456789012:role/CSAgentlessScannerRole-abcd1234",
+				"agentless.use_resource_affixes":      "true",
+			},
+			wantDSPMScannerRole:    types.StringValue("arn:aws:iam::123456789012:role/CSAgentlessScannerRole-abcd1234"),
+			wantVulnScannerRole:    types.StringValue("arn:aws:iam::123456789012:role/CSAgentlessScannerRole-abcd1234"),
+			wantUseResourceAffixes: types.BoolValue(true),
+			wantDSPMRoleName:       types.StringValue("arn:aws:iam::123456789012:role/CSAgentlessIntegrationRole-abcd1234"),
+		},
+		{
+			name: "marker set to false",
+			settings: map[string]any{
+				"agentless.use_resource_affixes": "false",
+			},
+			wantDSPMScannerRole:    types.StringNull(),
+			wantVulnScannerRole:    types.StringNull(),
+			wantUseResourceAffixes: types.BoolValue(false),
+			wantDSPMRoleName:       types.StringNull(),
+		},
+		{
+			name: "invalid marker reads as false",
+			settings: map[string]any{
+				"agentless.use_resource_affixes": "yes",
+			},
+			wantDSPMScannerRole:    types.StringNull(),
+			wantVulnScannerRole:    types.StringNull(),
+			wantUseResourceAffixes: types.BoolValue(false),
+			wantDSPMRoleName:       types.StringNull(),
+		},
+		{
+			name: "old flow registration",
+			settings: map[string]any{
+				"dspm.role": "arn:aws:iam::123456789012:role/CrowdStrikeAgentlessScanningIntegrationRole",
+			},
+			wantDSPMScannerRole:    types.StringNull(),
+			wantVulnScannerRole:    types.StringNull(),
+			wantUseResourceAffixes: types.BoolNull(),
+			wantDSPMRoleName:       types.StringValue("arn:aws:iam::123456789012:role/CrowdStrikeAgentlessScanningIntegrationRole"),
+		},
+		{
+			name:                   "nil settings",
+			settings:               nil,
+			wantDSPMScannerRole:    types.StringNull(),
+			wantVulnScannerRole:    types.StringNull(),
+			wantUseResourceAffixes: types.BoolNull(),
+			wantDSPMRoleName:       types.StringNull(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var diags diag.Diagnostics
+			config := fcs.NewSettingsConfig(ctx, tt.settings, &diags)
+			assert.False(t, diags.HasError(), "unexpected error: %v", diags.Errors())
+
+			assert.Equal(t, tt.wantDSPMScannerRole, config.DSPMScannerRoleName)
+			assert.Equal(t, tt.wantVulnScannerRole, config.VulnerabilityScanningScannerRoleName)
+			assert.Equal(t, tt.wantUseResourceAffixes, config.AgentlessUseResourceAffixes)
+			assert.Equal(t, tt.wantDSPMRoleName, config.DSPMRoleName)
+		})
+	}
+}

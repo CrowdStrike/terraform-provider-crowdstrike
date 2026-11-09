@@ -10,6 +10,7 @@ type (
 	DSPMOptions                  = dspmOptions
 	VulnerabilityScanningOptions = vulnerabilityScanningOptions
 	SettingsConfig               = settingsConfig
+	AgentlessRoleChanges         = agentlessRoleChanges
 	AzureTenantFeatures          = azureTenantFeatures
 	EventhubSettings             = eventhubSettings
 )
@@ -19,6 +20,8 @@ var (
 	BuildProductsFromModel          = (*cloudAWSAccountResource).buildProductsFromModel
 	UpdateFeatureStatesFromProducts = updateFeatureStatesFromProducts
 	BuildPatchAccount               = buildPatchAccount
+	WrapCloudAWSAccount             = (*cloudAWSAccountModel).wrap
+	NewAgentlessRoleChanges         = newAgentlessRoleChanges
 
 	FlattenEventhubSettings    = flattenEventhubSettings
 	FlattenAzureTenantFeatures = flattenAzureTenantFeatures
