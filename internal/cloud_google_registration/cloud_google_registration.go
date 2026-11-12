@@ -800,7 +800,7 @@ func (r *cloudGoogleRegistrationResource) Create(
 	createReq.ResourceNameSuffix = flex.FrameworkToStringPointer(plan.ResourceNameSuffix)
 	createReq.ResourceNamePrefix = flex.FrameworkToStringPointer(plan.ResourceNamePrefix)
 	if utils.IsKnown(plan.ExistingWifPoolID) {
-		createReq.ExistingWifPoolID = flex.FrameworkToStringPointer(plan.ExistingWifPoolID)
+		createReq.ExistingWifPoolID = plan.ExistingWifPoolID.ValueString()
 	}
 
 	patterns := []string{}
