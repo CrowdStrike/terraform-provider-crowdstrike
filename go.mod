@@ -3,7 +3,7 @@ module github.com/crowdstrike/terraform-provider-crowdstrike
 go 1.26.0
 
 require (
-	github.com/crowdstrike/gofalcon v0.22.1-0.20260924000851-4fa3655a800d
+	github.com/crowdstrike/gofalcon v0.24.1-0.20261105121635-17315b5be7d9
 	github.com/go-openapi/errors v0.22.8
 	github.com/go-openapi/runtime v0.33.2
 	github.com/go-openapi/strfmt v0.27.1
@@ -97,7 +97,7 @@ require (
 	github.com/oklog/ulid/v2 v2.1.2 // indirect
 	github.com/posener/complete v1.2.3 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
+	github.com/sirupsen/logrus v1.10.2 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/vmihailenco/msgpack v4.0.4+incompatible // indirect
