@@ -145,7 +145,7 @@ func (r *cloudGwsRegistrationResource) Schema(
 			},
 			"service_account_id": schema.StringAttribute{
 				Computed:    true,
-				Description: "The ID of the service account to create for the Google Workspace.",
+				Description: "The account name that Falcon selects for the service account that the Google Workspace Terraform module creates. Google gives the service account a different, numeric unique ID.",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -190,7 +190,7 @@ func (r *cloudGwsRegistrationResource) Create(
 			path.Root("gcp_registration_id"),
 			"Google Workspace Registration Already Configured",
 			fmt.Sprintf(
-				"The Google Workspace registration %s already has settings. Import this resource and crowdstrike_cloud_gws_registration_settings with the Google Cloud registration ID %s.",
+				"The Google Workspace registration %s already has settings. Import this resource and crowdstrike_cloud_google_workspace_registration_settings with the Google Cloud registration ID %s.",
 				workspace.RegistrationID,
 				plan.GcpRegistrationID.ValueString(),
 			),

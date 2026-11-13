@@ -54,7 +54,7 @@ output "gws_registration" {
 ### Read-Only
 
 - `id` (String) The Google Workspace registration ID.
-- `service_account_id` (String) The ID of the service account to create for the Google Workspace.
+- `service_account_id` (String) The account name that Falcon selects for the service account that the Google Workspace Terraform module creates. Google gives the service account a different, numeric unique ID.
 - `wif_identity_source` (String) The identity source of the Workload Identity Federation (WIF) provider: aws-sts or gcp-oidc.
 - `wif_pool_id` (String) The ID of the Workload Identity Federation (WIF) pool to create for the Google Workspace.
 - `wif_provider_id` (String) The ID of the Workload Identity Federation (WIF) provider to create in the pool.

@@ -62,7 +62,7 @@ func TestAccCloudGwsRegistrationResource_Basic(t *testing.T) {
 				ResourceName:                         resourceName,
 				ImportState:                          true,
 				ImportStateVerify:                    true,
-				ImportStateIdFunc:                    testAccGcpRegistrationIDFunc(resourceName),
+				ImportStateIdFunc:                    testAccImportIDFunc(resourceName, "gcp_registration_id"),
 				ImportStateVerifyIdentifierAttribute: "gcp_registration_id",
 			},
 			{
@@ -216,13 +216,13 @@ func testAccCheckCloudGwsRegistrationDeleted(gcpResourceName string) resource.Te
 	}
 }
 
-func testAccGcpRegistrationIDFunc(resourceName string) resource.ImportStateIdFunc {
+func testAccImportIDFunc(resourceName, attribute string) resource.ImportStateIdFunc {
 	return func(s *terraform.State) (string, error) {
 		rs, ok := s.RootModule().Resources[resourceName]
 		if !ok {
 			return "", fmt.Errorf("Resource not found: %s", resourceName)
 		}
-		return rs.Primary.Attributes["gcp_registration_id"], nil
+		return rs.Primary.Attributes[attribute], nil
 	}
 }
 
