@@ -8,6 +8,7 @@ import (
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/sensor_update_policies"
+	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/scopes"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
@@ -94,6 +95,16 @@ type sensorBuild struct {
 	Stage         types.String `tfsdk:"stage"`
 	Platform      types.String `tfsdk:"platform"`
 	SensorVersion types.String `tfsdk:"sensor_version"`
+}
+
+// newSensorBuild converts a build returned by the API to its terraform model.
+func newSensorBuild(b *models.SensorUpdateBuildRespV1) sensorBuild {
+	return sensorBuild{
+		Build:         types.StringPointerValue(b.Build),
+		Platform:      types.StringPointerValue(b.Platform),
+		SensorVersion: types.StringPointerValue(b.SensorVersion),
+		Stage:         types.StringPointerValue(b.Stage),
+	}
 }
 
 // sensorUpdatePolicyBuildsDataSource is the data source implementation.
@@ -185,12 +196,7 @@ func (d *sensorUpdatePolicyBuildsDataSource) Read(
 	for _, b := range builds.Payload.Resources {
 		bCopy := b
 
-		build := sensorBuild{
-			Build:         types.StringValue(*b.Build),
-			Platform:      types.StringValue(*b.Platform),
-			SensorVersion: types.StringValue(*b.Platform),
-			Stage:         types.StringValue(*b.Stage),
-		}
+		build := newSensorBuild(b)
 
 		switch strings.ToLower(*bCopy.Platform) {
 		case "windows":
