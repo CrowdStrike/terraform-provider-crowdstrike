@@ -2177,6 +2177,23 @@ func generatedScannerRole(prefix string) *regexp.Regexp {
 	return regexp.MustCompile("^" + regexp.QuoteMeta(prefix) + "CSAgentlessScannerRole-[a-z0-9]{8}$")
 }
 
+// expectAgentlessRolesUnknown checks that the agentless scanning role values CrowdStrike assigns are planned as unknown.
+func expectAgentlessRolesUnknown(resourceName string) []plancheck.PlanCheck {
+	var checks []plancheck.PlanCheck
+	for _, attr := range []tfjsonpath.Path{
+		tfjsonpath.New("dspm").AtMapKey("role_name"),
+		tfjsonpath.New("vulnerability_scanning").AtMapKey("role_name"),
+		tfjsonpath.New("dspm_role_name"),
+		tfjsonpath.New("dspm_role_arn"),
+		tfjsonpath.New("agentless_scanning_role_name"),
+		tfjsonpath.New("agentless_scanning_scanner_role_name"),
+		tfjsonpath.New("agentless_use_resource_affixes"),
+	} {
+		checks = append(checks, plancheck.ExpectUnknownValue(resourceName, attr))
+	}
+	return checks
+}
+
 func testAccCloudAwsAccountConfig_agentlessDisabled(account, prefix string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_aws_account" "test" {
@@ -2228,9 +2245,21 @@ func TestAccCloudAwsAccountResourceDSPMNoRoleName(t *testing.T) {
 					},
 				},
 			},
+			{
+				ResourceName:                         fullResourceName,
+				ImportState:                          true,
+				ImportStateId:                        accountID,
+				ImportStateVerify:                    true,
+				ImportStateVerifyIdentifierAttribute: "account_id",
+				// Not read back on import; covered by the CloudTrail tests
+				ImportStateVerifyIgnore: []string{"realtime_visibility.cloudtrail_region"},
+			},
 			// A prefix change can rebuild the generated role names
 			{
 				Config: testAccCloudAwsAccountConfig_dspmNoRoleName(accountID, "tfacc2-"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: expectAgentlessRolesUnknown(fullResourceName),
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "resource_name_prefix", "tfacc2-"),
 					resource.TestMatchResourceAttr(fullResourceName, "dspm.role_name", generatedIntegrationRole("tfacc2-")),
@@ -2263,6 +2292,9 @@ func TestAccCloudAwsAccountResourceEnableDSPMNoRoleName(t *testing.T) {
 			},
 			{
 				Config: testAccCloudAwsAccountConfig_dspmNoRoleName(accountID, "tfacc-"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: expectAgentlessRolesUnknown(fullResourceName),
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(fullResourceName, "dspm.enabled", "true"),
 					resource.TestMatchResourceAttr(fullResourceName, "dspm.role_name", generatedIntegrationRole("tfacc-")),
@@ -2355,6 +2387,9 @@ func TestAccCloudAwsAccountResourceRoleNameDefaultUpgradeNoBlocks(t *testing.T) 
 			{
 				ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 				Config:                   testAccCloudAwsAccountConfig_bothDSPMAndVulnEnabledNoRoles(accountID),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: expectAgentlessRolesUnknown(fullResourceName),
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestMatchResourceAttr(fullResourceName, "dspm.role_name", generatedIntegrationRole("")),
 					resource.TestCheckResourceAttrPair(fullResourceName, "dspm.role_name", fullResourceName, "vulnerability_scanning.role_name"),
