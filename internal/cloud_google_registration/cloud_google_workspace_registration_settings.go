@@ -6,7 +6,6 @@ import (
 	"regexp"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
-	"github.com/crowdstrike/gofalcon/falcon/client/cloud_google_cloud_registration"
 	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/config"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
@@ -29,6 +28,7 @@ var (
 	_ resource.Resource                = &cloudGoogleWorkspaceRegistrationSettingsResource{}
 	_ resource.ResourceWithConfigure   = &cloudGoogleWorkspaceRegistrationSettingsResource{}
 	_ resource.ResourceWithImportState = &cloudGoogleWorkspaceRegistrationSettingsResource{}
+	_ resource.ResourceWithModifyPlan  = &cloudGoogleWorkspaceRegistrationSettingsResource{}
 )
 
 var digitsOnly = regexp.MustCompile(`^[0-9]+$`)
@@ -156,6 +156,28 @@ func (r *cloudGoogleWorkspaceRegistrationSettingsResource) Schema(
 				},
 			},
 		},
+	}
+}
+
+// ModifyPlan marks workspace_registration_id unknown when wif_principal changes, because a new principal can belong to a new Workspace.
+func (r *cloudGoogleWorkspaceRegistrationSettingsResource) ModifyPlan(
+	ctx context.Context,
+	req resource.ModifyPlanRequest,
+	resp *resource.ModifyPlanResponse,
+) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan, state cloudGoogleWorkspaceRegistrationSettingsResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if !plan.WifPrincipal.Equal(state.WifPrincipal) {
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("workspace_registration_id"), types.StringUnknown())...)
 	}
 }
 
@@ -325,45 +347,8 @@ func (r *cloudGoogleWorkspaceRegistrationSettingsResource) updateSettings(
 	settings *models.DtoWorkspaceSettingsRequest,
 	operation tferrors.Operation,
 ) (*models.DtoWorkspaceProperties, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	params := &cloud_google_cloud_registration.CloudRegistrationGcpUpdateRegistrationParams{
-		Context: ctx,
-		Ids:     gcpRegistrationID,
-		Body: &models.DtoGCPRegistrationUpdateRequestExtV1{
-			Resources: []*models.DtoUpdateGCPRegistrationRequest{
-				{GoogleWorkspace: &models.DtoWorkspaceRequest{Settings: settings}},
-			},
-		},
-	}
-
-	res, err := r.client.CloudGoogleCloudRegistration.CloudRegistrationGcpUpdateRegistration(params)
-	if err != nil {
-		diags.Append(tferrors.NewDiagnosticFromAPIError(
-			operation, err, gcpRegistrationScopes,
-			tferrors.WithNotFoundDetail(fmt.Sprintf(
-				"No Google Workspace registration found for Google Cloud registration ID: %s. Add the Google Workspace to the registration in the Falcon console.",
-				gcpRegistrationID,
-			)),
-		))
-		return nil, diags
-	}
-
-	if res == nil || res.Payload == nil {
-		diags.Append(tferrors.NewEmptyResponseError(operation))
-		return nil, diags
-	}
-
-	if payloadDiag := tferrors.NewDiagnosticFromPayloadErrors(operation, res.Payload.Errors); payloadDiag != nil {
-		diags.Append(payloadDiag)
-		return nil, diags
-	}
-
-	if len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil ||
-		res.Payload.Resources[0].GoogleWorkspace == nil || res.Payload.Resources[0].GoogleWorkspace.FederatedIdentity == nil {
-		diags.Append(tferrors.NewEmptyResponseError(operation))
-		return nil, diags
-	}
-
-	return res.Payload.Resources[0].GoogleWorkspace, diags
+	return updateWorkspace(ctx, r.client, gcpRegistrationID, &models.DtoWorkspaceRequest{Settings: settings}, operation, fmt.Sprintf(
+		"No Google Workspace registration found for Google Cloud registration ID: %s. Create it with crowdstrike_cloud_google_workspace_registration.",
+		gcpRegistrationID,
+	))
 }

@@ -322,7 +322,7 @@ func (p *CrowdStrikeProvider) Resources(ctx context.Context) []func() resource.R
 		fcs.NewCloudAzureTenantResource,
 		cloudgoogleregistration.NewCloudGoogleRegistrationResource,
 		cloudgoogleregistration.NewCloudGoogleRegistrationSettingsResource,
-		cloudgoogleregistration.NewCloudGwsRegistrationResource,
+		cloudgoogleregistration.NewCloudGoogleWorkspaceRegistrationResource,
 		cloudgoogleregistration.NewCloudGoogleWorkspaceRegistrationSettingsResource,
 		contentupdatepolicy.NewContentPolicyResource,
 		contentupdatepolicy.NewDefaultContentUpdatePolicyResource,

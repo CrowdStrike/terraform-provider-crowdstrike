@@ -3,6 +3,7 @@ package cloudgoogleregistration
 import (
 	"context"
 	"fmt"
+	"regexp"
 
 	"github.com/crowdstrike/gofalcon/falcon/client"
 	"github.com/crowdstrike/gofalcon/falcon/client/cloud_google_cloud_registration"
@@ -13,6 +14,7 @@ import (
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/utils"
 	"github.com/go-openapi/swag"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -25,23 +27,27 @@ import (
 )
 
 var (
-	_ resource.Resource                = &cloudGwsRegistrationResource{}
-	_ resource.ResourceWithConfigure   = &cloudGwsRegistrationResource{}
-	_ resource.ResourceWithImportState = &cloudGwsRegistrationResource{}
-	_ resource.ResourceWithModifyPlan  = &cloudGwsRegistrationResource{}
+	_ resource.Resource                = &cloudGoogleWorkspaceRegistrationResource{}
+	_ resource.ResourceWithConfigure   = &cloudGoogleWorkspaceRegistrationResource{}
+	_ resource.ResourceWithImportState = &cloudGoogleWorkspaceRegistrationResource{}
 )
 
-func NewCloudGwsRegistrationResource() resource.Resource {
-	return &cloudGwsRegistrationResource{}
+// customerIDFormat is the API rule for a Google Workspace customer ID.
+var customerIDFormat = regexp.MustCompile(`^C[a-z0-9]+$`)
+
+func NewCloudGoogleWorkspaceRegistrationResource() resource.Resource {
+	return &cloudGoogleWorkspaceRegistrationResource{}
 }
 
-type cloudGwsRegistrationResource struct {
+type cloudGoogleWorkspaceRegistrationResource struct {
 	client *client.CrowdStrikeAPISpecification
 }
 
-type cloudGwsRegistrationResourceModel struct {
+type cloudGoogleWorkspaceRegistrationResourceModel struct {
 	ID                types.String `tfsdk:"id"`
-	GcpRegistrationID types.String `tfsdk:"gcp_registration_id"`
+	RegistrationID    types.String `tfsdk:"registration_id"`
+	CustomerID        types.String `tfsdk:"customer_id"`
+	OrganizationID    types.String `tfsdk:"organization_id"`
 	WifPoolID         types.String `tfsdk:"wif_pool_id"`
 	WifProviderID     types.String `tfsdk:"wif_provider_id"`
 	WifIdentitySource types.String `tfsdk:"wif_identity_source"`
@@ -49,8 +55,10 @@ type cloudGwsRegistrationResourceModel struct {
 }
 
 // wrap maps the Workspace block of the GCP registration to TF state.
-func (m *cloudGwsRegistrationResourceModel) wrap(workspace *models.DtoWorkspaceProperties) {
+func (m *cloudGoogleWorkspaceRegistrationResourceModel) wrap(workspace *models.DtoWorkspaceProperties) {
 	m.ID = types.StringValue(workspace.RegistrationID)
+	m.CustomerID = flex.StringValueToFramework(workspace.CustomerID)
+	m.OrganizationID = flex.StringValueToFramework(workspace.OrganizationID)
 
 	var identity models.DtoWorkspaceFederatedIdentity
 	if workspace.FederatedIdentity != nil {
@@ -62,7 +70,7 @@ func (m *cloudGwsRegistrationResourceModel) wrap(workspace *models.DtoWorkspaceP
 	m.ServiceAccountID = flex.StringValueToFramework(identity.ServiceAccountID)
 }
 
-func (r *cloudGwsRegistrationResource) Configure(
+func (r *cloudGoogleWorkspaceRegistrationResource) Configure(
 	ctx context.Context,
 	req resource.ConfigureRequest,
 	resp *resource.ConfigureResponse,
@@ -88,15 +96,15 @@ func (r *cloudGwsRegistrationResource) Configure(
 	r.client = providerConfig.Client
 }
 
-func (r *cloudGwsRegistrationResource) Metadata(
+func (r *cloudGoogleWorkspaceRegistrationResource) Metadata(
 	_ context.Context,
 	req resource.MetadataRequest,
 	resp *resource.MetadataResponse,
 ) {
-	resp.TypeName = req.ProviderTypeName + "_cloud_gws_registration"
+	resp.TypeName = req.ProviderTypeName + "_cloud_google_workspace_registration"
 }
 
-func (r *cloudGwsRegistrationResource) Schema(
+func (r *cloudGoogleWorkspaceRegistrationResource) Schema(
 	_ context.Context,
 	_ resource.SchemaRequest,
 	resp *resource.SchemaResponse,
@@ -104,7 +112,7 @@ func (r *cloudGwsRegistrationResource) Schema(
 	resp.Schema = schema.Schema{
 		MarkdownDescription: utils.MarkdownDescription(
 			"Falcon Cloud Security",
-			"This resource adopts the Google Workspace registration of a Google Cloud registration in Falcon Cloud Security. Add the Google Workspace to the Google Cloud registration in the Falcon console first: this resource does not create it. The resource gives the Workload Identity Federation (WIF) values that the Google Workspace Terraform module needs. When you destroy this resource, Falcon deletes the Google Workspace registration.",
+			"This resource manages the Google Workspace registration of a Google Cloud registration in Falcon Cloud Security. If the Google Cloud registration already has a Google Workspace registration that has no settings, for example one that was added in the Falcon console, the resource adopts and updates it. The resource gives the Workload Identity Federation (WIF) values that the Google Workspace Terraform module needs. When you destroy this resource, Falcon deletes the Google Workspace registration.",
 			gcpRegistrationScopes,
 		),
 		Attributes: map[string]schema.Attribute{
@@ -115,11 +123,32 @@ func (r *cloudGwsRegistrationResource) Schema(
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"gcp_registration_id": schema.StringAttribute{
+			"registration_id": schema.StringAttribute{
 				Required:    true,
-				Description: "The ID of the Google Cloud registration that has the Google Workspace registration. You cannot change it: destroy this resource first.",
+				Description: "The ID of the Google Cloud registration that has the Google Workspace registration. A change replaces the Google Workspace registration.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 				Validators: []validator.String{
 					validators.StringNotWhitespace(),
+				},
+			},
+			"customer_id": schema.StringAttribute{
+				Required:    true,
+				Description: "The Google Workspace customer ID, for example C01abc2de. Falcon cannot change it after the Google Workspace Terraform module sends its settings, so a change replaces the Google Workspace registration.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.LengthAtMost(64),
+					stringvalidator.RegexMatches(customerIDFormat, "must be an uppercase C followed by lowercase letters and digits"),
+				},
+			},
+			"organization_id": schema.StringAttribute{
+				Required:    true,
+				Description: "The ID of the Google Cloud organization of the Google Workspace. Must be numeric. Falcon refuses a change after the Google Workspace registration is complete.",
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(digitsOnly, "must be numeric"),
 				},
 			},
 			"wif_pool_id": schema.StringAttribute{
@@ -154,51 +183,66 @@ func (r *cloudGwsRegistrationResource) Schema(
 	}
 }
 
-func (r *cloudGwsRegistrationResource) Create(
+func (r *cloudGoogleWorkspaceRegistrationResource) Create(
 	ctx context.Context,
 	req resource.CreateRequest,
 	resp *resource.CreateResponse,
 ) {
-	var plan cloudGwsRegistrationResourceModel
+	var plan cloudGoogleWorkspaceRegistrationResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	workspace, diags := getWorkspace(ctx, r.client, plan.GcpRegistrationID.ValueString(), tferrors.Create)
+	// A block with no Workspace is not an error here: the PATCH creates the Workspace.
+	current, diags := getWorkspaceBlock(ctx, r.client, plan.RegistrationID.ValueString(), tferrors.Create)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if workspace.ConnectedThroughRegistration != nil {
+	if current.ConnectedThroughRegistration != nil {
 		resp.Diagnostics.AddAttributeError(
-			path.Root("gcp_registration_id"),
+			path.Root("registration_id"),
 			"Google Workspace Registration Owned by Another Registration",
 			fmt.Sprintf(
 				"The Google Workspace registration of Google Cloud registration %s is connected through Google Cloud registration %s. Use that registration ID.",
-				plan.GcpRegistrationID.ValueString(),
-				swag.StringValue(workspace.ConnectedThroughRegistration.ID),
+				plan.RegistrationID.ValueString(),
+				swag.StringValue(current.ConnectedThroughRegistration.ID),
 			),
 		)
 		return
 	}
 
 	// Settings mean that another Terraform state can manage this Workspace, and a second owner deletes it on destroy.
-	if workspace.FederatedIdentity != nil && workspace.FederatedIdentity.SaUniqueID != "" {
+	if current.FederatedIdentity != nil && current.FederatedIdentity.SaUniqueID != "" {
 		resp.Diagnostics.AddAttributeError(
-			path.Root("gcp_registration_id"),
+			path.Root("registration_id"),
 			"Google Workspace Registration Already Configured",
 			fmt.Sprintf(
 				"The Google Workspace registration %s already has settings. Import this resource and crowdstrike_cloud_google_workspace_registration_settings with the Google Cloud registration ID %s.",
-				workspace.RegistrationID,
-				plan.GcpRegistrationID.ValueString(),
+				current.RegistrationID,
+				plan.RegistrationID.ValueString(),
 			),
 		)
 		return
 	}
 
+	workspace, diags := updateWorkspace(ctx, r.client, plan.RegistrationID.ValueString(), &models.DtoWorkspaceRequest{
+		Enabled:        swag.Bool(true),
+		CustomerID:     plan.CustomerID.ValueString(),
+		OrganizationID: plan.OrganizationID.ValueString(),
+	}, tferrors.Create, gcpRegistrationNotFoundDetail(plan.RegistrationID.ValueString()))
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	plan.wrap(workspace)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	if plan.WifPoolID.IsNull() || plan.WifProviderID.IsNull() || plan.WifIdentitySource.IsNull() || plan.ServiceAccountID.IsNull() {
 		resp.Diagnostics.AddError(
@@ -211,21 +255,25 @@ func (r *cloudGwsRegistrationResource) Create(
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	tflog.Info(ctx, "Google Workspace registration created", map[string]interface{}{
+		"registration_id":           plan.RegistrationID.ValueString(),
+		"workspace_registration_id": plan.ID.ValueString(),
+		"adopted":                   current.RegistrationID != "",
+	})
 }
 
-func (r *cloudGwsRegistrationResource) Read(
+func (r *cloudGoogleWorkspaceRegistrationResource) Read(
 	ctx context.Context,
 	req resource.ReadRequest,
 	resp *resource.ReadResponse,
 ) {
-	var state cloudGwsRegistrationResourceModel
+	var state cloudGoogleWorkspaceRegistrationResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	workspace, diags := getWorkspace(ctx, r.client, state.GcpRegistrationID.ValueString(), tferrors.Read)
+	workspace, diags := getWorkspace(ctx, r.client, state.RegistrationID.ValueString(), tferrors.Read)
 	if tferrors.HasNotFoundError(diags) {
 		resp.Diagnostics.Append(tferrors.NewResourceNotFoundWarningDiagnostic())
 		resp.State.RemoveResource(ctx)
@@ -248,67 +296,42 @@ func (r *cloudGwsRegistrationResource) Read(
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (r *cloudGwsRegistrationResource) Update(
+func (r *cloudGoogleWorkspaceRegistrationResource) Update(
 	ctx context.Context,
 	req resource.UpdateRequest,
 	resp *resource.UpdateResponse,
 ) {
-	var plan, state cloudGwsRegistrationResourceModel
+	var plan cloudGoogleWorkspaceRegistrationResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// ModifyPlan cannot see a value that is unknown at plan time, so the apply refuses it here.
-	if !plan.GcpRegistrationID.Equal(state.GcpRegistrationID) {
-		resp.Diagnostics.Append(gcpRegistrationIDChangeError())
+	// A change of registration_id or customer_id replaces the resource, so only organization_id can change here.
+	workspace, diags := updateWorkspace(ctx, r.client, plan.RegistrationID.ValueString(), &models.DtoWorkspaceRequest{
+		OrganizationID: plan.OrganizationID.ValueString(),
+	}, tferrors.Update, gcpRegistrationNotFoundDetail(plan.RegistrationID.ValueString()))
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	plan.wrap(workspace)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-// ModifyPlan refuses a gcp_registration_id change: a replacement deletes the Workspace, and Create cannot add one.
-func (r *cloudGwsRegistrationResource) ModifyPlan(
-	ctx context.Context,
-	req resource.ModifyPlanRequest,
-	resp *resource.ModifyPlanResponse,
-) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
-		return
-	}
-
-	var stateID, planID types.String
-	resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("gcp_registration_id"), &stateID)...)
-	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("gcp_registration_id"), &planID)...)
-	if resp.Diagnostics.HasError() || !utils.IsKnown(planID) || planID.Equal(stateID) {
-		return
-	}
-
-	resp.Diagnostics.Append(gcpRegistrationIDChangeError())
-}
-
-func gcpRegistrationIDChangeError() diag.Diagnostic {
-	return diag.NewAttributeErrorDiagnostic(
-		path.Root("gcp_registration_id"),
-		"Google Cloud Registration ID Cannot Change",
-		"A new gcp_registration_id needs a new Google Workspace registration, and this resource cannot create one. A replacement deletes the current Google Workspace registration. Destroy this resource first, add the Google Workspace to the new Google Cloud registration in the Falcon console, and then apply again.",
-	)
-}
-
-func (r *cloudGwsRegistrationResource) Delete(
+func (r *cloudGoogleWorkspaceRegistrationResource) Delete(
 	ctx context.Context,
 	req resource.DeleteRequest,
 	resp *resource.DeleteResponse,
 ) {
-	var state cloudGwsRegistrationResourceModel
+	var state cloudGoogleWorkspaceRegistrationResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	workspace, diags := getWorkspace(ctx, r.client, state.GcpRegistrationID.ValueString(), tferrors.Delete)
+	workspace, diags := getWorkspace(ctx, r.client, state.RegistrationID.ValueString(), tferrors.Delete)
 	if tferrors.HasNotFoundError(diags) {
 		return
 	}
@@ -320,16 +343,16 @@ func (r *cloudGwsRegistrationResource) Delete(
 	// The DELETE takes only the Google Cloud registration ID, so a Workspace added again outside of Terraform must stay.
 	if workspace.ConnectedThroughRegistration != nil || workspace.RegistrationID != state.ID.ValueString() {
 		tflog.Info(ctx, "Google Workspace registration already deleted", map[string]interface{}{
-			"registration_id":         state.ID.ValueString(),
-			"current_registration_id": workspace.RegistrationID,
-			"gcp_registration_id":     state.GcpRegistrationID.ValueString(),
+			"registration_id":                   state.RegistrationID.ValueString(),
+			"workspace_registration_id":         state.ID.ValueString(),
+			"current_workspace_registration_id": workspace.RegistrationID,
 		})
 		return
 	}
 
 	params := cloud_google_cloud_registration.NewCloudRegistrationGcpDeleteWorkspaceRegistrationParams()
 	params.SetContext(ctx)
-	params.SetGcpRegistrationID(state.GcpRegistrationID.ValueString())
+	params.SetGcpRegistrationID(state.RegistrationID.ValueString())
 
 	res, err := r.client.CloudGoogleCloudRegistration.CloudRegistrationGcpDeleteWorkspaceRegistration(params)
 	if err != nil {
@@ -349,21 +372,25 @@ func (r *cloudGwsRegistrationResource) Delete(
 	}
 
 	tflog.Info(ctx, "Google Workspace registration deleted", map[string]interface{}{
-		"registration_id":     state.ID.ValueString(),
-		"gcp_registration_id": state.GcpRegistrationID.ValueString(),
+		"registration_id":           state.RegistrationID.ValueString(),
+		"workspace_registration_id": state.ID.ValueString(),
 	})
 }
 
-func (r *cloudGwsRegistrationResource) ImportState(
+func (r *cloudGoogleWorkspaceRegistrationResource) ImportState(
 	ctx context.Context,
 	req resource.ImportStateRequest,
 	resp *resource.ImportStateResponse,
 ) {
-	resource.ImportStatePassthroughID(ctx, path.Root("gcp_registration_id"), req, resp)
+	resource.ImportStatePassthroughID(ctx, path.Root("registration_id"), req, resp)
 }
 
-// getWorkspace reads the Workspace block of a GCP registration; no Workspace is a not found error, no block is a read error.
-func getWorkspace(
+func gcpRegistrationNotFoundDetail(gcpRegistrationID string) string {
+	return fmt.Sprintf("No Google Cloud registration found for registration ID: %s.", gcpRegistrationID)
+}
+
+// getWorkspaceBlock reads the Workspace block of a GCP registration; a block with no registration ID means no Workspace.
+func getWorkspaceBlock(
 	ctx context.Context,
 	apiClient *client.CrowdStrikeAPISpecification,
 	gcpRegistrationID string,
@@ -379,7 +406,7 @@ func getWorkspace(
 	if err != nil {
 		diags.Append(tferrors.NewDiagnosticFromAPIError(
 			operation, err, gcpRegistrationScopes,
-			tferrors.WithNotFoundDetail(fmt.Sprintf("No Google Cloud registration found for registration ID: %s.", gcpRegistrationID)),
+			tferrors.WithNotFoundDetail(gcpRegistrationNotFoundDetail(gcpRegistrationID)),
 		))
 		return nil, diags
 	}
@@ -399,6 +426,21 @@ func getWorkspace(
 		return nil, diags
 	}
 
+	return workspace, diags
+}
+
+// getWorkspace reads the Workspace block of a GCP registration; no Workspace is a not found error, no block is a read error.
+func getWorkspace(
+	ctx context.Context,
+	apiClient *client.CrowdStrikeAPISpecification,
+	gcpRegistrationID string,
+	operation tferrors.Operation,
+) (*models.DtoWorkspaceProperties, diag.Diagnostics) {
+	workspace, diags := getWorkspaceBlock(ctx, apiClient, gcpRegistrationID, operation)
+	if diags.HasError() {
+		return nil, diags
+	}
+
 	// A connected block names the owner but can have no registration ID, so the callers check it first.
 	if workspace.ConnectedThroughRegistration != nil {
 		return workspace, diags
@@ -406,13 +448,59 @@ func getWorkspace(
 
 	if workspace.RegistrationID == "" {
 		diags.Append(tferrors.NewNotFoundError(
-			fmt.Sprintf(
-				"Google Cloud registration %s has no Google Workspace registration. Add the Google Workspace to the registration in the Falcon console.",
-				gcpRegistrationID,
-			),
+			fmt.Sprintf("Google Cloud registration %s has no Google Workspace registration.", gcpRegistrationID),
 		))
 		return nil, diags
 	}
 
 	return workspace, diags
+}
+
+// updateWorkspace sends the Workspace block alone in the GCP PATCH, which creates or updates the Workspace, and returns it.
+func updateWorkspace(
+	ctx context.Context,
+	apiClient *client.CrowdStrikeAPISpecification,
+	gcpRegistrationID string,
+	block *models.DtoWorkspaceRequest,
+	operation tferrors.Operation,
+	notFoundDetail string,
+) (*models.DtoWorkspaceProperties, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	params := &cloud_google_cloud_registration.CloudRegistrationGcpUpdateRegistrationParams{
+		Context: ctx,
+		Ids:     gcpRegistrationID,
+		Body: &models.DtoGCPRegistrationUpdateRequestExtV1{
+			Resources: []*models.DtoUpdateGCPRegistrationRequest{
+				{GoogleWorkspace: block},
+			},
+		},
+	}
+
+	res, err := apiClient.CloudGoogleCloudRegistration.CloudRegistrationGcpUpdateRegistration(params)
+	if err != nil {
+		diags.Append(tferrors.NewDiagnosticFromAPIError(
+			operation, err, gcpRegistrationScopes,
+			tferrors.WithNotFoundDetail(notFoundDetail),
+		))
+		return nil, diags
+	}
+
+	if res == nil || res.Payload == nil {
+		diags.Append(tferrors.NewEmptyResponseError(operation))
+		return nil, diags
+	}
+
+	if payloadDiag := tferrors.NewDiagnosticFromPayloadErrors(operation, res.Payload.Errors); payloadDiag != nil {
+		diags.Append(payloadDiag)
+		return nil, diags
+	}
+
+	if len(res.Payload.Resources) == 0 || res.Payload.Resources[0] == nil ||
+		res.Payload.Resources[0].GoogleWorkspace == nil || res.Payload.Resources[0].GoogleWorkspace.FederatedIdentity == nil {
+		diags.Append(tferrors.NewEmptyResponseError(operation))
+		return nil, diags
+	}
+
+	return res.Payload.Resources[0].GoogleWorkspace, diags
 }

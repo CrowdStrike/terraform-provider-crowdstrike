@@ -28,26 +28,22 @@ func TestAccCloudGoogleWorkspaceRegistrationSettingsResource_Basic(t *testing.T)
 	wifProjectNumberUpdated := generateGoogleCloudProjectNumber()
 	customerID := generateGoogleWorkspaceCustomerID()
 	customerIDReplaced := generateGoogleWorkspaceCustomerID()
+	customerIDUpdated := generateGoogleWorkspaceCustomerID()
 	saUniqueID := generateGoogleServiceAccountUniqueID()
 	saUniqueIDUpdated := generateGoogleServiceAccountUniqueID()
 
 	gcpResourceName := "crowdstrike_cloud_google_registration.test"
-	gwsResourceName := "crowdstrike_cloud_gws_registration.test"
+	gwsResourceName := googleWorkspaceResourceName
 	resourceName := "crowdstrike_cloud_google_workspace_registration_settings.test"
 
-	registrationConfig := acctest.ConfigCompose(
-		testAccCloudGoogleRegistrationConfig_organization(rName, orgID, infraProjectID, wifProjectID, wifProjectNumber),
-		testAccCloudGwsRegistrationConfig_basic(),
-	)
+	gcpConfig := testAccCloudGoogleRegistrationConfig_organization(rName, orgID, infraProjectID, wifProjectID, wifProjectNumber)
+	registrationConfig := acctest.ConfigCompose(gcpConfig, testAccCloudGoogleWorkspaceRegistrationConfig("test", customerID, orgID))
+	updatedRegistrationConfig := acctest.ConfigCompose(gcpConfig, testAccCloudGoogleWorkspaceRegistrationConfig("test", customerIDUpdated, orgID))
 
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		Steps: []resource.TestStep{
-			{
-				Config: testAccCloudGoogleRegistrationConfig_organization(rName, orgID, infraProjectID, wifProjectID, wifProjectNumber),
-				Check:  testAccAddGoogleWorkspace(gcpResourceName, customerID, orgID),
-			},
 			{
 				// The API refuses a principal that was built for another Workspace.
 				Config: acctest.ConfigCompose(
@@ -68,7 +64,7 @@ func TestAccCloudGoogleWorkspaceRegistrationSettingsResource_Basic(t *testing.T)
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("wif_principal"), knownvalue.StringRegexp(regexp.MustCompile(`/subject/aws-role/`))),
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrPair(resourceName, "registration_id", gwsResourceName, "gcp_registration_id"),
+					resource.TestCheckResourceAttrPair(resourceName, "registration_id", gwsResourceName, "registration_id"),
 					resource.TestCheckResourceAttrPair(resourceName, "workspace_registration_id", gwsResourceName, "id"),
 				),
 			},
@@ -84,7 +80,7 @@ func TestAccCloudGoogleWorkspaceRegistrationSettingsResource_Basic(t *testing.T)
 				Config: acctest.ConfigCompose(
 					registrationConfig,
 					testAccCloudGoogleWorkspaceRegistrationSettingsConfig(gwsRegistrationIDRef, wifProjectID, wifProjectNumber, saUniqueID, "aws-role"),
-					testAccCloudGwsRegistrationConfig_second(),
+					testAccCloudGoogleWorkspaceRegistrationConfig("second", customerID, orgID),
 				),
 				ExpectError: regexp.MustCompile(`already\s+has\s+settings`),
 			},
@@ -148,12 +144,38 @@ func TestAccCloudGoogleWorkspaceRegistrationSettingsResource_Basic(t *testing.T)
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrPair(resourceName, "workspace_registration_id", gwsResourceName, "id"),
-					testAccCheckCloudGwsRegistrationMatchesAPI(gwsResourceName),
+					testAccCheckCloudGoogleWorkspaceRegistrationMatchesAPI(),
 				),
 			},
 			{
-				Config: registrationConfig,
+				// A new customer ID replaces the Workspace, so the settings go to the new Workspace.
+				Config: acctest.ConfigCompose(
+					updatedRegistrationConfig,
+					testAccCloudGoogleWorkspaceRegistrationSettingsConfig(gwsRegistrationIDRef, wifProjectID, wifProjectNumber, saUniqueIDUpdated, "aws-role-updated"),
+				),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(gwsResourceName, plancheck.ResourceActionDestroyBeforeCreate),
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+						plancheck.ExpectUnknownValue(resourceName, tfjsonpath.New("workspace_registration_id")),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(gwsResourceName, tfjsonpath.New("customer_id"), knownvalue.StringExact(customerIDUpdated)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("service_account_unique_id"), knownvalue.StringExact(saUniqueIDUpdated)),
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrPair(resourceName, "workspace_registration_id", gwsResourceName, "id"),
+					testAccCheckCloudGoogleWorkspaceRegistrationMatchesAPI(),
+				),
+			},
+			{
+				Config: updatedRegistrationConfig,
 				Check:  testAccCheckCloudGoogleWorkspaceRegistrationSettingsCleared(gcpResourceName),
+			},
+			{
+				Config: gcpConfig,
+				Check:  testAccCheckCloudGoogleWorkspaceRegistrationDeleted(gcpResourceName),
 			},
 		},
 	})
@@ -200,27 +222,19 @@ func testAccCheckCloudGoogleWorkspaceRegistrationSettingsCleared(gcpResourceName
 	}
 }
 
-const gwsRegistrationIDRef = "${crowdstrike_cloud_gws_registration.test.id}"
+const gwsRegistrationIDRef = "${crowdstrike_cloud_google_workspace_registration.test.id}"
 
 // testAccCloudGoogleWorkspaceRegistrationSettingsConfig ends wif_principal with workspaceRegistrationID, which can be an interpolation.
 func testAccCloudGoogleWorkspaceRegistrationSettingsConfig(workspaceRegistrationID, wifProjectID, projectNumber, saUniqueID, subject string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_google_workspace_registration_settings" "test" {
-  registration_id           = crowdstrike_cloud_gws_registration.test.gcp_registration_id
-  service_account_email     = "${crowdstrike_cloud_gws_registration.test.service_account_id}@%[1]s.iam.gserviceaccount.com"
+  registration_id           = crowdstrike_cloud_google_workspace_registration.test.registration_id
+  service_account_email     = "${crowdstrike_cloud_google_workspace_registration.test.service_account_id}@%[1]s.iam.gserviceaccount.com"
   service_account_unique_id = %[3]q
-  wif_principal             = "principal://iam.googleapis.com/projects/%[2]s/locations/global/workloadIdentityPools/${crowdstrike_cloud_gws_registration.test.wif_pool_id}/subject/%[4]s/%[5]s"
+  wif_principal             = "principal://iam.googleapis.com/projects/%[2]s/locations/global/workloadIdentityPools/${crowdstrike_cloud_google_workspace_registration.test.wif_pool_id}/subject/%[4]s/%[5]s"
   wif_project_number        = %[2]q
 }
 `, wifProjectID, projectNumber, saUniqueID, subject, workspaceRegistrationID)
-}
-
-func testAccCloudGwsRegistrationConfig_second() string {
-	return `
-resource "crowdstrike_cloud_gws_registration" "second" {
-  gcp_registration_id = crowdstrike_cloud_google_registration.test.id
-}
-`
 }
 
 func testAccCloudGoogleWorkspaceRegistrationSettingsConfig_literal(saEmail, saUniqueID, wifPrincipal, projectNumber string) string {
