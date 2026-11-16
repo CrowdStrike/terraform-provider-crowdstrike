@@ -1,16 +1,26 @@
 package correlationrules_test
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"testing"
 	"time"
 
+	"github.com/crowdstrike/gofalcon/falcon/client"
+	"github.com/crowdstrike/gofalcon/falcon/client/correlation_rules"
+	"github.com/crowdstrike/gofalcon/falcon/models"
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/acctest"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/testconfig"
+	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/tferrors"
+	"github.com/go-openapi/swag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
@@ -519,6 +529,120 @@ func TestAccCorrelationRuleResource_ValidatorErrors(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestAccCorrelationRuleResource_disappears(t *testing.T) {
+	testCases := []struct {
+		name            string
+		waitForDeletion bool
+	}{
+		// Refresh while the API still returns the rule with status "deleting".
+		{name: "deleting", waitForDeletion: false},
+		// Refresh after deletion completes and the API returns a 404 payload error.
+		{name: "deleted", waitForDeletion: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			rName := acctest.RandomResourceName()
+
+			resource.ParallelTest(t, resource.TestCase{
+				PreCheck:                 func() { acctest.PreCheck(t) },
+				ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+				CheckDestroy:             testAccCheckCorrelationRuleDestroy,
+				Steps: []resource.TestStep{
+					{
+						Config: testAccCorrelationRuleConfig_basic(rName),
+						Check:  testAccCheckCorrelationRuleDisappears(resourceName, tc.waitForDeletion),
+						ConfigPlanChecks: resource.ConfigPlanChecks{
+							PostApplyPostRefresh: []plancheck.PlanCheck{
+								plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionCreate),
+							},
+						},
+						ExpectNonEmptyPlan: true,
+					},
+				},
+			})
+		})
+	}
+}
+
+// testAccCheckCorrelationRuleDisappears deletes the rule out of band. When
+// waitForDeletion is set, it polls until the asynchronous delete completes.
+func testAccCheckCorrelationRuleDisappears(resourceAddress string, waitForDeletion bool) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[resourceAddress]
+		if !ok {
+			return fmt.Errorf("resource %s not found in state", resourceAddress)
+		}
+
+		client := testconfig.GetTestClient()
+		ids := []string{rs.Primary.ID}
+
+		if _, err := client.CorrelationRules.EntitiesRulesDeleteV1(
+			correlation_rules.NewEntitiesRulesDeleteV1Params().WithIds(ids),
+		); err != nil {
+			return fmt.Errorf("deleting correlation rule %s out of band: %w", rs.Primary.ID, err)
+		}
+
+		if !waitForDeletion {
+			return nil
+		}
+
+		return retry.RetryContext(context.Background(), 2*time.Minute, func() *retry.RetryError {
+			rule, err := getCorrelationRule(client, rs.Primary.ID)
+			if err != nil {
+				return retry.NonRetryableError(err)
+			}
+			if rule != nil {
+				return retry.RetryableError(fmt.Errorf("correlation rule %s still present after deletion", rs.Primary.ID))
+			}
+			return nil
+		})
+	}
+}
+
+// getCorrelationRule returns the rule with the given ID, or nil once the API
+// reports it gone (HTTP 404, a 404 payload error, or no resources).
+func getCorrelationRule(client *client.CrowdStrikeAPISpecification, id string) (*models.CorrelationrulesapiRuleV1, error) {
+	res, err := client.CorrelationRules.EntitiesRulesGetV1(
+		correlation_rules.NewEntitiesRulesGetV1Params().WithIds([]string{id}),
+	)
+	if err != nil {
+		var notFound *correlation_rules.EntitiesRulesGetV1NotFound
+		if errors.As(err, &notFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("reading correlation rule %s: %w", id, err)
+	}
+	if res == nil || res.Payload == nil || tferrors.HasNotFoundPayloadError(res.Payload.Errors) {
+		return nil, nil
+	}
+	if len(res.Payload.Resources) == 0 {
+		return nil, nil
+	}
+	return res.Payload.Resources[0], nil
+}
+
+// testAccCheckCorrelationRuleDestroy verifies every rule in state is fully
+// deleted, not just marked "deleting".
+func testAccCheckCorrelationRuleDestroy(s *terraform.State) error {
+	client := testconfig.GetTestClient()
+
+	for _, rs := range s.RootModule().Resources {
+		if rs.Type != "crowdstrike_correlation_rule" {
+			continue
+		}
+
+		rule, err := getCorrelationRule(client, rs.Primary.ID)
+		if err != nil {
+			return err
+		}
+		if rule != nil {
+			return fmt.Errorf("correlation rule %s still exists with status %q", rs.Primary.ID, swag.StringValue(rule.Status))
+		}
+	}
+	return nil
 }
 
 type mitreEntry struct {
