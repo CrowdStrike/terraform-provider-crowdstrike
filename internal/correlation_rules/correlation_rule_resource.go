@@ -597,38 +597,23 @@ func (r *correlationRuleResource) Update(
 
 	expectedStatus := plan.Status.ValueString()
 
-	// The API rejects a single PATCH that both sets status to "inactive" and
-	// includes an operation (schedule/start_on/stop_on) payload. Send the
-	// status change first (without operation), wait for it to settle, then
-	// apply the schedule change in a second PATCH.
-	if patchReq.Status == "inactive" && patchReq.Operation != nil {
-		operation := patchReq.Operation
-		patchReq.Operation = nil
-
-		resp.Diagnostics.Append(r.sendPatch(ctx, patchReq)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		if _, err := r.waitForStatus(ctx, plan.ID.ValueString(), expectedStatus); err != nil {
+	first, second := splitPatchRequest(patchReq)
+	resp.Diagnostics.Append(r.sendPatch(ctx, first)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if second != nil {
+		// The rule is inactive between the two requests. Let the first one
+		// settle before sending the second.
+		const interimStatus = "inactive"
+		if _, err := r.waitForStatus(ctx, plan.ID.ValueString(), interimStatus); err != nil {
 			resp.Diagnostics.AddError(
 				"Error waiting for correlation rule status",
-				fmt.Sprintf("Failed to wait for status %q: %s", expectedStatus, err),
+				fmt.Sprintf("Failed to wait for status %q: %s", interimStatus, err),
 			)
 			return
 		}
-
-		schedulePatch := &rulePatchRequest{
-			CorrelationrulesapiRulePatchRequestV1: models.CorrelationrulesapiRulePatchRequestV1{
-				ID:        utils.Addr(plan.ID.ValueString()),
-				Operation: operation,
-			},
-		}
-		resp.Diagnostics.Append(r.sendPatch(ctx, schedulePatch)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-	} else {
-		resp.Diagnostics.Append(r.sendPatch(ctx, patchReq)...)
+		resp.Diagnostics.Append(r.sendPatch(ctx, second)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
@@ -651,6 +636,41 @@ func (r *correlationRuleResource) Update(
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+}
+
+// splitPatchRequest returns the requests that apply patchReq, in the order
+// they must be sent. The API rejects a PATCH that changes status and also
+// carries an operation (schedule, start_on or stop_on), so the two go out
+// separately and the operation is applied while the rule is inactive: after
+// a deactivation, or before a reactivation. Other changes go with the first
+// request. second is nil when patchReq needs no split.
+func splitPatchRequest(patchReq *rulePatchRequest) (first, second *rulePatchRequest) {
+	if patchReq.Operation == nil {
+		return patchReq, nil
+	}
+
+	switch patchReq.Status {
+	case "inactive":
+		withoutOperation := *patchReq
+		withoutOperation.Operation = nil
+		return &withoutOperation, &rulePatchRequest{
+			CorrelationrulesapiRulePatchRequestV1: models.CorrelationrulesapiRulePatchRequestV1{
+				ID:        patchReq.ID,
+				Operation: patchReq.Operation,
+			},
+		}
+	case "active":
+		withoutStatus := *patchReq
+		withoutStatus.Status = ""
+		return &withoutStatus, &rulePatchRequest{
+			CorrelationrulesapiRulePatchRequestV1: models.CorrelationrulesapiRulePatchRequestV1{
+				ID:     patchReq.ID,
+				Status: patchReq.Status,
+			},
+		}
+	default:
+		return patchReq, nil
+	}
 }
 
 func (r *correlationRuleResource) sendPatch(
