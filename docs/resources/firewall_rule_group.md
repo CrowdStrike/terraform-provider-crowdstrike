@@ -289,7 +289,7 @@ Optional:
 - `remote_address` (Attributes List) Remote IP addresses for the rule. Omit it, or use a single entry whose `address` is `*`, to match any remote address. Defaults to a single entry with `address` `*` and `netmask` 0. (see [below for nested schema](#nestedatt--rules--remote_address))
 - `remote_port` (Attributes List) Remote ports for the rule. Only applicable for TCP/UDP protocols. Omit it to match any port. (see [below for nested schema](#nestedatt--rules--remote_port))
 - `service_name` (String) Windows service name that this rule applies to. Only valid for Windows platform.
-- `watch_mode` (Boolean) Enable watch mode (monitoring) for this rule instead of enforcing. Defaults to `false`.
+- `watch_mode` (Boolean) Enable watch mode for this rule. The rule is still enforced; watch mode additionally creates an event each time the rule matches, shown in Activity > Firewall in the Falcon console. To stop a policy from blocking traffic, use `monitor_mode` on `crowdstrike_firewall_policy` instead. Defaults to `false`.
 
 Read-Only:
 
