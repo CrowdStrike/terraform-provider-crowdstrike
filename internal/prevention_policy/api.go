@@ -177,6 +177,8 @@ func updateRuleGroups(
 			id,
 			err.Error(),
 		))
+
+		return diags
 	}
 
 	returnedRuleGroups := make(map[string]bool)
@@ -230,7 +232,7 @@ func updateRuleGroups(
 		}
 	}
 
-	if res == nil || res.Payload == nil {
+	if res != nil && res.Payload != nil {
 		for _, err := range res.Payload.Errors {
 			diags.AddError(
 				"Error updating prevention policy rule groups",
@@ -383,6 +385,7 @@ func updatePreventionPolicy(
 			"Error updating prevention policy",
 			fmt.Sprintf("No policy found with id: %s", id),
 		)
+		return preventionPolicy, diags
 	}
 
 	preventionPolicy = res.Payload.Resources[0]
