@@ -155,7 +155,7 @@ func (d *sensorUpdatePolicyResourceModel) wrap(
 		)
 	}
 
-	d.Build = types.StringValue(*policy.Settings.Build)
+	d.Build = buildToFramework(d.Build, *policy.Settings.Build)
 
 	if d.PlatformName.IsNull() {
 		d.PlatformName = types.StringValue(*policy.PlatformName)
@@ -179,7 +179,7 @@ func (d *sensorUpdatePolicyResourceModel) wrap(
 						),
 					)
 				}
-				d.BuildArm64 = types.StringValue(*vCopy.Build)
+				d.BuildArm64 = buildToFramework(d.BuildArm64, *vCopy.Build)
 			}
 		}
 	}
