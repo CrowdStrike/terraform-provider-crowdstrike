@@ -392,6 +392,7 @@ func (p *CrowdStrikeProvider) DataSources(ctx context.Context) []func() datasour
 		fim.NewFilevantagePoliciesDataSource,
 		firewall.NewFirewallPoliciesDataSource,
 		firewall.NewFirewallRuleGroupsDataSource,
+		ioarulegroup.NewIOARuleGroupDataSource,
 		hostgroups.NewHostGroupDataSource,
 		hostgroups.NewHostGroupMembersDataSource,
 		cloudgroup.NewCloudGroupDataSource,
