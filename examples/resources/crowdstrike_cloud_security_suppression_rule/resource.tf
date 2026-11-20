@@ -69,6 +69,22 @@ resource "crowdstrike_cloud_security_suppression_rule" "temporary" {
   }
 }
 
+# Example 4: Cloud Risk suppression for one cloud asset
+resource "crowdstrike_cloud_security_suppression_rule" "cloud_risk" {
+  name    = "Cloud Risk role exception"
+  type    = "CloudRisk"
+  reason  = "compensating-control"
+  comment = "Access to this role is restricted by compensating controls"
+
+  rule_selection_filter = {
+    names = ["Unused identity with excessive permissions"]
+  }
+
+  asset_filter = {
+    resource_ids = ["ExampleRole"]
+  }
+}
+
 output "suppression_rule" {
   value = crowdstrike_cloud_security_suppression_rule.example
 }

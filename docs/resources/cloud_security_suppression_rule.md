@@ -93,6 +93,22 @@ resource "crowdstrike_cloud_security_suppression_rule" "temporary" {
   }
 }
 
+# Example 4: Cloud Risk suppression for one cloud asset
+resource "crowdstrike_cloud_security_suppression_rule" "cloud_risk" {
+  name    = "Cloud Risk role exception"
+  type    = "CloudRisk"
+  reason  = "compensating-control"
+  comment = "Access to this role is restricted by compensating controls"
+
+  rule_selection_filter = {
+    names = ["Unused identity with excessive permissions"]
+  }
+
+  asset_filter = {
+    resource_ids = ["ExampleRole"]
+  }
+}
+
 output "suppression_rule" {
   value = crowdstrike_cloud_security_suppression_rule.example
 }
@@ -105,7 +121,7 @@ output "suppression_rule" {
 
 - `name` (String) Name of the suppression rule
 - `reason` (String) Reason for suppression. One of: accept-risk, compensating-control, false-positive.
-- `type` (String) Type of suppression rule. One of: IOM.
+- `type` (String) Type of suppression rule (API subdomain). One of: IOM, CloudRisk. Both use the CSPM domain. Changing this value requires replacement.
 
 ### Optional
 

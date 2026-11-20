@@ -141,10 +141,10 @@ func (r *cloudSecuritySuppressionRulesDataSource) Schema(
 		Attributes: map[string]schema.Attribute{
 			"type": schema.StringAttribute{
 				Optional:    true,
-				Description: "Type of suppression rule to filter by. This corresponds to the subdomain field in the API. One of: IOM.",
+				Description: "Type of suppression rule to filter by (API subdomain). One of: IOM, CloudRisk.",
 				Validators: []validator.String{
 					stringvalidator.ConflictsWith(path.MatchRoot("fql")),
-					stringvalidator.OneOf(suppressionRuleSubdomainDefault),
+					stringvalidator.OneOf(suppressionRuleSubdomainValues...),
 				},
 			},
 			"name": schema.StringAttribute{
@@ -175,7 +175,7 @@ func (r *cloudSecuritySuppressionRulesDataSource) Schema(
 			},
 			"fql": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "Falcon Query Language (FQL) filter for advanced suppression rule searches. FQL filter, allowed props: `name`, `description`, `subdomain`, `suppression_reason`, `disabled`",
+				MarkdownDescription: "Falcon Query Language (FQL) filter for advanced suppression rule searches. FQL filter, allowed props: `name`, `description`, `domain`, `subdomain`, `suppression_reason`, `disabled`",
 			},
 			"rules": schema.SetNestedAttribute{
 				Computed:    true,
@@ -194,7 +194,7 @@ func (r *cloudSecuritySuppressionRulesDataSource) Schema(
 						},
 						"type": schema.StringAttribute{
 							Computed:    true,
-							Description: "Type of suppression rule. One of: IOM.",
+							Description: "Type of suppression rule (API subdomain). One of: IOM, CloudRisk.",
 						},
 						"description": schema.StringAttribute{
 							Computed:    true,
