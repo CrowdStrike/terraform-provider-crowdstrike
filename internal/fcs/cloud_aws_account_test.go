@@ -3,7 +3,6 @@ package fcs_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -2168,16 +2167,6 @@ func TestNewAgentlessRoleChanges(t *testing.T) {
 	}
 }
 
-// skipUntilGeneratedRoleNames skips tests that need CrowdStrike to generate the agentless role names,
-// unless TF_ACC_AGENTLESS_GENERATED_ROLES is set.
-// TODO: remove once the API generates them in all environments.
-func skipUntilGeneratedRoleNames(t *testing.T) {
-	t.Helper()
-	if os.Getenv("TF_ACC_AGENTLESS_GENERATED_ROLES") == "" {
-		t.Skip("requires the API to generate the agentless scanning role names; set TF_ACC_AGENTLESS_GENERATED_ROLES to run")
-	}
-}
-
 // generatedIntegrationRole matches the agentless integration role name CrowdStrike generates.
 func generatedIntegrationRole(prefix string) *regexp.Regexp {
 	return regexp.MustCompile("^" + regexp.QuoteMeta(prefix) + "CSAgentlessIntegrationRole-[a-z0-9]{8}$")
@@ -2229,7 +2218,6 @@ resource "crowdstrike_cloud_aws_account" "test" {
 // TestAccCloudAwsAccountResourceDSPMNoRoleName checks that CrowdStrike assigns the role names
 // when role_name isn't set, and that they're stable across plans.
 func TestAccCloudAwsAccountResourceDSPMNoRoleName(t *testing.T) {
-	skipUntilGeneratedRoleNames(t)
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 	t.Logf("Using account_id=%s", accountID)
@@ -2287,7 +2275,6 @@ func TestAccCloudAwsAccountResourceDSPMNoRoleName(t *testing.T) {
 // TestAccCloudAwsAccountResourceEnableDSPMNoRoleName checks that enabling DSPM on a registration
 // created without agentless scanning gets the role names CrowdStrike generates.
 func TestAccCloudAwsAccountResourceEnableDSPMNoRoleName(t *testing.T) {
-	skipUntilGeneratedRoleNames(t)
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 	t.Logf("Using account_id=%s", accountID)
@@ -2368,7 +2355,6 @@ func TestAccCloudAwsAccountResourceRoleNameDefaultUpgrade(t *testing.T) {
 // release without the dspm/vulnerability_scanning blocks plans no changes with this provider, and that
 // enabling them afterwards gets the role names CrowdStrike generates.
 func TestAccCloudAwsAccountResourceRoleNameDefaultUpgradeNoBlocks(t *testing.T) {
-	skipUntilGeneratedRoleNames(t)
 	fullResourceName := fmt.Sprintf("%s.%s", crowdstrikeAWSAccountResourceType, "test")
 	accountID := fmt.Sprintf("000000%s", sdkacctest.RandStringFromCharSet(6, acctest.CharSetNum))
 	t.Logf("Using account_id=%s", accountID)
