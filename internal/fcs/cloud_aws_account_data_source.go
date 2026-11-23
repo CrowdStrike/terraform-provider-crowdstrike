@@ -49,12 +49,15 @@ type cloudAWSAccountDataModel struct {
 	VulnerabilityScanningRoleArn  types.String `tfsdk:"vulnerability_scanning_role_arn"`
 	VulnerabilityScanningRoleName types.String `tfsdk:"vulnerability_scanning_role_name"`
 	AgentlessScanningRoleName     types.String `tfsdk:"agentless_scanning_role_name"`
-	AssetInventoryEnabled         types.Bool   `tfsdk:"asset_inventory_enabled"`
-	RealtimeVisibilityEnabled     types.Bool   `tfsdk:"realtime_visibility_enabled"`
-	IDPEnabled                    types.Bool   `tfsdk:"idp_enabled"`
-	SensorManagementEnabled       types.Bool   `tfsdk:"sensor_management_enabled"`
-	DSPMEnabled                   types.Bool   `tfsdk:"dspm_enabled"`
-	VulnerabilityScanningEnabled  types.Bool   `tfsdk:"vulnerability_scanning_enabled"`
+	// Agentless scanning scanner role, and whether the agentless role names carry the resource affixes
+	AgentlessScanningScannerRoleName types.String `tfsdk:"agentless_scanning_scanner_role_name"`
+	AgentlessUseResourceAffixes      types.Bool   `tfsdk:"agentless_use_resource_affixes"`
+	AssetInventoryEnabled            types.Bool   `tfsdk:"asset_inventory_enabled"`
+	RealtimeVisibilityEnabled        types.Bool   `tfsdk:"realtime_visibility_enabled"`
+	IDPEnabled                       types.Bool   `tfsdk:"idp_enabled"`
+	SensorManagementEnabled          types.Bool   `tfsdk:"sensor_management_enabled"`
+	DSPMEnabled                      types.Bool   `tfsdk:"dspm_enabled"`
+	VulnerabilityScanningEnabled     types.Bool   `tfsdk:"vulnerability_scanning_enabled"`
 }
 
 type cloudAwsAccountsDataSourceModel struct {
@@ -174,6 +177,14 @@ func (d *cloudAwsAccountsDataSource) Schema(
 						"agentless_scanning_role_name": schema.StringAttribute{
 							Computed:    true,
 							Description: "The name of the IAM role to be used by CrowdStrike Agentless Scanning (DSPM/Vulnerability scanning). If both are configured, the DSPM role takes precedence.",
+						},
+						"agentless_scanning_scanner_role_name": schema.StringAttribute{
+							Computed:    true,
+							Description: "The name of the IAM role to be used by the CrowdStrike Agentless Scanning (DSPM/Vulnerability scanning) scanners. Empty when CrowdStrike doesn't assign the scanner role name. If both are configured, the DSPM role takes precedence.",
+						},
+						"agentless_use_resource_affixes": schema.BoolAttribute{
+							Computed:    true,
+							Description: "Whether the Agentless Scanning (DSPM/Vulnerability scanning) resource names of this registration carry the resource name prefix/suffix",
 						},
 						"asset_inventory_enabled": schema.BoolAttribute{
 							Computed:    true,
@@ -305,32 +316,34 @@ func (d *cloudAwsAccountsDataSource) Read(
 		}
 
 		m := &cloudAWSAccountDataModel{
-			AccountID:                     tempModel.AccountID,
-			OrganizationID:                tempModel.OrganizationID,
-			TargetOUs:                     tempModel.TargetOUs,
-			IsOrgManagementAccount:        tempModel.IsOrgManagementAccount,
-			AccountType:                   tempModel.AccountType,
-			ExternalID:                    tempModel.ExternalID,
-			IntermediateRoleArn:           tempModel.IntermediateRoleArn,
-			IamRoleArn:                    tempModel.IamRoleArn,
-			IamRoleName:                   tempModel.IamRoleName,
-			EventbusName:                  tempModel.EventbusName,
-			EventbusArn:                   tempModel.EventbusArn,
-			CloudTrailBucketName:          tempModel.CloudTrailBucketName,
-			CloudTrailRegion:              tempModel.RealtimeVisibility.CloudTrailRegion,
-			DspmRoleArn:                   tempModel.DspmRoleArn,
-			DspmRoleName:                  tempModel.DspmRoleName,
-			VulnerabilityScanningRoleArn:  tempModel.VulnerabilityScanningRoleArn,
-			VulnerabilityScanningRoleName: tempModel.VulnerabilityScanningRoleName,
-			AgentlessScanningRoleName:     tempModel.AgentlessScanningRoleName,
-			AssetInventoryEnabled:         tempModel.AssetInventory.Enabled,
-			RealtimeVisibilityEnabled:     tempModel.RealtimeVisibility.Enabled,
-			IDPEnabled:                    tempModel.IDP.Enabled,
-			SensorManagementEnabled:       tempModel.SensorManagement.Enabled,
-			DSPMEnabled:                   tempModel.DSPM.Enabled,
-			VulnerabilityScanningEnabled:  tempModel.VulnerabilityScanning.Enabled,
-			ResourceNamePrefix:            types.StringValue(a.ResourceNamePrefix),
-			ResourceNameSuffix:            types.StringValue(a.ResourceNameSuffix),
+			AccountID:                        tempModel.AccountID,
+			OrganizationID:                   tempModel.OrganizationID,
+			TargetOUs:                        tempModel.TargetOUs,
+			IsOrgManagementAccount:           tempModel.IsOrgManagementAccount,
+			AccountType:                      tempModel.AccountType,
+			ExternalID:                       tempModel.ExternalID,
+			IntermediateRoleArn:              tempModel.IntermediateRoleArn,
+			IamRoleArn:                       tempModel.IamRoleArn,
+			IamRoleName:                      tempModel.IamRoleName,
+			EventbusName:                     tempModel.EventbusName,
+			EventbusArn:                      tempModel.EventbusArn,
+			CloudTrailBucketName:             tempModel.CloudTrailBucketName,
+			CloudTrailRegion:                 tempModel.RealtimeVisibility.CloudTrailRegion,
+			DspmRoleArn:                      tempModel.DspmRoleArn,
+			DspmRoleName:                     tempModel.DspmRoleName,
+			VulnerabilityScanningRoleArn:     tempModel.VulnerabilityScanningRoleArn,
+			VulnerabilityScanningRoleName:    tempModel.VulnerabilityScanningRoleName,
+			AgentlessScanningRoleName:        tempModel.AgentlessScanningRoleName,
+			AgentlessScanningScannerRoleName: tempModel.AgentlessScanningScannerRoleName,
+			AgentlessUseResourceAffixes:      tempModel.AgentlessUseResourceAffixes,
+			AssetInventoryEnabled:            tempModel.AssetInventory.Enabled,
+			RealtimeVisibilityEnabled:        tempModel.RealtimeVisibility.Enabled,
+			IDPEnabled:                       tempModel.IDP.Enabled,
+			SensorManagementEnabled:          tempModel.SensorManagement.Enabled,
+			DSPMEnabled:                      tempModel.DSPM.Enabled,
+			VulnerabilityScanningEnabled:     tempModel.VulnerabilityScanning.Enabled,
+			ResourceNamePrefix:               types.StringValue(a.ResourceNamePrefix),
+			ResourceNameSuffix:               types.StringValue(a.ResourceNameSuffix),
 		}
 
 		data.Accounts = append(data.Accounts, m)

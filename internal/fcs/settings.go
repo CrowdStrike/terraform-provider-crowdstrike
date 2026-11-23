@@ -3,6 +3,7 @@ package fcs
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/crowdstrike/terraform-provider-crowdstrike/internal/framework/flex"
@@ -26,6 +27,12 @@ type settingsConfig struct {
 	DSPMHostAccountID                  types.String
 	VulnerabilityScanningRoleName      types.String
 	VulnerabilityScanningHostAccountID types.String
+
+	// Agentless scanning scanner roles and the marker of registrations whose agentless resource names
+	// carry the registration prefix/suffix and a random string.
+	DSPMScannerRoleName                  types.String
+	VulnerabilityScanningScannerRoleName types.String
+	AgentlessUseResourceAffixes          types.Bool
 }
 
 func parseRegionString(ctx context.Context, regionStr string, diags *diag.Diagnostics) types.List {
@@ -69,6 +76,10 @@ func newSettingsConfig(ctx context.Context, settings interface{}, diags *diag.Di
 		DSPMHostAccountID:                  types.StringNull(),
 		VulnerabilityScanningRoleName:      types.StringNull(),
 		VulnerabilityScanningHostAccountID: types.StringNull(),
+
+		DSPMScannerRoleName:                  types.StringNull(),
+		VulnerabilityScanningScannerRoleName: types.StringNull(),
+		AgentlessUseResourceAffixes:          types.BoolNull(),
 	}
 
 	if settings == nil {
@@ -88,6 +99,9 @@ func newSettingsConfig(ctx context.Context, settings interface{}, diags *diag.Di
 		DSPMHostAccountID                  string `mapstructure:"dspm.host.account"`
 		VulnerabilityScanningRole          string `mapstructure:"vulnerability_scanning.role"`
 		VulnerabilityScanningHostAccountID string `mapstructure:"vulnerability_scanning.host.account"`
+		DSPMScannerRole                    string `mapstructure:"dspm.scanner.role"`
+		VulnerabilityScanningScannerRole   string `mapstructure:"vulnerability_scanning.scanner.role"`
+		AgentlessUseResourceAffixes        string `mapstructure:"agentless.use_resource_affixes"`
 	}
 
 	if err := mapstructure.Decode(settings, &raw); err != nil {
@@ -113,6 +127,12 @@ func newSettingsConfig(ctx context.Context, settings interface{}, diags *diag.Di
 	config.DSPMHostAccountID = flex.StringValueToFramework(raw.DSPMHostAccountID)
 	config.VulnerabilityScanningRoleName = flex.StringValueToFramework(raw.VulnerabilityScanningRole)
 	config.VulnerabilityScanningHostAccountID = flex.StringValueToFramework(raw.VulnerabilityScanningHostAccountID)
+	config.DSPMScannerRoleName = flex.StringValueToFramework(raw.DSPMScannerRole)
+	config.VulnerabilityScanningScannerRoleName = flex.StringValueToFramework(raw.VulnerabilityScanningScannerRole)
+	if raw.AgentlessUseResourceAffixes != "" {
+		useResourceAffixes, _ := strconv.ParseBool(raw.AgentlessUseResourceAffixes)
+		config.AgentlessUseResourceAffixes = types.BoolValue(useResourceAffixes)
+	}
 
 	return config
 }
