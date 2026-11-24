@@ -296,6 +296,18 @@ func TestAccCloudSecurityGroupResource_Validation(t *testing.T) {
 			configFunc:  testAccCloudSecurityGroupResourceConfigEmptyOwners,
 			expectError: regexp.MustCompile("Invalid Attribute Value|list must contain at least 1 elements"),
 		},
+		"empty_aws_filters": {
+			configFunc:  testAccCloudSecurityGroupResourceConfigEmptyAWSFilters,
+			expectError: regexp.MustCompile("Invalid Attribute Combination|At least one attribute out of"),
+		},
+		"empty_azure_filters": {
+			configFunc:  testAccCloudSecurityGroupResourceConfigEmptyAzureFilters,
+			expectError: regexp.MustCompile("Invalid Attribute Combination|At least one attribute out of"),
+		},
+		"empty_gcp_filters": {
+			configFunc:  testAccCloudSecurityGroupResourceConfigEmptyGCPFilters,
+			expectError: regexp.MustCompile(`Incorrect attribute value type|"region" is required`),
+		},
 		"duplicate_registry": {
 			configFunc:  testAccCloudSecurityGroupResourceConfigDuplicateRegistry,
 			expectError: regexp.MustCompile("Found duplicate registry value"),
@@ -609,6 +621,45 @@ resource "crowdstrike_cloud_group" "test" {
 
   aws = {
     account_ids = ["123456789012"]
+  }
+}
+`, rName)
+}
+
+func testAccCloudSecurityGroupResourceConfigEmptyAWSFilters(rName string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_cloud_group" "test" {
+  name = %[1]q
+
+  aws = {
+    account_ids = ["123456789012"]
+    filters     = {}
+  }
+}
+`, rName)
+}
+
+func testAccCloudSecurityGroupResourceConfigEmptyAzureFilters(rName string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_cloud_group" "test" {
+  name = %[1]q
+
+  azure = {
+    account_ids = ["12345678-1234-1234-1234-123456789012"]
+    filters     = {}
+  }
+}
+`, rName)
+}
+
+func testAccCloudSecurityGroupResourceConfigEmptyGCPFilters(rName string) string {
+	return acctest.ProviderConfig + fmt.Sprintf(`
+resource "crowdstrike_cloud_group" "test" {
+  name = %[1]q
+
+  gcp = {
+    account_ids = ["my-gcp-project"]
+    filters     = {}
   }
 }
 `, rName)

@@ -526,7 +526,7 @@ func (r *cloudGroupResource) Schema(
 						},
 					},
 					"filters": schema.SingleNestedAttribute{
-						Description: "Filters for AWS cloud resources",
+						Description: "Filters for AWS cloud resources. At least one of `region` or `tags` must be set.",
 						Optional:    true,
 						Attributes: map[string]schema.Attribute{
 							"region": schema.ListAttribute{
@@ -540,6 +540,7 @@ func (r *cloudGroupResource) Schema(
 									listvalidator.ValueStringsAre(
 										fwvalidators.StringNotWhitespace(),
 									),
+									listvalidator.AtLeastOneOf(path.MatchRelative().AtParent().AtName("tags")),
 								},
 							},
 							"tags": schema.ListAttribute{
@@ -577,7 +578,7 @@ func (r *cloudGroupResource) Schema(
 						},
 					},
 					"filters": schema.SingleNestedAttribute{
-						Description: "Filters for Azure cloud resources",
+						Description: "Filters for Azure cloud resources. At least one of `region` or `tags` must be set.",
 						Optional:    true,
 						Attributes: map[string]schema.Attribute{
 							"region": schema.ListAttribute{
@@ -591,6 +592,7 @@ func (r *cloudGroupResource) Schema(
 									listvalidator.ValueStringsAre(
 										fwvalidators.StringNotWhitespace(),
 									),
+									listvalidator.AtLeastOneOf(path.MatchRelative().AtParent().AtName("tags")),
 								},
 							},
 							"tags": schema.ListAttribute{
@@ -633,7 +635,7 @@ func (r *cloudGroupResource) Schema(
 						Attributes: map[string]schema.Attribute{
 							"region": schema.ListAttribute{
 								Description: "List of GCP regions to include",
-								Optional:    true,
+								Required:    true,
 								ElementType: types.StringType,
 								Validators: []validator.List{
 									listvalidator.SizeAtLeast(1),

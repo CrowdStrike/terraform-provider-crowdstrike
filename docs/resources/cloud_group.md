@@ -194,7 +194,7 @@ resource "crowdstrike_cloud_group" "all_clouds_filtered" {
 Optional:
 
 - `account_ids` (List of String) The cloud account identifiers (AWS account IDs) to include in the group. This field limits access to cloud resources in the specified accounts. When not provided, resources across all accounts in the cloud provider are accessible to the group.
-- `filters` (Attributes) Filters for AWS cloud resources (see [below for nested schema](#nestedatt--aws--filters))
+- `filters` (Attributes) Filters for AWS cloud resources. At least one of `region` or `tags` must be set. (see [below for nested schema](#nestedatt--aws--filters))
 
 <a id="nestedatt--aws--filters"></a>
 ### Nested Schema for `aws.filters`
@@ -212,7 +212,7 @@ Optional:
 Optional:
 
 - `account_ids` (List of String) The cloud account identifiers (Azure subscription IDs) to include in the group. This field limits access to cloud resources in the specified accounts. When not provided, resources across all accounts in the cloud provider are accessible to the group.
-- `filters` (Attributes) Filters for Azure cloud resources (see [below for nested schema](#nestedatt--azure--filters))
+- `filters` (Attributes) Filters for Azure cloud resources. At least one of `region` or `tags` must be set. (see [below for nested schema](#nestedatt--azure--filters))
 
 <a id="nestedatt--azure--filters"></a>
 ### Nested Schema for `azure.filters`
@@ -235,7 +235,7 @@ Optional:
 <a id="nestedatt--gcp--filters"></a>
 ### Nested Schema for `gcp.filters`
 
-Optional:
+Required:
 
 - `region` (List of String) List of GCP regions to include
 
