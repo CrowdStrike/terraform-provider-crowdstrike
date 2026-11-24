@@ -124,7 +124,7 @@ Read-Only:
 - `remote_address` (Attributes List) Remote IP addresses for the rule (see [below for nested schema](#nestedatt--rule_groups--rules--remote_address))
 - `remote_port` (Attributes List) Remote ports for the rule (see [below for nested schema](#nestedatt--rule_groups--rules--remote_port))
 - `service_name` (String) Windows service name that this rule applies to
-- `watch_mode` (Boolean) Whether watch mode (monitoring) is enabled for this rule
+- `watch_mode` (Boolean) Whether watch mode is enabled for this rule. The rule is still enforced; watch mode additionally creates an event each time the rule matches.
 
 <a id="nestedatt--rule_groups--rules--local_address"></a>
 ### Nested Schema for `rule_groups.rules.local_address`
