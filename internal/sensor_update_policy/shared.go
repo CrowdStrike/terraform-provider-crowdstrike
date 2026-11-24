@@ -431,6 +431,18 @@ func stripBuildPrefix(build string) string {
 	return build
 }
 
+// buildToFramework returns the build to store in state for a build the API
+// returned. The current value is kept when it refers to the same build, so a
+// configured full version string such as "7.22.17407" stays in state when the
+// API returns "17407".
+func buildToFramework(current types.String, apiBuild string) types.String {
+	if !current.IsNull() && !current.IsUnknown() &&
+		stripBuildPrefix(current.ValueString()) == apiBuild {
+		return current
+	}
+	return types.StringValue(apiBuild)
+}
+
 // policyBuilds holds the x86 and arm64 builds of a sensor update policy.
 type policyBuilds struct {
 	build      string
