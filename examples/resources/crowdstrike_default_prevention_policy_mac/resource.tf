@@ -30,6 +30,14 @@ resource "crowdstrike_default_prevention_policy_mac" "default" {
     "detection"  = "MODERATE"
     "prevention" = "CAUTIOUS"
   }
+  sensor_anti_malware_user_initiated = {
+    "detection"  = "MODERATE"
+    "prevention" = "CAUTIOUS"
+  }
+  cloud_anti_malware_user_initiated = {
+    "detection"  = "MODERATE"
+    "prevention" = "CAUTIOUS"
+  }
   notify_end_users                             = true
   custom_blocking                              = true
   detect_on_write                              = true
@@ -49,6 +57,7 @@ resource "crowdstrike_default_prevention_policy_mac" "default" {
   empyre_backdoor                              = true
   chopper_webshell                             = true
   suspicious_file_analysis                     = true
+  usb_insertion_triggered_scan                 = true
 }
 
 output "default_prevention_policy_mac" {

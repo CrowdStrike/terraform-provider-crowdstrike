@@ -57,6 +57,14 @@ resource "crowdstrike_default_prevention_policy_mac" "default" {
     "detection"  = "MODERATE"
     "prevention" = "CAUTIOUS"
   }
+  sensor_anti_malware_user_initiated = {
+    "detection"  = "MODERATE"
+    "prevention" = "CAUTIOUS"
+  }
+  cloud_anti_malware_user_initiated = {
+    "detection"  = "MODERATE"
+    "prevention" = "CAUTIOUS"
+  }
   notify_end_users                             = true
   custom_blocking                              = true
   detect_on_write                              = true
@@ -76,6 +84,7 @@ resource "crowdstrike_default_prevention_policy_mac" "default" {
   empyre_backdoor                              = true
   chopper_webshell                             = true
   suspicious_file_analysis                     = true
+  usb_insertion_triggered_scan                 = true
 }
 
 output "default_prevention_policy_mac" {
@@ -94,12 +103,15 @@ output "default_prevention_policy_mac" {
 
 - `chopper_webshell` (Boolean) Whether to enable the setting. Execution of a command shell was blocked and is indicative of the system hosting a Chopper web page.
 - `cloud_adware_and_pup` (Attributes) Use cloud-based machine learning informed by global analysis of executables to detect and prevent adware and potentially unwanted programs (PUP) for your online hosts. (see [below for nested schema](#nestedatt--cloud_adware_and_pup))
+- `cloud_adware_pup_user_initiated` (Attributes) For online hosts running on-demand scans, use cloud-based machine learning informed by global analysis of executables to detect and prevent adware and potentially unwanted programs (PUP). (see [below for nested schema](#nestedatt--cloud_adware_pup_user_initiated))
 - `cloud_anti_malware` (Attributes) Use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware for your online hosts. (see [below for nested schema](#nestedatt--cloud_anti_malware))
+- `cloud_anti_malware_user_initiated` (Attributes) For online hosts running on-demand scans, use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware. (see [below for nested schema](#nestedatt--cloud_anti_malware_user_initiated))
 - `custom_blocking` (Boolean) Whether to enable the setting. Block processes matching hashes that you add to IOC Management with the action set to "Block" or "Block, hide detection".
 - `description` (String) Description of the prevention policy.
 - `detect_non_executables_on_write` (Boolean) Whether to enable the setting. Detect non-executable files, classified as malicious by CrowdStrike’s Intelligence analysts, when they are written to disk.
 - `detect_on_write` (Boolean) Whether to enable the setting. Use machine learning to analyze suspicious files when they're written to disk. To adjust detection sensitivity, change Anti-malware Detection levels in Sensor Machine Learning and Cloud Machine Learning.
 - `empyre_backdoor` (Boolean) Whether to enable the setting. A process with behaviors indicative of the Empyre Backdoor was terminated.
+- `enhanced_ml_for_larger_files` (Boolean) Whether to enable the setting. Expand machine learning's file size coverage. Existing machine learning level settings apply.
 - `enhanced_network_visibility` (Boolean) Whether to enable the setting. Provides enhanced visibility into network activities and detections.
 - `hash_collector` (Boolean) Whether to enable the setting. An attempt to dump a user’s hashed password was blocked.
 - `intelligence_sourced_threats` (Boolean) Whether to enable the setting. Block processes that CrowdStrike Intelligence analysts classify as malicious. These are focused on static hash-based IOCs.
@@ -112,11 +124,15 @@ output "default_prevention_policy_mac" {
 - `retrospective_detections` (Boolean) Whether to enable the setting. Use of tagged binaries to automatically create detections for behaviors which occurred within a lookback period. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.
 - `script_based_execution_monitoring` (Boolean) Whether to enable the setting. Provides visibility into suspicious scripts, including shell and other scripting languages.
 - `sensor_adware_and_pup` (Attributes) For offline and online hosts, use sensor-based machine learning to identify and analyze unknown executables as they run to detect and prevent adware and potentially unwanted programs (PUP). (see [below for nested schema](#nestedatt--sensor_adware_and_pup))
+- `sensor_adware_pup_user_initiated` (Attributes) For offline and online hosts running on-demand scans, use sensor-based machine learning to identify and analyze unknown executables to detect and prevent adware and potentially unwanted programs (PUP). (see [below for nested schema](#nestedatt--sensor_adware_pup_user_initiated))
 - `sensor_anti_malware` (Attributes) For offline and online hosts, use sensor-based machine learning to identify and analyze unknown executables as they run to detect and prevent malware. (see [below for nested schema](#nestedatt--sensor_anti_malware))
+- `sensor_anti_malware_user_initiated` (Attributes) For offline and online hosts running on-demand scans, use sensor-based machine learning to identify and analyze unknown executables to detect and prevent malware. (see [below for nested schema](#nestedatt--sensor_anti_malware_user_initiated))
 - `sensor_tampering_protection` (Boolean) Whether to enable the setting. Blocks attempts to tamper with the sensor. If disabled, the sensor still creates detections for tampering attempts but doesn’t block them. Disabling not recommended.
 - `suspicious_file_analysis` (Boolean) Whether to enable the setting. Upload suspicious files for advanced threat analysis with QuickScan Pro. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.
+- `terminate_non_executables_on_write` (Boolean) Whether to enable the setting. Terminate the process writing a non-executable file, and associated process activity, when the file is classified as malicious by CrowdStrike's Intelligence analysts.
 - `upload_unknown_detection_related_executables` (Boolean) Whether to enable the setting. Upload all unknown detection-related executables for advanced analysis in the cloud. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.
 - `upload_unknown_executables` (Boolean) Whether to enable the setting. Upload all unknown executables for advanced analysis in the cloud. Not supported in US Government clouds (`us-gov-1`, `us-gov-2`); omit this attribute when targeting them.
+- `usb_insertion_triggered_scan` (Boolean) Whether to enable the setting. Start an on-demand scan when an end user inserts a removable media device. To adjust detection sensitivity, change Anti-malware Detection levels in On-Demand Scans Machine Learning.
 - `xpcom_shell` (Boolean) Whether to enable the setting. The execution of an XPCOM shell was blocked.
 
 ### Read-Only
@@ -133,8 +149,26 @@ Required:
 - `prevention` (String) Machine learning level for prevention.
 
 
+<a id="nestedatt--cloud_adware_pup_user_initiated"></a>
+### Nested Schema for `cloud_adware_pup_user_initiated`
+
+Required:
+
+- `detection` (String) Machine learning level for detection.
+- `prevention` (String) Machine learning level for prevention.
+
+
 <a id="nestedatt--cloud_anti_malware"></a>
 ### Nested Schema for `cloud_anti_malware`
+
+Required:
+
+- `detection` (String) Machine learning level for detection.
+- `prevention` (String) Machine learning level for prevention.
+
+
+<a id="nestedatt--cloud_anti_malware_user_initiated"></a>
+### Nested Schema for `cloud_anti_malware_user_initiated`
 
 Required:
 
@@ -151,8 +185,26 @@ Required:
 - `prevention` (String) Machine learning level for prevention.
 
 
+<a id="nestedatt--sensor_adware_pup_user_initiated"></a>
+### Nested Schema for `sensor_adware_pup_user_initiated`
+
+Required:
+
+- `detection` (String) Machine learning level for detection.
+- `prevention` (String) Machine learning level for prevention.
+
+
 <a id="nestedatt--sensor_anti_malware"></a>
 ### Nested Schema for `sensor_anti_malware`
+
+Required:
+
+- `detection` (String) Machine learning level for detection.
+- `prevention` (String) Machine learning level for prevention.
+
+
+<a id="nestedatt--sensor_anti_malware_user_initiated"></a>
+### Nested Schema for `sensor_anti_malware_user_initiated`
 
 Required:
 

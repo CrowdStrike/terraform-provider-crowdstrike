@@ -68,6 +68,7 @@ type preventionPolicyLinuxResourceModel struct {
 	OnWriteScriptFileVisibility          types.Bool   `tfsdk:"on_write_script_file_visibility"`
 	DetectPackageOnWrite                 types.Bool   `tfsdk:"detect_non_executables_on_write"`
 	QuarantinePackageOnWrite             types.Bool   `tfsdk:"quarantine_non_executables_on_write"`
+	TerminateNonExecutablesOnWrite       types.Bool   `tfsdk:"terminate_non_executables_on_write"`
 	ExtendedCommandLineVisibility        types.Bool   `tfsdk:"extended_command_line_visibility"`
 	DBusVisibility                       types.Bool   `tfsdk:"dbus_visibility"`
 	EnhancePHPVisibility                 types.Bool   `tfsdk:"enhance_php_visibility"`
@@ -530,6 +531,9 @@ func (r *preventionPolicyLinuxResource) assignPreventionSettings(
 	)
 	state.DetectPackageOnWrite = defaultBoolFalse(toggleSettings["DetectPackageOnWrite"])
 	state.QuarantinePackageOnWrite = defaultBoolFalse(toggleSettings["QuarantinePackageOnWrite"])
+	state.TerminateNonExecutablesOnWrite = defaultBoolFalse(
+		toggleSettings["TerminateNonExecutablesOnWrite"],
+	)
 	state.ExtendedCommandLineVisibility = defaultBoolFalse(
 		toggleSettings["ExtendedCommandLineVisibility"],
 	)
@@ -596,6 +600,7 @@ func (r *preventionPolicyLinuxResource) generatePreventionSettings(
 		"OnWriteScriptFileVisibility":          config.OnWriteScriptFileVisibility,
 		"DetectPackageOnWrite":                 config.DetectPackageOnWrite,
 		"QuarantinePackageOnWrite":             config.QuarantinePackageOnWrite,
+		"TerminateNonExecutablesOnWrite":       config.TerminateNonExecutablesOnWrite,
 		"ExtendedCommandLineVisibility":        config.ExtendedCommandLineVisibility,
 		"DBusVisibility":                       config.DBusVisibility,
 		"EnhancePHPVisibility":                 config.EnhancePHPVisibility,

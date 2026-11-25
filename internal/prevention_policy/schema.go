@@ -326,6 +326,12 @@ func generateWindowsSchema(defaultPolicy bool) schema.Schema {
 			"on_write_script_file_visibility": toggleAttribute(
 				"Provides improved visibility into various script files being written to disk in addition to clouding a portion of their content.",
 			),
+			"on_write_suspicious_file_content_visibility": toggleAttribute(
+				"Provides improved visibility of content within known suspicious files of interest in addition to clouding a portion of their content.",
+			),
+			"terminate_non_executables_on_write": toggleAttribute(
+				"Terminate the process writing a non-executable file, and associated process activity, when the file is classified as malicious by CrowdStrike's Intelligence analysts.",
+			),
 			"quarantine_and_security_center_registration": toggleAttribute(
 				"Quarantine executable files after they’re prevented by NGAV. When this is enabled, we recommend setting anti-malware prevention levels to Moderate or higher and not using other antivirus solutions. CrowdStrike Falcon registers with Windows Security Center, disabling Windows Defender.",
 			),
@@ -502,6 +508,27 @@ func generateMacSchema(defaultPolicy bool) schema.Schema {
 			),
 			"sensor_adware_and_pup": mlSLiderAttribute(
 				"For offline and online hosts, use sensor-based machine learning to identify and analyze unknown executables as they run to detect and prevent adware and potentially unwanted programs (PUP).",
+			),
+			"sensor_anti_malware_user_initiated": mlSLiderAttribute(
+				"For offline and online hosts running on-demand scans, use sensor-based machine learning to identify and analyze unknown executables to detect and prevent malware.",
+			),
+			"sensor_adware_pup_user_initiated": mlSLiderAttribute(
+				"For offline and online hosts running on-demand scans, use sensor-based machine learning to identify and analyze unknown executables to detect and prevent adware and potentially unwanted programs (PUP).",
+			),
+			"cloud_anti_malware_user_initiated": mlSLiderAttribute(
+				"For online hosts running on-demand scans, use cloud-based machine learning informed by global analysis of executables to detect and prevent known malware.",
+			),
+			"cloud_adware_pup_user_initiated": mlSLiderAttribute(
+				"For online hosts running on-demand scans, use cloud-based machine learning informed by global analysis of executables to detect and prevent adware and potentially unwanted programs (PUP).",
+			),
+			"usb_insertion_triggered_scan": toggleAttribute(
+				"Start an on-demand scan when an end user inserts a removable media device. To adjust detection sensitivity, change Anti-malware Detection levels in On-Demand Scans Machine Learning.",
+			),
+			"enhanced_ml_for_larger_files": toggleAttribute(
+				"Expand machine learning's file size coverage. Existing machine learning level settings apply.",
+			),
+			"terminate_non_executables_on_write": toggleAttribute(
+				"Terminate the process writing a non-executable file, and associated process activity, when the file is classified as malicious by CrowdStrike's Intelligence analysts.",
 			),
 			"notify_end_users": toggleAttribute(
 				"Show a pop-up notification to the end user when the Falcon sensor blocks, kills, or quarantines. See these messages in Console.app by searching for Process: Falcon Notifications.",
@@ -686,6 +713,9 @@ func generateLinuxSchema(defaultPolicy bool) schema.Schema {
 			),
 			"quarantine_non_executables_on_write": toggleAttribute(
 				"Quarantine non-executable files, classified as malicious by CrowdStrike’s Intelligence analysts, when they are written to disk. Requires detect_non_executables_on_write and quarantine to be enabled.",
+			),
+			"terminate_non_executables_on_write": toggleAttribute(
+				"Terminate the process writing a non-executable file, and associated process activity, when the file is classified as malicious by CrowdStrike's Intelligence analysts.",
 			),
 			"extended_command_line_visibility": toggleAttribute(
 				"Allows the sensor to monitor full CLI commands that include pipes and redirects. This is applicable only for User mode.",

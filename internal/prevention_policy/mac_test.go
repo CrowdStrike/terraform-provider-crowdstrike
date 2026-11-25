@@ -80,6 +80,9 @@ func TestAccPreventionPolicyMac_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhanced_network_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("suspicious_file_analysis"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("retrospective_detections"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("usb_insertion_triggered_scan"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhanced_ml_for_larger_files"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("terminate_non_executables_on_write"), knownvalue.Bool(false)),
 					// ml slider defaults (DISABLED)
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_anti_malware").AtMapKey("detection"), knownvalue.StringExact("DISABLED")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_anti_malware").AtMapKey("prevention"), knownvalue.StringExact("DISABLED")),
@@ -89,6 +92,14 @@ func TestAccPreventionPolicyMac_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_anti_malware").AtMapKey("prevention"), knownvalue.StringExact("DISABLED")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_adware_and_pup").AtMapKey("detection"), knownvalue.StringExact("DISABLED")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_adware_and_pup").AtMapKey("prevention"), knownvalue.StringExact("DISABLED")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_anti_malware_user_initiated").AtMapKey("detection"), knownvalue.StringExact("DISABLED")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_anti_malware_user_initiated").AtMapKey("prevention"), knownvalue.StringExact("DISABLED")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_adware_pup_user_initiated").AtMapKey("detection"), knownvalue.StringExact("DISABLED")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_adware_pup_user_initiated").AtMapKey("prevention"), knownvalue.StringExact("DISABLED")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_anti_malware_user_initiated").AtMapKey("detection"), knownvalue.StringExact("DISABLED")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_anti_malware_user_initiated").AtMapKey("prevention"), knownvalue.StringExact("DISABLED")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_adware_pup_user_initiated").AtMapKey("detection"), knownvalue.StringExact("DISABLED")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_adware_pup_user_initiated").AtMapKey("prevention"), knownvalue.StringExact("DISABLED")),
 				},
 			},
 			{
@@ -121,6 +132,9 @@ func TestAccPreventionPolicyMac_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("kc_password_decoded"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("hash_collector"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("suspicious_file_analysis"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("usb_insertion_triggered_scan"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhanced_ml_for_larger_files"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("terminate_non_executables_on_write"), knownvalue.Bool(true)),
 					// ml sliders changed
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_anti_malware").AtMapKey("detection"), knownvalue.StringExact("MODERATE")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_anti_malware").AtMapKey("prevention"), knownvalue.StringExact("CAUTIOUS")),
@@ -130,6 +144,14 @@ func TestAccPreventionPolicyMac_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_anti_malware").AtMapKey("prevention"), knownvalue.StringExact("CAUTIOUS")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_adware_and_pup").AtMapKey("detection"), knownvalue.StringExact("EXTRA_AGGRESSIVE")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_adware_and_pup").AtMapKey("prevention"), knownvalue.StringExact("AGGRESSIVE")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_anti_malware_user_initiated").AtMapKey("detection"), knownvalue.StringExact("MODERATE")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_anti_malware_user_initiated").AtMapKey("prevention"), knownvalue.StringExact("CAUTIOUS")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_adware_pup_user_initiated").AtMapKey("detection"), knownvalue.StringExact("AGGRESSIVE")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_adware_pup_user_initiated").AtMapKey("prevention"), knownvalue.StringExact("MODERATE")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_anti_malware_user_initiated").AtMapKey("detection"), knownvalue.StringExact("AGGRESSIVE")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_anti_malware_user_initiated").AtMapKey("prevention"), knownvalue.StringExact("CAUTIOUS")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_adware_pup_user_initiated").AtMapKey("detection"), knownvalue.StringExact("MODERATE")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_adware_pup_user_initiated").AtMapKey("prevention"), knownvalue.StringExact("CAUTIOUS")),
 				},
 			},
 			{
@@ -161,6 +183,9 @@ func TestAccPreventionPolicyMac_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("hash_collector"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhanced_network_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("suspicious_file_analysis"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("usb_insertion_triggered_scan"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhanced_ml_for_larger_files"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("terminate_non_executables_on_write"), knownvalue.Bool(false)),
 					// ml sliders back to defaults
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_anti_malware").AtMapKey("detection"), knownvalue.StringExact("DISABLED")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_anti_malware").AtMapKey("prevention"), knownvalue.StringExact("DISABLED")),
@@ -170,6 +195,14 @@ func TestAccPreventionPolicyMac_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_anti_malware").AtMapKey("prevention"), knownvalue.StringExact("DISABLED")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_adware_and_pup").AtMapKey("detection"), knownvalue.StringExact("DISABLED")),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_adware_and_pup").AtMapKey("prevention"), knownvalue.StringExact("DISABLED")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_anti_malware_user_initiated").AtMapKey("detection"), knownvalue.StringExact("DISABLED")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_anti_malware_user_initiated").AtMapKey("prevention"), knownvalue.StringExact("DISABLED")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_adware_pup_user_initiated").AtMapKey("detection"), knownvalue.StringExact("DISABLED")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("sensor_adware_pup_user_initiated").AtMapKey("prevention"), knownvalue.StringExact("DISABLED")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_anti_malware_user_initiated").AtMapKey("detection"), knownvalue.StringExact("DISABLED")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_anti_malware_user_initiated").AtMapKey("prevention"), knownvalue.StringExact("DISABLED")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_adware_pup_user_initiated").AtMapKey("detection"), knownvalue.StringExact("DISABLED")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cloud_adware_pup_user_initiated").AtMapKey("prevention"), knownvalue.StringExact("DISABLED")),
 				},
 			},
 			{
@@ -262,6 +295,9 @@ resource "crowdstrike_prevention_policy_mac" "test" {
   kc_password_decoded                        = true
   hash_collector                             = true
   suspicious_file_analysis                   = true
+  usb_insertion_triggered_scan               = true
+  enhanced_ml_for_larger_files               = true
+  terminate_non_executables_on_write         = true
 
   cloud_anti_malware = {
     detection  = "MODERATE"
@@ -281,6 +317,26 @@ resource "crowdstrike_prevention_policy_mac" "test" {
   sensor_adware_and_pup = {
     detection  = "EXTRA_AGGRESSIVE"
     prevention = "AGGRESSIVE"
+  }
+
+  sensor_anti_malware_user_initiated = {
+    detection  = "MODERATE"
+    prevention = "CAUTIOUS"
+  }
+
+  sensor_adware_pup_user_initiated = {
+    detection  = "AGGRESSIVE"
+    prevention = "MODERATE"
+  }
+
+  cloud_anti_malware_user_initiated = {
+    detection  = "AGGRESSIVE"
+    prevention = "CAUTIOUS"
+  }
+
+  cloud_adware_pup_user_initiated = {
+    detection  = "MODERATE"
+    prevention = "CAUTIOUS"
   }
 }`, name)
 }

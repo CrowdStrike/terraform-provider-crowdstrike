@@ -80,6 +80,8 @@ type preventionPolicyWindowsResourceModel struct {
 	DetectPackageOnWrite                       types.Bool   `tfsdk:"detect_non_executables_on_write"`
 	QuarantinePackageOnWrite                   types.Bool   `tfsdk:"quarantine_non_executables_on_write"`
 	OnWriteScriptFileVisibility                types.Bool   `tfsdk:"on_write_script_file_visibility"`
+	OnWriteSuspiciousFileContentVisibility     types.Bool   `tfsdk:"on_write_suspicious_file_content_visibility"`
+	TerminateNonExecutablesOnWrite             types.Bool   `tfsdk:"terminate_non_executables_on_write"`
 	NextGenAV                                  types.Bool   `tfsdk:"quarantine_and_security_center_registration"`
 	NextGenAVQuarantineOnRemovableMedia        types.Bool   `tfsdk:"quarantine_on_removable_media"`
 	MicrosoftOfficeFileSuspiciousMacroRemoval  types.Bool   `tfsdk:"microsoft_office_file_suspicious_macro_removal"`
@@ -785,6 +787,12 @@ func (r *preventionPolicyWindowsResource) assignPreventionSettings(
 	state.OnWriteScriptFileVisibility = defaultBoolFalse(
 		toggleSettings["OnWriteScriptFileVisibility"],
 	)
+	state.OnWriteSuspiciousFileContentVisibility = defaultBoolFalse(
+		toggleSettings["OnWriteSuspiciousFileContentVisibility"],
+	)
+	state.TerminateNonExecutablesOnWrite = defaultBoolFalse(
+		toggleSettings["TerminateNonExecutablesOnWrite"],
+	)
 	state.NextGenAV = defaultBoolFalse(toggleSettings["NextGenAV"])
 	state.NextGenAVQuarantineOnRemovableMedia = defaultBoolFalse(
 		toggleSettings["NextGenAVQuarantineOnRemovableMedia"],
@@ -964,6 +972,8 @@ func (r *preventionPolicyWindowsResource) generatePreventionSettings(
 		"DetectPackageOnWrite":                      config.DetectPackageOnWrite,
 		"QuarantinePackageOnWrite":                  config.QuarantinePackageOnWrite,
 		"OnWriteScriptFileVisibility":               config.OnWriteScriptFileVisibility,
+		"OnWriteSuspiciousFileContentVisibility":    config.OnWriteSuspiciousFileContentVisibility,
+		"TerminateNonExecutablesOnWrite":            config.TerminateNonExecutablesOnWrite,
 		"NextGenAV":                                 config.NextGenAV,
 		"NextGenAVQuarantineOnRemovableMedia":       config.NextGenAVQuarantineOnRemovableMedia,
 		"MicrosoftOfficeFileSuspiciousMacroRemoval": config.MicrosoftOfficeFileSuspiciousMacroRemoval,
