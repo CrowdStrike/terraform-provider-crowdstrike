@@ -98,6 +98,7 @@ type agentlessScanningSettingsModel struct {
 	NetworkConfigurationType types.String `tfsdk:"network_configuration_type"`
 	CustomNetwork            types.Object `tfsdk:"custom_network"`
 	Infra                    types.Map    `tfsdk:"infra"`
+	DSPMSettings             types.Object `tfsdk:"dspm_settings"`
 }
 
 func (d *agentlessScanningSettingsModel) AttributeTypes() map[string]attr.Type {
@@ -110,6 +111,7 @@ func (d *agentlessScanningSettingsModel) AttributeTypes() map[string]attr.Type {
 		"network_configuration_type": types.StringType,
 		"custom_network":             types.ObjectType{AttrTypes: (&networkConfigModel{}).AttributeTypes()},
 		"infra":                      types.MapType{ElemType: types.ObjectType{AttrTypes: (&infraProjectModel{}).AttributeTypes()}},
+		"dspm_settings":              types.ObjectType{AttrTypes: (&dspmSettingsModel{}).AttributeTypes()},
 	}
 }
 
@@ -118,6 +120,31 @@ func (d *agentlessScanningSettingsModel) ToObject(ctx context.Context) (types.Ob
 }
 
 func (d *agentlessScanningSettingsModel) FromObject(ctx context.Context, obj types.Object) diag.Diagnostics {
+	return obj.As(ctx, d, basetypes.ObjectAsOptions{})
+}
+
+// DSPM-only settings: sent in dspm_settings, never in vulnerability_scanning_settings.
+type dspmSettingsModel struct {
+	GCSAccess      types.Bool `tfsdk:"gcs_access"`
+	BigQueryAccess types.Bool `tfsdk:"bigquery_access"`
+	CloudSQLAccess types.Bool `tfsdk:"cloudsql_access"`
+	DiskAccess     types.Bool `tfsdk:"disk_access"`
+}
+
+func (d *dspmSettingsModel) AttributeTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"gcs_access":      types.BoolType,
+		"bigquery_access": types.BoolType,
+		"cloudsql_access": types.BoolType,
+		"disk_access":     types.BoolType,
+	}
+}
+
+func (d *dspmSettingsModel) ToObject(ctx context.Context) (types.Object, diag.Diagnostics) {
+	return types.ObjectValueFrom(ctx, d.AttributeTypes(), d)
+}
+
+func (d *dspmSettingsModel) FromObject(ctx context.Context, obj types.Object) diag.Diagnostics {
 	return obj.As(ctx, d, basetypes.ObjectAsOptions{})
 }
 
@@ -339,6 +366,28 @@ func (r *cloudGoogleRegistrationSettingsResource) Schema(
 							},
 						},
 					},
+					"dspm_settings": schema.SingleNestedAttribute{
+						Optional:    true,
+						Description: "DSPM-only settings. Set only when DSPM is enabled on the registration.",
+						Attributes: map[string]schema.Attribute{
+							"gcs_access": schema.BoolAttribute{
+								Optional:    true,
+								Description: "Whether permissions for DSPM GCS bucket scanning are applied.",
+							},
+							"bigquery_access": schema.BoolAttribute{
+								Optional:    true,
+								Description: "Whether permissions for DSPM BigQuery dataset scanning are applied.",
+							},
+							"cloudsql_access": schema.BoolAttribute{
+								Optional:    true,
+								Description: "Whether permissions for DSPM Cloud SQL instance scanning are applied.",
+							},
+							"disk_access": schema.BoolAttribute{
+								Optional:    true,
+								Description: "Whether permissions for DSPM VM disk scanning are applied.",
+							},
+						},
+					},
 				},
 			},
 		},
@@ -385,7 +434,7 @@ func (m *cloudGoogleRegistrationSettingsModel) wrap(
 	if agentlessSettings == nil {
 		agentlessSettings = registration.VulnerabilityScanningSettings
 	}
-	d := m.wrapAgentlessScanningSettings(ctx, agentlessSettings)
+	d := m.wrapAgentlessScanningSettings(ctx, agentlessSettings, registration.DspmSettings)
 	diags.Append(d...)
 
 	return diags
@@ -393,9 +442,11 @@ func (m *cloudGoogleRegistrationSettingsModel) wrap(
 
 // Maps BE agentless settings to TF state.
 // Both dspm_settings and vulnerability_scanning_settings share the same infra — we read from whichever is set.
+// dspmSettings is the DSPM feature's own settings, the only source of the DSPM-only values.
 func (m *cloudGoogleRegistrationSettingsModel) wrapAgentlessScanningSettings(
 	ctx context.Context,
 	agentlessScanningSettings *models.GcpAgentlessScanningSettings,
+	dspmSettings *models.GcpAgentlessScanningSettings,
 ) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -478,11 +529,41 @@ func (m *cloudGoogleRegistrationSettingsModel) wrapAgentlessScanningSettings(
 		settings.Infra = types.MapNull(types.ObjectType{AttrTypes: (&infraProjectModel{}).AttributeTypes()})
 	}
 
+	dspmObj, d := flattenDSPMSettings(ctx, dspmSettings)
+	diags.Append(d...)
+	settings.DSPMSettings = dspmObj
+
 	settingsObj, d := settings.ToObject(ctx)
 	diags.Append(d...)
 	m.AgentlessScanningSettings = settingsObj
 
 	return diags
+}
+
+// flattenDSPMSettings returns null when the backend holds none of the DSPM-only values,
+// so a config without dspm_settings shows no drift.
+func flattenDSPMSettings(
+	ctx context.Context,
+	dspmSettings *models.GcpAgentlessScanningSettings,
+) (types.Object, diag.Diagnostics) {
+	null := types.ObjectNull((&dspmSettingsModel{}).AttributeTypes())
+	if dspmSettings == nil || dspmSettings.UserInputs == nil {
+		return null, nil
+	}
+
+	ui := dspmSettings.UserInputs
+	if ui.GcsAccess == nil && ui.BigqueryAccess == nil && ui.CloudsqlAccess == nil && ui.DiskAccess == nil {
+		return null, nil
+	}
+
+	dspm := dspmSettingsModel{
+		GCSAccess:      types.BoolPointerValue(ui.GcsAccess),
+		BigQueryAccess: types.BoolPointerValue(ui.BigqueryAccess),
+		CloudSQLAccess: types.BoolPointerValue(ui.CloudsqlAccess),
+		DiskAccess:     types.BoolPointerValue(ui.DiskAccess),
+	}
+
+	return dspm.ToObject(ctx)
 }
 
 func (r *cloudGoogleRegistrationSettingsResource) Create(
@@ -926,6 +1007,7 @@ func (r *cloudGoogleRegistrationSettingsResource) updateRegistration(
 
 // marshalAgentlessScanningSettings maps TF state (agentlessScanningSettingsModel) → gofalcon update request.
 // Sends to both dspm_settings and vulnerability_scanning_settings — BE handles routing based on enabled features.
+// The DSPM-only values go to dspm_settings alone.
 func marshalAgentlessScanningSettings(
 	ctx context.Context,
 	settingsObj types.Object,
@@ -1016,8 +1098,28 @@ func marshalAgentlessScanningSettings(
 		Infra:             infraMap,
 	}
 
-	updateReq.DspmSettings = agentlessSettings
 	updateReq.VulnerabilityScanningSettings = agentlessSettings
+
+	dspmUserInputs := *userInputs
+	if !settings.DSPMSettings.IsNull() && !settings.DSPMSettings.IsUnknown() {
+		var dspm dspmSettingsModel
+		diags.Append(dspm.FromObject(ctx, settings.DSPMSettings)...)
+		if diags.HasError() {
+			return diags
+		}
+
+		dspmUserInputs.GcsAccess = dspm.GCSAccess.ValueBoolPointer()
+		dspmUserInputs.BigqueryAccess = dspm.BigQueryAccess.ValueBoolPointer()
+		dspmUserInputs.CloudsqlAccess = dspm.CloudSQLAccess.ValueBoolPointer()
+		dspmUserInputs.DiskAccess = dspm.DiskAccess.ValueBoolPointer()
+	}
+
+	updateReq.DspmSettings = &models.GcpAgentlessScanningSettings{
+		WifPrincipal:      agentlessSettings.WifPrincipal,
+		DeploymentVersion: agentlessSettings.DeploymentVersion,
+		UserInputs:        &dspmUserInputs,
+		Infra:             infraMap,
+	}
 
 	return diags
 }

@@ -178,7 +178,22 @@ func TestAccCloudGoogleRegistrationSettingsResourceAgentlessScanning(t *testing.
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(settingsResourceName, "agentless_scanning_settings.regions.#", "2"),
+					resource.TestCheckNoResourceAttr(settingsResourceName, "agentless_scanning_settings.dspm_settings"),
 				),
+			},
+			{
+				Config: acctest.ConfigCompose(
+					registrationConfig,
+					testAccCloudGoogleRegistrationSettingsConfig_agentlessScanningWithDSPMSettings(projectID),
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(settingsResourceName, tfjsonpath.New("agentless_scanning_settings").AtMapKey("dspm_settings"), knownvalue.ObjectExact(map[string]knownvalue.Check{
+						"gcs_access":      knownvalue.Bool(false),
+						"bigquery_access": knownvalue.Bool(true),
+						"cloudsql_access": knownvalue.Bool(true),
+						"disk_access":     knownvalue.Null(),
+					})),
+				},
 			},
 		},
 	})
@@ -447,6 +462,42 @@ resource "crowdstrike_cloud_google_registration_settings" "test" {
           }
         }
       }
+    }
+  }
+
+  depends_on = [crowdstrike_cloud_google_registration.test]
+}
+`, projectID)
+}
+
+func testAccCloudGoogleRegistrationSettingsConfig_agentlessScanningWithDSPMSettings(projectID string) string {
+	return fmt.Sprintf(`
+resource "crowdstrike_cloud_google_registration_settings" "test" {
+  registration_id = crowdstrike_cloud_google_registration.test.id
+  wif_pool_name   = "test-pool"
+  wif_provider_name = "test-provider"
+
+  agentless_scanning_settings = {
+    wif_principal              = "principal://test-wif-principal"
+    deployment_version         = "1.4.0"
+    regions                    = ["us-east1"]
+    network_configuration_type = "managed"
+
+    infra = {
+      %[1]q = {
+        scanner_sa_email               = "scanner@test.iam.gserviceaccount.com"
+        client_credentials_secret_name = "csscanning-falcon-credentials"
+        network = {
+          vpc_name = "test-vpc"
+          subnets  = { "us-east1" = "test-subnet-us-east1" }
+        }
+      }
+    }
+
+    dspm_settings = {
+      gcs_access      = false
+      bigquery_access = true
+      cloudsql_access = true
     }
   }
 
