@@ -78,6 +78,7 @@ func TestAccPreventionPolicyLinux_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("on_write_script_file_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("detect_non_executables_on_write"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("quarantine_non_executables_on_write"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("terminate_non_executables_on_write"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("extended_command_line_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("dbus_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhance_php_visibility"), knownvalue.Bool(false)),
@@ -123,6 +124,7 @@ func TestAccPreventionPolicyLinux_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("on_write_script_file_visibility"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("detect_non_executables_on_write"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("quarantine_non_executables_on_write"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("terminate_non_executables_on_write"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("extended_command_line_visibility"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("dbus_visibility"), knownvalue.Bool(true)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhance_php_visibility"), knownvalue.Bool(true)),
@@ -168,6 +170,7 @@ func TestAccPreventionPolicyLinux_update(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("on_write_script_file_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("detect_non_executables_on_write"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("quarantine_non_executables_on_write"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("terminate_non_executables_on_write"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("extended_command_line_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("dbus_visibility"), knownvalue.Bool(false)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("enhance_php_visibility"), knownvalue.Bool(false)),
@@ -287,6 +290,7 @@ resource "crowdstrike_prevention_policy_linux" "test" {
   on_write_script_file_visibility              = true
   detect_non_executables_on_write               = true
   quarantine_non_executables_on_write          = true
+  terminate_non_executables_on_write           = true
   extended_command_line_visibility             = true
   dbus_visibility                              = true
   enhance_php_visibility                       = true

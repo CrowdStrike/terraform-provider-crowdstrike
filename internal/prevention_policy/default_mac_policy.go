@@ -64,6 +64,15 @@ type defaultPreventionPolicyMacResourceModel struct {
 	EnhancedNetworkVisibility          types.Bool   `tfsdk:"enhanced_network_visibility"`
 	SuspiciousFileAnalysis             types.Bool   `tfsdk:"suspicious_file_analysis"`
 	RetrospectiveDetections            types.Bool   `tfsdk:"retrospective_detections"`
+	MLLargeFileHandling                types.Bool   `tfsdk:"enhanced_ml_for_larger_files"`
+	TerminateNonExecutablesOnWrite     types.Bool   `tfsdk:"terminate_non_executables_on_write"`
+
+	// On-demand scan settings.
+	OnSensorMLSliderForSensorEndUserScans         types.Object `tfsdk:"sensor_anti_malware_user_initiated"`
+	OnSensorMLSliderForPupAdwareCloudEndUserScans types.Object `tfsdk:"sensor_adware_pup_user_initiated"`
+	OnSensorMLSliderForCloudEndUserScans          types.Object `tfsdk:"cloud_anti_malware_user_initiated"`
+	CloudMLSliderForPupAdwareCloudEndUserScans    types.Object `tfsdk:"cloud_adware_pup_user_initiated"`
+	USBInsertionTriggeredScan                     types.Bool   `tfsdk:"usb_insertion_triggered_scan"`
 }
 
 // wrap transforms Go values to their terraform wrapped values.
@@ -111,6 +120,9 @@ func (m *defaultPreventionPolicyMacResourceModel) generatePreventionSettings(ctx
 		"EnhancedNetworkVisibilityMac":       m.EnhancedNetworkVisibility,
 		"SuspiciousFileAnalysis":             m.SuspiciousFileAnalysis,
 		"RetrospectiveDetections":            m.RetrospectiveDetections,
+		"USBInsertionTriggeredScan":          m.USBInsertionTriggeredScan,
+		"ML Large File Handling":             m.MLLargeFileHandling,
+		"TerminateNonExecutablesOnWrite":     m.TerminateNonExecutablesOnWrite,
 	}
 
 	mlSliderSettings := map[string]mlSlider{}
@@ -153,6 +165,46 @@ func (m *defaultPreventionPolicyMacResourceModel) generatePreventionSettings(ctx
 			return preventionSettings, diags
 		}
 		mlSliderSettings["OnSensorMLAdwarePUPSlider"] = slider
+	}
+
+	if !m.OnSensorMLSliderForSensorEndUserScans.IsNull() {
+		var slider mlSlider
+		diagsSlider := m.OnSensorMLSliderForSensorEndUserScans.As(ctx, &slider, basetypes.ObjectAsOptions{})
+		diags.Append(diagsSlider...)
+		if diags.HasError() {
+			return preventionSettings, diags
+		}
+		mlSliderSettings["OnSensorMLSliderForSensorEndUserScans"] = slider
+	}
+
+	if !m.OnSensorMLSliderForPupAdwareCloudEndUserScans.IsNull() {
+		var slider mlSlider
+		diagsSlider := m.OnSensorMLSliderForPupAdwareCloudEndUserScans.As(ctx, &slider, basetypes.ObjectAsOptions{})
+		diags.Append(diagsSlider...)
+		if diags.HasError() {
+			return preventionSettings, diags
+		}
+		mlSliderSettings["OnSensorMLSliderForPupAdwareCloudEndUserScans"] = slider
+	}
+
+	if !m.OnSensorMLSliderForCloudEndUserScans.IsNull() {
+		var slider mlSlider
+		diagsSlider := m.OnSensorMLSliderForCloudEndUserScans.As(ctx, &slider, basetypes.ObjectAsOptions{})
+		diags.Append(diagsSlider...)
+		if diags.HasError() {
+			return preventionSettings, diags
+		}
+		mlSliderSettings["OnSensorMLSliderForCloudEndUserScans"] = slider
+	}
+
+	if !m.CloudMLSliderForPupAdwareCloudEndUserScans.IsNull() {
+		var slider mlSlider
+		diagsSlider := m.CloudMLSliderForPupAdwareCloudEndUserScans.As(ctx, &slider, basetypes.ObjectAsOptions{})
+		diags.Append(diagsSlider...)
+		if diags.HasError() {
+			return preventionSettings, diags
+		}
+		mlSliderSettings["CloudMLSliderForPupAdwareCloudEndUserScans"] = slider
 	}
 
 	for k, v := range toggleSettings {
@@ -215,6 +267,11 @@ func (m *defaultPreventionPolicyMacResourceModel) assignPreventionSettings(
 	m.EnhancedNetworkVisibility = defaultBoolFalse(toggleSettings["EnhancedNetworkVisibilityMac"])
 	m.SuspiciousFileAnalysis = defaultBoolFalse(toggleSettings["SuspiciousFileAnalysis"])
 	m.RetrospectiveDetections = defaultBoolFalse(toggleSettings["RetrospectiveDetections"])
+	m.USBInsertionTriggeredScan = defaultBoolFalse(toggleSettings["USBInsertionTriggeredScan"])
+	m.MLLargeFileHandling = defaultBoolFalse(toggleSettings["ML Large File Handling"])
+	m.TerminateNonExecutablesOnWrite = defaultBoolFalse(
+		toggleSettings["TerminateNonExecutablesOnWrite"],
+	)
 
 	// mlslider settings
 	if slider, ok := mlSliderSettings["CloudAntiMalware"]; ok {
@@ -251,6 +308,42 @@ func (m *defaultPreventionPolicyMacResourceModel) assignPreventionSettings(
 			return diags
 		}
 		m.OnSensorMLAdwarePUPSlider = objValue
+	}
+
+	if slider, ok := mlSliderSettings["OnSensorMLSliderForSensorEndUserScans"]; ok {
+		objValue, diagsObj := types.ObjectValueFrom(ctx, mlSlider{}.AttributeTypes(), slider)
+		diags.Append(diagsObj...)
+		if diags.HasError() {
+			return diags
+		}
+		m.OnSensorMLSliderForSensorEndUserScans = objValue
+	}
+
+	if slider, ok := mlSliderSettings["OnSensorMLSliderForPupAdwareCloudEndUserScans"]; ok {
+		objValue, diagsObj := types.ObjectValueFrom(ctx, mlSlider{}.AttributeTypes(), slider)
+		diags.Append(diagsObj...)
+		if diags.HasError() {
+			return diags
+		}
+		m.OnSensorMLSliderForPupAdwareCloudEndUserScans = objValue
+	}
+
+	if slider, ok := mlSliderSettings["OnSensorMLSliderForCloudEndUserScans"]; ok {
+		objValue, diagsObj := types.ObjectValueFrom(ctx, mlSlider{}.AttributeTypes(), slider)
+		diags.Append(diagsObj...)
+		if diags.HasError() {
+			return diags
+		}
+		m.OnSensorMLSliderForCloudEndUserScans = objValue
+	}
+
+	if slider, ok := mlSliderSettings["CloudMLSliderForPupAdwareCloudEndUserScans"]; ok {
+		objValue, diagsObj := types.ObjectValueFrom(ctx, mlSlider{}.AttributeTypes(), slider)
+		diags.Append(diagsObj...)
+		if diags.HasError() {
+			return diags
+		}
+		m.CloudMLSliderForPupAdwareCloudEndUserScans = objValue
 	}
 
 	return diags
@@ -526,6 +619,50 @@ func (r *defaultPreventionPolicyMacResource) ValidateConfig(
 			resp.Diagnostics.Append(
 				validateMlSlider(
 					"sensor_adware_and_pup",
+					slider,
+				)...)
+		}
+	}
+
+	if utils.IsKnown(config.OnSensorMLSliderForSensorEndUserScans) {
+		var slider mlSlider
+		if diagsSlider := config.OnSensorMLSliderForSensorEndUserScans.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
+			resp.Diagnostics.Append(
+				validateMlSlider(
+					"sensor_anti_malware_user_initiated",
+					slider,
+				)...)
+		}
+	}
+
+	if utils.IsKnown(config.OnSensorMLSliderForPupAdwareCloudEndUserScans) {
+		var slider mlSlider
+		if diagsSlider := config.OnSensorMLSliderForPupAdwareCloudEndUserScans.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
+			resp.Diagnostics.Append(
+				validateMlSlider(
+					"sensor_adware_pup_user_initiated",
+					slider,
+				)...)
+		}
+	}
+
+	if utils.IsKnown(config.OnSensorMLSliderForCloudEndUserScans) {
+		var slider mlSlider
+		if diagsSlider := config.OnSensorMLSliderForCloudEndUserScans.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
+			resp.Diagnostics.Append(
+				validateMlSlider(
+					"cloud_anti_malware_user_initiated",
+					slider,
+				)...)
+		}
+	}
+
+	if utils.IsKnown(config.CloudMLSliderForPupAdwareCloudEndUserScans) {
+		var slider mlSlider
+		if diagsSlider := config.CloudMLSliderForPupAdwareCloudEndUserScans.As(ctx, &slider, basetypes.ObjectAsOptions{}); !diagsSlider.HasError() {
+			resp.Diagnostics.Append(
+				validateMlSlider(
+					"cloud_adware_pup_user_initiated",
 					slider,
 				)...)
 		}

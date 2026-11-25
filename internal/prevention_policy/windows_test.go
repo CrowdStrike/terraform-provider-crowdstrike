@@ -290,6 +290,41 @@ func TestAccPreventionPolicyWindowsResource_nonExecutablesOnWriteValidationError
 	})
 }
 
+func TestAccPreventionPolicyWindowsResource_onWriteToggles(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	resourceName := "crowdstrike_prevention_policy_windows.test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: testAccPreventionPolicyWindowsConfig_nonExecutablesOnWrite(rName, `
+  on_write_suspicious_file_content_visibility = true
+  terminate_non_executables_on_write          = true
+`),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("on_write_suspicious_file_content_visibility"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("terminate_non_executables_on_write"), knownvalue.Bool(true)),
+				},
+			},
+			{
+				Config: testAccPreventionPolicyWindowsConfig_nonExecutablesOnWrite(rName, ""),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("on_write_suspicious_file_content_visibility"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("terminate_non_executables_on_write"), knownvalue.Bool(false)),
+				},
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"last_updated"},
+			},
+		},
+	})
+}
+
 func TestAccPreventionPolicyWindowsResource(t *testing.T) {
 	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
 	resourceName := "crowdstrike_prevention_policy_windows.test"
