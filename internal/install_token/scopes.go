@@ -16,3 +16,17 @@ var apiScopesReadWrite = []scopes.Scope{
 		Write: true,
 	},
 }
+
+// settingsAPIScopes covers the installation token settings: the settings are read
+// through the Installation Tokens API and written through the Installation Tokens
+// Settings API.
+var settingsAPIScopes = []scopes.Scope{
+	{
+		Name: "Installation Tokens",
+		Read: true,
+	},
+	{
+		Name:  "Installation Tokens Settings",
+		Write: true,
+	},
+}
