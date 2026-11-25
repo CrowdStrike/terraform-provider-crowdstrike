@@ -368,7 +368,10 @@ func (r *cloudGoogleRegistrationSettingsResource) Schema(
 					},
 					"dspm_settings": schema.SingleNestedAttribute{
 						Optional:    true,
-						Description: "DSPM-only settings. Set only when DSPM is enabled on the registration.",
+						Description: "DSPM-only settings. Requires DSPM to be enabled on the registration. At least one attribute must be set.",
+						Validators: []validator.Object{
+							validators.AtLeastOneNonEmptyAttribute("gcs_access", "bigquery_access", "cloudsql_access", "disk_access"),
+						},
 						Attributes: map[string]schema.Attribute{
 							"gcs_access": schema.BoolAttribute{
 								Optional:    true,
@@ -582,6 +585,10 @@ func (r *cloudGoogleRegistrationSettingsResource) Create(
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	resp.Diagnostics.Append(validateDSPMSettingsFeature(&data, current)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	attachedToAnotherPool := current.WifPoolRegistrationID != ""
 
 	registration, diags := r.updateRegistration(ctx, &data, attachedToAnotherPool)
@@ -672,6 +679,10 @@ func (r *cloudGoogleRegistrationSettingsResource) Update(
 
 	current, diags := r.getRegistration(ctx, data.RegistrationID.ValueString())
 	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(validateDSPMSettingsFeature(&data, current)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -874,6 +885,32 @@ func (r *cloudGoogleRegistrationSettingsResource) isIOAEnabled(
 	}
 
 	return false
+}
+
+// validateDSPMSettingsFeature rejects dspm_settings on a registration without DSPM, where the backend drops them.
+func validateDSPMSettingsFeature(
+	data *cloudGoogleRegistrationSettingsModel,
+	registration *models.DtoGCPRegistration,
+) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if !utils.IsKnown(data.AgentlessScanningSettings) {
+		return diags
+	}
+
+	dspm, ok := data.AgentlessScanningSettings.Attributes()["dspm_settings"]
+	if !ok || dspm.IsNull() || isFeatureEnabled(registration, featureDSPM) {
+		return diags
+	}
+
+	diags.AddAttributeError(
+		path.Root("agentless_scanning_settings").AtName("dspm_settings"),
+		"DSPM Not Enabled",
+		fmt.Sprintf(
+			"dspm_settings requires DSPM to be enabled for registration %s. Enable dspm in the cloud_google_registration resource or remove dspm_settings.",
+			data.RegistrationID.ValueString(),
+		),
+	)
+	return diags
 }
 
 func isFeatureEnabled(registration *models.DtoGCPRegistration, feature string) bool {

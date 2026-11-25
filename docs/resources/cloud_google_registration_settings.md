@@ -92,7 +92,7 @@ Required:
 Optional:
 
 - `custom_network` (Attributes) Custom (BYO) network configuration. Required when network_configuration_type is 'custom'. (see [below for nested schema](#nestedatt--agentless_scanning_settings--custom_network))
-- `dspm_settings` (Attributes) DSPM-only settings. Set only when DSPM is enabled on the registration. (see [below for nested schema](#nestedatt--agentless_scanning_settings--dspm_settings))
+- `dspm_settings` (Attributes) DSPM-only settings. Requires DSPM to be enabled on the registration. At least one attribute must be set. (see [below for nested schema](#nestedatt--agentless_scanning_settings--dspm_settings))
 - `host_project_id` (String) The GCP project hosting shared scanning infrastructure. When set, indicates cross-project mode.
 - `org_id` (String) The GCP organization ID. Required only for folder-scoped registrations.
 

@@ -7,6 +7,10 @@ import (
 	"testing"
 
 	"github.com/crowdstrike/gofalcon/falcon/models"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -140,12 +144,130 @@ func TestFlattenDSPMSettingsNull(t *testing.T) {
 		"no user inputs": {},
 		"no values":      {UserInputs: &models.GcpAgentlessScanningUserInputs{Regions: []string{"us-central1"}}},
 	} {
-		got, diags := flattenDSPMSettings(context.Background(), settings)
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got, diags := flattenDSPMSettings(context.Background(), settings)
+			if diags.HasError() {
+				t.Fatalf("flattenDSPMSettings: %v", diags)
+			}
+			if !got.IsNull() {
+				t.Errorf("expected null, got %v", got)
+			}
+		})
+	}
+}
+
+func TestFlattenDSPMSettingsPartial(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	gcsAccess := false
+	got, diags := flattenDSPMSettings(ctx, &models.GcpAgentlessScanningSettings{
+		UserInputs: &models.GcpAgentlessScanningUserInputs{GcsAccess: &gcsAccess},
+	})
+	if diags.HasError() {
+		t.Fatalf("flattenDSPMSettings: %v", diags)
+	}
+
+	want, diags := (&dspmSettingsModel{
+		GCSAccess:      types.BoolValue(false),
+		BigQueryAccess: types.BoolNull(),
+		CloudSQLAccess: types.BoolNull(),
+		DiskAccess:     types.BoolNull(),
+	}).ToObject(ctx)
+	if diags.HasError() {
+		t.Fatalf("building expected object: %v", diags)
+	}
+	if !got.Equal(want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestValidateDSPMSettingsFeature(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	dspm, diags := (&dspmSettingsModel{
+		GCSAccess:      types.BoolValue(false),
+		BigQueryAccess: types.BoolNull(),
+		CloudSQLAccess: types.BoolNull(),
+		DiskAccess:     types.BoolNull(),
+	}).ToObject(ctx)
+	if diags.HasError() {
+		t.Fatalf("building dspm_settings: %v", diags)
+	}
+	nullDSPM := types.ObjectNull((&dspmSettingsModel{}).AttributeTypes())
+
+	cspm := "cspm"
+	registration := func(features ...string) *models.DtoGCPRegistration {
+		return &models.DtoGCPRegistration{Products: []*models.DomainProductFeatures{{Product: &cspm, Features: features}}}
+	}
+
+	for name, tc := range map[string]struct {
+		dspm         types.Object
+		registration *models.DtoGCPRegistration
+		wantErr      bool
+	}{
+		"vulnerability scanning only": {dspm: dspm, registration: registration(featureVulnerabilityScanning), wantErr: true},
+		"dspm enabled":                {dspm: dspm, registration: registration(featureDSPM)},
+		"no dspm_settings":            {dspm: nullDSPM, registration: registration(featureVulnerabilityScanning)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			data := cloudGoogleRegistrationSettingsModel{
+				RegistrationID:            types.StringValue("reg-1"),
+				AgentlessScanningSettings: testAgentlessScanningSettingsObject(t, tc.dspm),
+			}
+			diags := validateDSPMSettingsFeature(&data, tc.registration)
+			if diags.HasError() != tc.wantErr {
+				t.Fatalf("HasError() = %v, want %v: %v", diags.HasError(), tc.wantErr, diags)
+			}
+			if tc.wantErr && !strings.Contains(diags[0].Detail(), "dspm_settings requires DSPM to be enabled") {
+				t.Errorf("unexpected detail: %s", diags[0].Detail())
+			}
+		})
+	}
+}
+
+func TestDSPMSettingsSchemaRejectsEmptyObject(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	var schemaResp resource.SchemaResponse
+	(&cloudGoogleRegistrationSettingsResource{}).Schema(ctx, resource.SchemaRequest{}, &schemaResp)
+	agentless := schemaResp.Schema.Attributes["agentless_scanning_settings"].(schema.SingleNestedAttribute)
+	dspmAttr := agentless.Attributes["dspm_settings"].(schema.SingleNestedAttribute)
+
+	validate := func(m dspmSettingsModel) bool {
+		obj, diags := m.ToObject(ctx)
 		if diags.HasError() {
-			t.Fatalf("%s: %v", name, diags)
+			t.Fatalf("building dspm_settings: %v", diags)
 		}
-		if !got.IsNull() {
-			t.Errorf("%s: expected null, got %v", name, got)
+		var resp validator.ObjectResponse
+		for _, v := range dspmAttr.Validators {
+			v.ValidateObject(ctx, validator.ObjectRequest{
+				Path:        path.Root("agentless_scanning_settings").AtName("dspm_settings"),
+				ConfigValue: obj,
+			}, &resp)
 		}
+		return resp.Diagnostics.HasError()
+	}
+
+	empty := dspmSettingsModel{
+		GCSAccess:      types.BoolNull(),
+		BigQueryAccess: types.BoolNull(),
+		CloudSQLAccess: types.BoolNull(),
+		DiskAccess:     types.BoolNull(),
+	}
+	if !validate(empty) {
+		t.Error("expected an error for dspm_settings = {}")
+	}
+
+	oneFalse := empty
+	oneFalse.DiskAccess = types.BoolValue(false)
+	if validate(oneFalse) {
+		t.Error("expected no error with disk_access = false")
 	}
 }

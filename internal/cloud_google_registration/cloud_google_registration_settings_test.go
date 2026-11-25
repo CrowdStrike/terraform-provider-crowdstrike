@@ -178,22 +178,135 @@ func TestAccCloudGoogleRegistrationSettingsResourceAgentlessScanning(t *testing.
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(settingsResourceName, "agentless_scanning_settings.regions.#", "2"),
-					resource.TestCheckNoResourceAttr(settingsResourceName, "agentless_scanning_settings.dspm_settings"),
 				),
+			},
+		},
+	})
+}
+
+func TestAccCloudGoogleRegistrationSettingsResourceAgentlessScanningDSPMSettings(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	projectID := generateGoogleCloudProjectID()
+	infraProjectID := generateGoogleCloudProjectID()
+	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
+
+	settingsResourceName := "crowdstrike_cloud_google_registration_settings.test"
+	dspmSettingsPath := tfjsonpath.New("agentless_scanning_settings").AtMapKey("dspm_settings")
+
+	registrationConfig := cloudGoogleRegistrationConfigWithDSPM(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber)
+
+	// Each step's implicit empty-plan check catches the write and read paths disagreeing.
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: acctest.ConfigCompose(
+					registrationConfig,
+					testAccCloudGoogleRegistrationSettingsConfig_agentlessScanningWithDSPMSettings(projectID, `
+    dspm_settings = {}
+`),
+				),
+				ExpectError: regexp.MustCompile(`Empty Object`),
 			},
 			{
 				Config: acctest.ConfigCompose(
 					registrationConfig,
-					testAccCloudGoogleRegistrationSettingsConfig_agentlessScanningWithDSPMSettings(projectID),
+					testAccCloudGoogleRegistrationSettingsConfig_agentlessScanning(projectID),
 				),
 				ConfigStateChecks: []statecheck.StateCheck{
-					statecheck.ExpectKnownValue(settingsResourceName, tfjsonpath.New("agentless_scanning_settings").AtMapKey("dspm_settings"), knownvalue.ObjectExact(map[string]knownvalue.Check{
+					statecheck.ExpectKnownValue(settingsResourceName, dspmSettingsPath, knownvalue.Null()),
+				},
+			},
+			{
+				Config: acctest.ConfigCompose(
+					registrationConfig,
+					testAccCloudGoogleRegistrationSettingsConfig_agentlessScanningWithDSPMSettings(projectID, `
+    dspm_settings = {
+      gcs_access      = false
+      bigquery_access = true
+      cloudsql_access = true
+    }
+`),
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(settingsResourceName, dspmSettingsPath, knownvalue.ObjectExact(map[string]knownvalue.Check{
 						"gcs_access":      knownvalue.Bool(false),
 						"bigquery_access": knownvalue.Bool(true),
 						"cloudsql_access": knownvalue.Bool(true),
 						"disk_access":     knownvalue.Null(),
 					})),
 				},
+			},
+			{
+				Config: acctest.ConfigCompose(
+					registrationConfig,
+					testAccCloudGoogleRegistrationSettingsConfig_agentlessScanningWithDSPMSettings(projectID, `
+    dspm_settings = {
+      gcs_access      = true
+      bigquery_access = true
+      cloudsql_access = true
+    }
+`),
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(settingsResourceName, dspmSettingsPath.AtMapKey("gcs_access"), knownvalue.Bool(true)),
+				},
+			},
+			{
+				Config: acctest.ConfigCompose(
+					registrationConfig,
+					testAccCloudGoogleRegistrationSettingsConfig_agentlessScanningWithDSPMSettings(projectID, `
+    dspm_settings = {
+      gcs_access      = true
+      bigquery_access = true
+    }
+`),
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(settingsResourceName, dspmSettingsPath, knownvalue.ObjectExact(map[string]knownvalue.Check{
+						"gcs_access":      knownvalue.Bool(true),
+						"bigquery_access": knownvalue.Bool(true),
+						"cloudsql_access": knownvalue.Null(),
+						"disk_access":     knownvalue.Null(),
+					})),
+				},
+			},
+			{
+				Config: acctest.ConfigCompose(
+					registrationConfig,
+					testAccCloudGoogleRegistrationSettingsConfig_agentlessScanning(projectID),
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(settingsResourceName, dspmSettingsPath, knownvalue.Null()),
+				},
+			},
+		},
+	})
+}
+
+func TestAccCloudGoogleRegistrationSettingsResourceAgentlessScanningDSPMSettingsWithoutDSPM(t *testing.T) {
+	rName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	projectID := generateGoogleCloudProjectID()
+	infraProjectID := generateGoogleCloudProjectID()
+	wifProjectID := generateGoogleCloudProjectID()
+	wifProjectNumber := generateGoogleCloudProjectNumber()
+
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		Steps: []resource.TestStep{
+			{
+				Config: acctest.ConfigCompose(
+					testAccCloudGoogleRegistrationConfig_vulnerabilityScanning(rName, projectID, infraProjectID, wifProjectID, wifProjectNumber, true),
+					testAccCloudGoogleRegistrationSettingsConfig_agentlessScanningWithDSPMSettings(projectID, `
+    dspm_settings = {
+      gcs_access = false
+    }
+`),
+				),
+				ExpectError: regexp.MustCompile(`dspm_settings requires DSPM to be enabled`),
 			},
 		},
 	})
@@ -470,7 +583,7 @@ resource "crowdstrike_cloud_google_registration_settings" "test" {
 `, projectID)
 }
 
-func testAccCloudGoogleRegistrationSettingsConfig_agentlessScanningWithDSPMSettings(projectID string) string {
+func testAccCloudGoogleRegistrationSettingsConfig_agentlessScanningWithDSPMSettings(projectID, dspmSettings string) string {
 	return fmt.Sprintf(`
 resource "crowdstrike_cloud_google_registration_settings" "test" {
   registration_id = crowdstrike_cloud_google_registration.test.id
@@ -493,17 +606,11 @@ resource "crowdstrike_cloud_google_registration_settings" "test" {
         }
       }
     }
-
-    dspm_settings = {
-      gcs_access      = false
-      bigquery_access = true
-      cloudsql_access = true
-    }
-  }
+%[2]s  }
 
   depends_on = [crowdstrike_cloud_google_registration.test]
 }
-`, projectID)
+`, projectID, dspmSettings)
 }
 
 func testAccCloudGoogleRegistrationSettingsConfig_agentlessScanningWithCrossProject(infraProjectID string) string {
