@@ -92,6 +92,7 @@ Required:
 Optional:
 
 - `custom_network` (Attributes) Custom (BYO) network configuration. Required when network_configuration_type is 'custom'. (see [below for nested schema](#nestedatt--agentless_scanning_settings--custom_network))
+- `dspm_settings` (Attributes) DSPM-only settings. Set only when DSPM is enabled on the registration. (see [below for nested schema](#nestedatt--agentless_scanning_settings--dspm_settings))
 - `host_project_id` (String) The GCP project hosting shared scanning infrastructure. When set, indicates cross-project mode.
 - `org_id` (String) The GCP organization ID. Required only for folder-scoped registrations.
 
@@ -121,6 +122,17 @@ Required:
 
 - `subnets` (Map of String) Map of region to subnet name within the custom VPC.
 - `vpc_name` (String) The name of the customer-provided VPC network.
+
+
+<a id="nestedatt--agentless_scanning_settings--dspm_settings"></a>
+### Nested Schema for `agentless_scanning_settings.dspm_settings`
+
+Optional:
+
+- `bigquery_access` (Boolean) Whether permissions for DSPM BigQuery dataset scanning are applied.
+- `cloudsql_access` (Boolean) Whether permissions for DSPM Cloud SQL instance scanning are applied.
+- `disk_access` (Boolean) Whether permissions for DSPM VM disk scanning are applied.
+- `gcs_access` (Boolean) Whether permissions for DSPM GCS bucket scanning are applied.
 
 ## Import
 
